@@ -22,6 +22,10 @@ export default async function LandingPage() {
       fontFamily: "'Inter', -apple-system, sans-serif",
       color: '#111827'
     }}>
+      <div className="noise-overlay" />
+      <div className="blob-3" />
+      <div className="blob-4" />
+
       {/* Nav */}
       <nav style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -62,11 +66,10 @@ export default async function LandingPage() {
         </h1>
 
         <p style={{
-          fontSize: '1.05rem', color: '#4b5563', maxWidth: '580px', margin: '0 auto 20px',
+          fontSize: '1.05rem', color: '#4b5563', maxWidth: '800px', margin: '0 auto 20px',
           lineHeight: 1.6
         }}>
-          The high-fidelity exhibition for student-led AI projects and creative tools. <br/>
-          Join the club to launch your own vision.
+          Meisha Honour Program AI Club: Student-led project incubation base and interactive forum.
         </p>
 
         <Link href="/login" style={{
