@@ -58,15 +58,14 @@ export default async function LandingPage() {
         }}>✨ AI Club Student Community</div>
 
         <h1 className="animated-gradient-text" style={{
-          fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800,
-          lineHeight: 1.05, marginBottom: '25px',
+          fontSize: 'clamp(2.5rem, 7vw, 4.8rem)', fontWeight: 900,
+          lineHeight: 1.1, marginBottom: '25px',
           background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
-          backgroundSize: '200% auto',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
-          letterSpacing: '-0.03em'
+          letterSpacing: '-0.04em'
         }}>
-          Explore, Create,<br />and Exhibit
+          Let's Create<br />Together
         </h1>
 
         <Link href="/login" style={{

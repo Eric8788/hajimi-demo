@@ -143,6 +143,13 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   100% { background-position: 0% 50%; }
 }
 
+.animated-gradient-text {
+  background-size: 200% auto !important;
+  animation: gradient-bg 12s ease infinite !important;
+}
+  100% { background-position: 0% 50%; }
+}
+
 .hub-bg {
   background-color: #ffffff;
   position: relative;

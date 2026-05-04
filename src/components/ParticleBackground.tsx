@@ -25,7 +25,7 @@ const ParticleBackground: React.FC = () => {
       color: string;
       vx: number;
       vy: number;
-      maxSpeed: number = 1.2;
+      maxSpeed: number = 0.8;
 
       constructor() {
         this.x = Math.random() * width;
@@ -35,8 +35,8 @@ const ParticleBackground: React.FC = () => {
         this.size = this.baseSize;
         this.color = colors[Math.floor(Math.random() * colors.length)];
         // Slow initial drift
-        this.vx = (Math.random() - 0.5) * 0.8;
-        this.vy = (Math.random() - 0.5) * 0.8;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.4;
       }
 
       draw() {
@@ -67,16 +67,16 @@ const ParticleBackground: React.FC = () => {
           const forceDirectionX = dx / distance;
           const forceDirectionY = dy / distance;
           const force = (mouse.radius - distance) / mouse.radius;
-          // Faster repulsion response
-          this.vx -= forceDirectionX * force * 1.2;
-          this.vy -= forceDirectionY * force * 1.2;
+          // Very subtle and slow repulsion
+          this.vx -= forceDirectionX * force * 0.3;
+          this.vy -= forceDirectionY * force * 0.3;
         }
 
         // Limit speed to return to natural drift quickly
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > this.maxSpeed) {
-          this.vx *= 0.92; // Fast deceleration after push
-          this.vy *= 0.92;
+          this.vx *= 0.95;
+          this.vy *= 0.95;
         }
 
         this.draw();
@@ -94,7 +94,7 @@ const ParticleBackground: React.FC = () => {
 
     const init = () => {
       particles = [];
-      const numParticles = Math.min((width * height) / 8000, 200);
+      const numParticles = Math.min((width * height) / 10000, 150);
       for (let i = 0; i < numParticles; i++) {
         particles.push(new Particle());
       }
@@ -139,10 +139,10 @@ const ParticleBackground: React.FC = () => {
         left: 0,
         width: '100vw',
         height: '100vh',
-        zIndex: -1, // Lower layer
+        zIndex: -1,
         pointerEvents: 'none',
-        filter: 'blur(10px)', // Stronger blur
-        opacity: 0.6,
+        filter: 'blur(10px)',
+        opacity: 0.5,
       }}
     />
   );
