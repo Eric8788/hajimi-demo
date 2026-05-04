@@ -3,6 +3,7 @@ import { getUserById } from '@/lib/db';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PROJECTS } from '@/data/projects';
+import ParticleBackground from '@/components/ParticleBackground';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +23,7 @@ export default async function LandingPage() {
       fontFamily: "'Inter', -apple-system, sans-serif",
       color: '#111827'
     }}>
-      <div className="noise-overlay" />
-      <div className="blob-3" />
-      <div className="blob-4" />
+      <ParticleBackground />
 
       {/* Nav */}
       <nav style={{
