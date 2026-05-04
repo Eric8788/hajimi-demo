@@ -149,10 +149,10 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 }
 
 .hub-bg {
-  background-color: #ffffff;
+  background-color: transparent;
   position: relative;
   overflow: hidden;
-  z-index: 0;
+  z-index: 1;
 }
 
 @keyframes marquee {

@@ -25,7 +25,7 @@ const ParticleBackground: React.FC = () => {
       color: string;
       vx: number;
       vy: number;
-      maxSpeed: number = 0.8;
+      maxSpeed: number = 2.0;
 
       constructor() {
         this.x = Math.random() * width;
@@ -34,9 +34,9 @@ const ParticleBackground: React.FC = () => {
         this.baseSize = Math.random() * 15 + 5; 
         this.size = this.baseSize;
         this.color = colors[Math.floor(Math.random() * colors.length)];
-        // Slow initial drift
-        this.vx = (Math.random() - 0.5) * 0.4;
-        this.vy = (Math.random() - 0.5) * 0.4;
+        // Faster initial drift (自动漂浮快一点)
+        this.vx = (Math.random() - 0.5) * 1.5;
+        this.vy = (Math.random() - 0.5) * 1.5;
       }
 
       draw() {
@@ -139,7 +139,7 @@ const ParticleBackground: React.FC = () => {
         left: 0,
         width: '100vw',
         height: '100vh',
-        zIndex: -1,
+        zIndex: -1, // Behind everything
         pointerEvents: 'none',
         filter: 'blur(10px)',
         opacity: 0.5,
