@@ -17,89 +17,96 @@ export default async function LandingPage() {
   const marqueeProjects = [...PROJECTS, ...PROJECTS];
 
   return (
-    <div className="dynamic-bg" style={{
+    <div className="hub-bg" style={{
       minHeight: '100vh',
       fontFamily: "'Inter', -apple-system, sans-serif",
-      color: '#2d3436'
+      color: '#111827'
     }}>
       {/* Nav */}
       <nav style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '20px 40px', position: 'sticky', top: 0, zIndex: 100,
-        backdropFilter: 'blur(20px)', background: 'rgba(255,255,255,0.4)',
-        borderBottom: '1px solid rgba(255,255,255,0.3)',
+        padding: '15px 40px', position: 'sticky', top: 0, zIndex: 100,
+        backdropFilter: 'blur(20px)', background: 'rgba(255,255,255,0.7)',
+        borderBottom: '1px solid #e5e7eb',
       }}>
-        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>Hajimi</div>
+        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#4285F4' }}>Hajimi</div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link href="/login" style={{
-            padding: '10px 20px', borderRadius: '25px',
-            background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
-            textDecoration: 'none', fontWeight: 600, fontSize: '0.9rem',
-            boxShadow: '0 4px 15px rgba(108,92,231,0.35)'
+            padding: '8px 18px', borderRadius: '25px',
+            background: 'linear-gradient(90deg, #4285F4, #34A853)', color: 'white',
+            textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem',
+            boxShadow: '0 4px 12px rgba(66,133,244,0.3)'
           }}>Sign In →</Link>
         </div>
       </nav>
 
       {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '80px 40px 40px' }}>
+      <section style={{ textAlign: 'center', padding: '30px 40px 10px', position: 'relative', zIndex: 1 }}>
         <div style={{
-          display: 'inline-block', padding: '8px 20px', borderRadius: '25px',
-          background: 'rgba(162,155,254,0.2)', color: '#6c5ce7',
-          fontSize: '0.9rem', fontWeight: 600, marginBottom: '25px',
-          border: '1px solid rgba(162,155,254,0.4)'
+          display: 'inline-block', padding: '6px 16px', borderRadius: '25px',
+          background: '#f3f4f6', color: '#4b5563',
+          fontSize: '0.8rem', fontWeight: 600, marginBottom: '15px',
+          border: '1px solid #e5e7eb'
         }}>✨ AI Club Student Community</div>
 
-        <h1 className="animated-gradient-text" style={{
-          fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 900,
-          lineHeight: 1.1, marginBottom: '20px',
-          background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
+        <h1 style={{
+          fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800,
+          lineHeight: 1.05, marginBottom: '15px',
+          background: 'linear-gradient(90deg, #4285F4, #A142F4, #EA4335, #FBBC05, #34A853)',
           backgroundSize: '200% auto',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
+          backgroundClip: 'text',
+          letterSpacing: '-0.03em'
         }}>
           Explore, Create,<br />and Exhibit
         </h1>
 
         <p style={{
-          fontSize: '1.2rem', color: '#636e72', maxWidth: '600px', margin: '0 auto 40px',
-          lineHeight: 1.7
+          fontSize: '1.05rem', color: '#4b5563', maxWidth: '580px', margin: '0 auto 20px',
+          lineHeight: 1.6
         }}>
-          The high-fidelity exhibition for student-led AI projects and creative tools. Join the club to launch your own vision.
+          The high-fidelity exhibition for student-led AI projects and creative tools. <br/>
+          Join the club to launch your own vision.
         </p>
 
         <Link href="/login" style={{
-          padding: '16px 40px', borderRadius: '30px',
-          background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
-          textDecoration: 'none', fontWeight: 700, fontSize: '1.1rem',
-          boxShadow: '0 12px 30px rgba(108,92,231,0.4)',
-          display: 'inline-flex', alignItems: 'center', gap: '10px'
+          padding: '12px 32px', borderRadius: '30px',
+          background: '#4285F4', color: 'white',
+          textDecoration: 'none', fontWeight: 700, fontSize: '1rem',
+          boxShadow: '0 8px 20px rgba(66,133,244,0.25)',
+          display: 'inline-flex', alignItems: 'center', gap: '8px'
         }}>Get Started 🚀</Link>
       </section>
 
       {/* Project Exhibition Marquee */}
-      <section style={{ padding: '60px 0', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, opacity: 0.6 }}>PROJECT SHOWCASE</h2>
+      <section style={{ padding: '30px 0', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#9ca3af', letterSpacing: '0.1em' }}>PROJECT SHOWCASE</h2>
         </div>
         
         <div className="marquee-container">
           <div className="marquee-content">
             {marqueeProjects.map((project, idx) => (
               <div key={`${project.id}-${idx}`} style={{
-                width: '320px', height: '200px', flexShrink: 0,
-                background: 'rgba(255,255,255,0.6)', borderRadius: '24px',
-                border: '1px solid rgba(255,255,255,0.8)', backdropFilter: 'blur(10px)',
-                display: 'flex', flexDirection: 'column', padding: '20px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
-                position: 'relative', overflow: 'hidden'
+                width: '320px', height: '220px', flexShrink: 0,
+                background: '#ffffff', borderRadius: '20px',
+                border: '1px solid #e5e7eb',
+                display: 'flex', flexDirection: 'column', padding: '24px',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
+                position: 'relative', overflow: 'hidden',
+                transition: 'transform 0.3s'
               }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '15px' }}>{project.emoji || '🧩'}</div>
-                <h4 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0 0 8px' }}>{project.title}</h4>
-                <p style={{ fontSize: '0.85rem', color: '#636e72', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>{project.emoji || '🧩'}</div>
+                <h4 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 10px', color: '#111827' }}>{project.title}</h4>
+                <p style={{ 
+                  fontSize: '0.85rem', color: '#4b5563', 
+                  display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', 
+                  overflow: 'hidden', lineHeight: 1.5, marginBottom: 'auto' 
+                }}>
                   {project.description}
                 </p>
-                <div style={{ position: 'absolute', bottom: '20px', left: '20px' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: '10px', background: 'rgba(108,92,231,0.1)', color: '#6c5ce7' }}>
+                <div style={{ marginTop: '12px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '4px 10px', borderRadius: '10px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb' }}>
                         {project.tags[0]}
                     </span>
                 </div>
@@ -110,14 +117,14 @@ export default async function LandingPage() {
       </section>
 
       {/* Stats / Intro */}
-      <section style={{ padding: '80px 40px', maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '40px' }}>
-        <div className="glass-card" style={{ padding: '40px' }}>
-            <h3 style={{ fontSize: '2rem', marginBottom: '15px', color: '#6c5ce7' }}>20+ Projects</h3>
-            <p style={{ opacity: 0.7, lineHeight: 1.6 }}>From 3D sailing simulators to AI-driven party games, explore a growing collection of student innovation.</p>
+      <section style={{ padding: '40px 40px 80px', maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px', position: 'relative', zIndex: 1 }}>
+        <div style={{ padding: '30px', background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
+            <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#4285F4' }}>20+ Projects</h3>
+            <p style={{ opacity: 0.7, lineHeight: 1.5, fontSize: '0.95rem' }}>From 3D sailing simulators to AI-driven party games, explore a growing collection of student innovation.</p>
         </div>
-        <div className="glass-card" style={{ padding: '40px' }}>
-            <h3 style={{ fontSize: '2rem', marginBottom: '15px', color: '#6c5ce7' }}>Live Forum</h3>
-            <p style={{ opacity: 0.7, lineHeight: 1.6 }}>Engage in deep technical discussions and creative brainstorming in our distraction-free "Hallway".</p>
+        <div style={{ padding: '30px', background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
+            <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#4285F4' }}>Live Forum</h3>
+            <p style={{ opacity: 0.7, lineHeight: 1.5, fontSize: '0.95rem' }}>Engage in deep technical discussions and creative brainstorming in our distraction-free community.</p>
         </div>
       </section>
 

@@ -141,10 +141,43 @@ body {
   100% { background-position: 0% 50%; }
 }
 
-.dynamic-bg {
-  background: linear-gradient(-45deg, #f5f0ff, #e8f4fd, #fdf0f8, #f0eaff);
-  background-size: 400% 400%;
-  animation: gradient-bg 15s ease infinite;
+.hub-bg {
+  background-color: #ffffff;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background blobs simulating the particle feel */
+.hub-bg::before,
+.hub-bg::after {
+  content: '';
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 0;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.hub-bg::before {
+  background: radial-gradient(circle, #4285F4, transparent);
+  top: -200px;
+  left: -200px;
+  animation: float 20s infinite alternate;
+}
+
+.hub-bg::after {
+  background: radial-gradient(circle, #EA4335, transparent);
+  bottom: -200px;
+  right: -200px;
+  animation: float 25s infinite alternate-reverse;
+}
+
+@keyframes float {
+  from { transform: translate(0, 0); }
+  to { transform: translate(100px, 100px); }
 }
 
 @keyframes marquee {
@@ -157,8 +190,8 @@ body {
   overflow: hidden;
   user-select: none;
   gap: 20px;
-  padding: 20px 0;
-  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  padding: 10px 0;
+  mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
 }
 
 .marquee-content {
