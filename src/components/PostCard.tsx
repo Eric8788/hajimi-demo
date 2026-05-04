@@ -1,0 +1,463 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Post, Comment } from '@/lib/db';
+import { motion, AnimatePresence } from 'framer-motion';
+
+export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: any, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
+    const isGuest = !currentUser;
+    const [likes, setLikes] = useState(post.likes);
+    const [hasLiked, setHasLiked] = useState(!!post.has_liked);
+    const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
+    const [expanded, setExpanded] = useState(false);
+
+    // Comments
+    const [showComments, setShowComments] = useState(false);
+    const [comments, setComments] = useState<Comment[]>([]);
+    const [commentsLoaded, setCommentsLoaded] = useState(false);
+
+    const [newComment, setNewComment] = useState('');
+    const [sendingComment, setSendingComment] = useState(false);
+
+    // Image Modal State
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        // Auto-load top 3 comments if they exist
+        // Using a flag to prevent double-fetching in strict mode or rapid updates
+        let isActive = true;
+
+        if (post.comment_count && post.comment_count > 0 && !commentsLoaded) {
+            fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' })
+                .then(res => res.json())
+                .then(data => {
+                    if (!isActive) return;
+                    if (Array.isArray(data)) {
+                        setComments(data);
+                        setCommentsLoaded(true);
+                    } else {
+                        console.error("Failed to load comments:", data);
+                        setComments([]);
+                        setCommentsLoaded(true);
+                    }
+                })
+                .catch(err => {
+                    if (!isActive) return;
+                    console.error("Error loading comments:", err);
+                    setComments([]);
+                    setCommentsLoaded(true);
+                });
+        }
+
+        return () => { isActive = false; };
+    }, [post.comment_count, post.id, commentsLoaded]);
+
+    // Lock Body Scroll when Modal is Open
+    useEffect(() => {
+        if (showImageModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'auto'; // Revert to default
+        }
+        return () => {
+            document.body.style.overflow = 'auto';
+        };
+    }, [showImageModal]);
+
+    const handleLike = async () => {
+        if (isGuest) { onGuestAction?.(); return; }
+        // Optimistic toggle
+        const newLikedState = !hasLiked;
+        setHasLiked(newLikedState);
+        setLikes(p => newLikedState ? p + 1 : p - 1);
+
+        await fetch('/api/posts/interact', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'like', postId: post.id })
+        });
+    };
+
+    const handleBookmark = async () => {
+        if (isGuest) { onGuestAction?.(); return; }
+        setIsBookmarked(!isBookmarked);
+        await fetch('/api/posts/interact', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'bookmark', postId: post.id })
+        });
+    };
+
+    const handleCommentLike = async (commentId: number) => {
+        if (isGuest) { onGuestAction?.(); return; }
+        // Optimistic toggle for comment likes
+        setComments(current => current.map(c => {
+            if (c.id === commentId) {
+                const newLikedState = !c.has_liked;
+                return { ...c, likes: newLikedState ? c.likes + 1 : c.likes - 1, has_liked: newLikedState };
+            }
+            return c;
+        }));
+        await fetch('/api/posts/interact', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'like_comment', commentId })
+        });
+    };
+
+    const handleDeletePost = async () => {
+        if (!confirm('Delete this post? This cannot be undone.')) return;
+        const res = await fetch('/api/posts/interact', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete_post', postId: post.id })
+        });
+        if (res.ok && onDeleted) {
+            onDeleted(post.id);
+        }
+    };
+
+    const handleDeleteComment = async (commentId: number) => {
+        if (!confirm('Delete this comment?')) return;
+        const res = await fetch('/api/posts/interact', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete_comment', commentId })
+        });
+        if (res.ok) {
+            setComments(current => current.filter(c => c.id !== commentId));
+        }
+    };
+
+    const toggleComments = async () => {
+        if (!showComments) {
+            setShowComments(true);
+            // Always fetch fresh comments when opening, or if not loaded
+            if (!commentsLoaded || true) { // Force refresh on open to be safe? Or just stick to no-store if not loaded.
+                // Actually, if we want to see new comments, we should re-fetch.
+                // For now, let's just respect commentsLoaded but ensure NO CACHE if we do fetch.
+            }
+
+            if (!commentsLoaded) {
+                const res = await fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' });
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    setComments(data);
+                    setCommentsLoaded(true);
+                }
+            }
+        } else {
+            setShowComments(false);
+        }
+    };
+
+    const submitComment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isGuest) { onGuestAction?.(); return; }
+        if (!newComment.trim()) return;
+        setSendingComment(true);
+
+        const res = await fetch('/api/posts/interact', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'comment', postId: post.id, content: newComment })
+        });
+
+        if (res.ok) {
+            setComments(current => [
+                ...current,
+                {
+                    id: Date.now(),
+                    post_id: post.id,
+                    author_id: currentUser.id,
+                    content: newComment,
+                    likes: 0,
+                    created_at: new Date(),
+                    author_name: currentUser.username,
+                    author_avatar: currentUser.avatar
+                }
+            ]);
+            setNewComment('');
+            if (!showComments) setShowComments(true); // Auto expand if adding new
+        }
+        setSendingComment(false);
+    };
+
+    const visibleComments = showComments ? comments : comments.slice(0, 2);
+
+    return (
+        <div className="glass-card" style={{ transition: 'all 0.3s' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fab1a0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', border: '2px solid white' }}>
+                    {post.author_avatar || '👤'}
+                </div>
+                <div>
+                    <div style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</div>
+                    <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>{new Date(post.created_at).toLocaleDateString()}</div>
+                </div>
+
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+                    <div style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '12px', background: 'rgba(162, 155, 254, 0.1)', color: '#6c5ce7', fontWeight: 600 }}>
+                        #{post.tag || 'general'}
+                    </div>
+                    {/* Bookmark Button */}
+                    <button
+                        onClick={handleBookmark}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem',
+                            color: isBookmarked ? '#fdcb6e' : '#b2bec3', transition: 'color 0.2s'
+                        }}
+                        title="Bookmark"
+                    >
+                        {isBookmarked ? '⭐' : '☆'}
+                    </button>
+                    {/* Delete Button (Owner Only) */}
+                    {!isGuest && post.author_id === currentUser.id && (
+                        <button
+                            onClick={handleDeletePost}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#b2bec3', transition: 'color 0.2s' }}
+                            title="Delete Post"
+                        >🗑️</button>
+                    )}
+                </div>
+            </div>
+
+            {/* Content Body */}
+            <div>
+                <h3 style={{ marginBottom: '10px', fontSize: '1.2rem' }}>{post.title}</h3>
+
+                {/* Truncated Text */}
+                <div style={{
+                    position: 'relative',
+                    maxHeight: expanded ? 'none' : '100px',
+                    overflow: 'hidden',
+                    lineHeight: '1.6',
+                    color: '#4a4a4a'
+                }}>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{post.content}</p>
+                    {/* Fade Out Overlay if truncated */}
+                    {!expanded && post.content.length > 150 && (
+                        <div style={{
+                            position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40px',
+                            background: 'linear-gradient(transparent, rgba(255,255,255,0.9))',
+                            display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+                        }} />
+                    )}
+                </div>
+
+                {/* Expand Button */}
+                {post.content.length > 150 && (
+                    <button
+                        onClick={() => setExpanded(!expanded)}
+                        style={{ background: 'none', border: 'none', color: '#6c5ce7', fontSize: '0.9rem', marginTop: '5px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                        {expanded ? 'Show Less' : 'Read More...'}
+                    </button>
+                )}
+
+                {/* Attachment / Thumbnail */}
+                {post.attachment_url && (
+                    <div style={{ marginTop: '15px' }}>
+                        {post.type === 'image' ? (
+                            <div
+                                onClick={() => setShowImageModal(true)}
+                                style={{
+                                    height: '300px', width: '100%',
+                                    backgroundImage: `url(${post.attachment_url})`,
+                                    backgroundSize: 'contain',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'center',
+                                    borderRadius: '12px', cursor: 'zoom-in',
+                                    border: '1px solid rgba(0,0,0,0.05)',
+                                    backgroundColor: 'rgba(0,0,0,0.02)'
+                                }}
+                            />
+                        ) : (
+                            <a href={post.attachment_url} target="_blank" className="btn" style={{ background: '#dfe6e9', color: '#2d3436', fontSize: '0.9rem', padding: '10px 15px' }}>
+                                📎 Download Attachment
+                            </a>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Actions Bar */}
+            <div style={{ marginTop: '20px', display: 'flex', gap: '20px', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '15px' }}>
+                <button
+                    onClick={handleLike}
+                    style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: hasLiked ? '#ff7675' : '#636e72',
+                        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600,
+                        transition: 'transform 0.1s'
+                    }}
+                    onMouseDown={e => (e.target as HTMLElement).style.transform = 'scale(0.9)'}
+                    onMouseUp={e => (e.target as HTMLElement).style.transform = 'scale(1)'}
+                >
+                    {hasLiked || likes > post.likes ? '❤️' : '🤍'} {likes}
+                </button>
+
+                <button
+                    onClick={toggleComments}
+                    style={{
+                        background: 'none', border: 'none', cursor: 'pointer', color: '#636e72',
+                        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600
+                    }}
+                >
+                    💬 Comment {commentsLoaded && comments.length > 0 ? `(${comments.length})` : ''}
+                </button>
+            </div>
+
+            {/* Comments Section (Always Rendered if Loaded) */}
+            <AnimatePresence>
+                {(commentsLoaded && comments.length > 0) && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
+                            {/* Comments List... */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: showComments ? '300px' : 'none', overflowY: showComments ? 'auto' : 'visible' }}>
+                                {visibleComments.map(c => (
+                                    <div key={c.id} style={{ display: 'flex', gap: '10px' }} title={`Commented on ${new Date(c.created_at).toLocaleString()}`}>
+                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#b2bec3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>
+                                            {c.author_avatar || '👤'}
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    {c.likes > 0 && <span>{c.likes} likes</span>}
+                                                    <button
+                                                        onClick={() => handleCommentLike(c.id)}
+                                                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: c.has_liked ? '#ff7675' : '#b2bec3' }}
+                                                    >
+                                                        {c.has_liked ? '❤️' : '🤍'}
+                                                    </button>
+                                                    {!isGuest && c.author_id === currentUser.id && (
+                                                        <button
+                                                            onClick={() => handleDeleteComment(c.id)}
+                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
+                                                            title="Delete Comment"
+                                                        >🗑️</button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: '0.9rem', color: '#444' }}>{c.content}</div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {!showComments && comments.length > 2 && (
+                                    <div
+                                        onClick={() => setShowComments(true)}
+                                        style={{ fontSize: '0.85rem', color: '#6c5ce7', cursor: 'pointer', fontWeight: 600 }}
+                                    >
+                                        View all {comments.length} comments...
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Comment Input - Only visible when fully expanded or if no comments yet */}
+                            {showComments && (
+                                <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px' }}>
+                                    <input
+                                        className="glass-input"
+                                        style={{ flex: 1, padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
+                                        placeholder="Write a comment..."
+                                        value={newComment}
+                                        onChange={e => setNewComment(e.target.value)}
+                                    />
+                                    <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }} disabled={sendingComment}>
+                                        Send
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+                {/* Always allow commenting even if no comments exist yet, if showComments is true */}
+                {showComments && comments.length === 0 && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                    >
+                        <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
+                            <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>No comments yet.</div>
+                            <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px' }}>
+                                <input
+                                    className="glass-input"
+                                    style={{ flex: 1, padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
+                                    placeholder="Be the first to comment..."
+                                    value={newComment}
+                                    onChange={e => setNewComment(e.target.value)}
+                                />
+                                <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }} disabled={sendingComment}>
+                                    Send
+                                </button>
+                            </form>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Image Modal - PORTAL to body */}
+            {mounted && createPortal(
+                <AnimatePresence>
+                    {showImageModal && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowImageModal(false)}
+                            style={{
+                                position: 'fixed', inset: 0,
+                                background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)',
+                                zIndex: 999999, /* Very high z-index */
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'default'
+                            }}
+                        >
+                            <motion.img
+                                initial={{ scale: 0.9 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0.9 }}
+                                src={post.attachment_url}
+                                alt="Full size"
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                    maxWidth: '95vw', maxHeight: '95vh',
+                                    borderRadius: '4px',
+                                    boxShadow: '0 0 50px rgba(0,0,0,0.5)',
+                                    objectFit: 'contain'
+                                }}
+                            />
+
+                            <div
+                                onClick={(e) => {
+                                    e.stopPropagation(); // Ensure button click handles logic
+                                    setShowImageModal(false);
+                                }}
+                                style={{
+                                    position: 'absolute', top: '30px', right: '30px',
+                                    color: 'white', fontSize: '2.5rem', cursor: 'pointer',
+                                    zIndex: 1000000,
+                                    width: '60px', height: '60px', textAlign: 'center',
+                                    background: 'rgba(255,255,255,0.15)', borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    lineHeight: .8, paddingBottom: '5px',
+                                    transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                            >
+                                ×
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+        </div>
+    );
+}

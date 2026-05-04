@@ -1,0 +1,8 @@
+0000000000000000000000000000000000000000 38ccbce7ece0ad3531d721ad8c108b99e61f6110 Eric <eric@EricdeMacBook-Air.local> 1770088285 +0800	commit (initial): Initial commit from Create Next App
+38ccbce7ece0ad3531d721ad8c108b99e61f6110 b095ea367ee2954421a530f346e8dc2f49e89a5f Eric <eric@example.com> 1770193847 +0800	commit: Upload project files
+b095ea367ee2954421a530f346e8dc2f49e89a5f 5b90f73c646c3c39e21e1cdc00aa64b022fd842a Eric <eric@example.com> 1770280121 +0800	commit: chore: update database write-ahead log.
+5b90f73c646c3c39e21e1cdc00aa64b022fd842a b095ea367ee2954421a530f346e8dc2f49e89a5f Eric <eric@example.com> 1770280868 +0800	reset: moving to b095ea3
+b095ea367ee2954421a530f346e8dc2f49e89a5f cf31a706b388c57bdf35c428e1fe8648dbb244f5 Eric <eric@example.com> 1770284617 +0800	commit: feat: migrate to vercel postgres
+cf31a706b388c57bdf35c428e1fe8648dbb244f5 2b56c66a862f7b7c8d787fd82ca48c33929e2d49 Eric <eric@example.com> 1770284989 +0800	commit: fix: type error in PostCard optimistic update
+2b56c66a862f7b7c8d787fd82ca48c33929e2d49 45bd3d7ae6fc8861ced5840a0cb480c5fa25f8c4 Eric <eric@example.com> 1770285248 +0800	commit: feat: add db setup route
+45bd3d7ae6fc8861ced5840a0cb480c5fa25f8c4 48499709d545b5b3fae2c478ca53a084b1498c16 Eric <eric@example.com> 1770343168 +0800	commit: chore: trigger deployment and add debug log
