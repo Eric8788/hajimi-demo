@@ -20,27 +20,23 @@ const ParticleBackground: React.FC = () => {
     class Particle {
       x: number;
       y: number;
-      baseX: number; // Original position
-      baseY: number; // Original position
       baseSize: number;
       size: number;
       color: string;
       vx: number;
       vy: number;
-      friction: number = 0.8; // Faster friction
-      ease: number = 0.15; // Faster spring-back
+      maxSpeed: number = 1.2;
 
       constructor() {
         this.x = Math.random() * width;
         this.y = Math.random() * height;
-        this.baseX = this.x;
-        this.baseY = this.y;
-        // Even bigger particles
+        // Large particles with variance
         this.baseSize = Math.random() * 15 + 5; 
         this.size = this.baseSize;
         this.color = colors[Math.floor(Math.random() * colors.length)];
-        this.vx = (Math.random() - 0.5) * 0.5;
-        this.vy = (Math.random() - 0.5) * 0.5;
+        // Slow initial drift
+        this.vx = (Math.random() - 0.5) * 0.8;
+        this.vy = (Math.random() - 0.5) * 0.8;
       }
 
       draw() {
@@ -52,28 +48,36 @@ const ParticleBackground: React.FC = () => {
       }
 
       update() {
-        // Return to base position (归位)
-        const dxBase = this.baseX - this.x;
-        const dyBase = this.baseY - this.y;
-        this.vx += dxBase * this.ease;
-        this.vy += dyBase * this.ease;
-
-        const dxMouse = mouse.x - this.x;
-        const dyMouse = mouse.y - this.y;
-        const distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-
-        if (distanceMouse < mouse.radius) {
-          const forceDirectionX = dxMouse / distanceMouse;
-          const forceDirectionY = dyMouse / distanceMouse;
-          const force = (mouse.radius - distanceMouse) / mouse.radius;
-          this.vx -= forceDirectionX * force * 1.5; // Stronger push
-          this.vy -= forceDirectionY * force * 1.5;
-        }
-
-        this.vx *= this.friction;
-        this.vy *= this.friction;
+        // Free float movement
         this.x += this.vx;
         this.y += this.vy;
+
+        // Wrapping behavior
+        if (this.x > width + 50) this.x = -50;
+        else if (this.x < -50) this.x = width + 50;
+        if (this.y > height + 50) this.y = -50;
+        else if (this.y < -50) this.y = height + 50;
+
+        // Mouse interaction
+        const dx = mouse.x - this.x;
+        const dy = mouse.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < mouse.radius) {
+          const forceDirectionX = dx / distance;
+          const forceDirectionY = dy / distance;
+          const force = (mouse.radius - distance) / mouse.radius;
+          // Faster repulsion response
+          this.vx -= forceDirectionX * force * 1.2;
+          this.vy -= forceDirectionY * force * 1.2;
+        }
+
+        // Limit speed to return to natural drift quickly
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (currentSpeed > this.maxSpeed) {
+          this.vx *= 0.92; // Fast deceleration after push
+          this.vy *= 0.92;
+        }
 
         this.draw();
       }
