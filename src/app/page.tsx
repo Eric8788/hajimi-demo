@@ -29,13 +29,13 @@ export default async function LandingPage() {
         backdropFilter: 'blur(20px)', background: 'rgba(255,255,255,0.7)',
         borderBottom: '1px solid #e5e7eb',
       }}>
-        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#4285F4' }}>Hajimi</div>
+        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>Hajimi</div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link href="/login" style={{
             padding: '8px 18px', borderRadius: '25px',
-            background: 'linear-gradient(90deg, #4285F4, #34A853)', color: 'white',
+            background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
             textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem',
-            boxShadow: '0 4px 12px rgba(66,133,244,0.3)'
+            boxShadow: '0 4px 12px rgba(108,92,231,0.3)'
           }}>Sign In →</Link>
         </div>
       </nav>
@@ -44,15 +44,15 @@ export default async function LandingPage() {
       <section style={{ textAlign: 'center', padding: '30px 40px 10px', position: 'relative', zIndex: 1 }}>
         <div style={{
           display: 'inline-block', padding: '6px 16px', borderRadius: '25px',
-          background: '#f3f4f6', color: '#4b5563',
+          background: 'rgba(162,155,254,0.15)', color: '#6c5ce7',
           fontSize: '0.8rem', fontWeight: 600, marginBottom: '15px',
-          border: '1px solid #e5e7eb'
+          border: '1px solid rgba(162,155,254,0.3)'
         }}>✨ AI Club Student Community</div>
 
-        <h1 style={{
+        <h1 className="animated-gradient-text" style={{
           fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800,
           lineHeight: 1.05, marginBottom: '15px',
-          background: 'linear-gradient(90deg, #4285F4, #A142F4, #EA4335, #FBBC05, #34A853)',
+          background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
           backgroundSize: '200% auto',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
@@ -71,9 +71,9 @@ export default async function LandingPage() {
 
         <Link href="/login" style={{
           padding: '12px 32px', borderRadius: '30px',
-          background: '#4285F4', color: 'white',
+          background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
           textDecoration: 'none', fontWeight: 700, fontSize: '1rem',
-          boxShadow: '0 8px 20px rgba(66,133,244,0.25)',
+          boxShadow: '0 8px 20px rgba(108,92,231,0.25)',
           display: 'inline-flex', alignItems: 'center', gap: '8px'
         }}>Get Started 🚀</Link>
       </section>

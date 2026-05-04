@@ -157,19 +157,19 @@ body {
   border-radius: 50%;
   filter: blur(80px);
   z-index: 0;
-  opacity: 0.15;
+  opacity: 0.35;
   pointer-events: none;
 }
 
 .hub-bg::before {
-  background: radial-gradient(circle, #4285F4, transparent);
+  background: radial-gradient(circle, #a29bfe, transparent);
   top: -200px;
   left: -200px;
   animation: float 20s infinite alternate;
 }
 
 .hub-bg::after {
-  background: radial-gradient(circle, #EA4335, transparent);
+  background: radial-gradient(circle, #fd79a8, transparent);
   bottom: -200px;
   right: -200px;
   animation: float 25s infinite alternate-reverse;
@@ -198,7 +198,7 @@ body {
   display: flex;
   flex-shrink: 0;
   gap: 20px;
-  animation: marquee 30s linear infinite;
+  animation: marquee 60s linear infinite;
 }
 
 .marquee-content:hover {
