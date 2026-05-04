@@ -61,22 +61,37 @@ export default async function LandingPage() {
           border: '1px solid rgba(162,155,254,0.4)'
         }}>✨ The AI Club Student Community</div>
 
-        <h1 style={{
-          fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: 900,
-          lineHeight: 1.1, marginBottom: '25px',
-          background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 40%, #fd79a8 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
-        }}>
+        <h1 
+          className="animated-gradient-text"
+          style={{
+            fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: 900,
+            lineHeight: 1.1, marginBottom: '25px',
+            background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
+            backgroundSize: '200% auto',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}
+        >
           Where Students<br />Connect & Create
         </h1>
 
         <p style={{
-          fontSize: '1.2rem', color: '#636e72', maxWidth: '540px', margin: '0 auto 45px',
+          fontSize: '1.2rem', color: '#636e72', maxWidth: '600px', margin: '0 auto 45px',
           lineHeight: 1.7
         }}>
-          Share ideas, ask questions, explore resources, and earn XP with your classmates in a beautiful, distraction-free space.
+          The ultimate student community forum and digital project exhibition. <br/>
+          Share insights, launch your ideas, and explore the future of AI with your peers.
         </p>
+
+        <style jsx>{`
+          @keyframes gradient-animation {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+          }
+          .animated-gradient-text {
+            animation: gradient-animation 8s linear infinite;
+          }
+        `}</style>
 
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link href="/login" style={{
@@ -100,10 +115,10 @@ export default async function LandingPage() {
       <section style={{ padding: '0 40px 80px', maxWidth: '1000px', margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
           {[
-            { icon: '💬', title: 'The Hallway', desc: 'Post discussions, share resources, and ask questions anonymously or openly.' },
+            { icon: '💬', title: 'Community Forum', desc: 'Post discussions, share resources, and interact with the student community.' },
             { icon: '⭐', title: 'XP System', desc: 'Earn experience points for posting, commenting, and daily check-ins.' },
             { icon: '🎴', title: 'Cyber Oracle', desc: 'Get daily insights from the Tarot Trinity — past, present, and future.' },
-            { icon: '🧩', title: 'Mini Tools', desc: 'Explore utilities, games, and digital tools built by club members.' },
+            { icon: '🧩', title: 'Project Exhibition', desc: 'Explore utilities, games, and digital tools built by club members.' },
           ].map((f) => (
             <div key={f.title} style={{
               background: 'rgba(255,255,255,0.7)', borderRadius: '24px', padding: '28px',
