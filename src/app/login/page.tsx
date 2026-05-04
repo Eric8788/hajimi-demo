@@ -33,7 +33,7 @@ export default function LoginPage() {
         <div className="auth-container">
             <div className="glass-panel auth-card">
                 <h1 style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    {isRegister ? 'Join Hajimi-Dan' : 'Welcome Back'}
+                    {isRegister ? 'Join Hajimi' : 'Welcome Back'}
                 </h1>
                 <p style={{ textAlign: 'center', marginBottom: '30px', color: '#888' }}>
                     {isRegister ? 'Start your high school adventure' : 'Login to your student account'}

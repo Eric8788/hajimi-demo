@@ -35,7 +35,7 @@ export default async function LandingPage() {
         backdropFilter: 'blur(20px)', background: 'rgba(255,255,255,0.6)',
         borderBottom: '1px solid rgba(255,255,255,0.8)',
       }}>
-        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>🎌 Hajimi-Dan</div>
+        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>Hajimi</div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link href="/resources" style={{
             padding: '10px 20px', borderRadius: '25px',
@@ -176,7 +176,7 @@ export default async function LandingPage() {
           background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
           textDecoration: 'none', fontWeight: 700, fontSize: '1.05rem',
           boxShadow: '0 8px 25px rgba(108,92,231,0.4)'
-        }}>Create Account 🎌</Link>
+        }}>Create Account</Link>
       </section>
     </div>
   );

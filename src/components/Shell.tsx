@@ -43,6 +43,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                             <span style={{ position: 'relative', zIndex: 1, color: isActive ? 'white' : 'inherit' }}>
                                 {item.icon}
                             </span>
+                            <span className="nav-label">{item.label}</span>
                         </div>
                     );
                 })}

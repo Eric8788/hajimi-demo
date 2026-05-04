@@ -110,6 +110,31 @@ body {
   transform: scale(1.1);
 }
 
+.nav-label {
+  position: absolute;
+  left: 100%;
+  margin-left: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6c5ce7;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-10px);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15);
+  white-space: nowrap;
+  z-index: 10;
+  border: 1px solid rgba(162, 155, 254, 0.2);
+}
+
+.nav-icon:hover .nav-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 /* .nav-icon.active handled by Framer Motion */
 
 /* Main Content Area */

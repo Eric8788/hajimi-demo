@@ -1,7 +1,6 @@
 import { getSession } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
 import Shell from '@/components/Shell';
-import TarotGame from '@/components/TarotGame';
 import ProjectGrid from '@/components/ProjectGrid';
 
 export const dynamic = 'force-dynamic';
@@ -20,10 +19,6 @@ export default async function Page() {
                     <p style={{ opacity: 0.7 }}>Games, tools, and digital experiments from the AI Club.</p>
                 </div>
 
-                {/* Tarot Game — full width feature */}
-                <div className="glass-panel" style={{ padding: '30px', marginBottom: '50px' }}>
-                    <TarotGame />
-                </div>
 
                 {/* Divider */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>

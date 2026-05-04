@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Hajimi-Dan | Student Community',
+  title: 'Hajimi | Student Community',
   description: 'Your high school life, gamified.',
 };
 
