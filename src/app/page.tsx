@@ -49,7 +49,7 @@ export default async function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '30px 40px 10px', position: 'relative', zIndex: 1 }}>
+      <section style={{ textAlign: 'center', padding: '30px 40px 10px', position: 'relative', zIndex: 10 }}>
         <div style={{
           display: 'inline-block', padding: '6px 16px', borderRadius: '25px',
           background: 'rgba(162,155,254,0.15)', color: '#6c5ce7',
@@ -58,12 +58,12 @@ export default async function LandingPage() {
         }}>✨ AI Club Student Community</div>
 
         <h1 className="animated-gradient-text" style={{
-          fontSize: 'clamp(2.5rem, 7vw, 4.8rem)', fontWeight: 900,
-          lineHeight: 1.1, marginBottom: '25px',
+          fontSize: 'clamp(2.5rem, 8vw, 5rem)', fontWeight: 950,
+          lineHeight: 1.0, marginBottom: '25px',
           background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
-          letterSpacing: '-0.04em'
+          letterSpacing: '-0.05em'
         }}>
           Let's Create<br />Together
         </h1>

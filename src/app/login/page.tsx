@@ -119,6 +119,20 @@ export default function LoginPage() {
           box-shadow: 0 4px 12px rgba(0,0,0,0.05);
           border-color: var(--primary);
         }
+        @media (max-width: 640px) {
+          .auth-card {
+            padding: 30px 20px;
+            margin: 20px;
+            border-radius: 20px;
+          }
+          h1 {
+            font-size: 1.8rem;
+          }
+          .glass-input {
+            padding: 14px;
+            font-size: 0.95rem;
+          }
+        }
       `}</style>
         </div>
     );
