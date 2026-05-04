@@ -54,7 +54,7 @@ export default async function LandingPage() {
 
         <h1 className="animated-gradient-text" style={{
           fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800,
-          lineHeight: 1.05, marginBottom: '15px',
+          lineHeight: 1.05, marginBottom: '25px',
           background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
           backgroundSize: '200% auto',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
@@ -63,13 +63,6 @@ export default async function LandingPage() {
         }}>
           Explore, Create,<br />and Exhibit
         </h1>
-
-        <p style={{
-          fontSize: '1.05rem', color: '#4b5563', maxWidth: '800px', margin: '0 auto 20px',
-          lineHeight: 1.6
-        }}>
-          Meisha Honour Program AI Club: Student-led project incubation base and interactive forum.
-        </p>
 
         <Link href="/login" style={{
           padding: '12px 32px', borderRadius: '30px',
@@ -89,14 +82,14 @@ export default async function LandingPage() {
         <div className="marquee-container">
           <div className="marquee-content">
             {marqueeProjects.map((project, idx) => (
-              <div key={`${project.id}-${idx}`} style={{
+              <div key={`${project.id}-${idx}`} className="project-card" style={{
                 width: '320px', height: '220px', flexShrink: 0,
-                background: '#ffffff', borderRadius: '20px',
+                background: 'rgba(255,255,255,0.85)', borderRadius: '20px',
                 border: '1px solid #e5e7eb',
                 display: 'flex', flexDirection: 'column', padding: '24px',
                 boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
                 position: 'relative', overflow: 'hidden',
-                transition: 'transform 0.3s'
+                backdropFilter: 'blur(5px)'
               }}>
                 <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>{project.emoji || '🧩'}</div>
                 <h4 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 10px', color: '#111827' }}>{project.title}</h4>
@@ -120,18 +113,19 @@ export default async function LandingPage() {
 
       {/* Stats / Intro */}
       <section style={{ padding: '40px 40px 80px', maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px', position: 'relative', zIndex: 1 }}>
-        <div style={{ padding: '30px', background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
-            <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#4285F4' }}>20+ Projects</h3>
+        <div style={{ padding: '30px', background: 'rgba(255,255,255,0.7)', borderRadius: '20px', border: '1px solid #e5e7eb', backdropFilter: 'blur(10px)' }}>
+            <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#6c5ce7' }}>20+ Projects</h3>
             <p style={{ opacity: 0.7, lineHeight: 1.5, fontSize: '0.95rem' }}>From 3D sailing simulators to AI-driven party games, explore a growing collection of student innovation.</p>
         </div>
-        <div style={{ padding: '30px', background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
-            <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#4285F4' }}>Live Forum</h3>
+        <div style={{ padding: '30px', background: 'rgba(255,255,255,0.7)', borderRadius: '20px', border: '1px solid #e5e7eb', backdropFilter: 'blur(10px)' }}>
+            <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#6c5ce7' }}>Live Forum</h3>
             <p style={{ opacity: 0.7, lineHeight: 1.5, fontSize: '0.95rem' }}>Engage in deep technical discussions and creative brainstorming in our distraction-free community.</p>
         </div>
       </section>
 
       {/* Simple Footer */}
-      <footer style={{ textAlign: 'center', padding: '40px', opacity: 0.5, fontSize: '0.9rem' }}>
+      <footer style={{ textAlign: 'center', padding: '40px', opacity: 0.5, fontSize: '0.85rem', position: 'relative', zIndex: 1 }}>
+        <p style={{ marginBottom: '10px' }}>Meisha Honour Program AI Club: Student-led project incubation base and interactive forum.</p>
         © 2026 AI Club Student Community. Built with 💜 by Eric.
       </footer>
     </div>

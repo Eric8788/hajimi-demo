@@ -173,6 +173,17 @@ body {
   animation-play-state: paused;
 }
 
+.project-card {
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.project-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  border-color: rgba(108, 92, 231, 0.2);
+  background: #ffffff !important;
+}
+
 /* .nav-icon.active handled by Framer Motion */
 
 /* Main Content Area */

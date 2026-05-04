@@ -29,11 +29,13 @@ const ParticleBackground: React.FC = () => {
       constructor() {
         this.x = Math.random() * width;
         this.y = Math.random() * height;
-        this.baseSize = Math.random() * 3.5 + 2;
+        // Bigger particles with larger size variance
+        this.baseSize = Math.random() * 8 + 3; 
         this.size = this.baseSize;
         this.color = colors[Math.floor(Math.random() * colors.length)];
-        this.vx = (Math.random() - 0.5) * 1.5;
-        this.vy = (Math.random() - 0.5) * 1.5;
+        // Slower movement
+        this.vx = (Math.random() - 0.5) * 0.6;
+        this.vy = (Math.random() - 0.5) * 0.6;
       }
 
       draw() {
@@ -135,9 +137,10 @@ const ParticleBackground: React.FC = () => {
         left: 0,
         width: '100vw',
         height: '100vh',
-        zIndex: 0,
+        zIndex: -1, // Lower layer
         pointerEvents: 'none',
-        filter: 'blur(3px)',
+        filter: 'blur(10px)', // Stronger blur
+        opacity: 0.6,
       }}
     />
   );
