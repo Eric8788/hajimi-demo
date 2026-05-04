@@ -83,16 +83,6 @@ export default async function LandingPage() {
           Share insights, launch your ideas, and explore the future of AI with your peers.
         </p>
 
-        <style jsx>{`
-          @keyframes gradient-animation {
-            0% { background-position: 0% center; }
-            100% { background-position: 200% center; }
-          }
-          .animated-gradient-text {
-            animation: gradient-animation 8s linear infinite;
-          }
-        `}</style>
-
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link href="/login" style={{
             padding: '16px 36px', borderRadius: '30px',
