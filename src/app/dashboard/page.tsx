@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   const user = await getUserById(Number(session.userId));
   if (!user) redirect('/login');
 
-  const latestPosts = await getPosts('latest');
+  const latestPosts = await getPosts('time');
   const recentTwo = latestPosts.slice(0, 2);
 
   return (
