@@ -1,4 +1,4 @@
-export type ProjectTag = 'Game' | 'Tool' | 'AI' | 'Multiplayer' | 'Simulation' | 'Visual' | 'Finance' | 'Narrative';
+export type ProjectTag = 'Game' | 'Tool' | 'AI' | 'Multiplayer' | 'Simulation' | 'Visual' | 'Finance' | 'Narrative' | 'Sailing' | 'Classroom';
 
 export interface Project {
     id: string;
@@ -180,4 +180,4 @@ export const PROJECTS: Project[] = [
     }
 ];
 
-export const ALL_TAGS: ProjectTag[] = ['Game', 'Tool', 'AI', 'Multiplayer', 'Simulation', 'Visual', 'Finance', 'Narrative'];
+export const ALL_TAGS: ProjectTag[] = ['Game', 'Tool', 'AI', 'Multiplayer', 'Simulation', 'Visual', 'Finance', 'Narrative', 'Sailing', 'Classroom'];

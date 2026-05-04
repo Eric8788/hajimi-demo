@@ -13,6 +13,8 @@ const TAG_COLORS: Record<string, string> = {
     Visual: '#a29bfe',
     Finance: '#00cec9',
     Narrative: '#fdcb6e',
+    Sailing: '#0984e3',
+    Classroom: '#b2bec3',
 };
 
 export default function ProjectGrid() {
