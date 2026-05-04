@@ -32,7 +32,12 @@ export default async function LandingPage() {
         backdropFilter: 'blur(20px)', background: 'rgba(255,255,255,0.7)',
         borderBottom: '1px solid #e5e7eb',
       }}>
-        <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>Hajimi</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>Hajimi</div>
+            <div style={{ fontSize: '0.75rem', color: '#9ca3af', borderLeft: '1px solid #e5e7eb', paddingLeft: '15px', fontWeight: 500 }}>
+                Meisha Honour Program AI Club | Project Hub & Community Forum
+            </div>
+        </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link href="/login" style={{
             padding: '8px 18px', borderRadius: '25px',

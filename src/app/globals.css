@@ -27,15 +27,17 @@
 }
 
 body {
-  font-family: 'Outfit', sans-serif;
-  background: #f0f2f5;
-  background-image:
-    radial-gradient(at 0% 0%, hsla(253, 16%, 70%, 0.2) 0, transparent 50%),
-    radial-gradient(at 50% 100%, hsla(225, 39%, 60%, 0.2) 0, transparent 50%),
-    radial-gradient(at 100% 0%, hsla(339, 49%, 70%, 0.2) 0, transparent 50%);
-  min-height: 100vh;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #ffffff;
   color: var(--text-main);
-  background-attachment: fixed;
+  overflow-x: hidden;
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' style='font-size:32px'><text y='32'>👾</text></svg>") 16 16, auto;
+}
+
+a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' style='font-size:32px'><text y='32'>👾</text></svg>") 16 16, pointer !important;
 }
 
 /* Glassmorphism Utilities */
@@ -212,6 +214,12 @@ body {
   box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
 }
 
+.btn:hover, .btn-primary:hover {
+  transform: translateY(-2px) scale(1.03);
+  filter: brightness(1.1);
+  box-shadow: 0 8px 25px rgba(108, 92, 231, 0.4);
+}
+
 .btn-primary:active {
   transform: scale(0.96);
 }
@@ -248,8 +256,20 @@ p {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  color: var(--text-main);body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-main);
   color: var(--text-main);
-  font-family: 'Outfit', sans-serif;
+  overflow-x: hidden;
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' style='font-size:32px'><text y='32'>👾</text></svg>") 16 16, auto;
+}
+
+a, button, [role="button"], input, select, textarea, .project-card, .btn {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' style='font-size:32px'><text y='32'>👾</text></svg>") 16 16, pointer !important;
+}
+font-family: 'Outfit', sans-serif;
   font-size: 0.95rem;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;

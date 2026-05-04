@@ -20,22 +20,27 @@ const ParticleBackground: React.FC = () => {
     class Particle {
       x: number;
       y: number;
+      baseX: number; // Original position
+      baseY: number; // Original position
       baseSize: number;
       size: number;
       color: string;
       vx: number;
       vy: number;
+      friction: number = 0.8; // Faster friction
+      ease: number = 0.15; // Faster spring-back
 
       constructor() {
         this.x = Math.random() * width;
         this.y = Math.random() * height;
-        // Bigger particles with larger size variance
-        this.baseSize = Math.random() * 8 + 3; 
+        this.baseX = this.x;
+        this.baseY = this.y;
+        // Even bigger particles
+        this.baseSize = Math.random() * 15 + 5; 
         this.size = this.baseSize;
         this.color = colors[Math.floor(Math.random() * colors.length)];
-        // Slower movement
-        this.vx = (Math.random() - 0.5) * 0.6;
-        this.vy = (Math.random() - 0.5) * 0.6;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
       }
 
       draw() {
@@ -47,35 +52,28 @@ const ParticleBackground: React.FC = () => {
       }
 
       update() {
+        // Return to base position (归位)
+        const dxBase = this.baseX - this.x;
+        const dyBase = this.baseY - this.y;
+        this.vx += dxBase * this.ease;
+        this.vy += dyBase * this.ease;
+
+        const dxMouse = mouse.x - this.x;
+        const dyMouse = mouse.y - this.y;
+        const distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+
+        if (distanceMouse < mouse.radius) {
+          const forceDirectionX = dxMouse / distanceMouse;
+          const forceDirectionY = dyMouse / distanceMouse;
+          const force = (mouse.radius - distanceMouse) / mouse.radius;
+          this.vx -= forceDirectionX * force * 1.5; // Stronger push
+          this.vy -= forceDirectionY * force * 1.5;
+        }
+
+        this.vx *= this.friction;
+        this.vy *= this.friction;
         this.x += this.vx;
         this.y += this.vy;
-
-        if (this.x > width + 20) this.x = -20;
-        else if (this.x < -20) this.x = width + 20;
-
-        if (this.y > height + 20) this.y = -20;
-        else if (this.y < -20) this.y = height + 20;
-
-        const dx = mouse.x - this.x;
-        const dy = mouse.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < mouse.radius) {
-          const forceDirectionX = dx / distance;
-          const forceDirectionY = dy / distance;
-          const force = (mouse.radius - distance) / mouse.radius;
-          this.vx -= forceDirectionX * force * 0.4;
-          this.vy -= forceDirectionY * force * 0.4;
-        }
-
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (speed > 1.5) {
-          this.vx *= 0.95;
-          this.vy *= 0.95;
-        } else if (speed < 0.2) {
-          this.vx += (Math.random() - 0.5) * 0.1;
-          this.vy += (Math.random() - 0.5) * 0.1;
-        }
 
         this.draw();
       }
