@@ -128,6 +128,11 @@ git pull --ff-only
 # - /Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md  (discussion board)
 ```
 
+### Agent Availability Model
+- Codex is Eric's primary ongoing executor and may continue work across many updates.
+- Antigravity/Gemini is a fallback or explicit handoff agent, usually used only when Codex context/tokens run out or Eric asks to switch.
+- Do not assume every Codex update means Antigravity/Gemini should execute the next step.
+
 ### Branch Strategy
 | Change size | Rule |
 |---|---|
