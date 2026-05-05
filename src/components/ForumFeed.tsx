@@ -15,6 +15,9 @@ const TAG_OPTIONS = [
     { id: 'meme', label: '😂 Meme' },
 ];
 
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
 export default function ForumFeed({ user, initialPosts }: { user: User | null, initialPosts: Post[] }) {
     const router = useRouter();
     const [posts, setPosts] = useState<Post[]>(initialPosts);
@@ -85,8 +88,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         formData.append('tag', newTag);
         if (file) {
             formData.append('file', file);
-            if (file.type.startsWith('image/')) formData.append('type', 'image');
-            else formData.append('type', 'file');
+            formData.append('type', 'image');
         } else {
             formData.append('type', 'text');
         }
@@ -109,6 +111,29 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleFileChange = (selectedFile: File | null) => {
+        setCreateError('');
+
+        if (!selectedFile) {
+            setFile(null);
+            return;
+        }
+
+        if (!ALLOWED_IMAGE_TYPES.includes(selectedFile.type)) {
+            setFile(null);
+            setCreateError('Only JPEG, PNG, WebP, or GIF images can be uploaded.');
+            return;
+        }
+
+        if (selectedFile.size > MAX_IMAGE_SIZE) {
+            setFile(null);
+            setCreateError('Image must be 2 MB or smaller.');
+            return;
+        }
+
+        setFile(selectedFile);
     };
 
     const handlePostDeleted = (postId: number) => {
@@ -257,7 +282,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             </div>
                             <textarea placeholder="What's on your mind?" value={newContent} onChange={e => setNewContent(e.target.value)} required rows={5} className="glass-input" style={{ resize: 'vertical' }} />
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading ? 'default' : 'pointer', color: '#636e72' }}>📎 {file ? file.name : 'Attach Image/File'}<input type="file" onChange={e => setFile(e.target.files?.[0] || null)} disabled={loading} style={{ display: 'none' }} /></label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading ? 'default' : 'pointer', color: '#636e72' }}>🖼️ {file ? file.name : 'Attach image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => handleFileChange(e.target.files?.[0] || null)} disabled={loading} style={{ display: 'none' }} /></label>
+                                <div style={{ color: '#636e72', fontSize: '0.8rem', marginTop: '8px' }}>JPEG, PNG, WebP, or GIF · max 2 MB · 10/day · 100 total</div>
                             </div>
                             {createError && (
                                 <div style={{ color: '#d63031', background: 'rgba(255, 118, 117, 0.15)', borderRadius: '12px', padding: '10px 12px', fontSize: '0.9rem', fontWeight: 600 }}>

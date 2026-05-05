@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getPosts, createPost } from '@/lib/db';
+import { getPosts, createPost, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
 import { put } from '@vercel/blob';
 
-const MAX_ATTACHMENT_SIZE = 4 * 1024 * 1024;
+const MAX_ATTACHMENT_SIZE = 2 * 1024 * 1024;
+const DAILY_ATTACHMENT_LIMIT = 10;
+const TOTAL_ATTACHMENT_LIMIT = 100;
+const ALLOWED_IMAGE_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+]);
 
 function safeFilename(name: string) {
     const extension = name.includes('.') ? name.split('.').pop() : 'file';
@@ -55,12 +63,27 @@ export async function POST(request: Request) {
         let attachmentUrl = '';
 
         if (file && file.size > 0) {
+            if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+                return NextResponse.json({ error: 'Only JPEG, PNG, WebP, or GIF images can be uploaded' }, { status: 415 });
+            }
+
             if (file.size > MAX_ATTACHMENT_SIZE) {
-                return NextResponse.json({ error: 'Attachment must be 4 MB or smaller' }, { status: 413 });
+                return NextResponse.json({ error: 'Image must be 2 MB or smaller' }, { status: 413 });
             }
 
             if (!process.env.BLOB_READ_WRITE_TOKEN) {
                 return NextResponse.json({ error: 'File uploads are not configured yet' }, { status: 503 });
+            }
+
+            const userId = Number(session.userId);
+            const totalUploads = await countAttachmentsByUser(userId);
+            if (totalUploads >= TOTAL_ATTACHMENT_LIMIT) {
+                return NextResponse.json({ error: 'Image storage limit reached. Delete old image posts before uploading more.' }, { status: 429 });
+            }
+
+            const recentUploads = await countRecentAttachmentsByUser(userId);
+            if (recentUploads >= DAILY_ATTACHMENT_LIMIT) {
+                return NextResponse.json({ error: 'Daily image upload limit reached. Try again tomorrow.' }, { status: 429 });
             }
 
             const blobName = `forum/${Date.now()}-${crypto.randomUUID()}-${safeFilename(file.name)}`;
@@ -70,7 +93,7 @@ export async function POST(request: Request) {
             });
 
             attachmentUrl = blob.url;
-            type = file.type.startsWith('image/') ? 'image' : 'file';
+            type = 'image';
         }
 
         await createPost(Number(session.userId), title, content, type, attachmentUrl, tag);

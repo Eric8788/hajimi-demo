@@ -90,7 +90,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.
-- **Image Uploads:** `POST /api/posts` stores attachments in Vercel Blob and saves the public Blob URL in `posts.attachment_url`. Production requires `BLOB_READ_WRITE_TOKEN`.
+- **Image Uploads:** `POST /api/posts` stores public images in Vercel Blob and saves the Blob URL in `posts.attachment_url`. Production requires `BLOB_READ_WRITE_TOKEN`. Guardrails: JPEG/PNG/WebP/GIF only, 2 MB max per image, 10 image uploads per user per rolling 24 hours, 100 total image uploads per user, and post deletion attempts to delete the associated Blob.
 - **Landing Page particles:** `src/components/ParticleBackground.tsx` — Canvas-based, `zIndex: -1`, free-floating with mouse repulsion.
 
 ### DB Schema
@@ -185,7 +185,7 @@ Next risk: <what the next agent should watch out for>
 
 ### Phase Discipline
 - **Phase 2:** Domain cleanup + identity consolidation + docs
-- **Phase 3 (current):** Image upload → Vercel Blob migration
+- **Phase 3 (current):** Image upload → Vercel Blob migration + storage guardrails
 - Do NOT mix phases in a single PR/commit
 
 ---
@@ -195,4 +195,5 @@ Next risk: <what the next agent should watch out for>
 - **Turbopack Chinese Path Bug:** Local `npm run dev` may panic if the absolute path contains Chinese characters. Vercel cloud builds are unaffected. Workaround: run dev from a path without Chinese characters.
 - **Vercel Auth Interception:** On Preview URLs with Vercel Protection enabled, `/api/auth` may return 500/HTML. Always test auth on the Production Domain.
 - **Vercel Blob token required:** File uploads return 503 if `BLOB_READ_WRITE_TOKEN` is missing. Text-only posts still work without Blob.
+- **Blob cleanup:** Run `npm run blob:cleanup` for a dry run and `npm run blob:cleanup -- --delete` to remove forum blobs that are no longer referenced by `posts.attachment_url`.
 - **globals.css corruption (resolved):** A previous edit accidentally injected raw CSS inside a `.glass-input` rule block. Fixed in commit `1caab3a`.

@@ -7,7 +7,8 @@
     "dev:default": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "blob:cleanup": "node scripts/cleanup-orphan-blobs.mjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

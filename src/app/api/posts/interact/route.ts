@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment } from '@/lib/db';
+import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForOwner } from '@/lib/db';
+import { del } from '@vercel/blob';
 
 // POST: Handle actions (like, comment, bookmark, like_comment)
 export async function POST(request: Request) {
@@ -38,8 +39,16 @@ export async function POST(request: Request) {
 
         else if (action === 'delete_post') {
             if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
+            const attachmentUrl = await getPostAttachmentForOwner(userId, postId);
             const deleted = await deletePost(userId, postId);
             if (!deleted) return NextResponse.json({ error: 'Cannot delete post' }, { status: 403 });
+            if (attachmentUrl) {
+                try {
+                    await del(attachmentUrl);
+                } catch (error) {
+                    console.warn('Failed to delete post blob:', error);
+                }
+            }
             return NextResponse.json({ success: true });
         }
 

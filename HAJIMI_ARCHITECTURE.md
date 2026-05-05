@@ -10,7 +10,7 @@ Hajimi is a comprehensive, gamified student community and project hub built for 
 - **Framework:** Next.js (App Router, Server & Client Components)
 - **Language:** TypeScript
 - **Database:** Vercel Postgres (Neon) using raw SQL queries (`@vercel/postgres`). *No Prisma/ORM is used.*
-- **File Storage:** Vercel Blob (`@vercel/blob`) for forum attachments. Requires `BLOB_READ_WRITE_TOKEN` in production.
+- **File Storage:** Vercel Blob (`@vercel/blob`) for public forum images. Requires `BLOB_READ_WRITE_TOKEN` in production.
 - **Authentication:** Custom JWT-based session auth using `jose` and `bcryptjs`. *NextAuth/Auth.js is NOT used.*
 - **Styling:** Vanilla CSS (`src/app/globals.css`) emphasizing **Glassmorphism**. *Tailwind CSS is configured but minimally used in favor of custom glass classes.*
 - **Animations:** `framer-motion` (used for layout transitions, tab highlights, and grid filtering).
@@ -63,6 +63,8 @@ Database interactions are handled via standard SQL functions.
 4. **Handling forum attachments:**
    - Use Vercel Blob for uploads; do not write to `public/uploads` or any local filesystem path.
    - Store only the public Blob URL in `posts.attachment_url`.
+   - Accept only JPEG/PNG/WebP/GIF images, 2 MB max per image, 10 image uploads per user per rolling 24 hours, 100 total image uploads per user.
+   - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
 
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.

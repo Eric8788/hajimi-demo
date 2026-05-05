@@ -227,6 +227,31 @@ export async function createPost(authorId: number, title: string, content: strin
     return rows[0]?.id;
 }
 
+export async function countRecentAttachmentsByUser(userId: number) {
+    const { rows } = await sql<{ upload_count: number }>`
+      SELECT COUNT(*)::int as upload_count
+      FROM posts
+      WHERE author_id = ${userId}
+        AND attachment_url IS NOT NULL
+        AND attachment_url != ''
+        AND created_at >= NOW() - INTERVAL '24 hours'
+  `;
+
+    return rows[0]?.upload_count ?? 0;
+}
+
+export async function countAttachmentsByUser(userId: number) {
+    const { rows } = await sql<{ upload_count: number }>`
+      SELECT COUNT(*)::int as upload_count
+      FROM posts
+      WHERE author_id = ${userId}
+        AND attachment_url IS NOT NULL
+        AND attachment_url != ''
+  `;
+
+    return rows[0]?.upload_count ?? 0;
+}
+
 export async function createComment(authorId: number, postId: number, content: string) {
     await sql`
     INSERT INTO comments (author_id, post_id, content) 
@@ -284,6 +309,17 @@ export async function toggleBookmark(userId: number, postId: number) {
         await sql`INSERT INTO bookmarks (user_id, post_id) VALUES (${userId}, ${postId})`;
         return true;
     }
+}
+
+export async function getPostAttachmentForOwner(userId: number, postId: number): Promise<string> {
+    const { rows } = await sql<{ attachment_url: string | null }>`
+      SELECT attachment_url
+      FROM posts
+      WHERE id = ${postId} AND author_id = ${userId}
+      LIMIT 1
+  `;
+
+    return rows[0]?.attachment_url || '';
 }
 
 export async function deletePost(userId: number, postId: number): Promise<boolean> {
