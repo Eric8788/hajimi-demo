@@ -64,6 +64,7 @@ Database interactions are handled via standard SQL functions.
    - Use Vercel Blob for uploads; do not write to `public/uploads` or any local filesystem path.
    - Store only the public Blob URL in `posts.attachment_url`.
    - Accept only JPEG/PNG/WebP/GIF images, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user.
+   - The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
    - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
 
 ## 7. Known Issues & Quirks

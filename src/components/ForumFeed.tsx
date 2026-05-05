@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { Post, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
@@ -16,7 +16,101 @@ const TAG_OPTIONS = [
 ];
 
 const MAX_IMAGE_SIZE = 1 * 1024 * 1024;
+const TARGET_COMPRESSED_IMAGE_SIZE = 900 * 1024;
+const MAX_IMAGE_DIMENSION = 1600;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function formatFileSize(bytes: number) {
+    if (bytes >= 1024 * 1024) {
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function optimizedImageName(name: string) {
+    const baseName = name.replace(/\.[^/.]+$/, '') || 'image';
+    return `${baseName}-optimized.webp`;
+}
+
+function loadImage(file: File) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        const url = URL.createObjectURL(file);
+
+        image.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Could not read image'));
+        };
+        image.src = url;
+    });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
+    return new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (blob) {
+                resolve(blob);
+            } else {
+                reject(new Error('Could not optimize image'));
+            }
+        }, type, quality);
+    });
+}
+
+async function compressImageForUpload(file: File) {
+    const image = await loadImage(file);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+
+    if (!sourceWidth || !sourceHeight) {
+        throw new Error('Invalid image dimensions');
+    }
+
+    const maxSourceDimension = Math.max(sourceWidth, sourceHeight);
+    const initialScale = Math.min(1, MAX_IMAGE_DIMENSION / maxSourceDimension);
+    const dimensionScales = [1, 0.85, 0.7, 0.55];
+    const qualities = [0.82, 0.74, 0.66, 0.58, 0.5];
+    let smallestBlob: Blob | null = null;
+
+    for (const dimensionScale of dimensionScales) {
+        const scale = initialScale * dimensionScale;
+        const width = Math.max(1, Math.round(sourceWidth * scale));
+        const height = Math.max(1, Math.round(sourceHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+            throw new Error('Could not prepare image optimizer');
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+
+        for (const quality of qualities) {
+            const blob = await canvasToBlob(canvas, 'image/webp', quality);
+            if (!smallestBlob || blob.size < smallestBlob.size) {
+                smallestBlob = blob;
+            }
+
+            if (blob.size <= TARGET_COMPRESSED_IMAGE_SIZE) {
+                return new File([blob], optimizedImageName(file.name), { type: 'image/webp' });
+            }
+        }
+    }
+
+    if (!smallestBlob) {
+        throw new Error('Could not optimize image');
+    }
+
+    return new File([smallestBlob], optimizedImageName(file.name), { type: 'image/webp' });
+}
 
 export default function ForumFeed({ user, initialPosts }: { user: User | null, initialPosts: Post[] }) {
     const router = useRouter();
@@ -29,6 +123,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [newContent, setNewContent] = useState('');
     const [newTag, setNewTag] = useState('general');
     const [file, setFile] = useState<File | null>(null);
+    const [fileStatus, setFileStatus] = useState('');
+    const [isPreparingImage, setIsPreparingImage] = useState(false);
     const [loading, setLoading] = useState(false);
     const [createError, setCreateError] = useState('');
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
@@ -77,8 +173,23 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         fetchPosts(sortType, 'all', tag);
     };
 
-    const handleCreate = async (e: React.FormEvent) => {
+    const resetComposer = () => {
+        setNewTitle('');
+        setNewContent('');
+        setNewTag('general');
+        setFile(null);
+        setFileStatus('');
+        setCreateError('');
+        setIsCreating(false);
+    };
+
+    const handleCreate = async (e: FormEvent) => {
         e.preventDefault();
+        if (isPreparingImage) {
+            setCreateError('Please wait for image optimization to finish.');
+            return;
+        }
+
         setLoading(true);
         setCreateError('');
 
@@ -102,19 +213,16 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                 return;
             }
 
-            setNewTitle('');
-            setNewContent('');
-            setNewTag('general');
-            setFile(null);
-            setIsCreating(false);
+            resetComposer();
             await fetchPosts();
         } finally {
             setLoading(false);
         }
     };
 
-    const handleFileChange = (selectedFile: File | null) => {
+    const handleFileChange = async (selectedFile: File | null) => {
         setCreateError('');
+        setFileStatus('');
 
         if (!selectedFile) {
             setFile(null);
@@ -127,13 +235,51 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             return;
         }
 
-        if (selectedFile.size > MAX_IMAGE_SIZE) {
+        if (selectedFile.type === 'image/gif' && selectedFile.size > MAX_IMAGE_SIZE) {
+            setFile(null);
+            setCreateError('Animated GIFs must be 1 MB or smaller.');
+            return;
+        }
+
+        if (selectedFile.size <= MAX_IMAGE_SIZE) {
+            setFile(selectedFile);
+            setFileStatus(`Ready: ${formatFileSize(selectedFile.size)}.`);
+            return;
+        }
+
+        if (!COMPRESSIBLE_IMAGE_TYPES.has(selectedFile.type)) {
             setFile(null);
             setCreateError('Image must be 1 MB or smaller.');
             return;
         }
 
-        setFile(selectedFile);
+        setFile(null);
+        setIsPreparingImage(true);
+        setFileStatus(`Optimizing ${formatFileSize(selectedFile.size)} image...`);
+
+        try {
+            const optimizedFile = await compressImageForUpload(selectedFile);
+
+            if (optimizedFile.size > MAX_IMAGE_SIZE) {
+                setCreateError(`This image is still ${formatFileSize(optimizedFile.size)} after compression. Try a smaller image or crop it first.`);
+                setFileStatus('');
+                return;
+            }
+
+            setFile(optimizedFile);
+            setFileStatus(`Optimized from ${formatFileSize(selectedFile.size)} to ${formatFileSize(optimizedFile.size)}.`);
+        } catch {
+            setFile(null);
+            setFileStatus('');
+            setCreateError('Could not optimize this image. Try a smaller JPEG, PNG, or WebP file.');
+        } finally {
+            setIsPreparingImage(false);
+        }
+    };
+
+    const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        await handleFileChange(event.target.files?.[0] || null);
+        event.target.value = '';
     };
 
     const handlePostDeleted = (postId: number) => {
@@ -282,8 +428,11 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             </div>
                             <textarea placeholder="What's on your mind?" value={newContent} onChange={e => setNewContent(e.target.value)} required rows={5} className="glass-input" style={{ resize: 'vertical' }} />
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading ? 'default' : 'pointer', color: '#636e72' }}>🖼️ {file ? file.name : 'Attach image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => handleFileChange(e.target.files?.[0] || null)} disabled={loading} style={{ display: 'none' }} /></label>
-                                <div style={{ color: '#636e72', fontSize: '0.8rem', marginTop: '8px' }}>JPEG, PNG, WebP, or GIF · max 1 MB · 5/day · 30 total</div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading || isPreparingImage ? 'default' : 'pointer', color: '#636e72' }}>🖼️ {isPreparingImage ? 'Optimizing image...' : file ? file.name : 'Attach image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInputChange} disabled={loading || isPreparingImage} style={{ display: 'none' }} /></label>
+                                <div style={{ color: '#636e72', fontSize: '0.8rem', marginTop: '8px' }}>JPEG, PNG, WebP, or GIF · auto-compresses to max 1 MB · 5/day · 30 total</div>
+                                {fileStatus && (
+                                    <div style={{ color: '#00b894', fontSize: '0.8rem', marginTop: '8px', fontWeight: 700 }}>{fileStatus}</div>
+                                )}
                             </div>
                             {createError && (
                                 <div style={{ color: '#d63031', background: 'rgba(255, 118, 117, 0.15)', borderRadius: '12px', padding: '10px 12px', fontSize: '0.9rem', fontWeight: 600 }}>
@@ -292,8 +441,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             )}
                         </div>
                         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '20px' }}>
-                            <button type="button" onClick={() => setIsCreating(false)} className="btn" style={{ background: 'transparent', border: '1px solid #b2bec3' }}>Cancel</button>
-                            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Posting...' : '🚀 Publish'}</button>
+                            <button type="button" onClick={resetComposer} className="btn" style={{ background: 'transparent', border: '1px solid #b2bec3' }}>Cancel</button>
+                            <button type="submit" className="btn btn-primary" disabled={loading || isPreparingImage}>{loading ? 'Posting...' : isPreparingImage ? 'Optimizing...' : '🚀 Publish'}</button>
                         </div>
                     </motion.form>
                 )}
