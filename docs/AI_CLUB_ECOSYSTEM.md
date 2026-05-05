@@ -90,7 +90,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.
-- **Image Uploads (⚠️ known broken):** Current API writes to `public/uploads` via `fs`. Vercel serverless has read-only filesystem — uploads silently fail. Fix: migrate to Vercel Blob (Phase 3 task).
+- **Image Uploads:** `POST /api/posts` stores attachments in Vercel Blob and saves the public Blob URL in `posts.attachment_url`. Production requires `BLOB_READ_WRITE_TOKEN`.
 - **Landing Page particles:** `src/components/ParticleBackground.tsx` — Canvas-based, `zIndex: -1`, free-floating with mouse repulsion.
 
 ### DB Schema
@@ -179,8 +179,8 @@ Next risk: <what the next agent should watch out for>
 - ✅ Always write handoff checklist when switching agents
 
 ### Phase Discipline
-- **Phase 2 (current):** Domain cleanup + identity consolidation + docs
-- **Phase 3 (next):** Image upload → Vercel Blob migration
+- **Phase 2:** Domain cleanup + identity consolidation + docs
+- **Phase 3 (current):** Image upload → Vercel Blob migration
 - Do NOT mix phases in a single PR/commit
 
 ---
@@ -189,5 +189,5 @@ Next risk: <what the next agent should watch out for>
 
 - **Turbopack Chinese Path Bug:** Local `npm run dev` may panic if the absolute path contains Chinese characters. Vercel cloud builds are unaffected. Workaround: run dev from a path without Chinese characters.
 - **Vercel Auth Interception:** On Preview URLs with Vercel Protection enabled, `/api/auth` may return 500/HTML. Always test auth on the Production Domain.
-- **Image Upload Broken on Vercel:** `POST /api/posts` tries to write to `public/uploads` — fails silently on serverless. Phase 3 fix: Vercel Blob.
+- **Vercel Blob token required:** File uploads return 503 if `BLOB_READ_WRITE_TOKEN` is missing. Text-only posts still work without Blob.
 - **globals.css corruption (resolved):** A previous edit accidentally injected raw CSS inside a `.glass-input` rule block. Fixed in commit `1caab3a`.

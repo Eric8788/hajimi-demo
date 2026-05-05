@@ -27,6 +27,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [newTag, setNewTag] = useState('general');
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
+    const [createError, setCreateError] = useState('');
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
@@ -76,6 +77,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setCreateError('');
 
         const formData = new FormData();
         formData.append('title', newTitle);
@@ -89,15 +91,24 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             formData.append('type', 'text');
         }
 
-        await fetch('/api/posts', { method: 'POST', body: formData });
+        try {
+            const res = await fetch('/api/posts', { method: 'POST', body: formData });
+            const data = await res.json().catch(() => null);
 
-        setNewTitle('');
-        setNewContent('');
-        setNewTag('general');
-        setFile(null);
-        setIsCreating(false);
-        setLoading(false);
-        await fetchPosts();
+            if (!res.ok) {
+                setCreateError(data?.error || 'Failed to publish post. Please try again.');
+                return;
+            }
+
+            setNewTitle('');
+            setNewContent('');
+            setNewTag('general');
+            setFile(null);
+            setIsCreating(false);
+            await fetchPosts();
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handlePostDeleted = (postId: number) => {
@@ -246,8 +257,13 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             </div>
                             <textarea placeholder="What's on your mind?" value={newContent} onChange={e => setNewContent(e.target.value)} required rows={5} className="glass-input" style={{ resize: 'vertical' }} />
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: '#636e72' }}>📎 {file ? file.name : 'Attach Image/File'}<input type="file" onChange={e => setFile(e.target.files?.[0] || null)} style={{ display: 'none' }} /></label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading ? 'default' : 'pointer', color: '#636e72' }}>📎 {file ? file.name : 'Attach Image/File'}<input type="file" onChange={e => setFile(e.target.files?.[0] || null)} disabled={loading} style={{ display: 'none' }} /></label>
                             </div>
+                            {createError && (
+                                <div style={{ color: '#d63031', background: 'rgba(255, 118, 117, 0.15)', borderRadius: '12px', padding: '10px 12px', fontSize: '0.9rem', fontWeight: 600 }}>
+                                    {createError}
+                                </div>
+                            )}
                         </div>
                         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '20px' }}>
                             <button type="button" onClick={() => setIsCreating(false)} className="btn" style={{ background: 'transparent', border: '1px solid #b2bec3' }}>Cancel</button>

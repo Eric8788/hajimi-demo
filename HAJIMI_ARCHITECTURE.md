@@ -10,6 +10,7 @@ Hajimi is a comprehensive, gamified student community and project hub built for 
 - **Framework:** Next.js (App Router, Server & Client Components)
 - **Language:** TypeScript
 - **Database:** Vercel Postgres (Neon) using raw SQL queries (`@vercel/postgres`). *No Prisma/ORM is used.*
+- **File Storage:** Vercel Blob (`@vercel/blob`) for forum attachments. Requires `BLOB_READ_WRITE_TOKEN` in production.
 - **Authentication:** Custom JWT-based session auth using `jose` and `bcryptjs`. *NextAuth/Auth.js is NOT used.*
 - **Styling:** Vanilla CSS (`src/app/globals.css`) emphasizing **Glassmorphism**. *Tailwind CSS is configured but minimally used in favor of custom glass classes.*
 - **Animations:** `framer-motion` (used for layout transitions, tab highlights, and grid filtering).
@@ -31,7 +32,7 @@ The app uses Next.js App Router (`src/app/`).
 - `/functions` **(Function Hall - Public):** 
   - Replaces the legacy "AI Club Hub".
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
-  - Data is driven by `src/data/projects.ts`. External static HTML games are hosted on a separate Vercel deployment (`ai-club-nine.vercel.app`) and linked via absolute URLs.
+  - Data is driven by `src/data/projects.ts`. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
 
 ## 4. Design Philosophy & CSS
 The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not use flat colors or generic UI components.** 
@@ -59,6 +60,9 @@ Database interactions are handled via standard SQL functions.
 3. **Adding new APIs:**
    - Put them in `src/app/api/.../route.ts`. 
    - Parse session cookies securely using `getSession()`.
+4. **Handling forum attachments:**
+   - Use Vercel Blob for uploads; do not write to `public/uploads` or any local filesystem path.
+   - Store only the public Blob URL in `posts.attachment_url`.
 
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.
