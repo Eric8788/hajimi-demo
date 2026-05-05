@@ -137,7 +137,7 @@ export default function TarotGame() {
                         animate={{ opacity: 1, y: 0 }}
                         style={{ maxWidth: '700px', margin: '0 auto 30px', padding: '20px', background: 'rgba(162, 155, 254, 0.1)', borderRadius: '15px', border: '1px solid rgba(162, 155, 254, 0.3)' }}
                     >
-                        <h4 style={{ marginBottom: '10px', color: '#6c5ce7' }}>✨ Oracle's Insight</h4>
+                        <h4 style={{ marginBottom: '10px', color: '#6c5ce7' }}>✨ Oracle&apos;s Insight</h4>
                         <p style={{ lineHeight: '1.6', fontSize: '1.05rem' }}>{reading}</p>
                     </motion.div>
                 )}

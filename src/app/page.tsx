@@ -65,7 +65,7 @@ export default async function LandingPage() {
           backgroundClip: 'text',
           letterSpacing: '-0.05em'
         }}>
-          Let's Create<br />Together
+          Let&apos;s Create<br />Together
         </h1>
 
         <Link href="/login" style={{

@@ -66,6 +66,10 @@ Database interactions are handled via standard SQL functions.
    - Accept only JPEG/PNG/WebP/GIF images, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user.
    - The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
    - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
+5. **Forum moderation:**
+   - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
+   - Only staff can publish posts tagged `announcement`.
+   - Staff can delete any post or comment; students can delete only their own posts/comments.
 
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.

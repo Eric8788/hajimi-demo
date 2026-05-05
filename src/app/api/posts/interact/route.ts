@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForOwner } from '@/lib/db';
+import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForDelete, getUserById } from '@/lib/db';
+import { isStaffRole } from '@/lib/roles';
 import { del } from '@vercel/blob';
 
 // POST: Handle actions (like, comment, bookmark, like_comment)
@@ -9,6 +10,9 @@ export async function POST(request: Request) {
         const session = await getSession();
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         const userId = Number(session.userId);
+        const user = await getUserById(userId);
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const canModerate = isStaffRole(user.role);
 
         const body = await request.json();
         const { action, postId, commentId, content } = body;
@@ -39,8 +43,8 @@ export async function POST(request: Request) {
 
         else if (action === 'delete_post') {
             if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
-            const attachmentUrl = await getPostAttachmentForOwner(userId, postId);
-            const deleted = await deletePost(userId, postId);
+            const attachmentUrl = await getPostAttachmentForDelete(userId, postId, canModerate);
+            const deleted = await deletePost(userId, postId, canModerate);
             if (!deleted) return NextResponse.json({ error: 'Cannot delete post' }, { status: 403 });
             if (attachmentUrl) {
                 try {
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
 
         else if (action === 'delete_comment') {
             if (!commentId) return NextResponse.json({ error: 'Missing commentId' }, { status: 400 });
-            const deleted = await deleteComment(userId, commentId);
+            const deleted = await deleteComment(userId, commentId, canModerate);
             if (!deleted) return NextResponse.json({ error: 'Cannot delete comment' }, { status: 403 });
             return NextResponse.json({ success: true });
         }

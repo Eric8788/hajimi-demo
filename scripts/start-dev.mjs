@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
-const net = require('net');
+import { spawn } from 'node:child_process';
+import net from 'node:net';
 
 const REQUESTED_PORT = Number(process.env.PORT || 0);
 const HOSTNAME = process.env.HOSTNAME || '0.0.0.0';
@@ -44,7 +44,6 @@ async function main() {
         const nextDev = spawn('npx', ['next', 'dev', '-H', HOSTNAME, '-p', port.toString()], {
             stdio: 'inherit',
             cwd: process.cwd(),
-            shell: true
         });
 
         nextDev.on('error', (err) => {
@@ -53,11 +52,11 @@ async function main() {
         });
 
         nextDev.on('close', (code) => {
-            process.exit(code);
+            process.exit(code ?? 0);
         });
 
     } catch (error) {
-        console.error('Error:', error.message);
+        console.error('Error:', error instanceof Error ? error.message : error);
         process.exit(1);
     }
 }

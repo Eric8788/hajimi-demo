@@ -119,66 +119,6 @@ export async function doCheckIn(userId: number) {
 // --- Forum Helpers ---
 
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
-    // Note: Complex dynamic queries with template literals need careful construction.
-    // We can condition parts of the query.
-
-    // Base query text
-    let queryBase = `
-    SELECT posts.*, users.username as author_name, users.avatar as author_avatar,
-    (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count
-  `;
-
-    if (userId) {
-        queryBase += `,
-      EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId} AND post_id = posts.id) as is_bookmarked,
-      EXISTS(SELECT 1 FROM post_likes WHERE user_id = ${userId} AND post_id = posts.id) as has_liked
-    `;
-    } else {
-        queryBase += `, false as is_bookmarked, false as has_liked`;
-    }
-
-    queryBase += ` FROM posts JOIN users ON posts.author_id = users.id`;
-
-    const conditions = [];
-
-    if (filter === 'saved' && userId) {
-        conditions.push(`EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId} AND post_id = posts.id)`);
-    }
-
-    if (tag && tag !== 'all') {
-        conditions.push(`posts.tag = '${tag}'`); // Simple string injection protection needed? tag is usually strict enum/string. 
-        // Ideally use param but for simple string concatenation in non-sensitive fields...
-        // Let's safe-guard:
-        // Actually, we can't easily mix dynamic strings and template params in one sql\`...` call without helpers.
-        // For Vercel Postgres, standard practice for dynamic queries is tricky.
-        // We will assume tag is safe or validate it.
-    }
-
-    if (conditions.length > 0) {
-        queryBase += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Ordering
-    if (sort === 'likes') {
-        queryBase += ` ORDER BY posts.likes DESC, posts.created_at DESC`;
-    } else if (sort === 'heat') {
-        queryBase += ` ORDER BY (posts.likes * 2 + (SELECT COUNT(*) FROM comments WHERE post_id = posts.id)) DESC, posts.created_at DESC`;
-    } else {
-        queryBase += ` ORDER BY posts.created_at DESC`;
-    }
-
-    // LIMIT
-    queryBase += ` LIMIT 50`;
-
-    // Provide raw query (BE CAREFUL with inputs if not using template tag properly)
-    // Since we construct string, we use sql.query(string) or client.
-    // But sql template tag REQUIRES literal.
-    // Only way to use dynamic condition in sql\`\` is using boolean logic:
-    // WHERE (${tag}::text IS NULL OR posts.tag = ${tag})
-
-    // Let's use the Robust Pattern:
-    // We'll filter in SQL using "OR NULL" pattern for parameters
-
     const { rows } = await sql`
       SELECT posts.*, users.username as author_name, users.avatar as author_avatar,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
@@ -311,20 +251,20 @@ export async function toggleBookmark(userId: number, postId: number) {
     }
 }
 
-export async function getPostAttachmentForOwner(userId: number, postId: number): Promise<string> {
+export async function getPostAttachmentForDelete(userId: number, postId: number, canModerate = false): Promise<string> {
     const { rows } = await sql<{ attachment_url: string | null }>`
       SELECT attachment_url
       FROM posts
-      WHERE id = ${postId} AND author_id = ${userId}
+      WHERE id = ${postId} AND (${canModerate}::boolean OR author_id = ${userId})
       LIMIT 1
   `;
 
     return rows[0]?.attachment_url || '';
 }
 
-export async function deletePost(userId: number, postId: number): Promise<boolean> {
+export async function deletePost(userId: number, postId: number, canModerate = false): Promise<boolean> {
     const { rows } = await sql`SELECT author_id FROM posts WHERE id = ${postId}`;
-    if (!rows[0] || rows[0].author_id !== userId) return false;
+    if (!rows[0] || (!canModerate && rows[0].author_id !== userId)) return false;
 
     // Cleanup
     await sql`DELETE FROM comments WHERE post_id = ${postId}`;
@@ -334,9 +274,9 @@ export async function deletePost(userId: number, postId: number): Promise<boolea
     return true;
 }
 
-export async function deleteComment(userId: number, commentId: number): Promise<boolean> {
+export async function deleteComment(userId: number, commentId: number, canModerate = false): Promise<boolean> {
     const { rows } = await sql`SELECT author_id FROM comments WHERE id = ${commentId}`;
-    if (!rows[0] || rows[0].author_id !== userId) return false;
+    if (!rows[0] || (!canModerate && rows[0].author_id !== userId)) return false;
 
     await sql`DELETE FROM comment_likes WHERE comment_id = ${commentId}`;
     await sql`DELETE FROM comments WHERE id = ${commentId}`;

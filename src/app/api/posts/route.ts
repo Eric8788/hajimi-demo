@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getPosts, createPost, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
+import { getPosts, createPost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
+import { isStaffRole } from '@/lib/roles';
 import { put } from '@vercel/blob';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
@@ -12,6 +13,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
     'image/webp',
     'image/gif',
 ]);
+const ALLOWED_TAGS = new Set(['general', 'resource', 'question', 'announcement', 'project', 'meme']);
 
 function safeFilename(name: string) {
     const extension = name.includes('.') ? name.split('.').pop() : 'file';
@@ -48,16 +50,26 @@ export async function POST(request: Request) {
         if (!session) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const userId = Number(session.userId);
+        const user = await getUserById(userId);
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const formData = await request.formData();
         const title = String(formData.get('title') || '').trim();
         const content = String(formData.get('content') || '').trim();
         let type = 'text';
-        const tag = formData.get('tag') as string || 'general';
+        const requestedTag = String(formData.get('tag') || 'general');
+        const tag = ALLOWED_TAGS.has(requestedTag) ? requestedTag : 'general';
         const file = formData.get('file') as File | null;
 
         if (!title || !content) {
             return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
+        }
+
+        if (tag === 'announcement' && !isStaffRole(user.role)) {
+            return NextResponse.json({ error: 'Only teachers and admins can publish announcements' }, { status: 403 });
         }
 
         let attachmentUrl = '';
@@ -75,7 +87,6 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'File uploads are not configured yet' }, { status: 503 });
             }
 
-            const userId = Number(session.userId);
             const totalUploads = await countAttachmentsByUser(userId);
             if (totalUploads >= TOTAL_ATTACHMENT_LIMIT) {
                 return NextResponse.json({ error: 'Image storage limit reached. Delete old image posts before uploading more.' }, { status: 429 });
@@ -96,7 +107,7 @@ export async function POST(request: Request) {
             type = 'image';
         }
 
-        await createPost(Number(session.userId), title, content, type, attachmentUrl, tag);
+        await createPost(userId, title, content, type, attachmentUrl, tag);
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
         console.error(err);

@@ -1,12 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Post, Comment } from '@/lib/db';
+import { Post, Comment, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isStaffRole } from '@/lib/roles';
 
-export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: any, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
+export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const isGuest = !currentUser;
+    const canModerate = isStaffRole(currentUser?.role);
+    const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
+    const isAnnouncement = post.tag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
@@ -22,10 +26,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     // Image Modal State
     const [showImageModal, setShowImageModal] = useState(false);
-    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        setMounted(true);
         // Auto-load top 3 comments if they exist
         // Using a flag to prevent double-fetching in strict mode or rapid updates
         let isActive = true;
@@ -106,7 +108,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const handleDeletePost = async () => {
-        if (!confirm('Delete this post? This cannot be undone.')) return;
+        const message = post.author_id === currentUser?.id
+            ? 'Delete this post? This cannot be undone.'
+            : 'Delete this post as a moderator? This cannot be undone.';
+        if (!confirm(message)) return;
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
             body: JSON.stringify({ action: 'delete_post', postId: post.id })
@@ -117,7 +122,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const handleDeleteComment = async (commentId: number) => {
-        if (!confirm('Delete this comment?')) return;
+        const comment = comments.find(c => c.id === commentId);
+        const message = comment?.author_id === currentUser?.id
+            ? 'Delete this comment?'
+            : 'Delete this comment as a moderator?';
+        if (!confirm(message)) return;
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
             body: JSON.stringify({ action: 'delete_comment', commentId })
@@ -149,7 +158,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         }
     };
 
-    const submitComment = async (e: React.FormEvent) => {
+    const submitComment = async (e: FormEvent) => {
         e.preventDefault();
         if (isGuest) { onGuestAction?.(); return; }
         if (!newComment.trim()) return;
@@ -181,9 +190,17 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const visibleComments = showComments ? comments : comments.slice(0, 2);
+    const portalTarget = typeof document === 'undefined' ? null : document.body;
 
     return (
-        <div className="glass-card" style={{ transition: 'all 0.3s' }}>
+        <div
+            className="glass-card"
+            style={{
+                transition: 'all 0.3s',
+                borderColor: isAnnouncement ? 'rgba(253, 203, 110, 0.85)' : undefined,
+                boxShadow: isAnnouncement ? '0 14px 32px rgba(253, 203, 110, 0.18)' : undefined,
+            }}
+        >
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fab1a0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', border: '2px solid white' }}>
@@ -195,8 +212,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 </div>
 
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
-                    <div style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '12px', background: 'rgba(162, 155, 254, 0.1)', color: '#6c5ce7', fontWeight: 600 }}>
-                        #{post.tag || 'general'}
+                    <div style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '12px', background: isAnnouncement ? 'rgba(253, 203, 110, 0.24)' : 'rgba(162, 155, 254, 0.1)', color: isAnnouncement ? '#b7791f' : '#6c5ce7', fontWeight: 600 }}>
+                        {isAnnouncement ? '📢 announcement' : `#${post.tag || 'general'}`}
                     </div>
                     {/* Bookmark Button */}
                     <button
@@ -209,12 +226,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     >
                         {isBookmarked ? '⭐' : '☆'}
                     </button>
-                    {/* Delete Button (Owner Only) */}
-                    {!isGuest && post.author_id === currentUser.id && (
+                    {/* Delete Button (Owner or Moderator) */}
+                    {canDeletePost && (
                         <button
                             onClick={handleDeletePost}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#b2bec3', transition: 'color 0.2s' }}
-                            title="Delete Post"
+                            title={post.author_id === currentUser?.id ? 'Delete Post' : 'Moderator Delete Post'}
                         >🗑️</button>
                     )}
                 </div>
@@ -334,11 +351,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                     >
                                                         {c.has_liked ? '❤️' : '🤍'}
                                                     </button>
-                                                    {!isGuest && c.author_id === currentUser.id && (
+                                                    {!isGuest && currentUser && (c.author_id === currentUser.id || canModerate) && (
                                                         <button
                                                             onClick={() => handleDeleteComment(c.id)}
                                                             style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
-                                                            title="Delete Comment"
+                                                            title={c.author_id === currentUser.id ? 'Delete Comment' : 'Moderator Delete Comment'}
                                                         >🗑️</button>
                                                     )}
                                                 </div>
@@ -402,7 +419,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             </AnimatePresence>
 
             {/* Image Modal - PORTAL to body */}
-            {mounted && createPortal(
+            {portalTarget && createPortal(
                 <AnimatePresence>
                     {showImageModal && (
                         <motion.div

@@ -5,6 +5,7 @@ import { Post, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
 import { useRouter } from 'next/navigation';
+import { isStaffRole } from '@/lib/roles';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -114,6 +115,8 @@ async function compressImageForUpload(file: File) {
 
 export default function ForumFeed({ user, initialPosts }: { user: User | null, initialPosts: Post[] }) {
     const router = useRouter();
+    const canPostAnnouncement = isStaffRole(user?.role);
+    const visibleTagOptions = canPostAnnouncement ? TAG_OPTIONS : TAG_OPTIONS.filter(tag => tag.id !== 'announcement');
     const [posts, setPosts] = useState<Post[]>(initialPosts);
     const [isCreating, setIsCreating] = useState(false);
     const [sortType, setSortType] = useState<'time' | 'heat' | 'likes'>('time');
@@ -422,7 +425,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             {/* Tag Selector */}
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                 <span style={{ fontSize: '0.9rem', color: '#636e72' }}>Tag:</span>
-                                {TAG_OPTIONS.map(t => (
+                                {visibleTagOptions.map(t => (
                                     <button key={t.id} type="button" onClick={() => setNewTag(t.id)} style={{ padding: '5px 12px', borderRadius: '15px', border: 'none', background: newTag === t.id ? '#6c5ce7' : 'rgba(0,0,0,0.05)', color: newTag === t.id ? 'white' : '#636e72', fontSize: '0.85rem', cursor: 'pointer' }}>{t.label}</button>
                                 ))}
                             </div>
