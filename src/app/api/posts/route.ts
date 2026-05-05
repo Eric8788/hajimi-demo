@@ -3,9 +3,9 @@ import { getSession } from '@/lib/auth';
 import { getPosts, createPost, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
 import { put } from '@vercel/blob';
 
-const MAX_ATTACHMENT_SIZE = 2 * 1024 * 1024;
-const DAILY_ATTACHMENT_LIMIT = 10;
-const TOTAL_ATTACHMENT_LIMIT = 100;
+const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
+const DAILY_ATTACHMENT_LIMIT = 5;
+const TOTAL_ATTACHMENT_LIMIT = 30;
 const ALLOWED_IMAGE_TYPES = new Set([
     'image/jpeg',
     'image/png',
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
             }
 
             if (file.size > MAX_ATTACHMENT_SIZE) {
-                return NextResponse.json({ error: 'Image must be 2 MB or smaller' }, { status: 413 });
+                return NextResponse.json({ error: 'Image must be 1 MB or smaller' }, { status: 413 });
             }
 
             if (!process.env.BLOB_READ_WRITE_TOKEN) {
