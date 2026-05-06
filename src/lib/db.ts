@@ -29,6 +29,7 @@ export interface Post {
     created_at: Date;
     author_name?: string;
     author_avatar?: string;
+    author_role?: string;
     comment_count?: number;
     is_bookmarked?: boolean;
     has_liked?: boolean;
@@ -43,6 +44,7 @@ export interface Comment {
     created_at: Date;
     author_name?: string;
     author_avatar?: string;
+    author_role?: string;
     has_liked?: boolean;
 }
 
@@ -120,7 +122,7 @@ export async function doCheckIn(userId: number) {
 
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
     const { rows } = await sql`
-      SELECT posts.*, users.username as author_name, users.avatar as author_avatar,
+      SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
@@ -145,7 +147,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
 
 export async function getComments(postId: number, userId?: number) {
     const { rows } = await sql`
-      SELECT comments.*, users.username as author_name, users.avatar as author_avatar,
+      SELECT comments.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = comments.id)
       ELSE false END as has_liked

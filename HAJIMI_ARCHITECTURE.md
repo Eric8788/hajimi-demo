@@ -71,6 +71,7 @@ Database interactions are handled via standard SQL functions.
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
    - Only staff can publish posts tagged `announcement`.
    - Staff can delete any post or comment; students can delete only their own posts/comments.
+   - Staff roles are visually marked with badges on posts, comments, and profile pages.
 
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.

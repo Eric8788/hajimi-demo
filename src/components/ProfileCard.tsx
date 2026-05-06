@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/db';
+import RoleBadge from './RoleBadge';
 
 export default function ProfilePage({ user }: { user: User }) {
     const router = useRouter();
@@ -66,6 +67,9 @@ export default function ProfilePage({ user }: { user: User }) {
                     <h2 style={{ fontSize: '3rem', marginBottom: '10px', background: 'linear-gradient(90deg, #6c5ce7, #a29bfe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         {user.username}
                     </h2>
+                    <div style={{ marginBottom: '16px' }}>
+                        <RoleBadge role={user.role} showStudent />
+                    </div>
 
                     {isEditing ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

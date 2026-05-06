@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Post, Comment, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isStaffRole } from '@/lib/roles';
+import RoleBadge from './RoleBadge';
 
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const isGuest = !currentUser;
@@ -180,7 +181,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     likes: 0,
                     created_at: new Date(),
                     author_name: currentUser.username,
-                    author_avatar: currentUser.avatar
+                    author_avatar: currentUser.avatar,
+                    author_role: currentUser.role,
                 }
             ]);
             setNewComment('');
@@ -207,7 +209,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     {post.author_avatar || '👤'}
                 </div>
                 <div>
-                    <div style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</span>
+                        <RoleBadge role={post.author_role} compact />
+                    </div>
                     <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>{new Date(post.created_at).toLocaleDateString()}</div>
                 </div>
 
@@ -342,7 +347,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                         </div>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</span>
+                                                    <RoleBadge role={c.author_role} compact />
+                                                </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                     {c.likes > 0 && <span>{c.likes} likes</span>}
                                                     <button
