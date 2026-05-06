@@ -1,22 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, type FormEvent } from 'react';
 
 export default function LoginPage() {
-    const router = useRouter();
     const [isRegister, setIsRegister] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
 
         const res = await fetch('/api/auth', {
             method: 'POST',
-            body: JSON.stringify({ username, password, isRegister }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, isRegister, inviteCode }),
         });
 
         const data = await res.json();
@@ -51,6 +51,20 @@ export default function LoginPage() {
                         />
                     </div>
 
+                    {isRegister && (
+                        <div>
+                            <input
+                                type="text"
+                                value={inviteCode}
+                                onChange={(e) => setInviteCode(e.target.value)}
+                                required
+                                className="glass-input"
+                                placeholder="Invite code"
+                                autoComplete="off"
+                            />
+                        </div>
+                    )}
+
                     <div>
                         <input
                             type="password"
@@ -82,12 +96,17 @@ export default function LoginPage() {
 
                 <p style={{ textAlign: 'center', marginTop: '30px', fontSize: '0.9rem', color: '#666' }}>
                     {isRegister ? 'Already a student?' : "New here?"}{' '}
-                    <span
-                        onClick={() => setIsRegister(!isRegister)}
-                        style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: '600' }}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsRegister(!isRegister);
+                            setError('');
+                            setInviteCode('');
+                        }}
+                        style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: '600', background: 'none', border: 'none', padding: 0, font: 'inherit' }}
                     >
                         {isRegister ? 'Log in' : 'Create account'}
-                    </span>
+                    </button>
                 </p>
             </div>
 

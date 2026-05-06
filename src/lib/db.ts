@@ -58,11 +58,11 @@ export async function getUserById(id: number) {
     return rows[0];
 }
 
-export async function createUser(username: string, passwordHash: string) {
+export async function createUser(username: string, passwordHash: string, role = 'student') {
     // Use RETURNING id to get the ID immediately
     const { rows } = await sql`
-    INSERT INTO users (username, password_hash, points) 
-    VALUES (${username}, ${passwordHash}, 0) 
+    INSERT INTO users (username, password_hash, points, role)
+    VALUES (${username}, ${passwordHash}, 0, ${role})
     RETURNING id
   `;
     return rows[0].id;

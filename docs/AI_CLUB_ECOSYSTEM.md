@@ -86,7 +86,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 ## 5. Hajimi Architecture Quick Reference
 
 - **Database:** `src/lib/db.ts` — `@vercel/postgres` with raw SQL. No ORM.
-- **Auth:** Custom JWT via `jose` + `bcryptjs`. Stored in `HttpOnly` cookie `session`. No NextAuth.
+- **Auth:** Custom JWT via `jose` + `bcryptjs`. Stored in `HttpOnly` cookie `session`. No NextAuth. Registration is invite-gated: `HAJIMI_STUDENT_INVITE_CODE` creates student accounts and `HAJIMI_TEACHER_INVITE_CODE` creates teacher accounts. If neither invite code is configured, registration is closed while existing logins still work.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
 - **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts and delete any post/comment. Students can delete only their own posts/comments.
@@ -195,6 +195,7 @@ Next risk: <what the next agent should watch out for>
 
 - **Turbopack Chinese Path Bug:** Local `npm run dev` may panic if the absolute path contains Chinese characters. Vercel cloud builds are unaffected. Workaround: run dev from a path without Chinese characters.
 - **Vercel Auth Interception:** On Preview URLs with Vercel Protection enabled, `/api/auth` may return 500/HTML. Always test auth on the Production Domain.
+- **Invite-gated registration:** Production must set `HAJIMI_STUDENT_INVITE_CODE` before new students can register. Optional: set `HAJIMI_TEACHER_INVITE_CODE` for teacher self-registration.
 - **Vercel Blob token required:** File uploads return 503 if `BLOB_READ_WRITE_TOKEN` is missing. Text-only posts still work without Blob.
 - **Blob cleanup:** Run `npm run blob:cleanup` for a dry run and `npm run blob:cleanup -- --delete` to remove forum blobs that are no longer referenced by `posts.attachment_url`.
 - **globals.css corruption (resolved):** A previous edit accidentally injected raw CSS inside a `.glass-input` rule block. Fixed in commit `1caab3a`.

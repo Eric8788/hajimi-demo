@@ -19,7 +19,7 @@ Hajimi is a comprehensive, gamified student community and project hub built for 
 ## 3. Core Architecture & Routing
 The app uses Next.js App Router (`src/app/`).
 - `/` **(Landing Page):** Public, SEO-friendly marketing page. Shows trending posts and generic club info.
-- `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`.
+- `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`. Registration requires an invite code.
 - `/dashboard` **(Protected):** The user's personalized homepage. Contains:
   - **Welcome Widget:** Daily insight and Check-in button.
   - **Timeline Dancer:** Static daily schedule visualization.
@@ -47,7 +47,7 @@ Database interactions are handled via standard SQL functions.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
 
-*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`.*
+*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through `HAJIMI_STUDENT_INVITE_CODE` and optional `HAJIMI_TEACHER_INVITE_CODE`. If neither invite code is configured, registration is closed but existing logins still work.*
 
 ## 6. Important Workflows for AI Assistants
 1. **Adding a new student project:** 
@@ -57,6 +57,7 @@ Database interactions are handled via standard SQL functions.
    - Always check session via `const session = await getSession();` at the top of the Server Component.
    - Redirect to `/login` if `!session`.
    - Wrap the page in `<Shell user={user}>` to render the sidebar navigation.
+   - Do not bypass invite-gated registration in `src/app/api/auth/route.ts`.
 3. **Adding new APIs:**
    - Put them in `src/app/api/.../route.ts`. 
    - Parse session cookies securely using `getSession()`.

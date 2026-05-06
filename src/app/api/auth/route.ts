@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getUser, createUser } from '@/lib/db';
 import { createSession } from '@/lib/auth';
+import { isRegistrationConfigured, resolveInviteRole } from '@/lib/inviteCodes';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { username, password, isRegister } = body;
+        const { username, password, isRegister, inviteCode } = body;
 
         if (!username || !password) {
             return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -18,11 +19,21 @@ export async function POST(request: Request) {
             if (user) {
                 return NextResponse.json({ error: 'User already exists' }, { status: 409 });
             }
+
+            if (!isRegistrationConfigured()) {
+                return NextResponse.json({ error: 'Registration is not open yet. Ask a teacher to configure invite codes.' }, { status: 503 });
+            }
+
+            const inviteRole = resolveInviteRole(inviteCode);
+            if (!inviteRole) {
+                return NextResponse.json({ error: 'Invalid invite code' }, { status: 403 });
+            }
+
             const hashedPassword = await bcrypt.hash(password, 10);
-            const userId = await createUser(username, hashedPassword);
+            const userId = await createUser(username, hashedPassword, inviteRole);
             // Automatically log in
             await createSession(Number(userId));
-            return NextResponse.json({ success: true });
+            return NextResponse.json({ success: true, role: inviteRole });
         } else {
             // Login
             if (!user || !user.password_hash) {
