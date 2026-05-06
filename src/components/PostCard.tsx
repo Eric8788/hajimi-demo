@@ -4,12 +4,12 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Post, Comment, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
-import { isStaffRole } from '@/lib/roles';
+import { isAdminRole } from '@/lib/roles';
 import RoleBadge from './RoleBadge';
 
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const isGuest = !currentUser;
-    const canModerate = isStaffRole(currentUser?.role);
+    const canModerate = isAdminRole(currentUser?.role);
     const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
     const isAnnouncement = post.tag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
@@ -111,7 +111,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const handleDeletePost = async () => {
         const message = post.author_id === currentUser?.id
             ? 'Delete this post? This cannot be undone.'
-            : 'Delete this post as a moderator? This cannot be undone.';
+            : 'Delete this post as an admin? This cannot be undone.';
         if (!confirm(message)) return;
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
@@ -126,7 +126,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         const comment = comments.find(c => c.id === commentId);
         const message = comment?.author_id === currentUser?.id
             ? 'Delete this comment?'
-            : 'Delete this comment as a moderator?';
+            : 'Delete this comment as an admin?';
         if (!confirm(message)) return;
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
@@ -236,7 +236,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         <button
                             onClick={handleDeletePost}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#b2bec3', transition: 'color 0.2s' }}
-                            title={post.author_id === currentUser?.id ? 'Delete Post' : 'Moderator Delete Post'}
+                            title={post.author_id === currentUser?.id ? 'Delete Post' : 'Admin Delete Post'}
                         >🗑️</button>
                     )}
                 </div>
@@ -363,7 +363,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                         <button
                                                             onClick={() => handleDeleteComment(c.id)}
                                                             style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
-                                                            title={c.author_id === currentUser.id ? 'Delete Comment' : 'Moderator Delete Comment'}
+                                                            title={c.author_id === currentUser.id ? 'Delete Comment' : 'Admin Delete Comment'}
                                                         >🗑️</button>
                                                     )}
                                                 </div>

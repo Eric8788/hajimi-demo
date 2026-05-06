@@ -71,9 +71,16 @@ export default function LoginPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
+                            minLength={isRegister ? 8 : undefined}
                             className="glass-input"
                             placeholder="Password"
+                            autoComplete={isRegister ? 'new-password' : 'current-password'}
                         />
+                        {isRegister && (
+                            <div style={{ color: '#636e72', fontSize: '0.78rem', marginTop: '8px', lineHeight: 1.4 }}>
+                                At least 8 characters with uppercase, lowercase, and a number.
+                            </div>
+                        )}
                     </div>
 
                     {error && (

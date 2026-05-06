@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForDelete, getUserById } from '@/lib/db';
-import { isStaffRole } from '@/lib/roles';
+import { isAdminRole } from '@/lib/roles';
 import { del } from '@vercel/blob';
 
 // POST: Handle actions (like, comment, bookmark, like_comment)
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
         const userId = Number(session.userId);
         const user = await getUserById(userId);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        const canModerate = isStaffRole(user.role);
+        const canModerate = isAdminRole(user.role);
 
         const body = await request.json();
         const { action, postId, commentId, content } = body;

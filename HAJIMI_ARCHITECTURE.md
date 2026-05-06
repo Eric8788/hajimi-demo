@@ -47,7 +47,7 @@ Database interactions are handled via standard SQL functions.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
 
-*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through `HAJIMI_STUDENT_INVITE_CODE` and optional `HAJIMI_TEACHER_INVITE_CODE`. If neither invite code is configured, registration is closed but existing logins still work.*
+*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through `HAJIMI_STUDENT_INVITE_CODE` and optional `HAJIMI_TEACHER_INVITE_CODE`. Invite codes are set in Vercel environment variables and shared manually. If neither invite code is configured, registration is closed but existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number.*
 
 ## 6. Important Workflows for AI Assistants
 1. **Adding a new student project:** 
@@ -69,8 +69,8 @@ Database interactions are handled via standard SQL functions.
    - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
 5. **Forum moderation:**
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
-   - Only staff can publish posts tagged `announcement`.
-   - Staff can delete any post or comment; students can delete only their own posts/comments.
+   - `teacher` and `admin` can publish posts tagged `announcement`.
+   - Only `admin` can delete any post or comment; teachers and students can delete only their own posts/comments.
    - Staff roles are visually marked with badges on posts, comments, and profile pages.
 
 ## 7. Known Issues & Quirks

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getUser, createUser } from '@/lib/db';
 import { createSession } from '@/lib/auth';
 import { isRegistrationConfigured, resolveInviteRole } from '@/lib/inviteCodes';
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
@@ -11,6 +12,10 @@ export async function POST(request: Request) {
 
         if (!username || !password) {
             return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+        }
+
+        if (isRegister && !isStrongPassword(password)) {
+            return NextResponse.json({ error: PASSWORD_REQUIREMENT_MESSAGE }, { status: 400 });
         }
 
         const user = await getUser(username);
