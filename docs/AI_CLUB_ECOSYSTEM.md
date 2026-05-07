@@ -4,6 +4,8 @@
 
 > **Every AI agent MUST read this file before starting any work session.**
 
+**Current Hajimi version:** Hajimi Beta v0.2.0-beta.1 · 2026-05-07
+
 ---
 
 ## 1. Ecosystem Topology
@@ -89,7 +91,10 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Auth:** Custom JWT via `jose` + `bcryptjs`. Stored in `HttpOnly` cookie `session`. No NextAuth. Registration is invite-gated: `HAJIMI_STUDENT_INVITE_CODE` creates student accounts and `HAJIMI_TEACHER_INVITE_CODE` creates teacher accounts. Invite codes are chosen by Eric/teachers and stored as Vercel environment variables; the app does not generate or display them. If neither invite code is configured, registration is closed while existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
-- **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
+- **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Announcement posts are visually highlighted and sorted like pinned posts at the top of the main Hallway feed. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
+- **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
+- **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
+- **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.
 - **Image Uploads:** `POST /api/posts` stores public images in Vercel Blob and saves the Blob URL in `posts.attachment_url`. Production requires `BLOB_READ_WRITE_TOKEN`. Guardrails: JPEG/PNG/WebP/GIF only, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user, and post deletion attempts to delete the associated Blob. The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
 - **Landing Page particles:** `src/components/ParticleBackground.tsx` — Canvas-based, `zIndex: -1`, free-floating with mouse repulsion.
@@ -101,6 +106,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `posts` | `id`, `author_id`, `title`, `content`, `type`, `tag`, `attachment_url`, `likes`, `created_at` |
 | `comments` | `id`, `post_id`, `author_id`, `content`, `likes`, `created_at` |
 | `checkins` | `user_id`, `checkin_date` |
+| `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
 
 ### App Routes
 | Route | Access | Description |
@@ -108,7 +114,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/` | Public | Landing page with particle bg, project marquee |
 | `/login` | Public | JWT auth (login + register) |
 | `/dashboard` | Protected | Welcome widget, Timeline, Tarot, Rec Room |
-| `/resources` | Hybrid (Guest OK) | Forum — The Hallway |
+| `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
 | `/functions` | Public | Function Hall — project grid |
 | `/profile` | Protected | User profile editor |
 

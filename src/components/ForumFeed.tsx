@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { Post, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
@@ -11,9 +11,16 @@ const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
     { id: 'resource', label: '📚 Resource' },
     { id: 'question', label: '❓ Question' },
-    { id: 'announcement', label: '📢 Announcement' },
     { id: 'project', label: '🛠️ Project' },
     { id: 'meme', label: '😂 Meme' },
+];
+
+const CUSTOM_TAG_SUGGESTIONS = [
+    { id: '升学雷达', label: '🎓 升学雷达' },
+    { id: '课程补给站', label: '📚 课程补给站' },
+    { id: '健身广场', label: '💪 健身广场' },
+    { id: '情感树洞', label: '💗 情感树洞' },
+    { id: '项目孵化器', label: '🛠️ 项目孵化器' },
 ];
 
 const MAX_IMAGE_SIZE = 1 * 1024 * 1024;
@@ -115,8 +122,11 @@ async function compressImageForUpload(file: File) {
 
 export default function ForumFeed({ user, initialPosts }: { user: User | null, initialPosts: Post[] }) {
     const router = useRouter();
+    const composerRef = useRef<HTMLFormElement | null>(null);
     const canPostAnnouncement = isStaffRole(user?.role);
-    const visibleTagOptions = canPostAnnouncement ? TAG_OPTIONS : TAG_OPTIONS.filter(tag => tag.id !== 'announcement');
+    const visibleTagOptions = canPostAnnouncement
+        ? [{ id: 'announcement', label: '📢 Announcement' }, ...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS]
+        : [...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS];
     const [posts, setPosts] = useState<Post[]>(initialPosts);
     const [isCreating, setIsCreating] = useState(false);
     const [sortType, setSortType] = useState<'time' | 'heat' | 'likes'>('time');
@@ -151,8 +161,30 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         setPopularTags(sorted.slice(0, 6));
     }, [initialPosts]);
 
+    useEffect(() => {
+        if (!isCreating || !user) return;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node;
+            const hasDraft = !!(newTitle.trim() || newContent.trim() || file);
+
+            if (!hasDraft && !loading && !isPreparingImage && composerRef.current && !composerRef.current.contains(target)) {
+                setNewTitle('');
+                setNewContent('');
+                setNewTag('general');
+                setFile(null);
+                setFileStatus('');
+                setCreateError('');
+                setIsCreating(false);
+            }
+        };
+
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => document.removeEventListener('pointerdown', handlePointerDown);
+    }, [file, isCreating, isPreparingImage, loading, newContent, newTitle, user]);
+
     const fetchPosts = async (sort: string = sortType, filter: string = filterType, tag: string = selectedTag) => {
-        const tagParam = tag !== 'all' ? `&tag=${tag}` : '';
+        const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
         const res = await fetch(`/api/posts?sort=${sort}&filter=${filter}${tagParam}`, { cache: 'no-store' });
         const data = await res.json();
         setPosts(data);
@@ -186,6 +218,19 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         setIsCreating(false);
     };
 
+    const openComposer = () => {
+        if (requireLogin()) return;
+
+        setCreateError('');
+        setFileStatus('');
+        setIsCreating(true);
+    };
+
+    const handleTagInput = (value: string) => {
+        const normalized = value.replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24);
+        setNewTag(normalized || 'general');
+    };
+
     const handleCreate = async (e: FormEvent) => {
         e.preventDefault();
         if (isPreparingImage) {
@@ -199,7 +244,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         const formData = new FormData();
         formData.append('title', newTitle);
         formData.append('content', newContent);
-        formData.append('tag', newTag);
+        formData.append('tag', newTag.trim() || 'general');
         if (file) {
             formData.append('file', file);
             formData.append('type', 'image');
@@ -336,11 +381,32 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                 )}
             </AnimatePresence>
 
+            <div
+                className="glass-card forum-welcome-board"
+                style={{ marginBottom: '20px' }}
+            >
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ fontSize: '0.78rem', color: '#6c5ce7', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Welcome Board
+                    </div>
+                    <h2 style={{ fontSize: '1.28rem', marginBottom: '8px' }}>Welcome to Hajimi Hallway.</h2>
+                    <p style={{ lineHeight: 1.55, fontSize: '0.95rem', maxWidth: '620px' }}>
+                        社团公告、活动预告和 beta 说明会放在这里。当前版本的体验反馈，请在置顶 announcement 下评论，方便集中整理。
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
+                        {['社团公告', '活动预告', 'Beta Notes'].map(item => (
+                            <span key={item} className="forum-static-chip">{item}</span>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
             {/* Tags Bar */}
             {popularTags.length > 0 && (
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#636e72', fontWeight: 600 }}>🏷️</span>
                     <button
+                        className={`forum-chip ${selectedTag === 'all' ? 'is-active' : ''}`}
                         onClick={() => handleTagFilter('all')}
                         style={{
                             padding: '4px 12px', borderRadius: '15px', border: 'none',
@@ -352,6 +418,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                     {popularTags.map(t => (
                         <button
                             key={t.tag}
+                            className={`forum-chip ${selectedTag === t.tag ? 'is-active' : ''}`}
                             onClick={() => handleTagFilter(t.tag)}
                             style={{
                                 padding: '4px 12px', borderRadius: '15px', border: 'none',
@@ -370,12 +437,14 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '20px', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.4)', padding: '5px', borderRadius: '25px' }}>
                     {[
-                        { id: 'time', label: '🕒 Latest' },
-                        { id: 'heat', label: '🔥 Hot' },
-                        { id: 'likes', label: '❤️ Top' }
+                        { id: 'time', label: '🕒 Latest', title: 'Newest posts first' },
+                        { id: 'heat', label: '🔥 Hot', title: 'Discussion, likes, saves, and freshness' },
+                        { id: 'likes', label: '❤️ Top', title: 'Most liked posts' }
                     ].map(tab => (
                         <button
                             key={tab.id}
+                            className={`forum-tab ${sortType === tab.id && filterType === 'all' ? 'is-active' : ''}`}
+                            title={tab.title}
                             onClick={() => handleSortChange(tab.id as 'time' | 'heat' | 'likes')}
                             style={{
                                 padding: '8px 16px',
@@ -388,6 +457,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                 </div>
                 <div style={{ width: '1px', height: '30px', background: 'rgba(0,0,0,0.1)' }}></div>
                 <button
+                    className={`forum-tab ${filterType === 'saved' ? 'is-active saved' : ''}`}
+                    title="Posts you saved"
                     onClick={() => handleFilterChange(filterType === 'saved' ? 'all' : 'saved')}
                     style={{
                         padding: '8px 16px',
@@ -401,8 +472,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             {/* Create Trigger */}
             {!isCreating && (
                 <div
-                    onClick={() => { if (!requireLogin()) setIsCreating(true); }}
-                    className="glass-card"
+                    onClick={() => openComposer()}
+                    className="glass-card composer-trigger"
                     style={{ marginBottom: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', border: '2px dashed rgba(162, 155, 254, 0.5)', background: 'rgba(255,255,255,0.3)' }}
                 >
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#fab1a0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', border: '2px solid white' }}>
@@ -418,16 +489,30 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             {/* Create Form (only shown when logged in and isCreating) */}
             <AnimatePresence>
                 {isCreating && user && (
-                    <motion.form initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} onSubmit={handleCreate} className="glass-panel" style={{ padding: '25px', marginBottom: '30px', background: 'rgba(255,255,255,0.8)' }}>
+                    <motion.form ref={composerRef} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} onSubmit={handleCreate} className="glass-panel" style={{ padding: '25px', marginBottom: '30px', background: 'rgba(255,255,255,0.8)' }}>
                         <h3 style={{ marginBottom: '20px' }}>✨ Create a New Post</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             <input placeholder="Title..." value={newTitle} onChange={e => setNewTitle(e.target.value)} required className="glass-input" style={{ fontWeight: 'bold', fontSize: '1.1rem' }} />
-                            {/* Tag Selector */}
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.9rem', color: '#636e72' }}>Tag:</span>
-                                {visibleTagOptions.map(t => (
-                                    <button key={t.id} type="button" onClick={() => setNewTag(t.id)} style={{ padding: '5px 12px', borderRadius: '15px', border: 'none', background: newTag === t.id ? '#6c5ce7' : 'rgba(0,0,0,0.05)', color: newTag === t.id ? 'white' : '#636e72', fontSize: '0.85rem', cursor: 'pointer' }}>{t.label}</button>
-                                ))}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label style={{ fontSize: '0.9rem', color: '#636e72', fontWeight: 700 }}>Hashtag</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: '#6c5ce7', fontWeight: 800, fontSize: '1.05rem' }}>#</span>
+                                    <input
+                                        placeholder="general"
+                                        value={newTag}
+                                        onChange={e => handleTagInput(e.target.value)}
+                                        className="glass-input"
+                                        style={{ flex: 1 }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    {visibleTagOptions.map(t => (
+                                        <button key={t.id} type="button" onClick={() => setNewTag(t.id)} style={{ padding: '5px 12px', borderRadius: '15px', border: 'none', background: newTag === t.id ? '#6c5ce7' : 'rgba(0,0,0,0.05)', color: newTag === t.id ? 'white' : '#636e72', fontSize: '0.85rem', cursor: 'pointer' }}>{t.label}</button>
+                                    ))}
+                                </div>
+                                <div style={{ color: '#636e72', fontSize: '0.8rem' }}>
+                                    Use letters, numbers, Chinese characters, underscores, or hyphens. Announcements are staff-only and behave like pinned posts.
+                                </div>
                             </div>
                             <textarea placeholder="What's on your mind?" value={newContent} onChange={e => setNewContent(e.target.value)} required rows={5} className="glass-input" style={{ resize: 'vertical' }} />
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>

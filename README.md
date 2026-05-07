@@ -1,4 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hajimi
+
+**Current version:** Hajimi Beta v0.2.0-beta.1 · 2026-05-07
+
+AI Club student community portal built with Next.js, Vercel Postgres, and Vercel Blob.
 
 ## Getting Started
 

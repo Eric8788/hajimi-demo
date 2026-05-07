@@ -39,6 +39,39 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        <div
+          className="glass-card full-width"
+          style={{
+            marginTop: '24px',
+            padding: '26px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '20px',
+            flexWrap: 'wrap',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.7), rgba(232, 245, 255, 0.62))',
+            border: '1px solid rgba(108, 92, 231, 0.16)',
+          }}
+        >
+          <div style={{ flex: '1 1 320px' }}>
+            <div style={{ fontSize: '0.78rem', color: '#6c5ce7', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Beta Test Mission
+            </div>
+            <h3 style={{ fontSize: '1.45rem', marginBottom: '8px' }}>Try Hajimi, then comment on the pinned announcement.</h3>
+            <p style={{ lineHeight: 1.55 }}>
+              Keep beta feedback in one place: test a project, log in, and leave your sharpest note under Eric&apos;s announcement.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Link href="/functions" className="btn" style={{ background: 'rgba(255,255,255,0.72)', color: '#5f5f78', border: '1px solid rgba(108, 92, 231, 0.16)', textDecoration: 'none' }}>
+              🧩 Try Projects
+            </Link>
+            <Link href="/resources" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+              📌 Open Announcement
+            </Link>
+          </div>
+        </div>
+
         <div className="dashboard-grid">
 
           {/* Timeline Widget */}

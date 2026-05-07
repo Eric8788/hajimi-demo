@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForDelete, getUserById } from '@/lib/db';
+import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { del } from '@vercel/blob';
 
@@ -20,6 +20,9 @@ export async function POST(request: Request) {
         if (action === 'like') {
             if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
             const hasLiked = await togglePostLike(userId, postId);
+            if (hasLiked) {
+                await createPostInteractionNotification(userId, postId, 'post_like');
+            }
             return NextResponse.json({ success: true, hasLiked });
         }
 
@@ -32,12 +35,18 @@ export async function POST(request: Request) {
         else if (action === 'bookmark') {
             if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
             const isBookmarked = await toggleBookmark(userId, postId);
+            if (isBookmarked) {
+                await createPostInteractionNotification(userId, postId, 'post_bookmark');
+            }
             return NextResponse.json({ success: true, isBookmarked });
         }
 
         else if (action === 'like_comment') {
             if (!commentId) return NextResponse.json({ error: 'Missing commentId' }, { status: 400 });
             const hasLiked = await toggleCommentLike(userId, commentId);
+            if (hasLiked) {
+                await createCommentLikeNotification(userId, commentId);
+            }
             return NextResponse.json({ success: true, hasLiked });
         }
 

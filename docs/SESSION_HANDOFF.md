@@ -2,6 +2,8 @@
 
 *Last updated: 2026-05-07 (Asia/Shanghai)*
 
+**Current version:** Hajimi Beta v0.2.0-beta.1 · 2026-05-07
+
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
 ## 1. Current Status
@@ -11,6 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
+- **Current version:** Hajimi Beta v0.2.0-beta.1
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -35,6 +38,13 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
   - `student`: cannot post announcements, delete only own post/comment
 - Staff role badges are visible in forum UI and profile UI.
 - Production role note: `eric` has already been promoted to `admin` in the database.
+- Announcement posts now behave like pinned posts in the main Hallway feed.
+- The Hallway beta prompt sends testers to the pinned announcement; beta feedback should be left as comments there.
+- Normal posts support custom hashtags. Starter suggestions include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`; `announcement` remains staff-only.
+- The Dashboard has a beta test mission card linking students to Function Hall and the pinned announcement flow.
+- Forum buttons now use a unified hover language, and post likes, post saves, and comment likes have small animation feedback.
+- The app has in-app notifications for post likes, post saves, and comment likes. Notifications are stored in the `notifications` table, created automatically if missing.
+- `Hot` ranking combines discussion, likes, saves, and recency; `Top` remains pure likes.
 
 ## 3. Required Environment Variables
 
@@ -77,10 +87,12 @@ Eric is also using a Hallway thread as the main feedback post for beta comments.
 
 If no new user instruction overrides this, the most valuable next areas are:
 
-1. tighten beta feedback workflow inside Hajimi
+1. make announcement comments easier for Eric/admins to triage
 2. polish dashboard usefulness beyond the forum and Function Hall
 3. improve onboarding for new student users
 4. add stronger moderation and admin tooling if beta usage increases
+
+Note: the beta feedback entry point is intentionally comment-based under Eric's announcement, not a separate `feedback` tag/module.
 
 ## 7. Read Before Editing
 
@@ -119,4 +131,3 @@ Then continue from the current state without redoing completed work.
 - `c5d124b` chore(forum): tune image quotas for school scale
 - `dda7dbb` feat(forum): add blob upload guardrails
 - `733802d` feat(forum): store attachments in vercel blob
-

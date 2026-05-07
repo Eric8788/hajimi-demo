@@ -48,6 +48,20 @@ export interface Comment {
     has_liked?: boolean;
 }
 
+export interface Notification {
+    id: number;
+    recipient_id: number;
+    actor_id: number;
+    type: 'post_like' | 'post_bookmark' | 'comment_like';
+    post_id?: number | null;
+    comment_id?: number | null;
+    read_at?: Date | null;
+    created_at: Date;
+    actor_name?: string;
+    actor_avatar?: string;
+    post_title?: string;
+}
+
 // --- User Helpers ---
 
 export async function getUser(username: string) {
@@ -136,8 +150,15 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
       ORDER BY 
+        CASE WHEN ${tag ?? 'all'} = 'all' AND posts.tag = 'announcement' THEN 0 ELSE 1 END ASC,
         CASE WHEN ${sort} = 'likes' THEN posts.likes END DESC,
-        CASE WHEN ${sort} = 'heat' THEN (posts.likes + (SELECT COUNT(*) FROM comments WHERE post_id = posts.id)) END DESC,
+        CASE WHEN ${sort} = 'heat' THEN (
+          (
+            posts.likes * 2
+            + (SELECT COUNT(*) FROM comments WHERE post_id = posts.id) * 3
+            + (SELECT COUNT(*) FROM bookmarks WHERE post_id = posts.id) * 2
+          ) / POWER(GREATEST(EXTRACT(EPOCH FROM (NOW() - posts.created_at)) / 3600 + 2, 2), 0.35)
+        ) END DESC,
         posts.created_at DESC
       LIMIT 50
   `;
@@ -221,7 +242,7 @@ export async function togglePostLike(userId: number, postId: number): Promise<bo
         if (postRows[0] && postRows[0].author_id !== userId) {
             await addPoints(postRows[0].author_id, 1);
         }
-        return true;//124124124
+        return true;
     }
 }
 
@@ -251,6 +272,140 @@ export async function toggleBookmark(userId: number, postId: number) {
         await sql`INSERT INTO bookmarks (user_id, post_id) VALUES (${userId}, ${postId})`;
         return true;
     }
+}
+
+async function ensureNotificationsTable() {
+    await sql`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        post_id INTEGER,
+        comment_id INTEGER,
+        read_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx
+      ON notifications (recipient_id, created_at DESC);
+    `;
+}
+
+async function createNotification(input: {
+    recipientId: number;
+    actorId: number;
+    type: Notification['type'];
+    postId?: number | null;
+    commentId?: number | null;
+}) {
+    if (!input.recipientId || input.recipientId === input.actorId) return;
+
+    try {
+        await ensureNotificationsTable();
+
+        const { rows } = await sql`
+          SELECT id
+          FROM notifications
+          WHERE recipient_id = ${input.recipientId}
+            AND actor_id = ${input.actorId}
+            AND type = ${input.type}
+            AND post_id IS NOT DISTINCT FROM ${input.postId ?? null}
+            AND comment_id IS NOT DISTINCT FROM ${input.commentId ?? null}
+            AND created_at >= NOW() - INTERVAL '6 hours'
+          LIMIT 1
+        `;
+
+        if (rows[0]) return;
+
+        await sql`
+          INSERT INTO notifications (recipient_id, actor_id, type, post_id, comment_id)
+          VALUES (${input.recipientId}, ${input.actorId}, ${input.type}, ${input.postId ?? null}, ${input.commentId ?? null})
+        `;
+    } catch (error) {
+        console.warn('Notification write skipped:', error);
+    }
+}
+
+export async function createPostInteractionNotification(actorId: number, postId: number, type: 'post_like' | 'post_bookmark') {
+    const { rows } = await sql<{ author_id: number }>`
+      SELECT author_id
+      FROM posts
+      WHERE id = ${postId}
+      LIMIT 1
+    `;
+
+    const recipientId = rows[0]?.author_id;
+    if (!recipientId) return;
+
+    await createNotification({
+        recipientId,
+        actorId,
+        type,
+        postId,
+    });
+}
+
+export async function createCommentLikeNotification(actorId: number, commentId: number) {
+    const { rows } = await sql<{ author_id: number; post_id: number }>`
+      SELECT author_id, post_id
+      FROM comments
+      WHERE id = ${commentId}
+      LIMIT 1
+    `;
+
+    const comment = rows[0];
+    if (!comment) return;
+
+    await createNotification({
+        recipientId: comment.author_id,
+        actorId,
+        type: 'comment_like',
+        postId: comment.post_id,
+        commentId,
+    });
+}
+
+export async function getNotifications(userId: number) {
+    await ensureNotificationsTable();
+
+    const { rows } = await sql<Notification>`
+      SELECT notifications.*, users.username as actor_name, users.avatar as actor_avatar, posts.title as post_title
+      FROM notifications
+      JOIN users ON notifications.actor_id = users.id
+      LEFT JOIN posts ON notifications.post_id = posts.id
+      WHERE notifications.recipient_id = ${userId}
+      ORDER BY notifications.created_at DESC
+      LIMIT 20
+    `;
+
+    return rows;
+}
+
+export async function getUnreadNotificationCount(userId: number) {
+    await ensureNotificationsTable();
+
+    const { rows } = await sql<{ unread_count: number }>`
+      SELECT COUNT(*)::int as unread_count
+      FROM notifications
+      WHERE recipient_id = ${userId}
+        AND read_at IS NULL
+    `;
+
+    return rows[0]?.unread_count ?? 0;
+}
+
+export async function markNotificationsRead(userId: number) {
+    await ensureNotificationsTable();
+
+    await sql`
+      UPDATE notifications
+      SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+      WHERE recipient_id = ${userId}
+        AND read_at IS NULL
+    `;
 }
 
 export async function getPostAttachmentForDelete(userId: number, postId: number, canModerate = false): Promise<string> {
@@ -364,4 +519,6 @@ export async function initDB() {
       PRIMARY KEY (user_id, post_id)
     );
   `;
+
+    await ensureNotificationsTable();
 }

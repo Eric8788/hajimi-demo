@@ -16,6 +16,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
     const [expanded, setExpanded] = useState(false);
+    const [likeBurst, setLikeBurst] = useState(0);
+    const [bookmarkBurst, setBookmarkBurst] = useState(0);
+    const [commentLikeBurst, setCommentLikeBurst] = useState<number | null>(null);
 
     // Comments
     const [showComments, setShowComments] = useState(false);
@@ -76,36 +79,48 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         const newLikedState = !hasLiked;
         setHasLiked(newLikedState);
         setLikes(p => newLikedState ? p + 1 : p - 1);
+        if (newLikedState) setLikeBurst(count => count + 1);
 
         await fetch('/api/posts/interact', {
             method: 'POST',
             body: JSON.stringify({ action: 'like', postId: post.id })
         });
+        window.dispatchEvent(new Event('hajimi-notifications-refresh'));
     };
 
     const handleBookmark = async () => {
         if (isGuest) { onGuestAction?.(); return; }
-        setIsBookmarked(!isBookmarked);
+        const nextBookmarked = !isBookmarked;
+        setIsBookmarked(nextBookmarked);
+        if (nextBookmarked) setBookmarkBurst(count => count + 1);
         await fetch('/api/posts/interact', {
             method: 'POST',
             body: JSON.stringify({ action: 'bookmark', postId: post.id })
         });
+        window.dispatchEvent(new Event('hajimi-notifications-refresh'));
     };
 
     const handleCommentLike = async (commentId: number) => {
         if (isGuest) { onGuestAction?.(); return; }
         // Optimistic toggle for comment likes
+        let likedNow = false;
         setComments(current => current.map(c => {
             if (c.id === commentId) {
                 const newLikedState = !c.has_liked;
+                likedNow = newLikedState;
                 return { ...c, likes: newLikedState ? c.likes + 1 : c.likes - 1, has_liked: newLikedState };
             }
             return c;
         }));
+        if (likedNow) {
+            setCommentLikeBurst(commentId);
+            window.setTimeout(() => setCommentLikeBurst(current => current === commentId ? null : current), 700);
+        }
         await fetch('/api/posts/interact', {
             method: 'POST',
             body: JSON.stringify({ action: 'like_comment', commentId })
         });
+        window.dispatchEvent(new Event('hajimi-notifications-refresh'));
     };
 
     const handleDeletePost = async () => {
@@ -221,16 +236,34 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         {isAnnouncement ? '📢 announcement' : `#${post.tag || 'general'}`}
                     </div>
                     {/* Bookmark Button */}
-                    <button
+                    <motion.button
                         onClick={handleBookmark}
+                        className="reaction-button"
+                        whileTap={{ scale: 0.82 }}
+                        animate={bookmarkBurst ? { scale: [1, 1.22, 1], rotate: [0, -8, 7, 0] } : { scale: 1, rotate: 0 }}
+                        transition={{ duration: 0.32 }}
                         style={{
                             background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem',
                             color: isBookmarked ? '#fdcb6e' : '#b2bec3', transition: 'color 0.2s'
                         }}
                         title="Bookmark"
                     >
+                        <AnimatePresence>
+                            {bookmarkBurst > 0 && (
+                                <motion.span
+                                    key={bookmarkBurst}
+                                    className="reaction-burst"
+                                    initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                                    animate={{ opacity: 1, y: -8, scale: 1 }}
+                                    exit={{ opacity: 0, y: -18, scale: 0.7 }}
+                                    transition={{ duration: 0.45 }}
+                                >
+                                    saved
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
                         {isBookmarked ? '⭐' : '☆'}
-                    </button>
+                    </motion.button>
                     {/* Delete Button (Owner or Moderator) */}
                     {canDeletePost && (
                         <button
@@ -303,19 +336,35 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Actions Bar */}
             <div style={{ marginTop: '20px', display: 'flex', gap: '20px', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '15px' }}>
-                <button
+                <motion.button
                     onClick={handleLike}
+                    className="reaction-button"
+                    whileTap={{ scale: 0.84 }}
+                    animate={likeBurst ? { scale: [1, 1.18, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.28 }}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
                         color: hasLiked ? '#ff7675' : '#636e72',
                         display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600,
-                        transition: 'transform 0.1s'
+                        transition: 'color 0.18s'
                     }}
-                    onMouseDown={e => (e.target as HTMLElement).style.transform = 'scale(0.9)'}
-                    onMouseUp={e => (e.target as HTMLElement).style.transform = 'scale(1)'}
                 >
+                    <AnimatePresence>
+                        {likeBurst > 0 && (
+                            <motion.span
+                                key={likeBurst}
+                                className="reaction-burst"
+                                initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                animate={{ opacity: 1, y: -10, scale: 1 }}
+                                exit={{ opacity: 0, y: -22, scale: 0.6 }}
+                                transition={{ duration: 0.45 }}
+                            >
+                                +1
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
                     {hasLiked || likes > post.likes ? '❤️' : '🤍'} {likes}
-                </button>
+                </motion.button>
 
                 <button
                     onClick={toggleComments}
@@ -353,12 +402,30 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                     {c.likes > 0 && <span>{c.likes} likes</span>}
-                                                    <button
+                                                    <motion.button
                                                         onClick={() => handleCommentLike(c.id)}
+                                                        className="reaction-button"
+                                                        whileTap={{ scale: 0.84 }}
+                                                        animate={commentLikeBurst === c.id ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                                                        transition={{ duration: 0.25 }}
                                                         style={{ border: 'none', background: 'none', cursor: 'pointer', color: c.has_liked ? '#ff7675' : '#b2bec3' }}
                                                     >
+                                                        <AnimatePresence>
+                                                            {commentLikeBurst === c.id && (
+                                                                <motion.span
+                                                                    key={c.id}
+                                                                    className="reaction-burst"
+                                                                    initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                                                    animate={{ opacity: 1, y: -8, scale: 1 }}
+                                                                    exit={{ opacity: 0, y: -18, scale: 0.6 }}
+                                                                    transition={{ duration: 0.42 }}
+                                                                >
+                                                                    +1
+                                                                </motion.span>
+                                                            )}
+                                                        </AnimatePresence>
                                                         {c.has_liked ? '❤️' : '🤍'}
-                                                    </button>
+                                                    </motion.button>
                                                     {!isGuest && currentUser && (c.author_id === currentUser.id || canModerate) && (
                                                         <button
                                                             onClick={() => handleDeleteComment(c.id)}

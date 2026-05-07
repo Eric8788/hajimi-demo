@@ -13,7 +13,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
     'image/webp',
     'image/gif',
 ]);
-const ALLOWED_TAGS = new Set(['general', 'resource', 'question', 'announcement', 'project', 'meme']);
+const HASHTAG_PATTERN = /^[\p{L}\p{N}_-]{1,24}$/u;
 
 function safeFilename(name: string) {
     const extension = name.includes('.') ? name.split('.').pop() : 'file';
@@ -23,6 +23,14 @@ function safeFilename(name: string) {
         .slice(0, 60) || 'attachment';
 
     return `${baseName}.${extension?.replace(/[^a-zA-Z0-9]/g, '') || 'file'}`;
+}
+
+function normalizeHashtag(value: FormDataEntryValue | null) {
+    return String(value || 'general')
+        .trim()
+        .replace(/^#+/, '')
+        .replace(/\s+/g, '')
+        .slice(0, 24) || 'general';
 }
 
 export async function GET(request: Request) {
@@ -60,8 +68,7 @@ export async function POST(request: Request) {
         const title = String(formData.get('title') || '').trim();
         const content = String(formData.get('content') || '').trim();
         let type = 'text';
-        const requestedTag = String(formData.get('tag') || 'general');
-        const tag = ALLOWED_TAGS.has(requestedTag) ? requestedTag : 'general';
+        const tag = normalizeHashtag(formData.get('tag'));
         const file = formData.get('file') as File | null;
 
         if (!title || !content) {
@@ -70,6 +77,10 @@ export async function POST(request: Request) {
 
         if (tag === 'announcement' && !isStaffRole(user.role)) {
             return NextResponse.json({ error: 'Only teachers and admins can publish announcements' }, { status: 403 });
+        }
+
+        if (!HASHTAG_PATTERN.test(tag)) {
+            return NextResponse.json({ error: 'Hashtags can use letters, numbers, Chinese characters, underscores, or hyphens' }, { status: 400 });
         }
 
         let attachmentUrl = '';

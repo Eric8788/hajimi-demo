@@ -2,6 +2,8 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { User } from '@/lib/db';
 import { motion } from 'framer-motion';
+import NotificationsBell from './NotificationsBell';
+import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
@@ -50,21 +52,24 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
 
                 <div style={{ marginTop: 'auto', textAlign: 'center' }}>
                     {user ? (
-                        <div
-                            onClick={() => router.push('/profile')}
-                            style={{
-                                width: '48px', height: '48px',
-                                background: 'linear-gradient(135deg, #fab1a0, #ff7675)',
-                                borderRadius: '50%',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: '1.5rem',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-                                border: '2px solid rgba(255,255,255,0.8)'
-                            }}
-                        >
-                            {user.avatar || '😊'}
-                        </div>
+                        <>
+                            <NotificationsBell />
+                            <div
+                                onClick={() => router.push('/profile')}
+                                style={{
+                                    width: '48px', height: '48px',
+                                    background: 'linear-gradient(135deg, #fab1a0, #ff7675)',
+                                    borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '1.5rem',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                                    border: '2px solid rgba(255,255,255,0.8)'
+                                }}
+                            >
+                                {user.avatar || '😊'}
+                            </div>
+                        </>
                     ) : (
                         <div
                             onClick={() => router.push('/login')}
@@ -96,6 +101,9 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                 >
                     {children}
                 </motion.div>
+                <footer className="app-version-footer">
+                    {APP_VERSION_LABEL} · {APP_RELEASE_DATE}
+                </footer>
             </div>
         </div>
     );

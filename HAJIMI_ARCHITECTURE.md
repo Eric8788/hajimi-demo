@@ -3,6 +3,8 @@
 
 *This document is written for AI Coding Assistants (or new developers) to instantly understand the project's current state, architecture, and design philosophy. Do not delete this file.*
 
+**Current version:** Hajimi Beta v0.2.0-beta.1 · 2026-05-07
+
 ## 1. Project Overview
 Hajimi is a comprehensive, gamified student community and project hub built for a high school AI Club. It serves as a forum ("The Hallway"), a personalized dashboard, and a centralized hub for all student-developed games and tools ("Function Hall").
 
@@ -22,11 +24,14 @@ The app uses Next.js App Router (`src/app/`).
 - `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`. Registration requires an invite code.
 - `/dashboard` **(Protected):** The user's personalized homepage. Contains:
   - **Welcome Widget:** Daily insight and Check-in button.
+  - **Beta Test Mission:** Quick entry points for trying Function Hall and opening the pinned feedback announcement.
   - **Timeline Dancer:** Static daily schedule visualization.
   - **Cyber Oracle (`<TarotGame />`):** A client-side Tarot card drawing game.
   - **Rec Room:** Displays the absolute latest posts directly from the database.
 - `/resources` **(The Hallway - Hybrid Access):** 
   - The main forum. **Guest Mode is enabled.**
+  - Announcement posts behave like pinned posts in the main feed; beta feedback is collected as comments under Eric's announcement.
+  - Normal posts support custom hashtags; `announcement` is the only reserved staff-only tag.
   - Non-logged-in users can browse and read all posts.
   - **Action Interceptor Pattern:** Clicking "Like", "Comment", or "New Post" without a session triggers a localized Login Modal instead of a hard redirect.
 - `/functions` **(Function Hall - Public):** 
@@ -46,6 +51,7 @@ Database interactions are handled via standard SQL functions.
 - **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
+- **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
 
 *Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through `HAJIMI_STUDENT_INVITE_CODE` and optional `HAJIMI_TEACHER_INVITE_CODE`. Invite codes are set in Vercel environment variables and shared manually. If neither invite code is configured, registration is closed but existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number.*
 
@@ -69,9 +75,15 @@ Database interactions are handled via standard SQL functions.
    - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
 5. **Forum moderation:**
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
-   - `teacher` and `admin` can publish posts tagged `announcement`.
+   - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
    - Only `admin` can delete any post or comment; teachers and students can delete only their own posts/comments.
    - Staff roles are visually marked with badges on posts, comments, and profile pages.
+6. **Hashtag and beta feedback workflow:**
+   - Students can create posts with custom hashtags. Suggested examples include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`.
+   - Beta feedback should be left as comments under the pinned announcement post, not as a separate feedback module.
+7. **Ranking and notifications:**
+   - `Hot` combines comments, likes, bookmarks, and recency. `Top` is strictly most-liked.
+   - Post likes, post bookmarks, and comment likes create in-app notifications for the author.
 
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.
