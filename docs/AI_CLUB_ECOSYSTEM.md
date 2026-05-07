@@ -125,6 +125,7 @@ git status --short --branch
 git pull --ff-only
 # Then read:
 # - hajimi-demo/docs/AI_CLUB_ECOSYSTEM.md  (this file)
+# - hajimi-demo/docs/SESSION_HANDOFF.md
 # - hajimi-demo/HAJIMI_ARCHITECTURE.md
 # - /Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md  (discussion board)
 ```
