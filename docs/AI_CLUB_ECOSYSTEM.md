@@ -4,7 +4,7 @@
 
 > **Every AI agent MUST read this file before starting any work session.**
 
-**Current Hajimi version:** Hajimi Beta v0.2.0-beta.1 · 2026-05-07
+**Current Hajimi version:** Hajimi Beta v0.2.0-beta.2 · 2026-05-07
 
 ---
 
@@ -97,7 +97,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.
 - **Image Uploads:** `POST /api/posts` stores public images in Vercel Blob and saves the Blob URL in `posts.attachment_url`. Production requires `BLOB_READ_WRITE_TOKEN`. Guardrails: JPEG/PNG/WebP/GIF only, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user, and post deletion attempts to delete the associated Blob. The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
-- **Landing Page particles:** `src/components/ParticleBackground.tsx` — Canvas-based, `zIndex: -1`, free-floating with mouse repulsion.
+- **Landing/Auth particles:** `src/components/ParticleBackground.tsx` — Canvas-based, `zIndex: 0`, free-floating with mouse repulsion.
 
 ### DB Schema
 | Table | Key Columns |

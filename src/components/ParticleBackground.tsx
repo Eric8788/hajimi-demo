@@ -139,7 +139,7 @@ const ParticleBackground: React.FC = () => {
         left: 0,
         width: '100vw',
         height: '100vh',
-        zIndex: -1, // Behind everything
+        zIndex: 0,
         pointerEvents: 'none',
         filter: 'blur(10px)',
         opacity: 0.5,

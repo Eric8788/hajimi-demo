@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import ParticleBackground from '@/components/ParticleBackground';
 
 export default function LoginPage() {
     const [isRegister, setIsRegister] = useState(false);
@@ -31,7 +32,14 @@ export default function LoginPage() {
 
     return (
         <div className="auth-container">
+            <ParticleBackground />
+            <div className="auth-orb auth-orb-a" />
+            <div className="auth-orb auth-orb-b" />
             <div className="glass-panel auth-card">
+                <div className="auth-brand-row">
+                    <span className="auth-logo-mark">H</span>
+                    <span>Hajimi</span>
+                </div>
                 <h1 style={{ textAlign: 'center', marginBottom: '10px' }}>
                     {isRegister ? 'Join Hajimi' : 'Welcome Back'}
                 </h1>
@@ -96,7 +104,7 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>
+                    <button type="submit" className="btn btn-primary auth-submit" style={{ justifyContent: 'center' }}>
                         {isRegister ? 'Create Account' : 'Sign In'}
                     </button>
                 </form>
@@ -118,33 +126,144 @@ export default function LoginPage() {
             </div>
 
             <style jsx>{`
-        .auth-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-        }
-        .auth-card {
-           width: 100%;
-           max-width: 420px;
-           padding: 40px;
-           background: rgba(255, 255, 255, 0.6);
-        }
-        .glass-input {
-          width: 100%;
-          padding: 16px;
-          border: 1px solid rgba(255,255,255,0.4);
-          background: rgba(255,255,255,0.5);
-          border-radius: 12px;
-          font-size: 1rem;
-          outline: none;
+	        .auth-container {
+	          position: relative;
+	          display: flex;
+	          justify-content: center;
+	          align-items: center;
+	          min-height: 100vh;
+	          padding: 28px;
+	          overflow: hidden;
+	          background:
+	            radial-gradient(circle at 16% 18%, rgba(162,155,254,0.16), transparent 30%),
+	            radial-gradient(circle at 82% 72%, rgba(253,121,168,0.13), transparent 34%),
+	            linear-gradient(135deg, rgba(255,255,255,0.9), rgba(245,247,255,0.72));
+	        }
+	        .auth-card {
+	           position: relative;
+	           z-index: 2;
+	           width: 100%;
+	           max-width: 420px;
+	           padding: 42px;
+	           background: rgba(255, 255, 255, 0.64);
+	           border: 1px solid rgba(255,255,255,0.78);
+	           box-shadow: 0 24px 70px rgba(108, 92, 231, 0.16);
+	           transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+	        }
+	        .auth-card:hover {
+	          transform: translateY(-4px);
+	          border-color: rgba(162,155,254,0.38);
+	          box-shadow: 0 30px 90px rgba(108, 92, 231, 0.2);
+	        }
+	        .auth-brand-row {
+	          display: flex;
+	          align-items: center;
+	          justify-content: center;
+	          gap: 10px;
+	          margin-bottom: 22px;
+	          color: #6c5ce7;
+	          font-weight: 900;
+	          letter-spacing: 0;
+	        }
+	        .auth-logo-mark {
+	          width: 34px;
+	          height: 34px;
+	          display: inline-flex;
+	          align-items: center;
+	          justify-content: center;
+	          border-radius: 12px;
+	          color: white;
+	          background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+	          box-shadow: 0 12px 26px rgba(108,92,231,0.22);
+	        }
+	        .auth-orb {
+	          position: absolute;
+	          border-radius: 999px;
+	          filter: blur(18px);
+	          opacity: 0.3;
+	          pointer-events: none;
+	        }
+	        .auth-orb-a {
+	          width: 160px;
+	          height: 160px;
+	          left: 14%;
+	          top: 18%;
+	          background: #a29bfe;
+	          animation: auth-float-a 9s ease-in-out infinite;
+	        }
+	        .auth-orb-b {
+	          width: 190px;
+	          height: 190px;
+	          right: 12%;
+	          bottom: 14%;
+	          background: #fd79a8;
+	          animation: auth-float-b 11s ease-in-out infinite;
+	        }
+	        .auth-submit {
+	          position: relative;
+	          overflow: visible;
+            isolation: isolate;
+            transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
+	        }
+	        .auth-submit::before {
+	          content: "";
+	          position: absolute;
+	          inset: -4px;
+	          border-radius: inherit;
+	          background: conic-gradient(from 0deg, #6c5ce7, #37c6d0, #fd79a8, #ffd166, #6c5ce7);
+	          opacity: 0;
+	          transition: opacity 0.22s ease;
+	          z-index: -1;
+	        }
+	        .auth-submit::after {
+	          content: "";
+	          position: absolute;
+	          inset: -10px;
+	          border-radius: inherit;
+	          background: radial-gradient(circle, rgba(108,92,231,0.42), rgba(55,198,208,0.18), transparent 68%);
+	          filter: blur(13px);
+	          opacity: 0;
+	          transition: opacity 0.22s ease;
+	          pointer-events: none;
+	          z-index: -2;
+	        }
+	        .auth-submit:hover {
+            transform: translateY(-2px) scale(1.02);
+            filter: brightness(1.05);
+            box-shadow: 0 18px 42px rgba(108,92,231,0.34);
+	        }
+	        .auth-submit:hover::before {
+	          opacity: 1;
+	          animation: auth-border-glow 1.4s linear infinite;
+	        }
+	        .auth-submit:hover::after {
+	          opacity: 1;
+	        }
+	        @keyframes auth-border-glow {
+	          to { transform: rotate(1turn); }
+	        }
+	        @keyframes auth-float-a {
+	          50% { transform: translate3d(20px, 16px, 0) scale(1.08); }
+	        }
+	        @keyframes auth-float-b {
+	          50% { transform: translate3d(-18px, -22px, 0) scale(1.04); }
+	        }
+	        .glass-input {
+	          width: 100%;
+	          padding: 16px;
+	          border: 1px solid rgba(255,255,255,0.74);
+	          background: rgba(255,255,255,0.58);
+	          backdrop-filter: blur(14px);
+	          border-radius: 12px;
+	          font-size: 1rem;
+	          outline: none;
           transition: all 0.3s;
         }
-        .glass-input:focus {
-          background: #fff;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-          border-color: var(--primary);
-        }
+	        .glass-input:focus {
+	          background: #fff;
+	          box-shadow: 0 0 0 4px rgba(162,155,254,0.18), 0 10px 26px rgba(108,92,231,0.08);
+	          border-color: var(--primary);
+	        }
         @media (max-width: 640px) {
           .auth-card {
             padding: 30px 20px;

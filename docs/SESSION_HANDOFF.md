@@ -2,7 +2,7 @@
 
 *Last updated: 2026-05-07 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.1 · 2026-05-07
+**Current version:** Hajimi Beta v0.2.0-beta.2 · 2026-05-07
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.1
+- **Current version:** Hajimi Beta v0.2.0-beta.2
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -45,6 +45,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Forum buttons now use a unified hover language, and post likes, post saves, and comment likes have small animation feedback.
 - The app has in-app notifications for post likes, post saves, and comment likes. Notifications are stored in the `notifications` table, created automatically if missing.
 - `Hot` ranking combines discussion, likes, saves, and recency; `Top` remains pure likes.
+- Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and logo concept assets under `docs/design/`.
 
 ## 3. Required Environment Variables
 

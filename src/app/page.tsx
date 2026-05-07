@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PROJECTS } from '@/data/projects';
 import ParticleBackground from '@/components/ParticleBackground';
+import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,49 +27,49 @@ export default async function LandingPage() {
       <ParticleBackground />
 
       {/* Nav */}
-      <nav style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '15px 40px', position: 'sticky', top: 0, zIndex: 100,
-        backdropFilter: 'blur(20px)', background: 'rgba(255,255,255,0.7)',
-        borderBottom: '1px solid #e5e7eb',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ fontWeight: 800, fontSize: '1.3rem', color: '#6c5ce7' }}>Hajimi</div>
-            <div style={{ fontSize: '0.75rem', color: '#9ca3af', borderLeft: '1px solid #e5e7eb', paddingLeft: '15px', fontWeight: 500 }}>
-                Meisha Honour Program AI Club | Project Hub & Community Forum
+      <nav className="landing-topbar">
+        <div className="landing-brand-area">
+            <Link href="/" className="landing-brand">Hajimi</Link>
+            <div className="landing-version-pill">
+              <span className="landing-live-dot" />
+              {APP_VERSION_LABEL.replace('Hajimi Beta ', 'Beta ')}
+            </div>
+            <div className="landing-subtitle">
+                Meisha Honour Program AI Club
             </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Link href="/login" style={{
-            padding: '8px 18px', borderRadius: '25px',
-            background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
-            textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem',
-            boxShadow: '0 4px 12px rgba(108,92,231,0.3)'
-          }}>Sign In →</Link>
+        <div className="landing-nav-links" aria-label="Landing navigation">
+          <Link href="#projects">Projects</Link>
+          <Link href="/resources">Hallway</Link>
+          <Link href="#about">About</Link>
+        </div>
+        <div className="landing-actions">
+          <Link href="/login" className="landing-outline-btn">Log in</Link>
+          <Link href="/login" className="landing-primary-btn">Join Beta</Link>
         </div>
       </nav>
 
       {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '30px 40px 10px', position: 'relative', zIndex: 10 }}>
+      <section style={{ textAlign: 'center', padding: '34px 40px 12px', position: 'relative', zIndex: 10 }}>
         <div style={{
           display: 'inline-block', padding: '6px 16px', borderRadius: '25px',
           background: 'rgba(162,155,254,0.15)', color: '#6c5ce7',
-          fontSize: '0.8rem', fontWeight: 600, marginBottom: '15px',
+          fontSize: '0.8rem', fontWeight: 600, marginBottom: '18px',
           border: '1px solid rgba(162,155,254,0.3)'
         }}>✨ AI Club Student Community</div>
 
         <h1 className="animated-gradient-text" style={{
-          fontSize: 'clamp(2.5rem, 8vw, 5rem)', fontWeight: 950,
-          lineHeight: 1.0, marginBottom: '25px',
+          fontSize: 'clamp(2.5rem, 7.4vw, 5rem)', fontWeight: 900,
+          lineHeight: 1.12, marginBottom: '20px', paddingBottom: '10px',
           background: 'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 30%, #fd79a8 60%, #6c5ce7 100%)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
-          letterSpacing: '-0.05em'
+          letterSpacing: '0'
         }}>
           Let&apos;s Create<br />Together
         </h1>
 
-        <Link href="/login" style={{
+        <Link href="/login" className="landing-hero-cta" style={{
           padding: '12px 32px', borderRadius: '30px',
           background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)', color: 'white',
           textDecoration: 'none', fontWeight: 700, fontSize: '1rem',
@@ -78,7 +79,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Project Exhibition Marquee */}
-      <section style={{ padding: '30px 0', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
+      <section id="projects" style={{ padding: '28px 0 30px', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#9ca3af', letterSpacing: '0.1em' }}>PROJECT SHOWCASE</h2>
         </div>
@@ -116,7 +117,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Stats / Intro */}
-      <section style={{ padding: '40px 40px 80px', maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px', position: 'relative', zIndex: 1 }}>
+      <section id="about" style={{ padding: '34px 40px 34px', maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', position: 'relative', zIndex: 1 }}>
         <div style={{ padding: '30px', background: 'rgba(255,255,255,0.7)', borderRadius: '20px', border: '1px solid #e5e7eb', backdropFilter: 'blur(10px)' }}>
             <h3 style={{ fontSize: '1.8rem', marginBottom: '10px', color: '#6c5ce7' }}>20+ Projects</h3>
             <p style={{ opacity: 0.7, lineHeight: 1.5, fontSize: '0.95rem' }}>From 3D sailing simulators to AI-driven party games, explore a growing collection of student innovation.</p>
@@ -127,10 +128,43 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Simple Footer */}
-      <footer style={{ textAlign: 'center', padding: '40px', opacity: 0.5, fontSize: '0.85rem', position: 'relative', zIndex: 1 }}>
-        <p style={{ marginBottom: '10px' }}>Meisha Honour Program AI Club: Student-led project incubation base and interactive forum.</p>
-        © 2026 AI Club Student Community. Built with 💜 by Eric.
+      <section className="landing-principles" aria-label="Hajimi principles">
+        <div>
+          <span>👥</span>
+          <strong>Student-built</strong>
+          <p>Made by students, with heart.</p>
+        </div>
+        <div>
+          <span>⚑</span>
+          <strong>Club-led</strong>
+          <p>Run by the AI Club team.</p>
+        </div>
+        <div>
+          <span>🔒</span>
+          <strong>Invite-gated</strong>
+          <p>Safe space for members.</p>
+        </div>
+        <div>
+          <span>◎</span>
+          <strong>Public browse</strong>
+          <p>Explore projects and updates.</p>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div className="landing-footer-brand">
+          <strong>Hajimi</strong>
+          <span>AI Club</span>
+          <span>{APP_VERSION_LABEL} · {APP_RELEASE_DATE}</span>
+          <span>Built with 💜 by AI Club and Eric.</span>
+        </div>
+        <div className="landing-footer-links">
+          <Link href="#about">About</Link>
+          <Link href="/functions">Projects</Link>
+          <Link href="/resources">Hallway</Link>
+          <Link href="/login">Login</Link>
+        </div>
       </footer>
     </div>
   );

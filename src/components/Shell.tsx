@@ -10,21 +10,31 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const pathname = usePathname();
 
     const navItems = [
-        { icon: '🏠', path: '/dashboard', label: 'Home' },
-        { icon: '🌏', path: '/resources', label: 'Resources' },
-        { icon: '🧩', path: '/functions', label: 'Functions' },
+        { icon: '🏠', path: '/dashboard', label: '主页' },
+        { icon: '🌏', path: '/resources', label: '走廊' },
+        { icon: '🧩', path: '/functions', label: '项目' },
     ];
 
     return (
         <div className="app-container">
-            {/* Floating Glass Sidebar */}
+            {/* Fixed Glass Sidebar */}
             <aside className="glass-panel glass-sidebar">
+                <button
+                    type="button"
+                    className="sidebar-brand"
+                    onClick={() => router.push('/dashboard')}
+                    aria-label="Go to Hajimi home"
+                >
+                    <span className="sidebar-logo-mark">H</span>
+                    <span className="sidebar-brand-text">Hajimi</span>
+                </button>
+
                 {navItems.map((item) => {
                     const isActive = pathname === item.path;
                     return (
                         <div
                             key={item.path}
-                            className="nav-icon"
+                            className={`nav-icon ${isActive ? 'is-active' : ''}`}
                             onClick={() => router.push(item.path)}
                             title={item.label}
                             style={{ position: 'relative' }}
@@ -37,20 +47,20 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                         inset: 0,
                                         borderRadius: '18px',
                                         background: '#a29bfe',
-                                        zIndex: -1,
+                                        zIndex: 0,
                                     }}
                                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                                 />
                             )}
-                            <span style={{ position: 'relative', zIndex: 1, color: isActive ? 'white' : 'inherit' }}>
+                            <span className="nav-symbol" style={{ color: isActive ? 'white' : 'inherit' }}>
                                 {item.icon}
                             </span>
-                            <span className="nav-label">{item.label}</span>
+                            <span className="nav-label" style={{ color: isActive ? 'white' : undefined }}>{item.label}</span>
                         </div>
                     );
                 })}
 
-                <div style={{ marginTop: 'auto', textAlign: 'center' }}>
+                <div className="sidebar-bottom">
                     {user ? (
                         <>
                             <NotificationsBell />

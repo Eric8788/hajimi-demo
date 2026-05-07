@@ -1,0 +1,99 @@
+<svg width="1400" height="900" viewBox="0 0 1400 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lavender" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A29BFE"/>
+      <stop offset="1" stop-color="#6C5CE7"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FD79A8"/>
+      <stop offset="1" stop-color="#A29BFE"/>
+    </linearGradient>
+    <linearGradient id="aqua" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#37C6D0"/>
+      <stop offset="1" stop-color="#6C5CE7"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#6C5CE7" flood-opacity="0.16"/>
+    </filter>
+    <style>
+      .title { font-family: Arial, Helvetica, sans-serif; font-size: 44px; font-weight: 900; fill: #111827; }
+      .subtitle { font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; fill: #64748B; }
+      .cardTitle { font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 900; fill: #1F2937; }
+      .cardNote { font-family: Arial, Helvetica, sans-serif; font-size: 17px; font-weight: 600; fill: #64748B; }
+      .label { font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 800; fill: #6C5CE7; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="900" fill="#FAFBFF"/>
+  <circle cx="120" cy="132" r="72" fill="#A29BFE" opacity="0.12"/>
+  <circle cx="1260" cy="148" r="90" fill="#FD79A8" opacity="0.11"/>
+  <circle cx="1120" cy="790" r="110" fill="#37C6D0" opacity="0.08"/>
+
+  <text x="90" y="88" class="title">Hajimi logo concepts</text>
+  <text x="90" y="124" class="subtitle">Minimal cat marks for a soft, playful AI Club identity</text>
+
+  <!-- Card 1 -->
+  <g transform="translate(90 190)" filter="url(#softShadow)">
+    <rect width="560" height="275" rx="34" fill="white" stroke="#E2E8F0"/>
+    <rect x="48" y="48" width="132" height="132" rx="34" fill="url(#lavender)"/>
+    <path d="M84 105L70 78C67 72 74 66 80 70L103 86C110 82 118 82 125 86L148 70C154 66 161 72 158 78L144 105C149 115 148 128 141 137C132 149 116 153 102 148C86 143 77 130 80 114C81 111 82 108 84 105Z" fill="white"/>
+    <circle cx="103" cy="113" r="5" fill="#6C5CE7"/>
+    <circle cx="127" cy="113" r="5" fill="#6C5CE7"/>
+    <path d="M111 127C115 131 120 131 124 127" stroke="#6C5CE7" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="146" cy="81" r="8" fill="#37C6D0"/>
+    <text x="214" y="94" class="cardTitle">Orbit Cat</text>
+    <text x="214" y="128" class="cardNote">Soft tech mark for Hajimi.</text>
+    <text x="214" y="154" class="cardNote">Cute, clean, app-icon ready.</text>
+    <text x="214" y="192" class="label">Recommended</text>
+  </g>
+
+  <!-- Card 2 -->
+  <g transform="translate(750 190)" filter="url(#softShadow)">
+    <rect width="560" height="275" rx="34" fill="white" stroke="#E2E8F0"/>
+    <rect x="48" y="48" width="132" height="132" rx="34" fill="#FFFFFF" fill-opacity="0.72" stroke="#C7D2FE"/>
+    <path d="M82 116C80 93 95 78 114 78C133 78 148 93 146 116C144 140 130 153 114 153C98 153 84 140 82 116Z" fill="url(#pink)"/>
+    <path d="M91 91L81 66L106 80" fill="url(#pink)"/>
+    <path d="M137 91L147 66L122 80" fill="url(#pink)"/>
+    <circle cx="105" cy="113" r="4.5" fill="white"/>
+    <circle cx="123" cy="113" r="4.5" fill="white"/>
+    <path d="M111 128H117" stroke="white" stroke-width="5" stroke-linecap="round"/>
+    <text x="214" y="94" class="cardTitle">Glass Cat</text>
+    <text x="214" y="128" class="cardNote">Warmer and softer.</text>
+    <text x="214" y="154" class="cardNote">Matches glass-card UI.</text>
+    <text x="214" y="192" class="label">Warm</text>
+  </g>
+
+  <!-- Card 3 -->
+  <g transform="translate(90 535)" filter="url(#softShadow)">
+    <rect width="560" height="275" rx="34" fill="white" stroke="#E2E8F0"/>
+    <rect x="48" y="48" width="132" height="132" rx="28" fill="#111827"/>
+    <rect x="82" y="82" width="18" height="18" fill="#A29BFE"/>
+    <rect x="100" y="64" width="18" height="18" fill="#A29BFE"/>
+    <rect x="118" y="82" width="18" height="18" fill="#A29BFE"/>
+    <rect x="76" y="100" width="72" height="54" rx="10" fill="#A29BFE"/>
+    <rect x="96" y="116" width="10" height="10" rx="2" fill="#111827"/>
+    <rect x="122" y="116" width="10" height="10" rx="2" fill="#111827"/>
+    <rect x="108" y="134" width="18" height="5" rx="2.5" fill="#111827"/>
+    <text x="214" y="94" class="cardTitle">Pixel Cat</text>
+    <text x="214" y="128" class="cardNote">More geeky and game-like.</text>
+    <text x="214" y="154" class="cardNote">Leans into builder culture.</text>
+    <text x="214" y="192" class="label">Geek</text>
+  </g>
+
+  <!-- Card 4 -->
+  <g transform="translate(750 535)" filter="url(#softShadow)">
+    <rect width="560" height="275" rx="34" fill="white" stroke="#E2E8F0"/>
+    <rect x="48" y="48" width="132" height="132" rx="34" fill="url(#aqua)"/>
+    <path d="M86 114C86 94 99 82 114 82C129 82 142 94 142 114C142 136 130 150 114 150C98 150 86 136 86 114Z" fill="white"/>
+    <path d="M95 92L87 68L109 83" fill="white"/>
+    <path d="M133 92L141 68L119 83" fill="white"/>
+    <circle cx="106" cy="113" r="4" fill="#37C6D0"/>
+    <circle cx="122" cy="113" r="4" fill="#37C6D0"/>
+    <path d="M150 136C172 134 174 112 158 103" stroke="white" stroke-width="9" stroke-linecap="round"/>
+    <path d="M66 157C85 154 95 145 99 132" stroke="#FD79A8" stroke-width="8" stroke-linecap="round"/>
+    <text x="214" y="94" class="cardTitle">Comet Cat</text>
+    <text x="214" y="128" class="cardNote">Most energetic option.</text>
+    <text x="214" y="154" class="cardNote">Good for beta moments.</text>
+    <text x="214" y="192" class="label">Playful</text>
+  </g>
+</svg>
