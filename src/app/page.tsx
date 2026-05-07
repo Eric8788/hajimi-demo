@@ -38,11 +38,6 @@ export default async function LandingPage() {
                 Meisha Honour Program AI Club
             </div>
         </div>
-        <div className="landing-nav-links" aria-label="Landing navigation">
-          <Link href="#projects">Projects</Link>
-          <Link href="/resources">Hallway</Link>
-          <Link href="#about">About</Link>
-        </div>
         <div className="landing-actions">
           <Link href="/login" className="landing-outline-btn">Log in</Link>
           <Link href="/login" className="landing-primary-btn">Join Beta</Link>
@@ -79,7 +74,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Project Exhibition Marquee */}
-      <section id="projects" style={{ padding: '28px 0 30px', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
+      <section id="projects" style={{ padding: '10px 0 20px', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#9ca3af', letterSpacing: '0.1em' }}>PROJECT SHOWCASE</h2>
         </div>

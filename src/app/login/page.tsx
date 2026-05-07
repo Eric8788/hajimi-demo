@@ -44,7 +44,7 @@ export default function LoginPage() {
                     {isRegister ? 'Join Hajimi' : 'Welcome Back'}
                 </h1>
                 <p style={{ textAlign: 'center', marginBottom: '30px', color: '#888' }}>
-                    {isRegister ? 'Start your high school adventure' : 'Login to your student account'}
+                    {isRegister ? 'Start your high school adventure' : 'Login to your account'}
                 </p>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -112,20 +112,20 @@ export default function LoginPage() {
                 <p style={{ textAlign: 'center', marginTop: '30px', fontSize: '0.9rem', color: '#666' }}>
                     {isRegister ? 'Already a student?' : "New here?"}{' '}
                     <button
-                        type="button"
-                        onClick={() => {
-                            setIsRegister(!isRegister);
-                            setError('');
-                            setInviteCode('');
-                        }}
-                        style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: '600', background: 'none', border: 'none', padding: 0, font: 'inherit' }}
-                    >
-                        {isRegister ? 'Log in' : 'Create account'}
-                    </button>
-                </p>
-            </div>
+                            type="button"
+                            onClick={() => {
+                                setIsRegister(!isRegister);
+                                setError('');
+                                setInviteCode('');
+                            }}
+                            className="auth-switch-btn"
+                        >
+                            {isRegister ? 'Log in' : 'Create account'}
+                        </button>
+                    </p>
+                </div>
 
-            <style jsx>{`
+                <style jsx>{`
 	        .auth-container {
 	          position: relative;
 	          display: flex;
@@ -149,11 +149,6 @@ export default function LoginPage() {
 	           border: 1px solid rgba(255,255,255,0.78);
 	           box-shadow: 0 24px 70px rgba(108, 92, 231, 0.16);
 	           transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
-	        }
-	        .auth-card:hover {
-	          transform: translateY(-4px);
-	          border-color: rgba(162,155,254,0.38);
-	          box-shadow: 0 30px 90px rgba(108, 92, 231, 0.2);
 	        }
 	        .auth-brand-row {
 	          display: flex;
@@ -179,74 +174,42 @@ export default function LoginPage() {
 	        .auth-orb {
 	          position: absolute;
 	          border-radius: 999px;
-	          filter: blur(18px);
-	          opacity: 0.3;
+	          filter: blur(40px);
+	          opacity: 0.25;
 	          pointer-events: none;
 	        }
 	        .auth-orb-a {
-	          width: 160px;
-	          height: 160px;
-	          left: 14%;
-	          top: 18%;
+	          width: 400px;
+	          height: 400px;
+	          left: 5%;
+	          top: 10%;
 	          background: #a29bfe;
-	          animation: auth-float-a 9s ease-in-out infinite;
+	          animation: auth-float-a 25s ease-in-out infinite;
 	        }
 	        .auth-orb-b {
-	          width: 190px;
-	          height: 190px;
-	          right: 12%;
-	          bottom: 14%;
+	          width: 450px;
+	          height: 450px;
+	          right: 5%;
+	          bottom: 10%;
 	          background: #fd79a8;
-	          animation: auth-float-b 11s ease-in-out infinite;
+	          animation: auth-float-b 30s ease-in-out infinite;
 	        }
 	        .auth-submit {
-	          position: relative;
-	          overflow: visible;
-            isolation: isolate;
-            transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
-	        }
-	        .auth-submit::before {
-	          content: "";
-	          position: absolute;
-	          inset: -4px;
-	          border-radius: inherit;
-	          background: conic-gradient(from 0deg, #6c5ce7, #37c6d0, #fd79a8, #ffd166, #6c5ce7);
-	          opacity: 0;
-	          transition: opacity 0.22s ease;
-	          z-index: -1;
-	        }
-	        .auth-submit::after {
-	          content: "";
-	          position: absolute;
-	          inset: -10px;
-	          border-radius: inherit;
-	          background: radial-gradient(circle, rgba(108,92,231,0.42), rgba(55,198,208,0.18), transparent 68%);
-	          filter: blur(13px);
-	          opacity: 0;
-	          transition: opacity 0.22s ease;
-	          pointer-events: none;
-	          z-index: -2;
+	          transition: transform 0.22s ease, box-shadow 0.22s ease;
 	        }
 	        .auth-submit:hover {
             transform: translateY(-2px) scale(1.02);
-            filter: brightness(1.05);
             box-shadow: 0 18px 42px rgba(108,92,231,0.34);
 	        }
-	        .auth-submit:hover::before {
-	          opacity: 1;
-	          animation: auth-border-glow 1.4s linear infinite;
-	        }
-	        .auth-submit:hover::after {
-	          opacity: 1;
-	        }
-	        @keyframes auth-border-glow {
-	          to { transform: rotate(1turn); }
-	        }
 	        @keyframes auth-float-a {
-	          50% { transform: translate3d(20px, 16px, 0) scale(1.08); }
+	          0%, 100% { transform: translate(0, 0) scale(1); }
+	          33% { transform: translate(60px, 40px) scale(1.1); }
+	          66% { transform: translate(-30px, 80px) scale(0.9); }
 	        }
 	        @keyframes auth-float-b {
-	          50% { transform: translate3d(-18px, -22px, 0) scale(1.04); }
+	          0%, 100% { transform: translate(0, 0) scale(1); }
+	          33% { transform: translate(-80px, -50px) scale(1.05); }
+	          66% { transform: translate(40px, -90px) scale(0.95); }
 	        }
 	        .glass-input {
 	          width: 100%;
@@ -255,15 +218,33 @@ export default function LoginPage() {
 	          background: rgba(255,255,255,0.58);
 	          backdrop-filter: blur(14px);
 	          border-radius: 12px;
-	          font-size: 1rem;
+	          font-size: 1.15rem;
+	          font-weight: 600;
 	          outline: none;
           transition: all 0.3s;
         }
+	        .glass-input[type="password"] {
+	          letter-spacing: 0.15em;
+	        }
 	        .glass-input:focus {
 	          background: #fff;
 	          box-shadow: 0 0 0 4px rgba(162,155,254,0.18), 0 10px 26px rgba(108,92,231,0.08);
 	          border-color: var(--primary);
 	        }
+          .auth-switch-btn {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 600;
+            background: none;
+            border: none;
+            padding: 0;
+            font: inherit;
+            transition: color 0.2s ease, transform 0.2s ease;
+          }
+          .auth-switch-btn:hover {
+            color: #6c5ce7;
+            transform: translateY(-1px);
+          }
         @media (max-width: 640px) {
           .auth-card {
             padding: 30px 20px;
