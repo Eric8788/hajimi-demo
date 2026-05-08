@@ -92,7 +92,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         const newLikedState = !hasLiked;
         setHasLiked(newLikedState);
         setLikes(p => newLikedState ? p + 1 : p - 1);
-        if (newLikedState) setLikeBurst(count => count + 1);
+        if (newLikedState) {
+            setLikeBurst(count => {
+                const next = count + 1;
+                window.setTimeout(() => setLikeBurst(current => current === next ? 0 : current), 700);
+                return next;
+            });
+        }
 
         await fetch('/api/posts/interact', {
             method: 'POST',
@@ -105,7 +111,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         if (isGuest) { onGuestAction?.(); return; }
         const nextBookmarked = !isBookmarked;
         setIsBookmarked(nextBookmarked);
-        if (nextBookmarked) setBookmarkBurst(count => count + 1);
+        if (nextBookmarked) {
+            setBookmarkBurst(count => {
+                const next = count + 1;
+                window.setTimeout(() => setBookmarkBurst(current => current === next ? 0 : current), 700);
+                return next;
+            });
+        }
         await fetch('/api/posts/interact', {
             method: 'POST',
             body: JSON.stringify({ action: 'bookmark', postId: post.id })

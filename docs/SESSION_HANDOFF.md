@@ -2,7 +2,7 @@
 
 *Last updated: 2026-05-08 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.4 · 2026-05-08
+**Current version:** Hajimi Beta v0.2.0-beta.5 · 2026-05-08
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.4
+- **Current version:** Hajimi Beta v0.2.0-beta.5
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -46,7 +46,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - The app has in-app notifications for post likes, post saves, and comment likes. Notifications are stored in the `notifications` table, created automatically if missing.
 - `Hot` ranking combines discussion, likes, saves, and recency; `Top` remains pure likes.
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
-- The UI review pass for `v0.2.0-beta.4` is live: sidebar active states now use local hover transitions instead of a moving pasted highlight, notifications stay compact, check-in feedback stays inside the button, and forum author avatars link to member profiles.
+- The UI review pass for `v0.2.0-beta.5` is live: reaction bursts now disappear automatically, hashtag badges fit their content, profile avatar cropping uses drag repositioning, profiles show XP progress, and Hajimi cat artwork is shared across the logo and dashboard decoration.
 
 ## 3. Required Environment Variables
 

@@ -33,10 +33,7 @@ export default async function DashboardPage() {
             <CheckInButton />
           </div>
 
-          {/* Decoration */}
-          <div style={{ position: 'absolute', right: '-20px', top: '-40px', fontSize: '12rem', opacity: 0.1, zIndex: 1, filter: 'blur(4px)' }}>
-            🍄
-          </div>
+          <div className="dashboard-cat-mascot" aria-hidden="true" />
         </div>
 
         <div

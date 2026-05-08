@@ -1,5 +1,13 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.5 · 2026-05-08
+
+- Fixed like/save burst labels so `+1` and `saved` float away and disappear automatically.
+- Made post hashtag badges adapt to their text length instead of using one oversized fixed width.
+- Reworked profile image cropping with direct drag repositioning, keeping only zoom plus use/cancel controls.
+- Added a visible XP progress bar and updated point awards to advance stored levels automatically.
+- Renamed the self profile page to `My Profile` and refreshed the Hajimi logo/dashboard mascot artwork.
+
 ## Hajimi Beta v0.2.0-beta.4 · 2026-05-08
 
 - Added hover polish to the notification bell and made notification rows compact with single-line message truncation.

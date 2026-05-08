@@ -1,6 +1,6 @@
 # Hajimi
 
-**Current version:** Hajimi Beta v0.2.0-beta.4 · 2026-05-08
+**Current version:** Hajimi Beta v0.2.0-beta.5 · 2026-05-08
 
 AI Club student community portal built with Next.js, Vercel Postgres, and Vercel Blob.
 

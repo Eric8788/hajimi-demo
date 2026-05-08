@@ -13,7 +13,7 @@ export default async function Page() {
     return (
         <Shell user={user}>
             <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-                <h1 style={{ marginBottom: '30px', fontSize: '2.5rem', textAlign: 'center' }}>Student Identity</h1>
+                <h1 style={{ marginBottom: '30px', fontSize: '2.5rem', textAlign: 'center' }}>My Profile</h1>
 
                 <div className="glass-panel" style={{ padding: '50px', background: 'rgba(255,255,255,0.7)' }}>
                     <ProfileCard user={user} />

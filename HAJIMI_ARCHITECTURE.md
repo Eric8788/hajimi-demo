@@ -3,7 +3,7 @@
 
 *This document is written for AI Coding Assistants (or new developers) to instantly understand the project's current state, architecture, and design philosophy. Do not delete this file.*
 
-**Current version:** Hajimi Beta v0.2.0-beta.4 · 2026-05-08
+**Current version:** Hajimi Beta v0.2.0-beta.5 · 2026-05-08
 
 ## 1. Project Overview
 Hajimi is a comprehensive, gamified student community and project hub built for a high school AI Club. It serves as a forum ("The Hallway"), a personalized dashboard, and a centralized hub for all student-developed games and tools ("Function Hall").

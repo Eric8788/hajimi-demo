@@ -117,7 +117,7 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   align-items: center;
   justify-content: center;
   border-radius: 17px;
-  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  background: rgba(255,255,255,0.88);
   color: #fff;
   box-shadow: 0 14px 28px rgba(108, 92, 231, 0.24);
   border: 2px solid rgba(255,255,255,0.86);
@@ -150,8 +150,8 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 }
 
 .sidebar-logo-image {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   display: block;
   object-fit: contain;
 }
@@ -185,9 +185,9 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 .nav-icon::before {
   content: "";
   position: absolute;
-  inset: 4px;
+  inset: 0;
   z-index: 0;
-  border-radius: 14px;
+  border-radius: inherit;
   background: linear-gradient(135deg, #a29bfe, #6c5ce7);
   box-shadow: 0 12px 28px rgba(108, 92, 231, 0.2);
   opacity: 0;
@@ -688,6 +688,16 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   box-shadow: 0 12px 24px rgba(255, 118, 117, 0.3);
   position: relative;
   overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.profile-avatar-frame.is-draggable {
+  cursor: grab;
+}
+
+.profile-avatar-frame.is-draggable:active {
+  cursor: grabbing;
 }
 
 .profile-avatar-crop-preview {
@@ -695,6 +705,15 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   height: 100%;
   object-fit: cover;
   transition: transform 0.12s ease;
+  pointer-events: none;
+}
+
+.profile-avatar-drag-hint {
+  margin-top: -12px;
+  color: #8f96a3;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 .profile-avatar-editor {
@@ -750,6 +769,58 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   padding: 8px 10px;
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.profile-level-card {
+  width: min(260px, 80vw);
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.62);
+  border: 1px solid rgba(162,155,254,0.16);
+  box-shadow: 0 12px 26px rgba(108,92,231,0.08);
+}
+
+.profile-level-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #2d3436;
+  font-weight: 900;
+}
+
+.profile-level-row span:first-child {
+  font-size: 1.4rem;
+}
+
+.profile-level-row span:last-child {
+  color: #6c5ce7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+}
+
+.profile-level-progress {
+  height: 9px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(108,92,231,0.12);
+  overflow: hidden;
+}
+
+.profile-level-progress span {
+  display: block;
+  height: 100%;
+  min-width: 6px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6c5ce7, #37c6d0);
+  box-shadow: 0 0 18px rgba(55,198,208,0.35);
+}
+
+.profile-level-next {
+  margin-top: 8px;
+  color: #8f96a3;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 @media (max-width: 960px) {
@@ -922,6 +993,19 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 
 .full-width {
   grid-column: 1 / -1;
+}
+
+.dashboard-cat-mascot {
+  position: absolute;
+  right: 18px;
+  top: -26px;
+  width: 188px;
+  height: 188px;
+  z-index: 1;
+  opacity: 0.22;
+  background: url('/hajimi-cat-mascot.svg') center / contain no-repeat;
+  filter: blur(0.2px);
+  pointer-events: none;
 }
 
 /* Typography */
@@ -1288,7 +1372,9 @@ p {
 }
 
 .post-tag-badge {
-  width: 128px;
+  width: fit-content;
+  min-width: 0;
+  max-width: 168px;
   min-height: 34px;
   display: inline-flex;
   align-items: center;
@@ -1306,6 +1392,7 @@ p {
 }
 
 .post-tag-badge.is-announcement {
+  min-width: 132px;
   background: rgba(253, 203, 110, 0.24);
   color: #b7791f;
 }

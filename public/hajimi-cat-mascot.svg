@@ -1,0 +1,43 @@
+<svg width="320" height="320" viewBox="0 0 320 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fur" x1="76" y1="43" x2="251" y2="278" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C36BFF"/>
+      <stop offset="0.55" stop-color="#8B76FF"/>
+      <stop offset="1" stop-color="#4E8CFF"/>
+    </linearGradient>
+    <radialGradient id="softLight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(101 70) rotate(42) scale(194)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="drop" x="34" y="24" width="253" height="282" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="16"/>
+      <feGaussianBlur stdDeviation="15"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.36 0 0 0 0 0.28 0 0 0 0 0.92 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+  <g filter="url(#drop)">
+    <path d="M89.4 91.2L78.8 48.4C77.5 43.1 83.9 39.4 87.9 43.1L126.8 79.3C147.4 75.6 168.8 76 188.7 80.9L231.4 45.9C235.6 42.5 241.6 46.8 239.7 51.8L223.5 95.3C234.4 108.6 240.7 125 240.7 142.3C240.7 186.1 204.8 211.1 161.7 211.1C118.6 211.1 82.7 186.1 82.7 142.3C82.7 123.5 85 105.4 89.4 91.2Z" fill="url(#fur)"/>
+    <path d="M89.4 91.2L78.8 48.4C77.5 43.1 83.9 39.4 87.9 43.1L126.8 79.3C147.4 75.6 168.8 76 188.7 80.9L231.4 45.9C235.6 42.5 241.6 46.8 239.7 51.8L223.5 95.3C234.4 108.6 240.7 125 240.7 142.3C240.7 186.1 204.8 211.1 161.7 211.1C118.6 211.1 82.7 186.1 82.7 142.3C82.7 123.5 85 105.4 89.4 91.2Z" fill="url(#softLight)"/>
+    <path d="M111.2 201.6C113.5 180.7 132.8 166.3 160.4 166.3C188 166.3 207.6 180.7 209.7 201.6L215.4 260.5H105.5L111.2 201.6Z" fill="url(#fur)"/>
+    <path d="M84 243.2C83.3 220 97.5 205.5 111.4 200.4L113.1 258.4C96.2 261.9 84.5 258 84 243.2Z" fill="url(#fur)"/>
+    <path d="M219.2 202.6C237.7 206.5 251.5 221.3 253.1 240.2C254 250.5 248.5 258.2 238.1 259.4C226.6 260.8 219.6 253.2 217.7 243.1L219.2 202.6Z" fill="url(#fur)"/>
+    <path d="M96.1 253.1C75.4 255.8 63.2 247.9 62.3 232.5C61.6 220.3 70.5 209.5 82.4 203.1" stroke="url(#fur)" stroke-width="16" stroke-linecap="round"/>
+    <ellipse cx="132.4" cy="141.8" rx="10.4" ry="19.1" fill="#3620C8"/>
+    <ellipse cx="184.7" cy="141.8" rx="10.4" ry="19.1" fill="#3620C8"/>
+    <circle cx="127.7" cy="133.4" r="4" fill="white"/>
+    <circle cx="180" cy="133.4" r="4" fill="white"/>
+    <path d="M150.3 163.4C154.6 169.7 164 169.7 168.3 163.4" stroke="#3823C5" stroke-width="9" stroke-linecap="round"/>
+    <path d="M96.4 154.9C106.7 153.5 115.5 155.7 122.8 161.3" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M94.1 173.9C105.4 169.4 116 168.8 125.6 172.6" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M225.2 154.9C214.9 153.5 206.1 155.7 198.8 161.3" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M227.5 173.9C216.2 169.4 205.6 168.8 196 172.6" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M158.8 220.2L166.4 234.1L181.9 237L170.9 248.3L173 264L158.8 257.1L144.6 264L146.7 248.3L135.7 237L151.2 234.1L158.8 220.2Z" fill="white" fill-opacity="0.92"/>
+    <path d="M258.1 92.2L263.7 105.4L277 111L263.7 116.6L258.1 129.8L252.5 116.6L239.3 111L252.5 105.4L258.1 92.2Z" fill="#7D74FF"/>
+    <circle cx="241.5" cy="130.5" r="6.5" fill="#7D74FF" fill-opacity="0.82"/>
+    <circle cx="259.7" cy="142.4" r="5.2" fill="#7D74FF" fill-opacity="0.62"/>
+  </g>
+</svg>

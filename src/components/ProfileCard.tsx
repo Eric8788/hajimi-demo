@@ -1,11 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/db';
 import RoleBadge from './RoleBadge';
 import Avatar from './Avatar';
+
+const XP_PER_LEVEL = 100;
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -30,6 +32,7 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     const [avatarOffsetX, setAvatarOffsetX] = useState(0);
     const [avatarOffsetY, setAvatarOffsetY] = useState(0);
     const [avatarError, setAvatarError] = useState('');
+    const dragState = useRef<{ pointerId: number | null; lastX: number; lastY: number }>({ pointerId: null, lastX: 0, lastY: 0 });
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
@@ -37,6 +40,11 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     };
 
     const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
+    const totalXp = Number(user.points || 0);
+    const displayLevel = Math.max(Number(user.level || 1), Math.floor(totalXp / XP_PER_LEVEL) + 1);
+    const currentLevelXp = totalXp % XP_PER_LEVEL;
+    const progressPercent = Math.min(100, Math.round((currentLevelXp / XP_PER_LEVEL) * 100));
+    const xpToNext = XP_PER_LEVEL - currentLevelXp;
 
     const handleSave = async () => {
         setLoading(true);
@@ -69,6 +77,34 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
         };
         reader.onerror = () => setAvatarError('Could not read this image.');
         reader.readAsDataURL(file);
+    };
+
+    const clampAvatarOffset = (value: number) => Math.max(-120, Math.min(120, value));
+
+    const handleAvatarDragStart = (event: PointerEvent<HTMLDivElement>) => {
+        if (!avatarSource) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragState.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
+    };
+
+    const handleAvatarDragMove = (event: PointerEvent<HTMLDivElement>) => {
+        if (!avatarSource || dragState.current.pointerId !== event.pointerId) return;
+
+        const dx = event.clientX - dragState.current.lastX;
+        const dy = event.clientY - dragState.current.lastY;
+        dragState.current.lastX = event.clientX;
+        dragState.current.lastY = event.clientY;
+        setAvatarOffsetX(value => clampAvatarOffset(value + dx * 1.6));
+        setAvatarOffsetY(value => clampAvatarOffset(value + dy * 1.6));
+    };
+
+    const handleAvatarDragEnd = (event: PointerEvent<HTMLDivElement>) => {
+        if (dragState.current.pointerId !== event.pointerId) return;
+        dragState.current.pointerId = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
     };
 
     const applyCroppedAvatar = async () => {
@@ -105,7 +141,13 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
 
             {/* Left: Avatar & Stats */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-                <div className="profile-avatar-frame">
+                <div
+                    className={`profile-avatar-frame ${avatarSource ? 'is-draggable' : ''}`}
+                    onPointerDown={handleAvatarDragStart}
+                    onPointerMove={handleAvatarDragMove}
+                    onPointerUp={handleAvatarDragEnd}
+                    onPointerCancel={handleAvatarDragEnd}
+                >
                     {avatarSource ? (
                         <img
                             src={avatarSource}
@@ -117,6 +159,7 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                         <Avatar value={avatar} fallback="😊" size={160} style={{ fontSize: '5rem' }} />
                     )}
                 </div>
+                {avatarSource && <div className="profile-avatar-drag-hint">Drag to reposition</div>}
                 {isEditing && !readOnly && (
                     <div className="profile-avatar-editor">
                         <label className="btn profile-avatar-upload">
@@ -136,14 +179,6 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                                     Zoom
                                     <input type="range" min="1" max="2.2" step="0.05" value={avatarZoom} onChange={e => setAvatarZoom(Number(e.target.value))} />
                                 </label>
-                                <label>
-                                    X
-                                    <input type="range" min="-90" max="90" step="1" value={avatarOffsetX} onChange={e => setAvatarOffsetX(Number(e.target.value))} />
-                                </label>
-                                <label>
-                                    Y
-                                    <input type="range" min="-90" max="90" step="1" value={avatarOffsetY} onChange={e => setAvatarOffsetY(Number(e.target.value))} />
-                                </label>
                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                     <button type="button" className="btn btn-primary" onClick={applyCroppedAvatar}>Use crop</button>
                                     <button type="button" className="btn" style={{ background: 'white', border: '1px solid #dfe6e9' }} onClick={() => setAvatarSource('')}>Cancel image</button>
@@ -153,9 +188,15 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                         {avatarError && <div className="profile-avatar-error">{avatarError}</div>}
                     </div>
                 )}
-                <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#2d3436' }}>Level {user.level}</div>
-                    <div style={{ fontSize: '1.2rem', opacity: 0.7, fontFamily: 'monospace' }}>{user.points} XP</div>
+                <div className="profile-level-card">
+                    <div className="profile-level-row">
+                        <span>Level {displayLevel}</span>
+                        <span>{totalXp} XP</span>
+                    </div>
+                    <div className="profile-level-progress" aria-label={`Level progress ${progressPercent}%`}>
+                        <span style={{ width: `${progressPercent}%` }} />
+                    </div>
+                    <div className="profile-level-next">{xpToNext} XP to Level {displayLevel + 1}</div>
                 </div>
             </div>
 

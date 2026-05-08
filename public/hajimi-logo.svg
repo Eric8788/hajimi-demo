@@ -1,34 +1,37 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="46" y1="30" x2="214" y2="226" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#B9AFFF"/>
-      <stop offset="0.58" stop-color="#7C6CF2"/>
-      <stop offset="1" stop-color="#5B6BFF"/>
+    <linearGradient id="catBody" x1="48" y1="52" x2="210" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C36BFF"/>
+      <stop offset="0.52" stop-color="#8B76FF"/>
+      <stop offset="1" stop-color="#4E8CFF"/>
     </linearGradient>
-    <linearGradient id="ear" x1="79" y1="63" x2="176" y2="153" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#EEF4FF"/>
-    </linearGradient>
-    <filter id="shadow" x="18" y="18" width="220" height="220" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+    <radialGradient id="shine" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(86 70) rotate(45) scale(150)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softShadow" x="13" y="22" width="230" height="218" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix"/>
       <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dy="12"/>
+      <feOffset dy="14"/>
       <feGaussianBlur stdDeviation="16"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0.27451 0 0 0 0 0.219608 0 0 0 0 0.796078 0 0 0 0.22 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_2"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.36 0 0 0 0 0.28 0 0 0 0 0.92 0 0 0 0.22 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
     </filter>
   </defs>
-  <g filter="url(#shadow)">
-    <rect x="36" y="30" width="184" height="184" rx="58" fill="url(#bg)"/>
-    <rect x="41" y="35" width="174" height="174" rx="53" stroke="white" stroke-opacity="0.32" stroke-width="10"/>
-    <path d="M79.4 105.4L67.2 75.8C65.1 70.8 70.8 66.4 75.4 69.4L102.5 87.5C110.1 84.8 118.7 83.4 128 83.4C137.3 83.4 145.9 84.8 153.5 87.5L180.6 69.4C185.2 66.4 190.9 70.8 188.8 75.8L176.6 105.4C181.8 114.3 184.7 124.7 184.7 136C184.7 169.6 159.3 190.7 128 190.7C96.7 190.7 71.3 169.6 71.3 136C71.3 124.7 74.2 114.3 79.4 105.4Z" fill="url(#ear)"/>
-    <circle cx="108" cy="132" r="8.5" fill="#5D54D8"/>
-    <circle cx="148" cy="132" r="8.5" fill="#5D54D8"/>
-    <path d="M121 152C124.8 155.9 131.2 155.9 135 152" stroke="#5D54D8" stroke-width="8" stroke-linecap="round"/>
-    <path d="M92 154C101.3 158.2 111.6 160.4 122.5 160.4" stroke="#A8DDF3" stroke-width="5" stroke-linecap="round" stroke-opacity="0.9"/>
-    <path d="M164 154C154.7 158.2 144.4 160.4 133.5 160.4" stroke="#A8DDF3" stroke-width="5" stroke-linecap="round" stroke-opacity="0.9"/>
-    <circle cx="183" cy="74" r="13" fill="#38D1D6"/>
-    <path d="M171 70C150.2 54.1 115.5 52.9 92 67.2" stroke="white" stroke-width="5" stroke-linecap="round" stroke-opacity="0.75"/>
+  <g filter="url(#softShadow)">
+    <path d="M72.5 98.8L61.1 52.6C59.8 47.4 66.1 43.7 70 47.3L112.1 86.3C122.5 84.7 133.5 84.7 143.9 86.3L186 47.3C189.9 43.7 196.2 47.4 194.9 52.6L183.5 98.8C195.2 112.7 202.2 130.2 202.2 149C202.2 191.8 169 216.7 128 216.7C87 216.7 53.8 191.8 53.8 149C53.8 130.2 60.8 112.7 72.5 98.8Z" fill="url(#catBody)"/>
+    <path d="M72.5 98.8L61.1 52.6C59.8 47.4 66.1 43.7 70 47.3L112.1 86.3C122.5 84.7 133.5 84.7 143.9 86.3L186 47.3C189.9 43.7 196.2 47.4 194.9 52.6L183.5 98.8C195.2 112.7 202.2 130.2 202.2 149C202.2 191.8 169 216.7 128 216.7C87 216.7 53.8 191.8 53.8 149C53.8 130.2 60.8 112.7 72.5 98.8Z" fill="url(#shine)"/>
+    <path d="M79.3 75.7L91.3 104.4L111.2 89.7L79.3 75.7Z" fill="white" fill-opacity="0.9"/>
+    <path d="M176.7 75.7L164.7 104.4L144.8 89.7L176.7 75.7Z" fill="white" fill-opacity="0.9"/>
+    <ellipse cx="105.5" cy="145.5" rx="9.8" ry="18.5" fill="#3620C8"/>
+    <ellipse cx="150.5" cy="145.5" rx="9.8" ry="18.5" fill="#3620C8"/>
+    <circle cx="101.1" cy="137.4" r="3.8" fill="white"/>
+    <circle cx="146.1" cy="137.4" r="3.8" fill="white"/>
+    <path d="M119.6 164.5C123.6 170.4 132.4 170.4 136.4 164.5" stroke="#3823C5" stroke-width="8.5" stroke-linecap="round"/>
+    <path d="M68.8 155.4C78.8 154.1 87.3 156.3 94.1 161.4" stroke="white" stroke-width="8.2" stroke-linecap="round"/>
+    <path d="M66 174.3C77.2 169.9 87.7 169.3 96.9 173" stroke="white" stroke-width="8.2" stroke-linecap="round"/>
+    <path d="M187.2 155.4C177.2 154.1 168.7 156.3 161.9 161.4" stroke="white" stroke-width="8.2" stroke-linecap="round"/>
+    <path d="M190 174.3C178.8 169.9 168.3 169.3 159.1 173" stroke="white" stroke-width="8.2" stroke-linecap="round"/>
   </g>
 </svg>

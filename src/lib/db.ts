@@ -101,7 +101,13 @@ export async function updateUserProfile(id: number, updates: { bio?: string; ava
 }
 
 export async function addPoints(userId: number, amount: number) {
-    await sql`UPDATE users SET points = points + ${amount} WHERE id = ${userId}`;
+    await sql`
+    UPDATE users
+    SET
+      points = points + ${amount},
+      level = GREATEST(level, FLOOR((points + ${amount}) / 100.0)::int + 1)
+    WHERE id = ${userId}
+  `;
 }
 
 // --- Check-in Helpers ---
