@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { PROJECTS, ALL_TAGS, type ProjectTag } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,28 +31,20 @@ export default function ProjectGrid() {
     return (
         <div>
             {/* Filter Bar */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '30px', alignItems: 'center' }}>
+            <div className="project-filter-row">
                 {/* Tag Filters */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+                <div className="project-filter-panel" aria-label="Project categories">
                     <button
                         onClick={() => setSelectedTag('all')}
-                        style={{
-                            padding: '6px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer',
-                            background: selectedTag === 'all' ? '#6c5ce7' : 'rgba(255,255,255,0.6)',
-                            color: selectedTag === 'all' ? 'white' : '#636e72',
-                            fontWeight: 600, fontSize: '0.85rem', fontFamily: 'inherit', transition: 'all 0.2s'
-                        }}
+                        className={`project-filter-chip ${selectedTag === 'all' ? 'is-active' : ''}`}
+                        style={{ '--tag-color': '#6c5ce7' } as CSSProperties}
                     >All</button>
                     {ALL_TAGS.map(tag => (
                         <button
                             key={tag}
                             onClick={() => setSelectedTag(tag)}
-                            style={{
-                                padding: '6px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer',
-                                background: selectedTag === tag ? TAG_COLORS[tag] : 'rgba(255,255,255,0.6)',
-                                color: selectedTag === tag ? 'white' : '#636e72',
-                                fontWeight: 600, fontSize: '0.85rem', fontFamily: 'inherit', transition: 'all 0.2s'
-                            }}
+                            className={`project-filter-chip ${selectedTag === tag ? 'is-active' : ''}`}
+                            style={{ '--tag-color': TAG_COLORS[tag] } as CSSProperties}
                         >{tag}</button>
                     ))}
                 </div>
@@ -59,12 +52,10 @@ export default function ProjectGrid() {
                 {/* Live Toggle */}
                 <button
                     onClick={() => setShowLiveOnly(!showLiveOnly)}
+                    className={`project-live-toggle ${showLiveOnly ? 'is-active' : ''}`}
                     style={{
-                        padding: '6px 16px', borderRadius: '20px', border: 'none', cursor: 'pointer',
                         background: showLiveOnly ? 'rgba(46, 213, 115, 0.25)' : 'rgba(255,255,255,0.6)',
                         color: showLiveOnly ? '#27ae60' : '#636e72',
-                        fontWeight: 700, fontSize: '0.85rem', fontFamily: 'inherit', transition: 'all 0.2s',
-                        display: 'flex', alignItems: 'center', gap: '6px'
                     }}
                 >
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2ed573', display: 'inline-block', boxShadow: showLiveOnly ? '0 0 6px #2ed573' : 'none' }} />

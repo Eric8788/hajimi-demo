@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState, type FormEvent } from 'react';
@@ -33,11 +34,9 @@ export default function LoginPage() {
     return (
         <div className="auth-container">
             <ParticleBackground />
-            <div className="auth-orb auth-orb-a" />
-            <div className="auth-orb auth-orb-b" />
             <div className="glass-panel auth-card">
                 <div className="auth-brand-row">
-                    <span className="auth-logo-mark">H</span>
+                    <span className="auth-logo-mark"><img className="auth-logo-image" src="/hajimi-logo.svg" alt="" /></span>
                     <span>Hajimi</span>
                 </div>
                 <h1 style={{ textAlign: 'center', marginBottom: '10px' }}>
@@ -135,8 +134,7 @@ export default function LoginPage() {
 	          padding: 28px;
 	          overflow: hidden;
 	          background:
-	            radial-gradient(circle at 16% 18%, rgba(162,155,254,0.16), transparent 30%),
-	            radial-gradient(circle at 82% 72%, rgba(253,121,168,0.13), transparent 34%),
+	            radial-gradient(circle at 50% 18%, rgba(162,155,254,0.08), transparent 32%),
 	            linear-gradient(135deg, rgba(255,255,255,0.9), rgba(245,247,255,0.72));
 	        }
 	        .auth-card {
@@ -171,28 +169,10 @@ export default function LoginPage() {
 	          background: linear-gradient(135deg, #a29bfe, #6c5ce7);
 	          box-shadow: 0 12px 26px rgba(108,92,231,0.22);
 	        }
-	        .auth-orb {
-	          position: absolute;
-	          border-radius: 999px;
-	          filter: blur(40px);
-	          opacity: 0.25;
-	          pointer-events: none;
-	        }
-	        .auth-orb-a {
-	          width: 400px;
-	          height: 400px;
-	          left: 5%;
-	          top: 10%;
-	          background: #a29bfe;
-	          animation: auth-float-a 25s ease-in-out infinite;
-	        }
-	        .auth-orb-b {
-	          width: 450px;
-	          height: 450px;
-	          right: 5%;
-	          bottom: 10%;
-	          background: #fd79a8;
-	          animation: auth-float-b 30s ease-in-out infinite;
+	        .auth-logo-image {
+	          width: 30px;
+	          height: 30px;
+	          display: block;
 	        }
 	        .auth-submit {
 	          transition: transform 0.22s ease, box-shadow 0.22s ease;
@@ -200,16 +180,6 @@ export default function LoginPage() {
 	        .auth-submit:hover {
             transform: translateY(-2px) scale(1.02);
             box-shadow: 0 18px 42px rgba(108,92,231,0.34);
-	        }
-	        @keyframes auth-float-a {
-	          0%, 100% { transform: translate(0, 0) scale(1); }
-	          33% { transform: translate(60px, 40px) scale(1.1); }
-	          66% { transform: translate(-30px, 80px) scale(0.9); }
-	        }
-	        @keyframes auth-float-b {
-	          0%, 100% { transform: translate(0, 0) scale(1); }
-	          33% { transform: translate(-80px, -50px) scale(1.05); }
-	          66% { transform: translate(40px, -90px) scale(0.95); }
 	        }
 	        .glass-input {
 	          width: 100%;

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
 import { useRouter } from 'next/navigation';
 import { isStaffRole } from '@/lib/roles';
+import Avatar from './Avatar';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -385,18 +386,26 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                 className="glass-card forum-welcome-board"
                 style={{ marginBottom: '20px' }}
             >
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ fontSize: '0.78rem', color: '#6c5ce7', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                        Welcome Board
+                <div className="forum-welcome-picture" aria-label="Hajimi Hallway welcome illustration">
+                    <div className="forum-picture-copy">
+                        <span className="forum-picture-kicker">AI Club Hallway</span>
+                        <strong>Ideas, updates, beta notes.</strong>
+                        <span>Feedback lives under the pinned announcement.</span>
                     </div>
-                    <h2 style={{ fontSize: '1.28rem', marginBottom: '8px' }}>Welcome to Hajimi Hallway.</h2>
-                    <p style={{ lineHeight: 1.55, fontSize: '0.95rem', maxWidth: '620px' }}>
-                        社团公告、活动预告和 beta 说明会放在这里。当前版本的体验反馈，请在置顶 announcement 下评论，方便集中整理。
-                    </p>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
-                        {['社团公告', '活动预告', 'Beta Notes'].map(item => (
-                            <span key={item} className="forum-static-chip">{item}</span>
-                        ))}
+                    <div className="forum-picture-scene" aria-hidden="true">
+                        <div className="forum-picture-pin">★</div>
+                        <div className="forum-picture-note note-a">announcement</div>
+                        <div className="forum-picture-note note-b">project drop</div>
+                        <div className="forum-picture-note note-c">feedback</div>
+                        <div className="forum-picture-cat">
+                            <span className="cat-ear left" />
+                            <span className="cat-ear right" />
+                            <span className="cat-eye left" />
+                            <span className="cat-eye right" />
+                            <span className="cat-smile" />
+                        </div>
+                        <div className="forum-picture-orbit one" />
+                        <div className="forum-picture-orbit two" />
                     </div>
                 </div>
             </div>
@@ -476,9 +485,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                     className="glass-card composer-trigger"
                     style={{ marginBottom: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', border: '2px dashed rgba(162, 155, 254, 0.5)', background: 'rgba(255,255,255,0.3)' }}
                 >
-                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#fab1a0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', border: '2px solid white' }}>
-                        {user?.avatar || '✍️'}
-                    </div>
+                    <Avatar value={user?.avatar} fallback="✍️" size={48} style={{ background: '#fab1a0', fontSize: '1.5rem', border: '2px solid white' }} />
                     <div style={{ flex: 1, padding: '12px 20px', borderRadius: '20px', background: 'rgba(255,255,255,0.6)', color: '#636e72', fontWeight: 500 }}>
                         {user ? `Share your thoughts, ${user.username}...` : 'Sign in to share your thoughts...'}
                     </div>

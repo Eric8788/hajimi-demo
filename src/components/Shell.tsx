@@ -1,19 +1,58 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { User } from '@/lib/db';
 import { motion } from 'framer-motion';
 import NotificationsBell from './NotificationsBell';
 import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
+import Avatar from './Avatar';
 
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
     const pathname = usePathname();
+    const [unreadCount, setUnreadCount] = useState(0);
 
     const navItems = [
-        { icon: '🏠', path: '/dashboard', label: '主页' },
-        { icon: '🌏', path: '/resources', label: '走廊' },
-        { icon: '🧩', path: '/functions', label: '项目' },
+        { icon: '🏠', path: '/dashboard', label: 'Home' },
+        { icon: '🗝️', path: '/resources', label: 'Hallway' },
+        { icon: '🧩', path: '/functions', label: 'Projects' },
     ];
+
+    const loadUnreadCount = useCallback(async () => {
+        if (!user) {
+            setUnreadCount(0);
+            return;
+        }
+
+        const res = await fetch('/api/notifications', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        setUnreadCount(Number(data.unreadCount || 0));
+    }, [user]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(loadUnreadCount, 0);
+        const interval = window.setInterval(loadUnreadCount, 45000);
+
+        const handleNotificationCount = (event: Event) => {
+            const customEvent = event as CustomEvent<{ unreadCount?: number }>;
+            if (typeof customEvent.detail?.unreadCount === 'number') {
+                setUnreadCount(customEvent.detail.unreadCount);
+            }
+        };
+
+        const handleRefresh = () => loadUnreadCount();
+        window.addEventListener('hajimi-notifications-count', handleNotificationCount);
+        window.addEventListener('hajimi-notifications-refresh', handleRefresh);
+
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.clearInterval(interval);
+            window.removeEventListener('hajimi-notifications-count', handleNotificationCount);
+            window.removeEventListener('hajimi-notifications-refresh', handleRefresh);
+        };
+    }, [loadUnreadCount]);
 
     return (
         <div className="app-container">
@@ -25,7 +64,9 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     onClick={() => router.push('/dashboard')}
                     aria-label="Go to Hajimi home"
                 >
-                    <span className="sidebar-logo-mark">H</span>
+                    <span className="sidebar-logo-mark" aria-hidden="true">
+                        <img className="sidebar-logo-image" src="/hajimi-logo.svg" alt="" />
+                    </span>
                     <span className="sidebar-brand-text">Hajimi</span>
                 </button>
 
@@ -56,6 +97,9 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 {item.icon}
                             </span>
                             <span className="nav-label" style={{ color: isActive ? 'white' : undefined }}>{item.label}</span>
+                            {item.path === '/resources' && unreadCount > 0 && (
+                                <span className="sidebar-nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                            )}
                         </div>
                     );
                 })}
@@ -64,39 +108,24 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     {user ? (
                         <>
                             <NotificationsBell />
-                            <div
+                            <button
+                                type="button"
+                                className="sidebar-avatar-button"
                                 onClick={() => router.push('/profile')}
-                                style={{
-                                    width: '48px', height: '48px',
-                                    background: 'linear-gradient(135deg, #fab1a0, #ff7675)',
-                                    borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '1.5rem',
-                                    cursor: 'pointer',
-                                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-                                    border: '2px solid rgba(255,255,255,0.8)'
-                                }}
+                                title="Profile"
                             >
-                                {user.avatar || '😊'}
-                            </div>
+                                <Avatar value={user.avatar} fallback="😊" size={42} />
+                            </button>
                         </>
                     ) : (
-                        <div
+                        <button
+                            type="button"
+                            className="sidebar-avatar-button"
                             onClick={() => router.push('/login')}
                             title="Login"
-                            style={{
-                                width: '48px', height: '48px',
-                                background: 'linear-gradient(135deg, #a29bfe, #6c5ce7)',
-                                borderRadius: '50%',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: '1.3rem',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 10px rgba(108,92,231,0.3)',
-                                border: '2px solid rgba(255,255,255,0.8)'
-                            }}
                         >
                             👤
-                        </div>
+                        </button>
                     )}
                 </div>
             </aside>

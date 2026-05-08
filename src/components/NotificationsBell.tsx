@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Notification } from '@/lib/db';
+import Avatar from './Avatar';
 
 function notificationText(notification: Notification) {
     const actor = notification.actor_name || 'Someone';
@@ -29,8 +30,10 @@ export default function NotificationsBell() {
         if (!res.ok) return;
 
         const data = await res.json();
+        const nextUnreadCount = Number(data.unreadCount || 0);
         setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
-        setUnreadCount(Number(data.unreadCount || 0));
+        setUnreadCount(nextUnreadCount);
+        window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: nextUnreadCount } }));
     }, []);
 
     useEffect(() => {
@@ -54,6 +57,7 @@ export default function NotificationsBell() {
         if (nextOpen && unreadCount > 0) {
             setUnreadCount(0);
             setNotifications(current => current.map(item => ({ ...item, read_at: item.read_at || new Date() })));
+            window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: 0 } }));
             await fetch('/api/notifications', { method: 'PATCH' });
         }
     };
@@ -144,9 +148,7 @@ export default function NotificationsBell() {
                                             background: notification.read_at ? 'rgba(255,255,255,0.52)' : 'rgba(162,155,254,0.12)',
                                         }}
                                     >
-                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#fab1a0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            {notification.actor_avatar || '👤'}
-                                        </div>
+                                        <Avatar value={notification.actor_avatar} fallback="👤" size={28} style={{ background: '#fab1a0' }} />
                                         <div>
                                             <div style={{ color: '#2d3436', fontSize: '0.86rem', fontWeight: notification.read_at ? 600 : 800, lineHeight: 1.35 }}>
                                                 {notificationText(notification)}

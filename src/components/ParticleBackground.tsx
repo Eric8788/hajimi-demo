@@ -2,6 +2,17 @@
 
 import React, { useEffect, useRef } from 'react';
 
+type Particle = {
+  x: number;
+  y: number;
+  baseSize: number;
+  size: number;
+  color: string;
+  vx: number;
+  vy: number;
+  maxSpeed: number;
+};
+
 const ParticleBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -17,78 +28,63 @@ const ParticleBackground: React.FC = () => {
     const colors = ['#4285F4', '#EA4335', '#FBBC05', '#34A853', '#A142F4', '#F442A8'];
     const mouse = { x: -1000, y: -1000, radius: 150 };
 
-    class Particle {
-      x: number;
-      y: number;
-      baseSize: number;
-      size: number;
-      color: string;
-      vx: number;
-      vy: number;
-      maxSpeed: number = 2.0;
+    const createParticle = (): Particle => {
+      const baseSize = Math.random() * 15 + 5;
+      return {
+        x: Math.random() * width,
+        y: Math.random() * height,
+        baseSize,
+        size: baseSize,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        maxSpeed: 2.0,
+      };
+    };
 
-      constructor() {
-        this.x = Math.random() * width;
-        this.y = Math.random() * height;
-        // Large particles with variance
-        this.baseSize = Math.random() * 15 + 5; 
-        this.size = this.baseSize;
-        this.color = colors[Math.floor(Math.random() * colors.length)];
-        // Faster initial drift (自动漂浮快一点)
-        this.vx = (Math.random() - 0.5) * 1.5;
-        this.vy = (Math.random() - 0.5) * 1.5;
+    const drawParticle = (particle: Particle) => {
+      ctx.fillStyle = particle.color;
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    const updateParticle = (particle: Particle) => {
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+
+      if (particle.x > width + 50) particle.x = -50;
+      else if (particle.x < -50) particle.x = width + 50;
+      if (particle.y > height + 50) particle.y = -50;
+      else if (particle.y < -50) particle.y = height + 50;
+
+      const dx = mouse.x - particle.x;
+      const dy = mouse.y - particle.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance > 0 && distance < mouse.radius) {
+        const forceDirectionX = dx / distance;
+        const forceDirectionY = dy / distance;
+        const force = (mouse.radius - distance) / mouse.radius;
+        particle.vx -= forceDirectionX * force * 0.3;
+        particle.vy -= forceDirectionY * force * 0.3;
       }
 
-      draw() {
-        if (!ctx) return;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
+      const currentSpeed = Math.sqrt(particle.vx * particle.vx + particle.vy * particle.vy);
+      if (currentSpeed > particle.maxSpeed) {
+        particle.vx *= 0.95;
+        particle.vy *= 0.95;
       }
 
-      update() {
-        // Free float movement
-        this.x += this.vx;
-        this.y += this.vy;
-
-        // Wrapping behavior
-        if (this.x > width + 50) this.x = -50;
-        else if (this.x < -50) this.x = width + 50;
-        if (this.y > height + 50) this.y = -50;
-        else if (this.y < -50) this.y = height + 50;
-
-        // Mouse interaction
-        const dx = mouse.x - this.x;
-        const dy = mouse.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < mouse.radius) {
-          const forceDirectionX = dx / distance;
-          const forceDirectionY = dy / distance;
-          const force = (mouse.radius - distance) / mouse.radius;
-          // Very subtle and slow repulsion
-          this.vx -= forceDirectionX * force * 0.3;
-          this.vy -= forceDirectionY * force * 0.3;
-        }
-
-        // Limit speed to return to natural drift quickly
-        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (currentSpeed > this.maxSpeed) {
-          this.vx *= 0.95;
-          this.vy *= 0.95;
-        }
-
-        this.draw();
-      }
-    }
+      drawParticle(particle);
+    };
 
     const resize = () => {
       width = window.innerWidth;
       height = window.innerHeight;
       canvas.width = width * window.devicePixelRatio;
       canvas.height = height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
       init();
     };
 
@@ -96,13 +92,13 @@ const ParticleBackground: React.FC = () => {
       particles = [];
       const numParticles = Math.min((width * height) / 10000, 150);
       for (let i = 0; i < numParticles; i++) {
-        particles.push(new Particle());
+        particles.push(createParticle());
       }
     };
 
     const animate = () => {
       ctx.clearRect(0, 0, width, height);
-      particles.forEach((p) => p.update());
+      particles.forEach(updateParticle);
       requestAnimationFrame(animate);
     };
 

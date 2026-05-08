@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
@@ -6,6 +7,7 @@ import { Post, Comment, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
 import RoleBadge from './RoleBadge';
+import Avatar from './Avatar';
 
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const isGuest = !currentUser;
@@ -219,11 +221,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             }}
         >
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fab1a0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', border: '2px solid white' }}>
-                    {post.author_avatar || '👤'}
-                </div>
-                <div>
+            <div className="post-card-header">
+                <Avatar className="post-author-avatar" value={post.author_avatar} fallback="👤" size={40} style={{ background: '#fab1a0', fontSize: '1.2rem', border: '2px solid white' }} />
+                <div className="post-author-meta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</span>
                         <RoleBadge role={post.author_role} compact />
@@ -231,8 +231,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>{new Date(post.created_at).toLocaleDateString()}</div>
                 </div>
 
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
-                    <div style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '12px', background: isAnnouncement ? 'rgba(253, 203, 110, 0.24)' : 'rgba(162, 155, 254, 0.1)', color: isAnnouncement ? '#b7791f' : '#6c5ce7', fontWeight: 600 }}>
+                <div className="post-card-actions">
+                    <div className={`post-tag-badge ${isAnnouncement ? 'is-announcement' : ''}`}>
                         {isAnnouncement ? '📢 announcement' : `#${post.tag || 'general'}`}
                     </div>
                     {/* Bookmark Button */}
@@ -312,19 +312,14 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 {post.attachment_url && (
                     <div style={{ marginTop: '15px' }}>
                         {post.type === 'image' ? (
-                            <div
+                            <button
+                                type="button"
+                                className="post-image-attachment"
                                 onClick={() => setShowImageModal(true)}
-                                style={{
-                                    height: '300px', width: '100%',
-                                    backgroundImage: `url(${post.attachment_url})`,
-                                    backgroundSize: 'contain',
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'center',
-                                    borderRadius: '12px', cursor: 'zoom-in',
-                                    border: '1px solid rgba(0,0,0,0.05)',
-                                    backgroundColor: 'rgba(0,0,0,0.02)'
-                                }}
-                            />
+                                aria-label="Open image"
+                            >
+                                <img src={post.attachment_url} alt="Post attachment" />
+                            </button>
                         ) : (
                             <a href={post.attachment_url} target="_blank" className="btn" style={{ background: '#dfe6e9', color: '#2d3436', fontSize: '0.9rem', padding: '10px 15px' }}>
                                 📎 Download Attachment
@@ -391,9 +386,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: showComments ? '300px' : 'none', overflowY: showComments ? 'auto' : 'visible' }}>
                                 {visibleComments.map(c => (
                                     <div key={c.id} style={{ display: 'flex', gap: '10px' }} title={`Commented on ${new Date(c.created_at).toLocaleString()}`}>
-                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#b2bec3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>
-                                            {c.author_avatar || '👤'}
-                                        </div>
+                                        <Avatar value={c.author_avatar} fallback="👤" size={24} style={{ background: '#b2bec3', fontSize: '0.8rem' }} />
                                         <div style={{ flex: 1 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>

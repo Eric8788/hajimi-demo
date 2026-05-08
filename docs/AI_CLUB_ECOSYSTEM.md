@@ -4,7 +4,7 @@
 
 > **Every AI agent MUST read this file before starting any work session.**
 
-**Current Hajimi version:** Hajimi Beta v0.2.0-beta.2 · 2026-05-07
+**Current Hajimi version:** Hajimi Beta v0.2.0-beta.3 · 2026-05-08
 
 ---
 
