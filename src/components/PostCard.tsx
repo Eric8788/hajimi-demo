@@ -3,6 +3,7 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
@@ -10,6 +11,7 @@ import RoleBadge from './RoleBadge';
 import Avatar from './Avatar';
 
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
+    const router = useRouter();
     const isGuest = !currentUser;
     const canModerate = isAdminRole(currentUser?.role);
     const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
@@ -74,6 +76,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             document.body.style.overflow = 'auto';
         };
     }, [showImageModal]);
+
+    const openProfile = (authorId: number) => {
+        if (!currentUser) {
+            onGuestAction?.();
+            return;
+        }
+
+        router.push(authorId === currentUser.id ? '/profile' : `/profile/${authorId}`);
+    };
 
     const handleLike = async () => {
         if (isGuest) { onGuestAction?.(); return; }
@@ -222,7 +233,14 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         >
             {/* Header */}
             <div className="post-card-header">
-                <Avatar className="post-author-avatar" value={post.author_avatar} fallback="👤" size={40} style={{ background: '#fab1a0', fontSize: '1.2rem', border: '2px solid white' }} />
+                <button
+                    type="button"
+                    className="avatar-link-button post-author-avatar-button"
+                    onClick={() => openProfile(post.author_id)}
+                    aria-label={`View ${post.author_name || 'author'} profile`}
+                >
+                    <Avatar className="post-author-avatar" value={post.author_avatar} fallback="👤" size={40} style={{ background: '#fab1a0', fontSize: '1.2rem', border: '2px solid white' }} />
+                </button>
                 <div className="post-author-meta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</span>
@@ -386,7 +404,14 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: showComments ? '300px' : 'none', overflowY: showComments ? 'auto' : 'visible' }}>
                                 {visibleComments.map(c => (
                                     <div key={c.id} style={{ display: 'flex', gap: '10px' }} title={`Commented on ${new Date(c.created_at).toLocaleString()}`}>
-                                        <Avatar value={c.author_avatar} fallback="👤" size={24} style={{ background: '#b2bec3', fontSize: '0.8rem' }} />
+                                        <button
+                                            type="button"
+                                            className="avatar-link-button comment-avatar-button"
+                                            onClick={() => openProfile(c.author_id)}
+                                            aria-label={`View ${c.author_name || 'comment author'} profile`}
+                                        >
+                                            <Avatar value={c.author_avatar} fallback="👤" size={24} style={{ background: '#b2bec3', fontSize: '0.8rem' }} />
+                                        </button>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>

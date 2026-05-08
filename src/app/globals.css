@@ -178,14 +178,48 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
 }
 
-.nav-icon:hover,
-.nav-icon.is-active {
-  background: #fff;
+.nav-icon::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  z-index: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  box-shadow: 0 12px 28px rgba(108, 92, 231, 0.2);
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.nav-icon:hover {
+  background: rgba(255,255,255,0.66);
   color: var(--primary);
-  box-shadow: 0 8px 16px rgba(162, 155, 254, 0.25);
   transform: translateY(-2px);
+}
+
+.nav-icon:hover::before {
+  opacity: 0.12;
+  transform: scale(1);
+}
+
+.nav-icon.is-active {
+  background: rgba(255,255,255,0.42);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(162, 155, 254, 0.22);
+}
+
+.nav-icon.is-active::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.nav-icon.is-active .nav-symbol,
+.nav-icon.is-active .nav-label {
+  color: #fff;
 }
 
 .nav-symbol {
@@ -241,6 +275,10 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 .nav-icon:hover .nav-label {
   opacity: 1;
   color: #6c5ce7;
+}
+
+.nav-icon.is-active:hover .nav-label {
+  color: #fff;
 }
 
 .sidebar-bottom {
@@ -621,8 +659,6 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   box-shadow: 0 10px 24px rgba(46,213,115,0.08);
 }
 
-/* .nav-icon.active handled by Framer Motion */
-
 /* Main Content Area */
 .main-content {
   flex: 1;
@@ -839,6 +875,41 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 
 .btn-primary:active {
   transform: scale(0.96);
+}
+
+.checkin-button {
+  min-width: 142px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(108, 92, 231, 0.18);
+  border-radius: 14px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 850;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(108, 92, 231, 0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease;
+}
+
+.checkin-button.is-ready {
+  background: linear-gradient(135deg, #6c5ce7, #8378ff 55%, #37c6d0);
+}
+
+.checkin-button.is-complete {
+  color: #fff;
+  background: linear-gradient(135deg, #16a085, #37c6d0);
+  box-shadow: 0 12px 26px rgba(22, 160, 133, 0.18);
+}
+
+.checkin-button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.05);
+  box-shadow: 0 16px 34px rgba(108, 92, 231, 0.28);
+}
+
+.checkin-button:disabled {
+  cursor: default;
 }
 
 /* Widgets */
@@ -1175,6 +1246,33 @@ p {
   flex: 0 0 40px;
 }
 
+.avatar-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.avatar-link-button:hover {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12), 0 10px 20px rgba(108, 92, 231, 0.12);
+}
+
+.post-author-avatar-button {
+  flex: 0 0 40px;
+}
+
+.comment-avatar-button {
+  flex: 0 0 24px;
+  align-self: flex-start;
+}
+
 .post-author-meta {
   flex: 1 1 auto;
   min-width: 0;
@@ -1264,7 +1362,7 @@ p {
   position: absolute;
   left: 64px;
   bottom: 0;
-  width: min(320px, calc(100vw - 120px));
+  width: min(360px, calc(100vw - 120px));
   max-height: 360px;
   overflow: auto;
   padding: 12px;
@@ -1275,4 +1373,60 @@ p {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   z-index: 30;
+}
+
+.notification-trigger {
+  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.notification-trigger:hover {
+  border-color: rgba(108, 92, 231, 0.35) !important;
+  background: rgba(255,255,255,0.76) !important;
+  box-shadow: 0 12px 24px rgba(108, 92, 231, 0.16) !important;
+}
+
+.notification-trigger.has-unread:hover {
+  background: linear-gradient(135deg, #fd79a8, #8378ff) !important;
+  box-shadow: 0 14px 30px rgba(253, 121, 168, 0.26) !important;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.notification-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.52);
+}
+
+.notification-row.is-unread {
+  background: rgba(162,155,254,0.12);
+}
+
+.notification-copy {
+  min-width: 0;
+}
+
+.notification-message {
+  color: #2d3436;
+  font-size: 0.84rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notification-time {
+  color: #9aa1a7;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  margin-top: 4px;
+  white-space: nowrap;
 }

@@ -78,25 +78,11 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                             className={`nav-icon ${isActive ? 'is-active' : ''}`}
                             onClick={() => router.push(item.path)}
                             title={item.label}
-                            style={{ position: 'relative' }}
                         >
-                            {isActive && (
-                                <motion.div
-                                    layoutId="active-nav-bg"
-                                    style={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        borderRadius: '18px',
-                                        background: '#a29bfe',
-                                        zIndex: 0,
-                                    }}
-                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                                />
-                            )}
-                            <span className="nav-symbol" style={{ color: isActive ? 'white' : 'inherit' }}>
+                            <span className="nav-symbol">
                                 {item.icon}
                             </span>
-                            <span className="nav-label" style={{ color: isActive ? 'white' : undefined }}>{item.label}</span>
+                            <span className="nav-label">{item.label}</span>
                             {item.path === '/resources' && unreadCount > 0 && (
                                 <span className="sidebar-nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
                             )}

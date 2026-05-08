@@ -1,42 +1,69 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function CheckInButton() {
+    const router = useRouter();
     const [checkedIn, setCheckedIn] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [buttonText, setButtonText] = useState('🍄 Check In · +10 XP');
 
     useEffect(() => {
-        fetch('/api/checkin').then(res => res.json()).then(data => {
-            if (data.checkedIn) setCheckedIn(true);
-            setLoading(false);
-        });
+        let isActive = true;
+
+        fetch('/api/checkin')
+            .then(res => res.json())
+            .then(data => {
+                if (!isActive) return;
+                if (data.checkedIn) {
+                    setCheckedIn(true);
+                    setButtonText('✅ Signed In');
+                }
+            })
+            .catch(() => {
+                if (!isActive) return;
+                setButtonText('Try again');
+            })
+            .finally(() => {
+                if (isActive) setLoading(false);
+            });
+
+        return () => { isActive = false; };
     }, []);
 
     const handleCheckIn = async () => {
         setLoading(true);
-        const res = await fetch('/api/checkin', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            setCheckedIn(true);
-            alert(`Checked in! +${data.pointsAdded} Points!`);
-            window.location.reload(); // Refresh to update points in sidebar
-        } else {
-            alert(data.error);
+        setButtonText('Signing in...');
+
+        try {
+            const res = await fetch('/api/checkin', { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+                setCheckedIn(true);
+                setButtonText(`✅ Signed In · +${data.pointsAdded} XP`);
+                router.refresh();
+            } else {
+                const alreadyChecked = data.error === 'Already checked in today';
+                setCheckedIn(alreadyChecked);
+                setButtonText(alreadyChecked ? '✅ Signed In' : 'Could not sign in');
+            }
+        } catch {
+            setButtonText('Try again');
         }
+
         setLoading(false);
     };
 
-    if (loading) return <button className="btn btn-secondary" disabled>...</button>;
-
     return (
         <button
-            className={`btn ${checkedIn ? '' : 'btn-success'}`}
+            className={`checkin-button ${checkedIn ? 'is-complete' : 'is-ready'}`}
             onClick={handleCheckIn}
-            disabled={checkedIn}
-            style={{ background: checkedIn ? '#b2bec3' : 'var(--success)', color: 'white', border: 'none' }}
+            disabled={loading || checkedIn}
+            aria-live="polite"
         >
-            {checkedIn ? '✅ Signed In' : '📍 Check In (+10 XP)'}
+            {loading ? 'Checking...' : buttonText}
         </button>
     );
 }

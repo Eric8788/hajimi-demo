@@ -66,7 +66,9 @@ export default function NotificationsBell() {
         <div style={{ position: 'relative', marginBottom: '14px' }}>
             <motion.button
                 type="button"
+                className={`notification-trigger ${unreadCount > 0 ? 'has-unread' : ''}`}
                 onClick={toggleOpen}
+                whileHover={{ y: -2, scale: 1.05 }}
                 whileTap={{ scale: 0.88 }}
                 animate={unreadCount > 0 ? { rotate: [0, -8, 8, -5, 0] } : { rotate: 0 }}
                 transition={{ duration: 0.45 }}
@@ -136,24 +138,22 @@ export default function NotificationsBell() {
                                 Likes and saves on your posts will show up here.
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div className="notification-list">
                                 {notifications.map(notification => (
                                     <div
                                         key={notification.id}
-                                        style={{
-                                            display: 'flex',
-                                            gap: '10px',
-                                            padding: '10px',
-                                            borderRadius: '12px',
-                                            background: notification.read_at ? 'rgba(255,255,255,0.52)' : 'rgba(162,155,254,0.12)',
-                                        }}
+                                        className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
                                     >
                                         <Avatar value={notification.actor_avatar} fallback="👤" size={28} style={{ background: '#fab1a0' }} />
-                                        <div>
-                                            <div style={{ color: '#2d3436', fontSize: '0.86rem', fontWeight: notification.read_at ? 600 : 800, lineHeight: 1.35 }}>
+                                        <div className="notification-copy">
+                                            <div
+                                                className="notification-message"
+                                                style={{ fontWeight: notification.read_at ? 600 : 800 }}
+                                                title={notificationText(notification)}
+                                            >
                                                 {notificationText(notification)}
                                             </div>
-                                            <div suppressHydrationWarning style={{ color: '#9aa1a7', fontSize: '0.74rem', marginTop: '3px' }}>
+                                            <div suppressHydrationWarning className="notification-time">
                                                 {new Date(notification.created_at).toLocaleString()}
                                             </div>
                                         </div>

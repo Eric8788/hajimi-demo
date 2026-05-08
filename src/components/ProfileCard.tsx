@@ -16,7 +16,7 @@ function loadAvatarImage(src: string) {
     });
 }
 
-export default function ProfilePage({ user }: { user: User }) {
+export default function ProfilePage({ user, readOnly = false }: { user: User; readOnly?: boolean }) {
     const router = useRouter();
     const [bio, setBio] = useState(user.bio || '');
     const [avatar, setAvatar] = useState(user.avatar || '😊');
@@ -117,7 +117,7 @@ export default function ProfilePage({ user }: { user: User }) {
                         <Avatar value={avatar} fallback="😊" size={160} style={{ fontSize: '5rem' }} />
                     )}
                 </div>
-                {isEditing && (
+                {isEditing && !readOnly && (
                     <div className="profile-avatar-editor">
                         <label className="btn profile-avatar-upload">
                             Upload image
@@ -216,34 +216,36 @@ export default function ProfilePage({ user }: { user: User }) {
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '15px' }}>
-                    {isEditing ? (
-                        <>
-                            <button onClick={handleSave} className="btn btn-primary" disabled={loading}>
-                                {loading ? 'Saving...' : 'Save Changes'}
+                {!readOnly && (
+                    <div style={{ display: 'flex', gap: '15px' }}>
+                        {isEditing ? (
+                            <>
+                                <button onClick={handleSave} className="btn btn-primary" disabled={loading}>
+                                    {loading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                                <button onClick={() => setIsEditing(false)} className="btn" style={{ background: 'transparent', border: '1px solid #dfe6e9' }}>
+                                    Cancel
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                className="btn"
+                                style={{ background: 'white', border: '1px solid #dfe6e9', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
+                            >
+                                Edit Profile
                             </button>
-                            <button onClick={() => setIsEditing(false)} className="btn" style={{ background: 'transparent', border: '1px solid #dfe6e9' }}>
-                                Cancel
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            onClick={() => setIsEditing(true)}
-                            className="btn"
-                            style={{ background: 'white', border: '1px solid #dfe6e9', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
-                        >
-                            Edit Profile
-                        </button>
-                    )}
+                        )}
 
-                    <button
-                        onClick={handleLogout}
-                        className="btn"
-                        style={{ background: '#ffeaa7', color: '#d35400', border: '1px solid #ffd32a' }}
-                    >
-                        Logout
-                    </button>
-                </div>
+                        <button
+                            onClick={handleLogout}
+                            className="btn"
+                            style={{ background: '#ffeaa7', color: '#d35400', border: '1px solid #ffd32a' }}
+                        >
+                            Logout
+                        </button>
+                    </div>
+                )}
             </div>
 
         </div>

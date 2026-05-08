@@ -1,5 +1,13 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.4 · 2026-05-08
+
+- Added hover polish to the notification bell and made notification rows compact with single-line message truncation.
+- Reworked dashboard check-in so success/error feedback stays inside the button instead of using a system alert.
+- Simplified sidebar active states with local transitions, avoiding the pasted-card feel during page switching.
+- Added read-only member profile pages and made forum author/comment avatars clickable for logged-in users.
+- Updated app and documentation version markers for this deployment.
+
 ## Hajimi Beta v0.2.0-beta.3 · 2026-05-08
 
 - Polished the fixed app sidebar with a narrower layout, emoji module icons, unread Hallway badges, and a new shipped cat logo asset.
