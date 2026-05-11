@@ -51,11 +51,11 @@ export const PROJECTS: Project[] = [
         title: 'Sailer 2D',
         author: 'AI Club',
         description: 'A serious 2D sailing simulator for learning wind, sail, rudder, force, and boat movement.',
-        tags: ['Game', 'Simulation'],
+        tags: ['Game', 'Simulation', 'Sailing'],
         emoji: '⛵',
-        url: null, // Note: local only, wait for next deployment
+        url: 'https://sailer-ashy.vercel.app/',
         accentColor: 'rgba(116, 185, 255, 0.2)',
-        status: 'coming_soon',
+        status: 'live',
     },
     {
         id: 'boxhead',

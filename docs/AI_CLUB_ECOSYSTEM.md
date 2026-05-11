@@ -4,7 +4,7 @@
 
 > **Every AI agent MUST read this file before starting any work session.**
 
-**Current Hajimi version:** Hajimi Beta v0.2.0-beta.6 · 2026-05-11
+**Current Hajimi version:** Hajimi Beta v0.2.0-beta.7 · 2026-05-11
 
 ---
 
@@ -73,7 +73,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **背单词** — Vocabulary flashcard app
 - **CV 点名抽签** — Classroom random picker
 - **Flight Radar** — Map/route template
-- **Sailer 2D** *(coming soon)* — Serious sailing physics simulator
+- **Sailer 2D** — Serious sailing physics simulator (`https://sailer-ashy.vercel.app/`)
 
 ---
 

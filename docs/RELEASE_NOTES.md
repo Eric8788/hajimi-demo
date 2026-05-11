@@ -1,5 +1,11 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.7 · 2026-05-11
+
+- Bound `Sailer 2D` in Function Hall and the landing project data to the existing Vercel deployment:
+  - `https://sailer-ashy.vercel.app/`
+- Marked `Sailer 2D` as live and tagged it as `Game`, `Simulation`, and `Sailing`.
+
 ## Hajimi Beta v0.2.0-beta.6 · 2026-05-11
 
 - Replaced the redrawn SVG Hajimi logo and dashboard mascot with the supplied original PNG assets:

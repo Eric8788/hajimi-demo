@@ -2,7 +2,7 @@
 
 *Last updated: 2026-05-11 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.6 · 2026-05-11
+**Current version:** Hajimi Beta v0.2.0-beta.7 · 2026-05-11
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.6
+- **Current version:** Hajimi Beta v0.2.0-beta.7
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -47,6 +47,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - `Hot` ranking combines discussion, likes, saves, and recency; `Top` remains pure likes.
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
 - The UI review pass for `v0.2.0-beta.6` is live: the app logo and dashboard mascot now use Eric's supplied original PNG cat assets instead of the redrawn SVG version.
+- `Sailer 2D` is now bound in Hajimi to Eric's existing Vercel deployment: `https://sailer-ashy.vercel.app/`.
 
 ## 3. Required Environment Variables
 
