@@ -1,5 +1,11 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.6 · 2026-05-11
+
+- Replaced the redrawn SVG Hajimi logo and dashboard mascot with the supplied original PNG assets:
+  - `ChatGPT Image 2026年5月8日 17_15_07.png` for the app logo.
+  - `ChatGPT Image 2026年5月8日 17_14_56.png` for the dashboard mascot/background accent.
+
 ## Hajimi Beta v0.2.0-beta.5 · 2026-05-08
 
 - Fixed like/save burst labels so `+1` and `saved` float away and disappear automatically.

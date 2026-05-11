@@ -65,7 +65,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     aria-label="Go to Hajimi home"
                 >
                     <span className="sidebar-logo-mark" aria-hidden="true">
-                        <img className="sidebar-logo-image" src="/hajimi-logo.svg" alt="" />
+                        <img className="sidebar-logo-image" src="/hajimi-logo.png" alt="" />
                     </span>
                     <span className="sidebar-brand-text">Hajimi</span>
                 </button>

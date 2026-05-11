@@ -36,7 +36,7 @@ export default function LoginPage() {
             <ParticleBackground />
             <div className="glass-panel auth-card">
                 <div className="auth-brand-row">
-                    <span className="auth-logo-mark"><img className="auth-logo-image" src="/hajimi-logo.svg" alt="" /></span>
+                    <span className="auth-logo-mark"><img className="auth-logo-image" src="/hajimi-logo.png" alt="" /></span>
                     <span>Hajimi</span>
                 </div>
                 <h1 style={{ textAlign: 'center', marginBottom: '10px' }}>

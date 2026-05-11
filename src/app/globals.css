@@ -1003,7 +1003,7 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   height: 188px;
   z-index: 1;
   opacity: 0.22;
-  background: url('/hajimi-cat-mascot.svg') center / contain no-repeat;
+  background: url('/hajimi-cat-mascot.png') center / contain no-repeat;
   filter: blur(0.2px);
   pointer-events: none;
 }
