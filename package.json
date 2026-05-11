@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/start-dev.mjs",
     "dev:default": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "blob:cleanup": "node scripts/cleanup-orphan-blobs.mjs"

@@ -8,6 +8,7 @@ import TarotGame from '@/components/TarotGame';
 import { getPosts } from '@/lib/db';
 import LeaderboardWidget from '@/components/LeaderboardWidget';
 import Avatar from '@/components/Avatar';
+import AlumniWorldMap from '@/components/AlumniWorldMap';
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -24,18 +25,18 @@ export default async function DashboardPage() {
       <section className="main-view">
 
         {/* Welcome Banner */}
-        <div className="glass-card full-width" style={{ position: 'relative', overflow: 'hidden', padding: '30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '30px' }}>
+        <div className="glass-card full-width dashboard-welcome-card">
           <div className="dashboard-cat-mascot" aria-hidden="true" style={{ left: '-20px', opacity: 0.35 }} />
           
-          <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: '20px', flex: 1, paddingLeft: '120px' }}>
+          <div className="dashboard-welcome-content">
             <Avatar value={user.avatar} size={64} />
             <div>
-              <h2 style={{ fontSize: '2rem', marginBottom: '5px' }}>Good Morning, {user.username}! 🌤️</h2>
-              <p style={{ opacity: 0.8, fontSize: '1.1rem' }}>Today&apos;s Insight: Life is like a mushroom, handle with care.</p>
+              <h2 className="dashboard-welcome-title">Good Morning, {user.username}! 🌤️</h2>
+              <p className="dashboard-welcome-insight">Today&apos;s Insight: Life is like a mushroom, handle with care.</p>
             </div>
           </div>
 
-          <div style={{ zIndex: 2 }}>
+          <div className="dashboard-checkin-slot">
             <CheckInButton />
           </div>
         </div>
@@ -72,6 +73,8 @@ export default async function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        <AlumniWorldMap />
 
         <div className="dashboard-grid">
 
