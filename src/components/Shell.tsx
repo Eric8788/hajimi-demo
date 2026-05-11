@@ -15,8 +15,8 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
-        { icon: '🗝️', path: '/resources', label: 'Hallway' },
-        { icon: '🧩', path: '/functions', label: 'Projects' },
+        { icon: '💬', path: '/resources', label: 'Forum' },
+        { icon: '🚀', path: '/functions', label: 'Hub' },
     ];
 
     const loadUnreadCount = useCallback(async () => {

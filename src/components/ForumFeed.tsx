@@ -229,7 +229,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
     const handleTagInput = (value: string) => {
         const normalized = value.replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24);
-        setNewTag(normalized || 'general');
+        setNewTag(normalized);
     };
 
     const handleCreate = async (e: FormEvent) => {
@@ -388,9 +388,9 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             >
                 <div className="forum-welcome-picture" aria-label="Hajimi Hallway welcome illustration">
                     <div className="forum-picture-copy">
-                        <span className="forum-picture-kicker">AI Club Hallway</span>
-                        <strong>Ideas, updates, beta notes.</strong>
-                        <span>Feedback lives under the pinned announcement.</span>
+                        <span className="forum-picture-kicker">AI Club Hallway 🎉</span>
+                        <strong>首次发帖立得 100 积分！</strong>
+                        <span>发帖、获赞、被收藏都能涨分，快来成为社区大佬吧！</span>
                     </div>
                     <div className="forum-picture-scene" aria-hidden="true">
                         <div className="forum-picture-pin">★</div>
@@ -512,9 +512,9 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                                         style={{ flex: 1 }}
                                     />
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <div className="project-filter-panel" style={{ display: 'flex', gap: '8px', alignItems: 'center', paddingBottom: '10px' }}>
                                     {visibleTagOptions.map(t => (
-                                        <button key={t.id} type="button" onClick={() => setNewTag(t.id)} style={{ padding: '5px 12px', borderRadius: '15px', border: 'none', background: newTag === t.id ? '#6c5ce7' : 'rgba(0,0,0,0.05)', color: newTag === t.id ? 'white' : '#636e72', fontSize: '0.85rem', cursor: 'pointer' }}>{t.label}</button>
+                                        <button key={t.id} type="button" onClick={() => setNewTag(t.id)} style={{ padding: '5px 12px', borderRadius: '15px', border: 'none', background: newTag === t.id ? '#6c5ce7' : 'rgba(0,0,0,0.05)', color: newTag === t.id ? 'white' : '#636e72', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>{t.label}</button>
                                     ))}
                                 </div>
                                 <div style={{ color: '#636e72', fontSize: '0.8rem' }}>

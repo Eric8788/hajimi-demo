@@ -7,7 +7,7 @@ export default function CheckInButton() {
     const router = useRouter();
     const [checkedIn, setCheckedIn] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [buttonText, setButtonText] = useState('🍄 Check In · +10 XP');
+    const [buttonText, setButtonText] = useState('Check In');
 
     useEffect(() => {
         let isActive = true;
@@ -18,7 +18,7 @@ export default function CheckInButton() {
                 if (!isActive) return;
                 if (data.checkedIn) {
                     setCheckedIn(true);
-                    setButtonText('✅ Signed In');
+                    setButtonText('Signed In');
                 }
             })
             .catch(() => {
@@ -42,12 +42,13 @@ export default function CheckInButton() {
 
             if (data.success) {
                 setCheckedIn(true);
-                setButtonText(`✅ Signed In · +${data.pointsAdded} XP`);
+                const streakBonus = data.streak > 1 ? ` · 🔥 ${data.streak} Day Streak!` : '';
+                setButtonText(`Signed In · +${data.pointsAdded} XP${streakBonus}`);
                 router.refresh();
             } else {
                 const alreadyChecked = data.error === 'Already checked in today';
                 setCheckedIn(alreadyChecked);
-                setButtonText(alreadyChecked ? '✅ Signed In' : 'Could not sign in');
+                setButtonText(alreadyChecked ? 'Signed In' : 'Could not sign in');
             }
         } catch {
             setButtonText('Try again');
@@ -58,11 +59,18 @@ export default function CheckInButton() {
 
     return (
         <button
-            className={`checkin-button ${checkedIn ? 'is-complete' : 'is-ready'}`}
             onClick={handleCheckIn}
-            disabled={loading || checkedIn}
-            aria-live="polite"
+            disabled={checkedIn || loading}
+            className={`btn btn-primary checkin-button ${checkedIn ? 'is-complete' : 'is-ready'}`}
+            style={{ 
+                minWidth: '180px', 
+                opacity: loading ? 0.7 : 1,
+                fontSize: '0.95rem',
+                padding: '0 24px',
+                height: '46px'
+            }}
         >
+            <span style={{ marginRight: '8px' }}>{checkedIn ? '✅' : '🍄'}</span>
             {loading ? 'Checking...' : buttonText}
         </button>
     );

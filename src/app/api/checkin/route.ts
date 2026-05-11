@@ -15,9 +15,13 @@ export async function POST() {
             return NextResponse.json({ error: 'Already checked in today' }, { status: 400 });
         }
 
-        const success = await doCheckIn(userId);
-        if (success) {
-            return NextResponse.json({ success: true, pointsAdded: 10 });
+        const result = await doCheckIn(userId);
+        if (result.success) {
+            return NextResponse.json({ 
+                success: true, 
+                pointsAdded: result.pointsAdded,
+                streak: result.streak 
+            });
         } else {
             return NextResponse.json({ error: 'Failed to check in' }, { status: 500 });
         }

@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
 import RoleBadge from './RoleBadge';
 import Avatar from './Avatar';
+import CreatorBadge from './CreatorBadge';
 
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
@@ -223,6 +224,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     author_name: currentUser.username,
                     author_avatar: currentUser.avatar,
                     author_role: currentUser.role,
+                    author_is_creator: currentUser.is_creator,
                 }
             ]);
             setNewComment('');
@@ -256,7 +258,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 <div className="post-author-meta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</span>
-                        <RoleBadge role={post.author_role} compact />
+                        <RoleBadge role={post.author_role} showStudent compact />
+                        {post.author_is_creator && <CreatorBadge compact />}
                     </div>
                     <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>{new Date(post.created_at).toLocaleDateString()}</div>
                 </div>
@@ -265,43 +268,50 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     <div className={`post-tag-badge ${isAnnouncement ? 'is-announcement' : ''}`}>
                         {isAnnouncement ? '📢 announcement' : `#${post.tag || 'general'}`}
                     </div>
-                    {/* Bookmark Button */}
-                    <motion.button
-                        onClick={handleBookmark}
-                        className="reaction-button"
-                        whileTap={{ scale: 0.82 }}
-                        animate={bookmarkBurst ? { scale: [1, 1.22, 1], rotate: [0, -8, 7, 0] } : { scale: 1, rotate: 0 }}
-                        transition={{ duration: 0.32 }}
-                        style={{
-                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem',
-                            color: isBookmarked ? '#fdcb6e' : '#b2bec3', transition: 'color 0.2s'
-                        }}
-                        title="Bookmark"
-                    >
-                        <AnimatePresence>
-                            {bookmarkBurst > 0 && (
-                                <motion.span
-                                    key={bookmarkBurst}
-                                    className="reaction-burst"
-                                    initial={{ opacity: 0, y: 8, scale: 0.8 }}
-                                    animate={{ opacity: 1, y: -8, scale: 1 }}
-                                    exit={{ opacity: 0, y: -18, scale: 0.7 }}
-                                    transition={{ duration: 0.45 }}
-                                >
-                                    saved
-                                </motion.span>
-                            )}
-                        </AnimatePresence>
-                        {isBookmarked ? '⭐' : '☆'}
-                    </motion.button>
-                    {/* Delete Button (Owner or Moderator) */}
-                    {canDeletePost && (
-                        <button
-                            onClick={handleDeletePost}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#b2bec3', transition: 'color 0.2s' }}
-                            title={post.author_id === currentUser?.id ? 'Delete Post' : 'Admin Delete Post'}
-                        >🗑️</button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '34px' }}>
+                        {/* Bookmark Button */}
+                        <motion.button
+                            onClick={handleBookmark}
+                            className="reaction-button"
+                            whileTap={{ scale: 0.82 }}
+                            animate={bookmarkBurst ? { scale: [1, 1.22, 1], rotate: [0, -8, 7, 0] } : { scale: 1, rotate: 0 }}
+                            transition={{ duration: 0.32 }}
+                            style={{
+                                background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem',
+                                color: isBookmarked ? '#fdcb6e' : '#b2bec3', transition: 'color 0.2s',
+                                display: 'flex', alignItems: 'center', padding: 0
+                            }}
+                            title="Bookmark"
+                        >
+                            <AnimatePresence>
+                                {bookmarkBurst > 0 && (
+                                    <motion.span
+                                        key={bookmarkBurst}
+                                        className="reaction-burst"
+                                        initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                                        animate={{ opacity: 1, y: -8, scale: 1 }}
+                                        exit={{ opacity: 0, y: -18, scale: 0.7 }}
+                                        transition={{ duration: 0.45 }}
+                                    >
+                                        saved
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
+                            {isBookmarked ? '⭐' : '☆'}
+                        </motion.button>
+                        {/* Delete Button (Owner or Moderator) */}
+                        {canDeletePost && (
+                            <button
+                                onClick={handleDeletePost}
+                                style={{ 
+                                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', 
+                                    color: '#b2bec3', transition: 'color 0.2s',
+                                    display: 'flex', alignItems: 'center', padding: 0
+                                }}
+                                title={post.author_id === currentUser?.id ? 'Delete Post' : 'Admin Delete Post'}
+                            >🗑️</button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -428,7 +438,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                                     <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</span>
-                                                    <RoleBadge role={c.author_role} compact />
+                                                    <RoleBadge role={c.author_role} showStudent compact />
+                                                    {c.author_is_creator && <CreatorBadge compact />}
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                     {c.likes > 0 && <span>{c.likes} likes</span>}

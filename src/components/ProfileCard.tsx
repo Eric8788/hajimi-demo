@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { User } from '@/lib/db';
 import RoleBadge from './RoleBadge';
 import Avatar from './Avatar';
+import CreatorBadge from './CreatorBadge';
 
-const XP_PER_LEVEL = 100;
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -25,6 +25,8 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     const [grade, setGrade] = useState(user.grade || '');
     const [age, setAge] = useState<number | ''>(user.age || '');
     const [ethnicity, setEthnicity] = useState(user.ethnicity || '');
+    const [newUsername, setNewUsername] = useState(user.username);
+    const [newPassword, setNewPassword] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [avatarSource, setAvatarSource] = useState('');
@@ -41,20 +43,58 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
 
     const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
     const totalXp = Number(user.points || 0);
-    const displayLevel = Math.max(Number(user.level || 1), Math.floor(totalXp / XP_PER_LEVEL) + 1);
-    const currentLevelXp = totalXp % XP_PER_LEVEL;
-    const progressPercent = Math.min(100, Math.round((currentLevelXp / XP_PER_LEVEL) * 100));
-    const xpToNext = XP_PER_LEVEL - currentLevelXp;
+    const displayLevel = Math.max(Number(user.level || 1), Math.floor(Math.sqrt(totalXp / 50)) + 1);
+    const xpForCurrentLevel = 50 * Math.pow(displayLevel - 1, 2);
+    const xpForNextLevel = 50 * Math.pow(displayLevel, 2);
+    const xpInCurrentLevel = totalXp - xpForCurrentLevel;
+    const xpRequiredForLevel = xpForNextLevel - xpForCurrentLevel;
+    
+    const progressPercent = Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
+    const xpToNext = xpForNextLevel - totalXp;
 
     const handleSave = async () => {
         setLoading(true);
+        // Profile basics
         await fetch('/api/profile', {
             method: 'POST',
             body: JSON.stringify({ bio, avatar, grade, age: age || undefined, ethnicity }),
         });
+
+        // Account security if changed
+        if (newUsername !== user.username || newPassword !== '') {
+            const res = await fetch('/api/profile/account', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    username: newUsername !== user.username ? newUsername : undefined,
+                    password: newPassword !== '' ? newPassword : undefined
+                }),
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                setLoading(false);
+                return;
+            }
+        }
+
         setLoading(false);
         setIsEditing(false);
         router.refresh();
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!confirm('WARNING: This will permanently delete your account and all your content (posts, comments, etc.). This action cannot be undone. Are you absolutely sure?')) {
+            return;
+        }
+
+        setLoading(true);
+        const res = await fetch('/api/profile/delete', { method: 'POST' });
+        if (res.ok) {
+            window.location.href = '/';
+        } else {
+            alert('Failed to delete account');
+            setLoading(false);
+        }
     };
 
     const handleAvatarFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -196,7 +236,14 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                     <div className="profile-level-progress" aria-label={`Level progress ${progressPercent}%`}>
                         <span style={{ width: `${progressPercent}%` }} />
                     </div>
-                    <div className="profile-level-next">{xpToNext} XP to Level {displayLevel + 1}</div>
+                    <div className="profile-level-next">
+                        {xpToNext} XP to Level {displayLevel + 1}
+                    </div>
+                    {user.streak_count > 0 && (
+                        <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#ff7675', fontWeight: 600 }}>
+                            🔥 {user.streak_count} Day Streak!
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -206,8 +253,10 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                     <h2 style={{ fontSize: '3rem', marginBottom: '10px', background: 'linear-gradient(90deg, #6c5ce7, #a29bfe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         {user.username}
                     </h2>
-                    <div style={{ marginBottom: '16px' }}>
+                    <div style={{ marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <RoleBadge role={user.role} showStudent />
+                        {user.is_creator && <CreatorBadge />}
+                        <span style={{ fontSize: '0.85rem', color: '#b2bec3', background: 'rgba(0,0,0,0.05)', padding: '2px 8px', borderRadius: '4px' }}>ID: {user.id}</span>
                     </div>
 
                     {isEditing ? (
@@ -241,6 +290,41 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                                     placeholder="Ethnicity/Background"
                                     style={{ flex: 1, minWidth: '150px', padding: '10px 15px', borderRadius: '10px', border: '1px solid #dfe6e9', fontSize: '0.95rem' }}
                                 />
+                            </div>
+
+                            <div style={{ marginTop: '20px', padding: '20px', background: 'rgba(255,107,107,0.05)', borderRadius: '12px', border: '1px solid rgba(255,107,107,0.1)' }}>
+                                <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#e17055' }}>Security & Account</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.85rem', color: '#636e72' }}>
+                                        Change Nickname (Login Name)
+                                        <input
+                                            value={newUsername}
+                                            onChange={e => setNewUsername(e.target.value)}
+                                            className="glass-input"
+                                            style={{ fontSize: '1rem' }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.85rem', color: '#636e72' }}>
+                                        New Password (Leave blank to keep current)
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={e => setNewPassword(e.target.value)}
+                                            placeholder="••••••••"
+                                            className="glass-input"
+                                            style={{ fontSize: '1rem' }}
+                                        />
+                                    </label>
+                                    <div style={{ marginTop: '10px' }}>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleDeleteAccount}
+                                            style={{ background: 'transparent', color: '#ff7675', border: '1px solid #ff7675', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
+                                        >
+                                            Delete My Account Permanently
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     ) : (

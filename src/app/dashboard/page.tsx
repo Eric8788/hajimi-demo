@@ -6,6 +6,8 @@ import CheckInButton from '@/components/CheckInButton';
 import Link from 'next/link';
 import TarotGame from '@/components/TarotGame';
 import { getPosts } from '@/lib/db';
+import LeaderboardWidget from '@/components/LeaderboardWidget';
+import Avatar from '@/components/Avatar';
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -22,18 +24,20 @@ export default async function DashboardPage() {
       <section className="main-view">
 
         {/* Welcome Banner */}
-        <div className="glass-card full-width" style={{ position: 'relative', overflow: 'hidden', padding: '30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ position: 'relative', zIndex: 2 }}>
-            <div style={{ marginBottom: '10px' }}>
+        <div className="glass-card full-width" style={{ position: 'relative', overflow: 'hidden', padding: '30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '30px' }}>
+          <div className="dashboard-cat-mascot" aria-hidden="true" style={{ left: '-20px', opacity: 0.35 }} />
+          
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: '20px', flex: 1, paddingLeft: '120px' }}>
+            <Avatar value={user.avatar} size={64} />
+            <div>
               <h2 style={{ fontSize: '2rem', marginBottom: '5px' }}>Good Morning, {user.username}! 🌤️</h2>
               <p style={{ opacity: 0.8, fontSize: '1.1rem' }}>Today&apos;s Insight: Life is like a mushroom, handle with care.</p>
             </div>
           </div>
+
           <div style={{ zIndex: 2 }}>
             <CheckInButton />
           </div>
-
-          <div className="dashboard-cat-mascot" aria-hidden="true" />
         </div>
 
         <div
@@ -71,44 +75,8 @@ export default async function DashboardPage() {
 
         <div className="dashboard-grid">
 
-          {/* Timeline Widget */}
-          <div className="glass-card full-width">
-            <h3 style={{ marginBottom: '20px', fontSize: '1.4rem' }}>⏳ Timeline Dancer</h3>
-            <div style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
-              <div style={{
-                background: 'rgba(255, 234, 167, 0.4)', padding: '20px', borderRadius: '20px', minWidth: '140px',
-                backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.5)', textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>☀️</div>
-                <strong style={{ display: 'block', fontSize: '1.1rem' }}>Wake Up</strong>
-                <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '5px' }}>6:00 AM</div>
-              </div>
-              <div style={{
-                background: 'rgba(116, 185, 255, 0.3)', padding: '20px', borderRadius: '20px', minWidth: '140px',
-                backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.5)', textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🚿</div>
-                <strong style={{ display: 'block', fontSize: '1.1rem' }}>Shower</strong>
-                <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '5px' }}>6:20 AM</div>
-              </div>
-              <div style={{
-                background: 'rgba(85, 239, 196, 0.3)', padding: '20px', borderRadius: '20px', minWidth: '140px',
-                backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.5)', textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🚌</div>
-                <strong style={{ display: 'block', fontSize: '1.1rem' }}>Bus</strong>
-                <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '5px' }}>7:00 AM</div>
-              </div>
-              <div style={{
-                background: 'rgba(162, 155, 254, 0.3)', padding: '20px', borderRadius: '20px', minWidth: '140px',
-                backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.5)', textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🏫</div>
-                <strong style={{ display: 'block', fontSize: '1.1rem' }}>School</strong>
-                <div style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '5px' }}>8:00 AM</div>
-              </div>
-            </div>
-          </div>
+          {/* Leaderboard Widget */}
+          <LeaderboardWidget limit={5} />
 
           {/* Oracle Widget */}
           <div className="glass-card full-width" style={{ padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(255, 255, 255, 0.65)' }}>
@@ -117,6 +85,7 @@ export default async function DashboardPage() {
                 <TarotGame />
             </div>
           </div>
+
 
           {/* Rec Room Widget */}
           <div className="glass-card full-width" style={{ padding: '30px', background: 'rgba(255, 255, 255, 0.65)' }}>

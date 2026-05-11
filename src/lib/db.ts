@@ -14,7 +14,40 @@ export interface User {
     grade?: string;
     age?: number;
     ethnicity?: string;
-    created_at: Date;
+    is_creator?: boolean;
+    streak_count: number;
+    last_checkin_at?: string;
+    daily_likes_count: number;
+    last_like_at?: string;
+    created_at: string;
+}
+
+export interface Project {
+    id: number;
+    author_id: number;
+    author_name?: string;
+    title: string;
+    description: string;
+    emoji: string;
+    url: string | null;
+    tags: string[];
+    accent_color: string;
+    status: 'live' | 'coming_soon';
+    likes: number; // Keeping for backward compatibility temporarily if needed
+    rating: number;
+    rating_count: number;
+    user_score?: number; // Score given by the current user, fetched dynamically
+    created_at: string;
+}
+
+export interface ProjectComment {
+    id: number;
+    project_id: number;
+    author_id: number;
+    author_name?: string;
+    author_avatar?: string;
+    content: string;
+    created_at: string;
 }
 
 export interface Post {
@@ -30,6 +63,7 @@ export interface Post {
     author_name?: string;
     author_avatar?: string;
     author_role?: string;
+    author_is_creator?: boolean;
     comment_count?: number;
     is_bookmarked?: boolean;
     has_liked?: boolean;
@@ -45,6 +79,7 @@ export interface Comment {
     author_name?: string;
     author_avatar?: string;
     author_role?: string;
+    author_is_creator?: boolean;
     has_liked?: boolean;
 }
 
@@ -69,9 +104,15 @@ export async function getUser(username: string) {
     return rows[0];
 }
 
-export async function getUserById(id: number) {
-    const { rows } = await sql<User>`SELECT * FROM users WHERE id = ${id} LIMIT 1`;
-    return rows[0];
+export async function getUserById(id: number): Promise<User | null> {
+    const { rows } = await sql<User>`
+      SELECT users.*, 
+        (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
+      FROM users 
+      WHERE id = ${id} 
+      LIMIT 1
+    `;
+    return rows[0] || null;
 }
 
 export async function createUser(username: string, passwordHash: string, role = 'student') {
@@ -100,12 +141,52 @@ export async function updateUserProfile(id: number, updates: { bio?: string; ava
   `;
 }
 
+export async function updateUserAuth(id: number, updates: { username?: string; passwordHash?: string }) {
+    if (updates.username) {
+        // Check if username already exists
+        const { rows } = await sql`SELECT id FROM users WHERE username = ${updates.username} AND id != ${id} LIMIT 1`;
+        if (rows[0]) throw new Error('Username already taken');
+    }
+
+    await sql`
+    UPDATE users 
+    SET 
+      username = COALESCE(${updates.username ?? null}, username), 
+      password_hash = COALESCE(${updates.passwordHash ?? null}, password_hash)
+    WHERE id = ${id}
+  `;
+}
+
+export async function deleteUser(id: number) {
+    // Manual cleanup since ON DELETE CASCADE might not be set for all
+    await sql`DELETE FROM notifications WHERE recipient_id = ${id} OR actor_id = ${id}`;
+    await sql`DELETE FROM comment_likes WHERE user_id = ${id}`;
+    await sql`DELETE FROM post_likes WHERE user_id = ${id}`;
+    await sql`DELETE FROM bookmarks WHERE user_id = ${id}`;
+    await sql`DELETE FROM comments WHERE author_id = ${id}`;
+    
+    // For posts, we also need to delete associated comments and likes
+    const { rows: postRows } = await sql`SELECT id FROM posts WHERE author_id = ${id}`;
+    for (const post of postRows) {
+        await sql`DELETE FROM comments WHERE post_id = ${post.id}`;
+        await sql`DELETE FROM post_likes WHERE post_id = ${post.id}`;
+        await sql`DELETE FROM bookmarks WHERE post_id = ${post.id}`;
+    }
+    await sql`DELETE FROM posts WHERE author_id = ${id}`;
+    await sql`DELETE FROM checkins WHERE user_id = ${id}`;
+    
+    // Finally delete user
+    await sql`DELETE FROM users WHERE id = ${id}`;
+}
+
 export async function addPoints(userId: number, amount: number) {
+    // New Quadratic Leveling: Level = floor(sqrt(points / 50)) + 1
+    // L1: 0, L2: 50, L3: 200, L4: 450, L5: 800, L10: 4050
     await sql`
     UPDATE users
     SET
       points = points + ${amount},
-      level = GREATEST(level, FLOOR((points + ${amount}) / 100.0)::int + 1)
+      level = GREATEST(level, FLOOR(SQRT((points + ${amount}) / 50.0))::int + 1)
     WHERE id = ${userId}
   `;
 }
@@ -124,17 +205,45 @@ export async function hasCheckedInToday(userId: number) {
 
 export async function doCheckIn(userId: number) {
     try {
-        // Vercel Postgres (neon) doesn't support complex transactions in HTTP everywhere easily, 
-        // but a simple insert is fine. Constraint will handle duplicate.
+        // Get current streak and last checkin
+        const { rows: userRows } = await sql`SELECT streak_count, last_checkin_at FROM users WHERE id = ${userId}`;
+        const user = userRows[0];
+        
+        let newStreak = 1;
+        if (user && user.last_checkin_at) {
+            const lastCheckin = new Date(user.last_checkin_at);
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            // Check if last checkin was yesterday (ignoring time)
+            const isYesterday = lastCheckin.toDateString() === yesterday.toDateString();
+            if (isYesterday) {
+                newStreak = (user.streak_count || 0) + 1;
+            }
+        }
+
         await sql`
-      INSERT INTO checkins (user_id, checkin_date) 
-      VALUES (${userId}, CURRENT_DATE)
-    `;
-        await addPoints(userId, 10);
-        return true;
+          INSERT INTO checkins (user_id, checkin_date) 
+          VALUES (${userId}, CURRENT_DATE)
+        `;
+        
+        // Update user streak and points
+        // Rewards: 1-2 days: 10XP, 3-6 days: 15XP, 7+ days: 25XP
+        let bonusXp = 10;
+        if (newStreak >= 7) bonusXp = 25;
+        else if (newStreak >= 3) bonusXp = 15;
+
+        await sql`
+          UPDATE users 
+          SET streak_count = ${newStreak}, last_checkin_at = CURRENT_TIMESTAMP
+          WHERE id = ${userId}
+        `;
+        
+        await addPoints(userId, bonusXp);
+        return { success: true, pointsAdded: bonusXp, streak: newStreak };
     } catch (error) {
         console.error("Checkin Error:", error);
-        return false;
+        return { success: false };
     }
 }
 
@@ -143,6 +252,7 @@ export async function doCheckIn(userId: number) {
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
     const { rows } = await sql`
       SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
@@ -175,6 +285,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
 export async function getComments(postId: number, userId?: number) {
     const { rows } = await sql`
       SELECT comments.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = comments.id)
       ELSE false END as has_liked
@@ -248,6 +359,20 @@ export async function togglePostLike(userId: number, postId: number): Promise<bo
         if (postRows[0] && postRows[0].author_id !== userId) {
             await addPoints(postRows[0].author_id, 1);
         }
+
+        // XP to liker (Daily limit: 5)
+        const { rows: userRows } = await sql`SELECT daily_likes_count, last_like_at FROM users WHERE id = ${userId}`;
+        const user = userRows[0];
+        const now = new Date();
+        const lastLikeDate = user?.last_like_at ? new Date(user.last_like_at).toDateString() : '';
+        const isToday = lastLikeDate === now.toDateString();
+
+        let dailyCount = isToday ? (user?.daily_likes_count || 0) : 0;
+        if (dailyCount < 5) {
+            await addPoints(userId, 1);
+            await sql`UPDATE users SET daily_likes_count = ${dailyCount + 1}, last_like_at = CURRENT_TIMESTAMP WHERE id = ${userId}`;
+        }
+
         return true;
     }
 }
@@ -276,8 +401,160 @@ export async function toggleBookmark(userId: number, postId: number) {
         return false;
     } else {
         await sql`INSERT INTO bookmarks (user_id, post_id) VALUES (${userId}, ${postId})`;
+        
+        // XP to author for bookmark (Saved) - more valuable than like
+        const { rows: postRows } = await sql`SELECT author_id FROM posts WHERE id = ${postId}`;
+        if (postRows[0] && postRows[0].author_id !== userId) {
+            await addPoints(postRows[0].author_id, 3);
+        }
+        
         return true;
     }
+}
+
+export async function getLeaderboard(): Promise<User[]> {
+    const { rows } = await sql<User>`
+      SELECT id, username, avatar, points, level, role, 
+        (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
+      FROM users 
+      ORDER BY points DESC 
+      LIMIT 10
+    `;
+    return rows;
+}
+
+// --- Project Functions ---
+
+export async function getProjects(): Promise<Project[]> {
+    const { rows } = await sql<Project>`
+      SELECT projects.*, users.username as author_name,
+        COALESCE(projects.rating, 0.0) as rating,
+        COALESCE(projects.rating_count, 0) as rating_count
+      FROM projects
+      JOIN users ON projects.author_id = users.id
+      ORDER BY created_at DESC
+    `;
+    return rows;
+}
+
+export async function createProject(data: Omit<Project, 'id' | 'likes' | 'created_at'>) {
+    const { rows } = await sql`
+      INSERT INTO projects (author_id, title, description, emoji, url, tags, accent_color, status)
+      VALUES (${data.author_id}, ${data.title}, ${data.description}, ${data.emoji}, ${data.url}, ${JSON.stringify(data.tags)}, ${data.accent_color}, ${data.status})
+      RETURNING id
+    `;
+    
+    // Reward for publishing: 100 XP
+    await addPoints(data.author_id, 100);
+    return rows[0].id;
+}
+
+export async function rateProject(userId: number, projectId: number, score: number) {
+    const { rows: existing } = await sql`
+      SELECT score FROM project_likes WHERE user_id = ${userId} AND project_id = ${projectId}
+    `;
+
+    if (existing[0]) {
+        const oldScore = existing[0].score || 5.0;
+        await sql`UPDATE project_likes SET score = ${score} WHERE user_id = ${userId} AND project_id = ${projectId}`;
+        const { rows: updatedProj } = await sql`
+          UPDATE projects 
+          SET rating = ROUND((rating * rating_count - ${oldScore} + ${score}) / rating_count, 1)
+          WHERE id = ${projectId}
+          RETURNING rating, rating_count
+        `;
+        return { isNew: false, rating: updatedProj[0].rating, rating_count: updatedProj[0].rating_count };
+    } else {
+        await sql`INSERT INTO project_likes (user_id, project_id, score) VALUES (${userId}, ${projectId}, ${score})`;
+        const { rows: updatedProj } = await sql`
+          UPDATE projects 
+          SET 
+            rating = CASE WHEN rating_count = 0 THEN ${score} ELSE ROUND((rating * rating_count + ${score}) / (rating_count + 1), 1) END,
+            rating_count = rating_count + 1
+          WHERE id = ${projectId}
+          RETURNING rating, rating_count
+        `;
+        
+        // Reward author: 5 XP
+        const { rows: proj } = await sql`SELECT author_id FROM projects WHERE id = ${projectId}`;
+        if (proj[0] && proj[0].author_id !== userId) await addPoints(proj[0].author_id, 5);
+        
+        return { isNew: true, rating: updatedProj[0].rating, rating_count: updatedProj[0].rating_count };
+    }
+}
+
+export async function addProjectComment(userId: number, projectId: number, content: string) {
+    const { rows: existing } = await sql`SELECT id FROM project_comments WHERE project_id = ${projectId} AND author_id = ${userId}`;
+    
+    if (existing.length > 0) {
+        await sql`UPDATE project_comments SET content = ${content}, created_at = CURRENT_TIMESTAMP WHERE id = ${existing[0].id}`;
+        return existing[0].id;
+    } else {
+        const { rows } = await sql`
+          INSERT INTO project_comments (project_id, author_id, content)
+          VALUES (${projectId}, ${userId}, ${content})
+          RETURNING id
+        `;
+        
+        // Reward commenter: 2 XP
+        await addPoints(userId, 2);
+        
+        // Reward author: 3 XP
+        const { rows: proj } = await sql`SELECT author_id FROM projects WHERE id = ${projectId}`;
+        if (proj[0] && proj[0].author_id !== userId) await addPoints(proj[0].author_id, 3);
+        
+        return rows[0].id;
+    }
+}
+
+export async function deleteProjectComment(commentId: number, userId: number) {
+    const { rows } = await sql`
+      SELECT project_id FROM project_comments WHERE id = ${commentId} AND author_id = ${userId}
+    `;
+    if (rows.length === 0) return;
+    const projectId = rows[0].project_id;
+
+    // Delete comment
+    await sql`
+      DELETE FROM project_comments 
+      WHERE id = ${commentId} AND author_id = ${userId}
+    `;
+    
+    // Delete corresponding rating
+    await sql`
+      DELETE FROM project_likes
+      WHERE project_id = ${projectId} AND user_id = ${userId}
+    `;
+    
+    // Recalculate average rating
+    const { rows: stats } = await sql`
+      SELECT COUNT(*) as count, COALESCE(SUM(score), 0) as total 
+      FROM project_likes 
+      WHERE project_id = ${projectId} AND score > 0
+    `;
+    const count = Number(stats[0].count);
+    const newRating = count > 0 ? Number(stats[0].total) / count : 0;
+    
+    await sql`
+      UPDATE projects 
+      SET rating = ${newRating}, rating_count = ${count}
+      WHERE id = ${projectId}
+    `;
+}
+
+export async function getProjectComments(projectId: number): Promise<ProjectComment[]> {
+    const { rows } = await sql<ProjectComment>`
+      SELECT 
+        project_comments.*, 
+        users.username as author_name, 
+        users.avatar as author_avatar,
+        (SELECT score FROM project_likes WHERE project_likes.user_id = project_comments.author_id AND project_likes.project_id = ${projectId} LIMIT 1) as author_score
+      FROM project_comments
+      JOIN users ON project_comments.author_id = users.id
+      WHERE project_id = ${projectId}
+      ORDER BY created_at DESC
+    `;
+    return rows;
 }
 
 async function ensureNotificationsTable() {
@@ -460,9 +737,23 @@ export async function initDB() {
       grade TEXT,
       age INTEGER,
       ethnicity TEXT,
+      streak_count INTEGER DEFAULT 0,
+      last_checkin_at TIMESTAMP WITH TIME ZONE,
+      daily_likes_count INTEGER DEFAULT 0,
+      last_like_at TIMESTAMP WITH TIME ZONE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
+  
+  // Migration for existing tables
+  try {
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_count INTEGER DEFAULT 0`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_checkin_at TIMESTAMP WITH TIME ZONE`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_likes_count INTEGER DEFAULT 0`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_like_at TIMESTAMP WITH TIME ZONE`;
+  } catch (e) {
+    console.log("Migration columns already exist or failed:", e);
+  }
 
     await sql`
     CREATE TABLE IF NOT EXISTS checkins (
@@ -518,13 +809,42 @@ export async function initDB() {
   `;
 
     await sql`
-    CREATE TABLE IF NOT EXISTS bookmarks (
+    CREATE TABLE IF NOT EXISTS projects (
+      id SERIAL PRIMARY KEY,
+      author_id INTEGER NOT NULL REFERENCES users(id),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      url TEXT,
+      tags JSONB DEFAULT '[]',
+      accent_color TEXT,
+      status TEXT DEFAULT 'live',
+      likes INTEGER DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+    await sql`
+    CREATE TABLE IF NOT EXISTS project_comments (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      author_id INTEGER NOT NULL REFERENCES users(id),
+      content TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+    await sql`
+    CREATE TABLE IF NOT EXISTS project_likes (
       user_id INTEGER NOT NULL REFERENCES users(id),
-      post_id INTEGER NOT NULL REFERENCES posts(id),
+      project_id INTEGER NOT NULL REFERENCES projects(id),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (user_id, post_id)
+      PRIMARY KEY (user_id, project_id)
     );
   `;
 
     await ensureNotificationsTable();
+
+    // Seeding logic (optional, but keep for now if needed)
+    // In a real app, we'd run a separate seed script.
 }
