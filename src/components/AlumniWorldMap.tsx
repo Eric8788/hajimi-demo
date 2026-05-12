@@ -95,7 +95,6 @@ export default function AlumniWorldMap() {
               </defs>
 
               {areaRegions.map((region) => {
-                const isSelected = region.id === selectedId;
                 const isActive = region.id === activeRegionId;
 
                 return (
@@ -106,17 +105,6 @@ export default function AlumniWorldMap() {
                       data-region={region.id}
                       onClick={() => selectRegion(region.id)}
                     />
-                    {region.labelPoint ? (
-                      <text
-                        className={`alumni-map-label${isSelected ? ' is-selected' : ''}`}
-                        x={region.labelPoint.x}
-                        y={region.labelPoint.y}
-                        data-region={region.id}
-                        onClick={() => selectRegion(region.id)}
-                      >
-                        {region.shortLabel}
-                      </text>
-                    ) : null}
                   </g>
                 );
               })}
