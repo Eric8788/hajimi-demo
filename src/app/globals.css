@@ -1534,32 +1534,6 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   font-weight: 900;
 }
 
-.alumni-contact-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  margin-right: -4px; /* Adjust for scrollbar space */
-  padding-right: 12px;
-  mask-image: linear-gradient(to bottom, black 94%, transparent);
-}
-
-/* Custom Scrollbar */
-.alumni-contact-scroll-area::-webkit-scrollbar {
-  width: 5px;
-}
-
-.alumni-contact-scroll-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.alumni-contact-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(108, 92, 231, 0.15);
-  border-radius: 10px;
-}
-
-.alumni-contact-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: rgba(108, 92, 231, 0.3);
-}
-
 .alumni-detail-heading {
   display: flex;
   align-items: flex-start;
@@ -1582,43 +1556,183 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   font-size: 1.2rem;
 }
 
-.alumni-detail-heading p,
-.alumni-detail-description {
+.alumni-detail-heading p {
   line-height: 1.58;
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
-.alumni-detail-description {
-  margin-bottom: 18px;
+/* ─── Alumni Carousel Section ─── */
+.alumni-contact-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .alumni-contact-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin: 18px 0 12px;
+  margin: 18px 0 14px;
   color: #4b5563;
   font-size: 0.88rem;
   font-weight: 850;
 }
 
-.alumni-contact-head strong {
-  min-width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
+.alumni-carousel-nav {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  color: #6c5ce7;
-  background: rgba(255,255,255,0.78);
-  border: 1px solid rgba(108, 92, 231, 0.12);
+  gap: 10px;
+  color: #111827;
 }
 
-.alumni-contact-list {
+.alumni-carousel-nav strong {
+  color: #6c5ce7;
+  font-size: 1.05rem;
+}
+
+.nav-divider {
+  color: #d1d5db;
+  font-size: 0.8rem;
+}
+
+.nav-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-bottom: 30px; /* Space for the fade mask */
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.nav-buttons button {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(108, 92, 231, 0.12);
+  background: white;
+  color: #6c5ce7;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.nav-buttons button:hover {
+  background: #f5f3ff;
+  border-color: #6c5ce7;
+  transform: translateY(-1px);
+}
+
+.alumni-carousel-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.alumni-contact-card {
+  width: 100%;
+  height: auto;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid rgba(108, 92, 231, 0.08);
+  box-shadow: 0 8px 24px rgba(108, 92, 231, 0.04);
+  padding: 20px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.alumni-contact-card.is-active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.alumni-contact-card.is-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform: translateX(20px);
+  pointer-events: none;
+}
+
+.alumni-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed rgba(108, 92, 231, 0.12);
+}
+
+.alumni-avatar-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(108, 92, 231, 0.1);
+  color: #6c5ce7;
+  flex-shrink: 0;
+}
+
+.school-logo-text {
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
+.alumni-basic-info h5 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  color: #111827;
+}
+
+.alumni-location-tag {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.alumni-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin: 0;
+}
+
+.info-cell dt {
+  font-size: 0.7rem;
+  color: #8a8fa3;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.info-cell dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #374151;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.info-cell.full-width {
+  grid-column: span 2;
+}
+
+.alumni-empty-state {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(108, 92, 231, 0.02);
+  border: 1px dashed rgba(108, 92, 231, 0.15);
+  border-radius: 16px;
+  color: #8a8fa3;
+  font-weight: 600;
 }
 
 .alumni-contact-item {

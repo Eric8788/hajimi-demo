@@ -16,6 +16,7 @@ function isSelectKey(event: KeyboardEvent<SVGElement>) {
 export default function AlumniWorldMap() {
   const [selectedId, setSelectedId] = useState<AlumniRegionId>(DEFAULT_ALUMNI_REGION_ID);
   const [hoveredId, setHoveredId] = useState<AlumniRegionId | null>(null);
+  const [alumniIndex, setAlumniIndex] = useState(0);
 
   const selectedRegion = useMemo(
     () => ALUMNI_REGIONS.find((region) => region.id === selectedId) ?? ALUMNI_REGIONS[0],
@@ -26,6 +27,11 @@ export default function AlumniWorldMap() {
 
   const totalContacts = ALUMNI_REGIONS.reduce((sum, region) => sum + region.contacts.length, 0);
   
+  // Reset index when region changes
+  useMemo(() => {
+    setAlumniIndex(0);
+  }, [selectedId]);
+
   // Calculate unique schools and locations for the selected region
   const selectedStats = useMemo(() => {
     const schools = new Set(selectedRegion.contacts.map(c => c.school));
@@ -54,13 +60,20 @@ export default function AlumniWorldMap() {
     setHoveredId(regionId);
   };
 
+  const handlePrevAlumni = () => {
+    setAlumniIndex((prev) => (prev > 0 ? prev - 1 : selectedRegion.contacts.length - 1));
+  };
+
+  const handleNextAlumni = () => {
+    setAlumniIndex((prev) => (prev < selectedRegion.contacts.length - 1 ? prev + 1 : 0));
+  };
+
   return (
     <section className="glass-card full-width alumni-map-panel" aria-labelledby="alumni-map-title">
       <div className="alumni-map-header">
         <div>
           <div className="alumni-map-kicker">AI Club Network</div>
           <h3 id="alumni-map-title">校友世界地图</h3>
-          <p>把常见留学区域里的学长学姐联系入口收拢到 Home，后续可逐步接入真实登记数据。</p>
         </div>
         <div className="alumni-map-total" aria-label={`当前已登记 ${totalContacts} 位联系人`}>
           <strong>{totalContacts}</strong>
@@ -166,8 +179,6 @@ export default function AlumniWorldMap() {
             </div>
           </div>
 
-          <p className="alumni-detail-description">{selectedRegion.description}</p>
-
           <div className="alumni-detail-stats">
             <div className="alumni-stat-item">
               <label>涵盖学校</label>
@@ -179,60 +190,84 @@ export default function AlumniWorldMap() {
             </div>
           </div>
 
-          <div className="alumni-contact-head">
-            <span>联系人</span>
-            <strong>{selectedRegion.contacts.length}</strong>
-          </div>
+          <div className="alumni-contact-section">
+            <div className="alumni-contact-head">
+              <span>联系人</span>
+              <div className="alumni-carousel-nav">
+                <strong>{selectedRegion.contacts.length > 0 ? alumniIndex + 1 : 0}</strong>
+                <span className="nav-divider">/</span>
+                <span>{selectedRegion.contacts.length}</span>
+                {selectedRegion.contacts.length > 1 && (
+                  <div className="nav-buttons">
+                    <button onClick={handlePrevAlumni} aria-label="上一个校友">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <button onClick={handleNextAlumni} aria-label="下一个校友">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
 
-          {selectedRegion.contacts.length > 0 ? (
-            <div className="alumni-contact-scroll-area">
-              <div className="alumni-contact-list">
-                {selectedRegion.contacts.map((contact) => (
-                  <article key={`${contact.name}-${contact.email ?? contact.wechat ?? contact.location}`} className="alumni-contact-item">
-                    <div>
-                      <h5>{contact.name}</h5>
-                      <p>{contact.location}</p>
+            {selectedRegion.contacts.length > 0 ? (
+              <div className="alumni-carousel-container">
+                {selectedRegion.contacts.map((contact, index) => (
+                  <article 
+                    key={`${contact.name}-${index}`} 
+                    className={`alumni-contact-card ${index === alumniIndex ? 'is-active' : 'is-hidden'}`}
+                  >
+                    <div className="alumni-card-header">
+                      <div className="alumni-avatar-placeholder">
+                        <span className="school-logo-text">{contact.school.charAt(0)}</span>
+                      </div>
+                      <div className="alumni-basic-info">
+                        <h5>{contact.name}</h5>
+                        <p className="alumni-location-tag">{contact.location}</p>
+                      </div>
                     </div>
-                    <dl>
-                      <div>
-                        <dt>学校</dt>
-                        <dd>{contact.school}</dd>
-                      </div>
-                      <div>
-                        <dt>专业/方向</dt>
-                        <dd>{contact.program}</dd>
-                      </div>
-                      <div>
-                        <dt>届别</dt>
-                        <dd>{contact.year}</dd>
-                      </div>
-                      <div>
-                        <dt>简介</dt>
-                        <dd>{contact.note}</dd>
-                      </div>
-                      {contact.wechat ? (
-                        <div>
-                          <dt>微信</dt>
-                          <dd>{contact.wechat}</dd>
+                    
+                    <div className="alumni-card-body">
+                      <dl className="alumni-info-grid">
+                        <div className="info-cell">
+                          <dt>学校</dt>
+                          <dd>{contact.school}</dd>
                         </div>
-                      ) : null}
-                      {contact.email ? (
-                        <div>
-                          <dt>邮箱</dt>
-                          <dd>{contact.email}</dd>
+                        <div className="info-cell">
+                          <dt>专业/方向</dt>
+                          <dd>{contact.program}</dd>
                         </div>
-                      ) : null}
-                    </dl>
+                        <div className="info-cell">
+                          <dt>届别</dt>
+                          <dd>{contact.year}</dd>
+                        </div>
+                        <div className="info-cell full-width">
+                          <dt>简介</dt>
+                          <dd>{contact.note}</dd>
+                        </div>
+                        {contact.wechat && (
+                          <div className="info-cell">
+                            <dt>微信</dt>
+                            <dd>{contact.wechat}</dd>
+                          </div>
+                        )}
+                        {contact.email && (
+                          <div className="info-cell">
+                            <dt>邮箱</dt>
+                            <dd>{contact.email}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
                   </article>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="alumni-empty-state">
-              <strong>联系人收集中</strong>
-              <p>该区域还没有公开登记的学长学姐联系方式。</p>
-            </div>
-          )}
+            ) : (
+              <div className="alumni-empty-state">
+                <p>该区域校友信息正在收集中...</p>
+              </div>
+            )}
+          </div>
         </aside>
       </div>
     </section>
