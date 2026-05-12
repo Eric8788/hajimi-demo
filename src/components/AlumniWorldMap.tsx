@@ -69,11 +69,12 @@ export default function AlumniWorldMap() {
       <div className="alumni-map-header">
         <div>
           <div className="alumni-map-kicker">AI Club Network</div>
-          <h3 id="alumni-map-title">校友世界地图</h3>
-        </div>
-        <div className="alumni-map-total" aria-label={`当前已登记 ${totalContacts} 位联系人`}>
-          <strong>{totalContacts}</strong>
-          <span>已登记联系人</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h3 id="alumni-map-title" style={{ margin: 0 }}>校友世界地图</h3>
+            <span className="alumni-total-pill" aria-label={`当前已登记 ${totalContacts} 位联系人`}>
+              共 {totalContacts} 位学长学姐
+            </span>
+          </div>
         </div>
       </div>
 
@@ -270,7 +271,7 @@ export default function AlumniWorldMap() {
 
               <div className="alumni-contact-section">
                 <div className="alumni-contact-head">
-                  <span>校友列表 ({selectedRegion.contacts.length})</span>
+                  <span>学长学姐在这里 ({selectedRegion.contacts.length})</span>
                 </div>
 
                 {selectedRegion.contacts.length > 0 ? (
