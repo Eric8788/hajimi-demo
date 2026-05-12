@@ -44,8 +44,8 @@ export default function AlumniWorldMap() {
     };
   }, [selectedRegion]);
 
-  const areaRegions = ALUMNI_REGIONS.filter((region) => region.shapePath);
-  const pinRegions = ALUMNI_REGIONS.filter((region) => region.pin);
+  const areaRegions = ALUMNI_REGIONS.filter((region) => region.shapePath && region.contacts.length > 0);
+  const pinRegions = ALUMNI_REGIONS.filter((region) => region.pin && region.contacts.length > 0);
 
   const selectRegion = (regionId: AlumniRegionId) => {
     setSelectedId(regionId);
@@ -142,24 +142,21 @@ export default function AlumniWorldMap() {
               ))}
 
               {/* Render Map Badges for regions with contacts */}
-              {ALUMNI_REGIONS.map((region) => {
-                if (region.contacts.length === 0 && region.id !== 'united-states') return null; // Only show populated or default
-                return (
-                  <RegionBadge
-                    key={`badge-${region.id}`}
-                    region={region}
-                    isSelected={region.id === selectedId}
-                    isHovered={region.id === hoveredId}
-                    onSelect={() => selectRegion(region.id)}
-                    onHover={() => handleHover(region.id)}
-                  />
-                );
-              })}
+              {ALUMNI_REGIONS.filter((r) => r.contacts.length > 0).map((region) => (
+                <RegionBadge
+                  key={`badge-${region.id}`}
+                  region={region}
+                  isSelected={region.id === selectedId}
+                  isHovered={region.id === hoveredId}
+                  onSelect={() => selectRegion(region.id)}
+                  onHover={() => handleHover(region.id)}
+                />
+              ))}
             </svg>
           </div>
 
           <div className="alumni-region-strip" aria-label="校友区域列表">
-            {ALUMNI_REGIONS.map((region) => (
+            {ALUMNI_REGIONS.filter((r) => r.contacts.length > 0).map((region) => (
               <button
                 key={region.id}
                 type="button"
@@ -173,7 +170,7 @@ export default function AlumniWorldMap() {
                 aria-pressed={region.id === selectedId}
               >
                 <span>{region.label}</span>
-                <small>{region.contacts.length ? `${region.contacts.length} 位` : '收集中'}</small>
+                <small>{region.contacts.length} 位</small>
               </button>
             ))}
           </div>
@@ -330,20 +327,32 @@ function RegionBadge({ region, isSelected }: RegionBadgeProps) {
   const badgeY = region.pin ? pt.y - 30 : pt.y;
 
   return (
-    <g
-      className={`alumni-map-badge ${isSelected ? 'is-selected' : ''}`}
-      transform={`translate(${pt.x}, ${badgeY})`}
-      style={{ pointerEvents: 'none' }}
-    >
+    <g transform={`translate(${pt.x}, ${badgeY})`}>
       <text
-        y={0}
-        fill={isSelected ? region.color : '#4b5563'}
+        y={-6}
+        fill={isSelected ? region.color : '#374151'}
         textAnchor="middle"
         fontSize="14"
         fontWeight="800"
-        style={{ textShadow: '0 2px 4px rgba(255,255,255,0.8), 0 0 2px rgba(255,255,255,1)' }}
+        paintOrder="stroke"
+        stroke="rgba(255,255,255,0.9)"
+        strokeWidth="3"
+        strokeLinejoin="round"
       >
-        {region.label} {region.contacts.length}人
+        {region.label}
+      </text>
+      <text
+        y={10}
+        fill={isSelected ? region.color : '#6b7280'}
+        textAnchor="middle"
+        fontSize="11"
+        fontWeight="700"
+        paintOrder="stroke"
+        stroke="rgba(255,255,255,0.9)"
+        strokeWidth="3"
+        strokeLinejoin="round"
+      >
+        {region.contacts.length}人
       </text>
     </g>
   );
