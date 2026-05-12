@@ -1223,89 +1223,179 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 
 .alumni-map-main {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
 .alumni-map-stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 2000 / 857;
   min-height: 260px;
   border-radius: 20px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 20% 18%, rgba(55,198,208,0.08), transparent 40%),
-    linear-gradient(135deg, rgba(255,255,255,0.7), rgba(246,249,255,0.85));
-  border: 1px solid rgba(255,255,255,0.9);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 24px 48px rgba(108, 92, 231, 0.08);
+    radial-gradient(circle at 20% 18%, rgba(55,198,208,0.18), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.66), rgba(246,249,255,0.78));
+  border: 1px solid rgba(255,255,255,0.85);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 18px 42px rgba(108, 92, 231, 0.1);
 }
 
-.alumni-map-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.alumni-map-reset-btn {
-  padding: 8px 16px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-
-.alumni-map-reset-btn:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #334155;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-}
-
-.alumni-map-zoom-controls {
+.alumni-map-base,
+.alumni-map-overlay {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 10;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.alumni-map-zoom-controls button {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  color: #475569;
-  font-size: 20px;
-  font-weight: 500;
+/* Inline SVG base layer */
+.alumni-map-inline {
+  object-fit: contain;
+  user-select: none;
+}
+
+.alumni-map-inline path {
+  transition: fill 0.28s ease, opacity 0.28s ease, filter 0.28s ease, transform 0.28s ease;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* Default: gentle desaturated fill for non-region country paths */
+.alumni-map-path {
+  fill: #e2e6ed;
+  stroke: #cdd3dc;
+  stroke-width: 0.3;
+  opacity: 0.82;
+}
+
+/* Paths with a data-region are interactive */
+.alumni-map-path[data-region] {
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  pointer-events: auto;
+  opacity: 1;
 }
 
-.alumni-map-zoom-controls button:hover {
-  background: #fff;
-  color: #1e293b;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+/* ─── Region-specific default fills (vivid, bold colors) ─── */
+.alumni-map-path[data-region="united-states"] { fill: rgba(108, 92, 231, 0.58); stroke: rgba(108, 92, 231, 0.7); stroke-width: 0.6; }
+.alumni-map-path[data-region="canada"]        { fill: rgba(55, 198, 208, 0.55); stroke: rgba(55, 198, 208, 0.7); stroke-width: 0.6; }
+.alumni-map-path[data-region="united-kingdom"]{ fill: rgba(253, 121, 168, 0.60); stroke: rgba(253, 121, 168, 0.7); stroke-width: 0.6; }
+.alumni-map-path[data-region="australia"]     { fill: rgba(255, 118, 117, 0.58); stroke: rgba(255, 118, 117, 0.7); stroke-width: 0.6; }
+.alumni-map-path[data-region="europe"]        { fill: rgba(77, 150, 255, 0.55); stroke: rgba(77, 150, 255, 0.65); stroke-width: 0.6; }
+
+/* ─── Hover glow (intensify + glow) ─── */
+.alumni-map-path[data-region]:hover {
+  opacity: 1;
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 10px currentColor);
+}
+/* ─── Region Hover Highlights (Whole block) ─── */
+.hovered-region-united-states .alumni-map-path[data-region="united-states"] { fill: rgba(108, 92, 231, 0.65); stroke: #6c5ce7; opacity: 1 !important; }
+.hovered-region-canada .alumni-map-path[data-region="canada"]               { fill: rgba(55, 198, 208, 0.62); stroke: #37c6d0; opacity: 1 !important; }
+.hovered-region-united-kingdom .alumni-map-path[data-region="united-kingdom"]{ fill: rgba(253, 121, 168, 0.68); stroke: #fd79a8; opacity: 1 !important; }
+.hovered-region-australia .alumni-map-path[data-region="australia"]          { fill: rgba(255, 118, 117, 0.65); stroke: #ff7675; opacity: 1 !important; }
+.hovered-region-europe .alumni-map-path[data-region="europe"]               { fill: rgba(77, 150, 255, 0.60); stroke: #4d96ff; opacity: 1 !important; }
+
+/* ─── Active / selected region highlights (near-solid + elevation) ─── */
+.active-region-united-states .alumni-map-path[data-region="united-states"],
+.active-region-canada .alumni-map-path[data-region="canada"],
+.active-region-united-kingdom .alumni-map-path[data-region="united-kingdom"],
+.active-region-australia .alumni-map-path[data-region="australia"],
+.active-region-europe .alumni-map-path[data-region="europe"] {
+  opacity: 1;
+  stroke-width: 1.6;
+  filter: drop-shadow(0 4px 14px rgba(0,0,0,0.18));
+  transform: translateY(-1px);
+}
+.active-region-united-states .alumni-map-path[data-region="united-states"] { fill: rgba(108, 92, 231, 0.82); stroke: #6c5ce7; }
+.active-region-canada .alumni-map-path[data-region="canada"]               { fill: rgba(55, 198, 208, 0.78); stroke: #37c6d0; }
+.active-region-united-kingdom .alumni-map-path[data-region="united-kingdom"]{ fill: rgba(253, 121, 168, 0.84); stroke: #fd79a8; }
+.active-region-australia .alumni-map-path[data-region="australia"]          { fill: rgba(255, 118, 117, 0.82); stroke: #ff7675; }
+.active-region-europe .alumni-map-path[data-region="europe"]               { fill: rgba(77, 150, 255, 0.78); stroke: #4d96ff; }
+
+/* Dim non-selected regions when a region is active */
+.alumni-map-stage[class*="active-region-"] .alumni-map-path[data-region] {
+  opacity: 0.45;
+}
+.alumni-map-stage[class*="active-region-"] .alumni-map-path[data-region]:hover {
+  opacity: 1;
+}
+/* Re-boost selected region's paths */
+.active-region-united-states .alumni-map-path[data-region="united-states"],
+.active-region-canada .alumni-map-path[data-region="canada"],
+.active-region-united-kingdom .alumni-map-path[data-region="united-kingdom"],
+.active-region-australia .alumni-map-path[data-region="australia"],
+.active-region-europe .alumni-map-path[data-region="europe"] {
+  opacity: 1 !important;
 }
 
-.alumni-map-zoom-controls button:active {
-  transform: translateY(0);
+.alumni-map-overlay {
+  pointer-events: none;
+}
+
+.alumni-map-region-surface {
+  pointer-events: auto;
+  cursor: pointer;
+  fill: transparent;
+  transition: fill 0.18s ease, opacity 0.18s ease;
+}
+
+.alumni-map-region-surface:hover,
+.alumni-map-region-surface.is-active {
+  fill: rgba(255, 255, 255, 0.08);
+}
+
+.alumni-map-label {
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.alumni-map-label:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.alumni-map-label.is-selected {
+  opacity: 1;
+}
+
+.alumni-map-pin-text {
+  pointer-events: none;
+  fill: #1f2937;
+  font-size: 31px;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(255,255,255,0.82);
+  stroke-width: 6px;
+  stroke-linejoin: round;
+}
+
+.alumni-map-label {
+  opacity: 0.72;
+}
+
+.alumni-map-label.is-selected {
+  opacity: 1;
+  fill: #111827;
+}
+
+/* ─── Map Badge ─── */
+/* Badges are now pure SVG text with no CSS classes to avoid transform conflicts */
+
+.alumni-map-pin {
+  pointer-events: auto;
+  cursor: pointer;
+  outline: none;
+}
+
+.alumni-map-pin-line {
+  fill: none;
+  stroke: rgba(45, 52, 54, 0.26);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 6 8;
 }
 
 .alumni-map-pin-label {
