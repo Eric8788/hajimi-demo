@@ -159,20 +159,23 @@ export default function LoginPage() {
 	          letter-spacing: 0;
 	        }
 	        .auth-logo-mark {
-	          width: 34px;
-	          height: 34px;
+	          width: 38px;
+	          height: 38px;
 	          display: inline-flex;
 	          align-items: center;
 	          justify-content: center;
 	          border-radius: 12px;
-	          color: white;
-	          background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-	          box-shadow: 0 12px 26px rgba(108,92,231,0.22);
+	          background: rgba(255,255,255,0.92);
+	          border: 2px solid rgba(162,155,254,0.25);
+	          box-shadow: 0 8px 22px rgba(108,92,231,0.14);
+	          overflow: hidden;
 	        }
 	        .auth-logo-image {
-	          width: 30px;
-	          height: 30px;
+	          width: 32px;
+	          height: 32px;
 	          display: block;
+	          object-fit: contain;
+	          border-radius: 8px;
 	        }
 	        .auth-submit {
 	          transition: transform 0.22s ease, box-shadow 0.22s ease;

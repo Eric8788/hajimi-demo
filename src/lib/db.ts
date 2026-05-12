@@ -429,7 +429,8 @@ export async function getProjects(): Promise<Project[]> {
     const { rows } = await sql<Project>`
       SELECT projects.*, users.username as author_name,
         COALESCE(projects.rating, 0.0) as rating,
-        COALESCE(projects.rating_count, 0) as rating_count
+        COALESCE(projects.rating_count, 0) as rating_count,
+        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount"
       FROM projects
       JOIN users ON projects.author_id = users.id
       ORDER BY created_at DESC
