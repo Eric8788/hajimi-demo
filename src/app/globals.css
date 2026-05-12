@@ -1270,6 +1270,7 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 .alumni-map-inline path {
   transition: fill 0.28s ease, opacity 0.28s ease, filter 0.28s ease, transform 0.28s ease;
   transform-origin: center;
+  transform-box: fill-box;
 }
 
 /* Default: gentle desaturated fill for non-region country paths */
@@ -1300,11 +1301,12 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   stroke-width: 1.4;
   filter: drop-shadow(0 0 10px currentColor);
 }
-.alumni-map-path[data-region="united-states"]:hover { fill: rgba(108, 92, 231, 0.78); stroke: #6c5ce7; }
-.alumni-map-path[data-region="canada"]:hover        { fill: rgba(55, 198, 208, 0.75); stroke: #37c6d0; }
-.alumni-map-path[data-region="united-kingdom"]:hover{ fill: rgba(253, 121, 168, 0.80); stroke: #fd79a8; }
-.alumni-map-path[data-region="australia"]:hover      { fill: rgba(255, 118, 117, 0.78); stroke: #ff7675; }
-.alumni-map-path[data-region="europe"]:hover         { fill: rgba(77, 150, 255, 0.72); stroke: #4d96ff; }
+/* ─── Region Hover Highlights (Whole block) ─── */
+.hovered-region-united-states .alumni-map-path[data-region="united-states"] { fill: rgba(108, 92, 231, 0.65); stroke: #6c5ce7; opacity: 1 !important; }
+.hovered-region-canada .alumni-map-path[data-region="canada"]               { fill: rgba(55, 198, 208, 0.62); stroke: #37c6d0; opacity: 1 !important; }
+.hovered-region-united-kingdom .alumni-map-path[data-region="united-kingdom"]{ fill: rgba(253, 121, 168, 0.68); stroke: #fd79a8; opacity: 1 !important; }
+.hovered-region-australia .alumni-map-path[data-region="australia"]          { fill: rgba(255, 118, 117, 0.65); stroke: #ff7675; opacity: 1 !important; }
+.hovered-region-europe .alumni-map-path[data-region="europe"]               { fill: rgba(77, 150, 255, 0.60); stroke: #4d96ff; opacity: 1 !important; }
 
 /* ─── Active / selected region highlights (near-solid + elevation) ─── */
 .active-region-united-states .alumni-map-path[data-region="united-states"],
@@ -1343,7 +1345,34 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   pointer-events: none;
 }
 
-.alumni-map-label,
+.alumni-map-region-surface {
+  pointer-events: auto;
+  cursor: pointer;
+  fill: transparent;
+  transition: fill 0.18s ease, opacity 0.18s ease;
+}
+
+.alumni-map-region-surface:hover,
+.alumni-map-region-surface.is-active {
+  fill: rgba(255, 255, 255, 0.08);
+}
+
+.alumni-map-label {
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.alumni-map-label:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.alumni-map-label.is-selected {
+  opacity: 1;
+}
+
 .alumni-map-pin-text {
   pointer-events: none;
   fill: #1f2937;
@@ -1389,11 +1418,14 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   opacity: 0.85;
   filter: url('#alumni-pin-glow');
   transform-origin: center;
+  transform-box: fill-box;
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 .alumni-map-pin-core {
   filter: url('#alumni-pin-glow');
+  transform-origin: center;
+  transform-box: fill-box;
   transition: transform 0.18s ease;
 }
 
@@ -1448,12 +1480,13 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 }
 
 .alumni-region-chip:hover,
+.alumni-region-chip.is-hovered,
 .alumni-region-chip.is-selected,
 .alumni-region-chip:focus-visible {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   border-color: var(--alumni-region-color);
-  background: rgba(255,255,255,0.86);
-  box-shadow: 0 10px 22px rgba(108, 92, 231, 0.12);
+  background: white;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
   outline: none;
 }
 

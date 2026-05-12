@@ -15,11 +15,14 @@ function isSelectKey(event: KeyboardEvent<SVGElement>) {
 
 export default function AlumniWorldMap() {
   const [selectedId, setSelectedId] = useState<AlumniRegionId>(DEFAULT_ALUMNI_REGION_ID);
+  const [hoveredId, setHoveredId] = useState<AlumniRegionId | null>(null);
 
   const selectedRegion = useMemo(
     () => ALUMNI_REGIONS.find((region) => region.id === selectedId) ?? ALUMNI_REGIONS[0],
     [selectedId],
   );
+
+  const activeRegionId = hoveredId ?? selectedId;
 
   const totalContacts = ALUMNI_REGIONS.reduce((sum, region) => sum + region.contacts.length, 0);
   const areaRegions = ALUMNI_REGIONS.filter((region) => region.shapePath);
@@ -33,6 +36,10 @@ export default function AlumniWorldMap() {
     if (!isSelectKey(event)) return;
     event.preventDefault();
     selectRegion(regionId);
+  };
+
+  const handleHover = (regionId: AlumniRegionId | null) => {
+    setHoveredId(regionId);
   };
 
   return (
@@ -52,7 +59,7 @@ export default function AlumniWorldMap() {
       <div className="alumni-map-layout">
         <div className="alumni-map-main">
           <div 
-            className={`alumni-map-stage active-region-${selectedId}`}
+            className={`alumni-map-stage active-region-${selectedId} ${hoveredId ? `hovered-region-${hoveredId}` : ''}`}
             onClick={(e) => {
               const target = e.target as SVGElement;
               const region = target.getAttribute('data-region') as AlumniRegionId | null;
@@ -60,6 +67,14 @@ export default function AlumniWorldMap() {
                 selectRegion(region);
               }
             }}
+            onMouseMove={(e) => {
+              const target = e.target as SVGElement;
+              const region = target.getAttribute('data-region') as AlumniRegionId | null;
+              if (region !== hoveredId) {
+                setHoveredId(region);
+              }
+            }}
+            onMouseLeave={() => setHoveredId(null)}
           >
             <AlumniMapSVG className="alumni-map-base alumni-map-inline" />
             <svg
@@ -81,15 +96,23 @@ export default function AlumniWorldMap() {
 
               {areaRegions.map((region) => {
                 const isSelected = region.id === selectedId;
+                const isActive = region.id === activeRegionId;
 
                 return (
                   <g key={region.id} className="alumni-map-region-group">
-                    {/* We no longer render the abstract shapePath here! It is now handled by AlumniMapSVG */}
+                    <path
+                      d={region.shapePath}
+                      className={`alumni-map-region-surface${isActive ? ' is-active' : ''}`}
+                      data-region={region.id}
+                      onClick={() => selectRegion(region.id)}
+                    />
                     {region.labelPoint ? (
                       <text
                         className={`alumni-map-label${isSelected ? ' is-selected' : ''}`}
                         x={region.labelPoint.x}
                         y={region.labelPoint.y}
+                        data-region={region.id}
+                        onClick={() => selectRegion(region.id)}
                       >
                         {region.shortLabel}
                       </text>
@@ -105,6 +128,7 @@ export default function AlumniWorldMap() {
                   isSelected={region.id === selectedId}
                   onSelect={selectRegion}
                   onKeyboardSelect={handleKeyboardSelect}
+                  onHover={handleHover}
                 />
               ))}
             </svg>
@@ -115,9 +139,11 @@ export default function AlumniWorldMap() {
               <button
                 key={region.id}
                 type="button"
-                className={`alumni-region-chip${region.id === selectedId ? ' is-selected' : ''}`}
+                className={`alumni-region-chip${region.id === selectedId ? ' is-selected' : ''}${region.id === hoveredId ? ' is-hovered' : ''}`}
                 style={{ '--alumni-region-color': region.color } as CSSProperties}
                 onClick={() => selectRegion(region.id)}
+                onMouseEnter={() => setHoveredId(region.id)}
+                onMouseLeave={() => setHoveredId(null)}
                 aria-pressed={region.id === selectedId}
               >
                 <span>{region.label}</span>
@@ -205,9 +231,10 @@ type AlumniMapPinProps = {
   isSelected: boolean;
   onSelect: (regionId: AlumniRegionId) => void;
   onKeyboardSelect: (event: KeyboardEvent<SVGElement>, regionId: AlumniRegionId) => void;
+  onHover: (regionId: AlumniRegionId | null) => void;
 };
 
-function AlumniMapPin({ region, isSelected, onSelect, onKeyboardSelect }: AlumniMapPinProps) {
+function AlumniMapPin({ region, isSelected, onSelect, onKeyboardSelect, onHover }: AlumniMapPinProps) {
   if (!region.pin) return null;
 
   const { pin } = region;
@@ -226,19 +253,27 @@ function AlumniMapPin({ region, isSelected, onSelect, onKeyboardSelect }: Alumni
         className="alumni-map-pin-line"
         d={`M${pin.x} ${pin.y} C${pin.x + 28} ${pin.y - 8}, ${pin.labelX - 42} ${pin.labelY}, ${pin.labelX - 8} ${pin.labelY}`}
       />
-      <rect
-        className="alumni-map-pin-label"
-        x={pin.labelX - 74}
-        y={pin.labelY - 24}
-        width="88"
-        height="36"
-        rx="18"
-        fill={isSelected ? region.activeFill : 'rgba(255,255,255,0.82)'}
-        stroke={region.color}
-      />
-      <text className="alumni-map-pin-text" x={pin.labelX - 30} y={pin.labelY - 1}>
-        {region.shortLabel}
-      </text>
+      <g
+        className="alumni-map-pin-label-group"
+        onMouseEnter={() => onHover(region.id)}
+        onMouseLeave={() => onHover(null)}
+        data-region={region.id}
+        style={{ cursor: 'pointer' }}
+      >
+        <rect
+          className="alumni-map-pin-label"
+          x={pin.labelX - 74}
+          y={pin.labelY - 24}
+          width="88"
+          height="36"
+          rx="18"
+          fill={isSelected ? region.activeFill : 'rgba(255,255,255,0.82)'}
+          stroke={region.color}
+        />
+        <text className="alumni-map-pin-text" x={pin.labelX - 30} y={pin.labelY - 1}>
+          {region.shortLabel}
+        </text>
+      </g>
       <circle className="alumni-map-pin-halo" cx={pin.x} cy={pin.y} r="20" fill={region.fill} />
       <circle className="alumni-map-pin-core" cx={pin.x} cy={pin.y} r="8" fill={region.color} />
     </g>
