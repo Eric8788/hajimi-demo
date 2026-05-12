@@ -25,6 +25,18 @@ export default function AlumniWorldMap() {
   const activeRegionId = hoveredId ?? selectedId;
 
   const totalContacts = ALUMNI_REGIONS.reduce((sum, region) => sum + region.contacts.length, 0);
+  
+  // Calculate unique schools and locations for the selected region
+  const selectedStats = useMemo(() => {
+    const schools = new Set(selectedRegion.contacts.map(c => c.school));
+    const locations = new Set(selectedRegion.contacts.map(c => c.location));
+    return {
+      schoolCount: schools.size,
+      locationCount: locations.size,
+      locationList: Array.from(locations).join(', ')
+    };
+  }, [selectedRegion]);
+
   const areaRegions = ALUMNI_REGIONS.filter((region) => region.shapePath);
   const pinRegions = ALUMNI_REGIONS.filter((region) => region.pin);
 
@@ -156,51 +168,64 @@ export default function AlumniWorldMap() {
 
           <p className="alumni-detail-description">{selectedRegion.description}</p>
 
+          <div className="alumni-detail-stats">
+            <div className="alumni-stat-item">
+              <label>涵盖学校</label>
+              <strong>{selectedStats.schoolCount}</strong>
+            </div>
+            <div className="alumni-stat-item">
+              <label>分布位置</label>
+              <strong title={selectedStats.locationList}>{selectedStats.locationCount}</strong>
+            </div>
+          </div>
+
           <div className="alumni-contact-head">
             <span>联系人</span>
             <strong>{selectedRegion.contacts.length}</strong>
           </div>
 
           {selectedRegion.contacts.length > 0 ? (
-            <div className="alumni-contact-list">
-              {selectedRegion.contacts.map((contact) => (
-                <article key={`${contact.name}-${contact.email ?? contact.wechat ?? contact.location}`} className="alumni-contact-item">
-                  <div>
-                    <h5>{contact.name}</h5>
-                    <p>{contact.location}</p>
-                  </div>
-                  <dl>
+            <div className="alumni-contact-scroll-area">
+              <div className="alumni-contact-list">
+                {selectedRegion.contacts.map((contact) => (
+                  <article key={`${contact.name}-${contact.email ?? contact.wechat ?? contact.location}`} className="alumni-contact-item">
                     <div>
-                      <dt>学校</dt>
-                      <dd>{contact.school}</dd>
+                      <h5>{contact.name}</h5>
+                      <p>{contact.location}</p>
                     </div>
-                    <div>
-                      <dt>专业/方向</dt>
-                      <dd>{contact.program}</dd>
-                    </div>
-                    <div>
-                      <dt>届别</dt>
-                      <dd>{contact.year}</dd>
-                    </div>
-                    <div>
-                      <dt>简介</dt>
-                      <dd>{contact.note}</dd>
-                    </div>
-                    {contact.wechat ? (
+                    <dl>
                       <div>
-                        <dt>微信</dt>
-                        <dd>{contact.wechat}</dd>
+                        <dt>学校</dt>
+                        <dd>{contact.school}</dd>
                       </div>
-                    ) : null}
-                    {contact.email ? (
                       <div>
-                        <dt>邮箱</dt>
-                        <dd>{contact.email}</dd>
+                        <dt>专业/方向</dt>
+                        <dd>{contact.program}</dd>
                       </div>
-                    ) : null}
-                  </dl>
-                </article>
-              ))}
+                      <div>
+                        <dt>届别</dt>
+                        <dd>{contact.year}</dd>
+                      </div>
+                      <div>
+                        <dt>简介</dt>
+                        <dd>{contact.note}</dd>
+                      </div>
+                      {contact.wechat ? (
+                        <div>
+                          <dt>微信</dt>
+                          <dd>{contact.wechat}</dd>
+                        </div>
+                      ) : null}
+                      {contact.email ? (
+                        <div>
+                          <dt>邮箱</dt>
+                          <dd>{contact.email}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </article>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="alumni-empty-state">

@@ -1495,9 +1495,69 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 }
 
 .alumni-map-detail {
+  display: flex;
+  flex-direction: column;
+  height: 580px; /* Fixed height to match map container */
   min-width: 0;
   padding: 22px 0 22px 24px;
   border-left: 1px solid rgba(108, 92, 231, 0.14);
+}
+
+.alumni-detail-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px;
+  background: rgba(108, 92, 231, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(108, 92, 231, 0.08);
+}
+
+.alumni-stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alumni-stat-item label {
+  font-size: 0.72rem;
+  color: #8a8fa3;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.alumni-stat-item strong {
+  font-size: 1.1rem;
+  color: #6c5ce7;
+  font-weight: 900;
+}
+
+.alumni-contact-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  margin-right: -4px; /* Adjust for scrollbar space */
+  padding-right: 12px;
+  mask-image: linear-gradient(to bottom, black 94%, transparent);
+}
+
+/* Custom Scrollbar */
+.alumni-contact-scroll-area::-webkit-scrollbar {
+  width: 5px;
+}
+
+.alumni-contact-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.alumni-contact-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(108, 92, 231, 0.15);
+  border-radius: 10px;
+}
+
+.alumni-contact-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 92, 231, 0.3);
 }
 
 .alumni-detail-heading {
@@ -1555,8 +1615,10 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 }
 
 .alumni-contact-list {
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 30px; /* Space for the fade mask */
 }
 
 .alumni-contact-item {
