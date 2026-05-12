@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import Image from 'next/image';
+import AlumniMapSVG from './AlumniMapSVG';
 import {
   ALUMNI_REGIONS,
   DEFAULT_ALUMNI_REGION_ID,
@@ -51,20 +51,23 @@ export default function AlumniWorldMap() {
 
       <div className="alumni-map-layout">
         <div className="alumni-map-main">
-          <div className="alumni-map-stage">
-            <Image
-              className="alumni-map-base"
-              src="/alumni-world.svg"
-              alt="World map"
-              fill
-              sizes="(max-width: 980px) 100vw, 64vw"
-              draggable={false}
-            />
+          <div 
+            className={`alumni-map-stage active-region-${selectedId}`}
+            onClick={(e) => {
+              const target = e.target as SVGElement;
+              const region = target.getAttribute('data-region') as AlumniRegionId | null;
+              if (region) {
+                selectRegion(region);
+              }
+            }}
+          >
+            <AlumniMapSVG className="alumni-map-base alumni-map-inline" />
             <svg
               className="alumni-map-overlay"
               viewBox="0 0 2000 857"
               role="img"
               aria-label="AI Club 校友留学区域地图"
+              style={{ pointerEvents: 'none' }}
             >
               <defs>
                 <filter id="alumni-region-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -81,18 +84,7 @@ export default function AlumniWorldMap() {
 
                 return (
                   <g key={region.id} className="alumni-map-region-group">
-                    <path
-                      className={`alumni-map-region${isSelected ? ' is-selected' : ''}`}
-                      d={region.shapePath}
-                      fill={isSelected ? region.activeFill : region.fill}
-                      stroke={region.color}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={isSelected}
-                      aria-label={`${region.label}校友区域`}
-                      onClick={() => selectRegion(region.id)}
-                      onKeyDown={(event) => handleKeyboardSelect(event, region.id)}
-                    />
+                    {/* We no longer render the abstract shapePath here! It is now handled by AlumniMapSVG */}
                     {region.labelPoint ? (
                       <text
                         className={`alumni-map-label${isSelected ? ' is-selected' : ''}`}
