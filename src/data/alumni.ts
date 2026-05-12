@@ -9,14 +9,21 @@ export type AlumniRegionId =
   | 'mainland-china';
 
 export type AlumniContact = {
+  alumniId: string;
   name: string;
-  location: string;
-  school: string;
-  program: string;
-  year: string;
-  note: string;
-  wechat?: string;
-  email?: string;
+  university: string;
+  universityAbbr: string;
+  major: string;
+  country: string;
+  state: string | null;
+  city: string;
+  campus: string;
+  lat: number;
+  lng: number;
+  rankType: string | null;
+  rankValue: number | null;
+  graduationYear: number;
+  avatarId: string;
 };
 
 export type AlumniRegion = {
@@ -58,61 +65,124 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
     pin: { x: 460, y: 285, labelX: 410, labelY: 240 },
     contacts: [
       {
-        name: 'Harry',
-        location: '北卡罗来纳州 达勒姆',
-        school: '杜克大学 (Duke)',
-        program: '机械工程专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 6 位',
+        alumniId: "A006",
+        name: "Harry",
+        university: "杜克大学",
+        universityAbbr: "Duke",
+        major: "机械工程",
+        country: "美国",
+        state: "北卡罗来纳州",
+        city: "达勒姆",
+        campus: "西校区（主校区）",
+        lat: 35.9940,
+        lng: -78.8986,
+        rankType: "US News美国大学综合排名",
+        rankValue: 6,
+        graduationYear: 2026,
+        avatarId: "avatar_harry"
       },
       {
-        name: 'Kevin',
-        location: '加利福尼亚州 戴维斯',
-        school: '加州大学戴维斯分校 (UC Davis)',
-        program: '生物学专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 33 位',
+        alumniId: "A007",
+        name: "Kevin",
+        university: "加州大学戴维斯分校",
+        universityAbbr: "UC Davis",
+        major: "生物学",
+        country: "美国",
+        state: "加利福尼亚州",
+        city: "戴维斯",
+        campus: "主校区",
+        lat: 38.5382,
+        lng: -121.7617,
+        rankType: "US News美国大学综合排名",
+        rankValue: 33,
+        graduationYear: 2026,
+        avatarId: "avatar_kevin"
       },
       {
-        name: 'Thomas',
-        location: '伊利诺伊州 厄巴纳 - 香槟',
-        school: '伊利诺伊大学厄巴纳 - 香槟分校 (UIUC)',
-        program: '机械工程专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 33 位',
+        alumniId: "A008",
+        name: "Thomas",
+        university: "伊利诺伊大学厄巴纳-香槟分校",
+        universityAbbr: "UIUC",
+        major: "机械工程",
+        country: "美国",
+        state: "伊利诺伊州",
+        city: "厄巴纳-香槟",
+        campus: "主校区",
+        lat: 40.1106,
+        lng: -88.2272,
+        rankType: "US News美国大学综合排名",
+        rankValue: 33,
+        graduationYear: 2026,
+        avatarId: "avatar_thomas"
       },
       {
-        name: 'Victor',
-        location: '加利福尼亚州 洛杉矶',
-        school: '南加利福尼亚大学 (USC)',
-        program: '物理学专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 27 位',
+        alumniId: "A010",
+        name: "Victor",
+        university: "南加利福尼亚大学",
+        universityAbbr: "USC",
+        major: "物理学",
+        country: "美国",
+        state: "加利福尼亚州",
+        city: "洛杉矶",
+        campus: "大学公园主校区",
+        lat: 34.0224,
+        lng: -118.2851,
+        rankType: "US News美国大学综合排名",
+        rankValue: 27,
+        graduationYear: 2026,
+        avatarId: "avatar_victor"
       },
       {
-        name: 'Alice',
-        location: '华盛顿州 西雅图',
-        school: '华盛顿大学（西雅图） (UW Seattle)',
-        program: '传媒学专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 7 位',
+        alumniId: "A012",
+        name: "Alice",
+        university: "华盛顿大学（西雅图）",
+        universityAbbr: "UW Seattle",
+        major: "传媒学",
+        country: "美国",
+        state: "华盛顿州",
+        city: "西雅图",
+        campus: "西雅图主校区",
+        lat: 47.6553,
+        lng: -122.3035,
+        rankType: "US News美国大学综合排名",
+        rankValue: 7,
+        graduationYear: 2026,
+        avatarId: "avatar_alice"
       },
       {
-        name: 'Jimmy',
-        location: '北卡罗来纳州 教堂山',
-        school: '北卡罗来纳大学教堂山分校 (UNC-Chapel Hill)',
-        program: '运动科学专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 22 位',
+        alumniId: "A013",
+        name: "Jimmy",
+        university: "北卡罗来纳大学教堂山分校",
+        universityAbbr: "UNC-Chapel Hill",
+        major: "运动科学",
+        country: "美国",
+        state: "北卡罗来纳州",
+        city: "教堂山",
+        campus: "主校区",
+        lat: 35.9049,
+        lng: -79.0469,
+        rankType: "US News美国大学综合排名",
+        rankValue: 22,
+        graduationYear: 2026,
+        avatarId: "avatar_jimmy"
       },
       {
-        name: 'Jeremy',
-        location: '加利福尼亚州 拉霍亚（圣地亚哥）',
-        school: '加州大学圣地亚哥分校 (UCSD)',
-        program: '机械工程专业',
-        year: '2026 届',
-        note: 'US News 美国大学综合排名第 28 位',
-      },
+        alumniId: "A014",
+        name: "Jeremy",
+        university: "加州大学圣地亚哥分校",
+        universityAbbr: "UCSD",
+        major: "机械工程",
+        country: "美国",
+        state: "加利福尼亚州",
+        city: "圣地亚哥",
+        campus: "拉霍亚主校区",
+        lat: 32.8801,
+        lng: -117.2340,
+        rankType: "US News美国大学综合排名",
+        rankValue: 28,
+        graduationYear: 2026,
+        avatarId: "avatar_jeremy"
+      }
     ],
   },
   {
@@ -130,13 +200,22 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
     pin: { x: 535, y: 126, labelX: 585, labelY: 80 },
     contacts: [
       {
-        name: 'Flier',
-        location: '不列颠哥伦比亚省 温哥华',
-        school: '不列颠哥伦比亚大学 (UBC)',
-        program: '商业管理专业',
-        year: '2026 届',
-        note: 'QS 世界大学排名第 38 位',
-      },
+        alumniId: "A005",
+        name: "Flier",
+        university: "不列颠哥伦比亚大学",
+        universityAbbr: "UBC",
+        major: "商业管理",
+        country: "加拿大",
+        state: "不列颠哥伦比亚省",
+        city: "温哥华",
+        campus: "温哥华主校区",
+        lat: 49.2606,
+        lng: -123.2460,
+        rankType: "QS世界大学排名",
+        rankValue: 38,
+        graduationYear: 2026,
+        avatarId: "avatar_flier"
+      }
     ],
   },
   {
@@ -154,29 +233,56 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
     pin: { x: 965, y: 163, labelX: 915, labelY: 120 },
     contacts: [
       {
-        name: 'Moana',
-        location: '威尔士 卡迪夫',
-        school: '卡迪夫大学 (Cardiff)',
-        program: '考古学专业',
-        year: '2026 届',
-        note: '-',
+        alumniId: "A001",
+        name: "Moana",
+        university: "卡迪夫大学",
+        universityAbbr: "Cardiff",
+        major: "考古学",
+        country: "英国",
+        state: "威尔士",
+        city: "卡迪夫",
+        campus: "主校区",
+        lat: 51.4816,
+        lng: -3.1791,
+        rankType: null,
+        rankValue: null,
+        graduationYear: 2026,
+        avatarId: "avatar_moana"
       },
       {
-        name: 'Emily',
-        location: '英格兰 伦敦',
-        school: '伦敦大学学院 (UCL)',
-        program: '统计学专业',
-        year: '2026 届',
-        note: 'QS 世界大学排名第 9 位',
+        alumniId: "A002",
+        name: "Emily",
+        university: "伦敦大学学院",
+        universityAbbr: "UCL",
+        major: "统计学",
+        country: "英国",
+        state: "英格兰",
+        city: "伦敦",
+        campus: "布鲁姆斯伯里主校区",
+        lat: 51.5246,
+        lng: -0.1340,
+        rankType: "QS世界大学排名",
+        rankValue: 9,
+        graduationYear: 2026,
+        avatarId: "avatar_emily"
       },
       {
-        name: 'Patrick',
-        location: '英格兰 牛津',
-        school: '牛津大学 (Oxford)',
-        program: '生物学专业',
-        year: '2026 届',
-        note: 'QS 世界大学排名第 4 位',
-      },
+        alumniId: "A003",
+        name: "Patrick",
+        university: "牛津大学",
+        universityAbbr: "Oxford",
+        major: "生物学",
+        country: "英国",
+        state: "英格兰",
+        city: "牛津",
+        campus: "主校区",
+        lat: 51.7520,
+        lng: -1.2577,
+        rankType: "QS世界大学排名",
+        rankValue: 4,
+        graduationYear: 2026,
+        avatarId: "avatar_patrick"
+      }
     ],
   },
   {
@@ -191,21 +297,39 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
     pin: { x: 1598, y: 371, labelX: 1648, labelY: 330 },
     contacts: [
       {
-        name: 'Jiahan',
-        location: '香港岛 薄扶林',
-        school: '香港大学 (HKU)',
-        program: '机械工程专业',
-        year: '2026 届',
-        note: 'QS 世界大学排名第 11 位',
+        alumniId: "A004",
+        name: "Jiahan",
+        university: "香港大学",
+        universityAbbr: "HKU",
+        major: "机械工程",
+        country: "中国香港",
+        state: null,
+        city: "香港",
+        campus: "薄扶林主校区",
+        lat: 22.2830,
+        lng: 114.1370,
+        rankType: "QS世界大学排名",
+        rankValue: 11,
+        graduationYear: 2026,
+        avatarId: "avatar_jiahan"
       },
       {
-        name: 'Angel',
-        location: '香港岛 薄扶林',
-        school: '香港大学 (HKU)',
-        program: '经济学专业',
-        year: '2026 届',
-        note: 'QS 世界大学排名第 11 位',
-      },
+        alumniId: "A009",
+        name: "Angel",
+        university: "香港大学",
+        universityAbbr: "HKU",
+        major: "经济学",
+        country: "中国香港",
+        state: null,
+        city: "香港",
+        campus: "薄扶林主校区",
+        lat: 22.2830,
+        lng: 114.1370,
+        rankType: "QS世界大学排名",
+        rankValue: 11,
+        graduationYear: 2026,
+        avatarId: "avatar_angel"
+      }
     ],
   },
   {
@@ -235,13 +359,22 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
     pin: { x: 1714, y: 694, labelX: 1764, labelY: 740 },
     contacts: [
       {
-        name: 'Ryan',
-        location: '新南威尔士州 悉尼',
-        school: '悉尼大学 (USYD)',
-        program: '数学专业',
-        year: '2026 届',
-        note: 'QS 世界大学排名第 25 位',
-      },
+        alumniId: "A011",
+        name: "Ryan",
+        university: "悉尼大学",
+        universityAbbr: "USYD",
+        major: "数学",
+        country: "澳大利亚",
+        state: "新南威尔士州",
+        city: "悉尼",
+        campus: "坎珀当主校区",
+        lat: -33.8885,
+        lng: 151.1873,
+        rankType: "QS世界大学排名",
+        rankValue: 25,
+        graduationYear: 2026,
+        avatarId: "avatar_ryan"
+      }
     ],
   },
   {

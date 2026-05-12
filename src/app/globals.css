@@ -1395,6 +1395,23 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   fill: #111827;
 }
 
+/* ─── Map Badge ─── */
+.alumni-map-badge {
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.alumni-map-badge.is-selected,
+.alumni-map-badge:hover {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 4px 12px rgba(108, 92, 231, 0.22));
+}
+.alumni-badge-bg {
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+.alumni-badge-title, .alumni-badge-count {
+  transition: fill 0.2s ease;
+  pointer-events: none;
+}
+
 .alumni-map-pin {
   pointer-events: auto;
   cursor: pointer;
@@ -1563,7 +1580,21 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   font-size: 0.9rem;
 }
 
-/* ─── Alumni Carousel Section ─── */
+/* ─── Alumni Detail Panel (List & Profile Views) ─── */
+.alumni-list-view,
+.alumni-profile-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .alumni-contact-section {
   flex: 1;
   display: flex;
@@ -1581,150 +1612,219 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   font-weight: 850;
 }
 
-.alumni-carousel-nav {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #111827;
-}
-
-.alumni-carousel-nav strong {
-  color: #6c5ce7;
-  font-size: 1.05rem;
-}
-
-.nav-divider {
-  color: #d1d5db;
-  font-size: 0.8rem;
-}
-
-.nav-buttons {
-  display: flex;
-  gap: 4px;
-  margin-left: 6px;
-}
-
-.nav-buttons button {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  border: 1px solid rgba(108, 92, 231, 0.12);
-  background: white;
-  color: #6c5ce7;
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 0;
-}
-
-.nav-buttons button:hover {
-  background: #f5f3ff;
-  border-color: #6c5ce7;
-  transform: translateY(-1px);
-}
-
-.alumni-carousel-container {
+.alumni-compact-list {
   flex: 1;
-  position: relative;
-  overflow: hidden;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 8px;
 }
 
-.alumni-contact-card {
+.alumni-compact-list::-webkit-scrollbar { width: 4px; }
+.alumni-compact-list::-webkit-scrollbar-track { background: transparent; }
+.alumni-compact-list::-webkit-scrollbar-thumb { background: rgba(108, 92, 231, 0.2); border-radius: 4px; }
+
+.alumni-compact-card {
   width: 100%;
-  height: auto;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid rgba(108, 92, 231, 0.08);
-  box-shadow: 0 8px 24px rgba(108, 92, 231, 0.04);
-  padding: 20px;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.alumni-contact-card.is-active {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.alumni-contact-card.is-hidden {
-  position: absolute;
-  top: 0;
-  left: 0;
-  opacity: 0;
-  transform: translateX(20px);
-  pointer-events: none;
-}
-
-.alumni-card-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed rgba(108, 92, 231, 0.12);
+  gap: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(108, 92, 231, 0.1);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
 }
 
-.alumni-avatar-placeholder {
-  width: 60px;
-  height: 60px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+.alumni-compact-card:hover {
+  background: white;
+  border-color: var(--accent, #6c5ce7);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.08);
+}
+
+.alumni-compact-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.4));
+  border: 1px solid rgba(108, 92, 231, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(108, 92, 231, 0.1);
-  color: #6c5ce7;
+  color: var(--accent, #6c5ce7);
+  font-size: 1.2rem;
+  font-weight: 900;
   flex-shrink: 0;
 }
 
-.school-logo-text {
-  font-size: 1.5rem;
-  font-weight: 900;
+.alumni-compact-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.alumni-basic-info h5 {
+.alumni-compact-info h5 {
   margin: 0 0 4px;
-  font-size: 1.15rem;
+  color: #111827;
+  font-size: 1.05rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alumni-compact-school {
+  display: block;
+  color: #6b7280;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alumni-compact-arrow {
+  color: #9ca3af;
+  transition: color 0.2s, transform 0.2s;
+}
+.alumni-compact-card:hover .alumni-compact-arrow {
+  color: var(--accent, #6c5ce7);
+  transform: translateX(2px);
+}
+
+/* ─── Profile View ─── */
+.alumni-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(108, 92, 231, 0.15);
+  border-radius: 99px;
+  color: #4b5563;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+.alumni-back-btn:hover {
+  background: white;
+  color: #6c5ce7;
+  border-color: #6c5ce7;
+}
+
+.alumni-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.alumni-profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.5));
+  border: 1px solid var(--accent, #6c5ce7);
+  box-shadow: 0 8px 16px rgba(108, 92, 231, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent, #6c5ce7);
+  font-size: 2.2rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.alumni-profile-title h2 {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
   color: #111827;
 }
-
-.alumni-location-tag {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #6b7280;
-  font-weight: 600;
+.alumni-grad-year {
+  display: inline-block;
+  padding: 4px 10px;
+  background: rgba(108, 92, 231, 0.08);
+  color: #6c5ce7;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 6px;
 }
 
-.alumni-info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin: 0;
+.alumni-profile-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-right: 8px;
 }
+.alumni-profile-content::-webkit-scrollbar { width: 4px; }
+.alumni-profile-content::-webkit-scrollbar-track { background: transparent; }
+.alumni-profile-content::-webkit-scrollbar-thumb { background: rgba(108, 92, 231, 0.2); border-radius: 4px; }
 
-.info-cell dt {
-  font-size: 0.7rem;
+.alumni-info-group dt {
+  font-size: 0.75rem;
   color: #8a8fa3;
   font-weight: 800;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
-
-.info-cell dd {
+.alumni-info-group dd {
   margin: 0;
-  font-size: 0.9rem;
-  color: #374151;
-  font-weight: 700;
-  line-height: 1.4;
+  font-size: 1.05rem;
+  color: #1f2937;
+  line-height: 1.5;
+}
+.info-subtext {
+  display: block;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-top: 2px;
 }
 
-.info-cell.full-width {
-  grid-column: span 2;
+.alumni-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rank-type {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  color: #6c5ce7;
+  font-weight: 800;
+}
+.rank-value {
+  padding: 6px 12px;
+  background: #6c5ce7;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.alumni-contact-callout {
+  margin-top: auto;
+  padding: 16px;
+  background: rgba(108, 92, 231, 0.05);
+  border-left: 3px solid #6c5ce7;
+  border-radius: 0 8px 8px 0;
+  color: #4b5563;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .alumni-empty-state {
-  height: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1733,61 +1833,7 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
   border-radius: 16px;
   color: #8a8fa3;
   font-weight: 600;
-}
-
-.alumni-contact-item {
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.7);
-  border: 1px solid rgba(255,255,255,0.84);
-}
-
-.alumni-contact-item h5 {
-  margin: 0 0 4px;
-  color: #111827;
-  font-size: 1rem;
-}
-
-.alumni-contact-item dl {
-  display: grid;
-  gap: 9px;
-  margin: 14px 0 0;
-}
-
-.alumni-contact-item div {
-  min-width: 0;
-}
-
-.alumni-contact-item dt {
-  color: #8a8fa3;
-  font-size: 0.72rem;
-  font-weight: 850;
-}
-
-.alumni-contact-item dd {
-  margin: 2px 0 0;
-  color: #374151;
-  font-size: 0.9rem;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.alumni-empty-state {
-  padding: 18px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.58);
-  border: 1px dashed rgba(108, 92, 231, 0.26);
-}
-
-.alumni-empty-state strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #2d3436;
-  font-size: 0.98rem;
-}
-
-.alumni-empty-state p {
-  line-height: 1.55;
+  text-align: center;
 }
 
 @media (max-width: 980px) {

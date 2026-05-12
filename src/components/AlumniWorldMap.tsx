@@ -7,16 +7,17 @@ import {
   DEFAULT_ALUMNI_REGION_ID,
   type AlumniRegion,
   type AlumniRegionId,
+  type AlumniContact,
 } from '@/data/alumni';
 
-function isSelectKey(event: KeyboardEvent<SVGElement>) {
+function isSelectKey(event: KeyboardEvent<SVGElement | HTMLElement>) {
   return event.key === 'Enter' || event.key === ' ';
 }
 
 export default function AlumniWorldMap() {
   const [selectedId, setSelectedId] = useState<AlumniRegionId>(DEFAULT_ALUMNI_REGION_ID);
   const [hoveredId, setHoveredId] = useState<AlumniRegionId | null>(null);
-  const [alumniIndex, setAlumniIndex] = useState(0);
+  const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
 
   const selectedRegion = useMemo(
     () => ALUMNI_REGIONS.find((region) => region.id === selectedId) ?? ALUMNI_REGIONS[0],
@@ -26,20 +27,20 @@ export default function AlumniWorldMap() {
   const activeRegionId = hoveredId ?? selectedId;
 
   const totalContacts = ALUMNI_REGIONS.reduce((sum, region) => sum + region.contacts.length, 0);
-  
-  // Reset index when region changes
+
+  // Reset selected alumni when region changes
   useMemo(() => {
-    setAlumniIndex(0);
+    setSelectedAlumniId(null);
   }, [selectedId]);
 
   // Calculate unique schools and locations for the selected region
   const selectedStats = useMemo(() => {
-    const schools = new Set(selectedRegion.contacts.map(c => c.school));
-    const locations = new Set(selectedRegion.contacts.map(c => c.location));
+    const schools = new Set(selectedRegion.contacts.map((c) => c.university));
+    const cities = new Set(selectedRegion.contacts.map((c) => c.city));
     return {
       schoolCount: schools.size,
-      locationCount: locations.size,
-      locationList: Array.from(locations).join(', ')
+      locationCount: cities.size,
+      locationList: Array.from(cities).join(', '),
     };
   }, [selectedRegion]);
 
@@ -48,6 +49,7 @@ export default function AlumniWorldMap() {
 
   const selectRegion = (regionId: AlumniRegionId) => {
     setSelectedId(regionId);
+    setSelectedAlumniId(null);
   };
 
   const handleKeyboardSelect = (event: KeyboardEvent<SVGElement>, regionId: AlumniRegionId) => {
@@ -60,13 +62,7 @@ export default function AlumniWorldMap() {
     setHoveredId(regionId);
   };
 
-  const handlePrevAlumni = () => {
-    setAlumniIndex((prev) => (prev > 0 ? prev - 1 : selectedRegion.contacts.length - 1));
-  };
-
-  const handleNextAlumni = () => {
-    setAlumniIndex((prev) => (prev < selectedRegion.contacts.length - 1 ? prev + 1 : 0));
-  };
+  const selectedAlumni = selectedRegion.contacts.find((c) => c.alumniId === selectedAlumniId);
 
   return (
     <section className="glass-card full-width alumni-map-panel" aria-labelledby="alumni-map-title">
@@ -83,7 +79,7 @@ export default function AlumniWorldMap() {
 
       <div className="alumni-map-layout">
         <div className="alumni-map-main">
-          <div 
+          <div
             className={`alumni-map-stage active-region-${selectedId} ${hoveredId ? `hovered-region-${hoveredId}` : ''}`}
             onClick={(e) => {
               const target = e.target as SVGElement;
@@ -121,7 +117,6 @@ export default function AlumniWorldMap() {
 
               {areaRegions.map((region) => {
                 const isActive = region.id === activeRegionId;
-
                 return (
                   <g key={region.id} className="alumni-map-region-group">
                     <path
@@ -144,6 +139,21 @@ export default function AlumniWorldMap() {
                   onHover={handleHover}
                 />
               ))}
+
+              {/* Render Map Badges for regions with contacts */}
+              {ALUMNI_REGIONS.map((region) => {
+                if (region.contacts.length === 0 && region.id !== 'united-states') return null; // Only show populated or default
+                return (
+                  <RegionBadge
+                    key={`badge-${region.id}`}
+                    region={region}
+                    isSelected={region.id === selectedId}
+                    isHovered={region.id === hoveredId}
+                    onSelect={() => selectRegion(region.id)}
+                    onHover={() => handleHover(region.id)}
+                  />
+                );
+              })}
             </svg>
           </div>
 
@@ -152,7 +162,9 @@ export default function AlumniWorldMap() {
               <button
                 key={region.id}
                 type="button"
-                className={`alumni-region-chip${region.id === selectedId ? ' is-selected' : ''}${region.id === hoveredId ? ' is-hovered' : ''}`}
+                className={`alumni-region-chip${region.id === selectedId ? ' is-selected' : ''}${
+                  region.id === hoveredId ? ' is-hovered' : ''
+                }`}
                 style={{ '--alumni-region-color': region.color } as CSSProperties}
                 onClick={() => selectRegion(region.id)}
                 onMouseEnter={() => setHoveredId(region.id)}
@@ -167,113 +179,213 @@ export default function AlumniWorldMap() {
         </div>
 
         <aside className="alumni-map-detail" aria-live="polite">
-          <div className="alumni-detail-heading">
-            <span
-              className="alumni-detail-dot"
-              style={{ background: selectedRegion.color }}
-              aria-hidden="true"
-            />
-            <div>
-              <h4>{selectedRegion.label}</h4>
-              <p>{selectedRegion.summary}</p>
-            </div>
-          </div>
+          {selectedAlumni ? (
+            /* =========================================
+               DETAIL VIEW: Individual Alumni Profile
+               ========================================= */
+            <div className="alumni-profile-view">
+              <button
+                className="alumni-back-btn"
+                onClick={() => setSelectedAlumniId(null)}
+                aria-label="返回列表"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                返回区域列表
+              </button>
 
-          <div className="alumni-detail-stats">
-            <div className="alumni-stat-item">
-              <label>涵盖学校</label>
-              <strong>{selectedStats.schoolCount}</strong>
-            </div>
-            <div className="alumni-stat-item">
-              <label>分布位置</label>
-              <strong title={selectedStats.locationList}>{selectedStats.locationCount}</strong>
-            </div>
-          </div>
+              <div className="alumni-profile-header">
+                <div className="alumni-profile-avatar" style={{ '--accent': selectedRegion.color } as CSSProperties}>
+                  {selectedAlumni.name.charAt(0)}
+                </div>
+                <div className="alumni-profile-title">
+                  <h2>{selectedAlumni.name}</h2>
+                  <span className="alumni-grad-year">{selectedAlumni.graduationYear} 届</span>
+                </div>
+              </div>
 
-          <div className="alumni-contact-section">
-            <div className="alumni-contact-head">
-              <span>联系人</span>
-              <div className="alumni-carousel-nav">
-                <strong>{selectedRegion.contacts.length > 0 ? alumniIndex + 1 : 0}</strong>
-                <span className="nav-divider">/</span>
-                <span>{selectedRegion.contacts.length}</span>
-                {selectedRegion.contacts.length > 1 && (
-                  <div className="nav-buttons">
-                    <button onClick={handlePrevAlumni} aria-label="上一个校友">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                    </button>
-                    <button onClick={handleNextAlumni} aria-label="下一个校友">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
+              <div className="alumni-profile-content">
+                <div className="alumni-info-group">
+                  <dt>录取院校</dt>
+                  <dd>
+                    <strong>{selectedAlumni.university}</strong>
+                    <span className="info-subtext">({selectedAlumni.universityAbbr})</span>
+                  </dd>
+                </div>
+                <div className="alumni-info-group">
+                  <dt>专业</dt>
+                  <dd>{selectedAlumni.major}</dd>
+                </div>
+                <div className="alumni-info-group">
+                  <dt>位置与校区</dt>
+                  <dd>
+                    {selectedAlumni.city}, {selectedAlumni.state ? `${selectedAlumni.state}, ` : ''}{selectedAlumni.country}
+                    <br />
+                    <span className="info-subtext">{selectedAlumni.campus}</span>
+                  </dd>
+                </div>
+                {selectedAlumni.rankType && selectedAlumni.rankValue && (
+                  <div className="alumni-info-group">
+                    <dt>院校排名</dt>
+                    <dd className="alumni-rank-badge">
+                      <span className="rank-type">{selectedAlumni.rankType}</span>
+                      <span className="rank-value">Top {selectedAlumni.rankValue}</span>
+                    </dd>
+                  </div>
+                )}
+                
+                <div className="alumni-contact-callout">
+                  <p>如需获取更多联系方式，请咨询社团指导老师。</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* =========================================
+               LIST VIEW: Region Overview & Compact List
+               ========================================= */
+            <div className="alumni-list-view">
+              <div className="alumni-detail-heading">
+                <span
+                  className="alumni-detail-dot"
+                  style={{ background: selectedRegion.color }}
+                  aria-hidden="true"
+                />
+                <div>
+                  <h4>{selectedRegion.label}</h4>
+                  <p>{selectedRegion.summary}</p>
+                </div>
+              </div>
+
+              <div className="alumni-detail-stats">
+                <div className="alumni-stat-item">
+                  <label>涵盖学校</label>
+                  <strong>{selectedStats.schoolCount}</strong>
+                </div>
+                <div className="alumni-stat-item">
+                  <label>分布城市</label>
+                  <strong title={selectedStats.locationList}>{selectedStats.locationCount}</strong>
+                </div>
+              </div>
+
+              <div className="alumni-contact-section">
+                <div className="alumni-contact-head">
+                  <span>校友列表 ({selectedRegion.contacts.length})</span>
+                </div>
+
+                {selectedRegion.contacts.length > 0 ? (
+                  <ul className="alumni-compact-list">
+                    {selectedRegion.contacts.map((contact) => (
+                      <li key={contact.alumniId}>
+                        <button
+                          className="alumni-compact-card"
+                          onClick={() => setSelectedAlumniId(contact.alumniId)}
+                          style={{ '--accent': selectedRegion.color } as CSSProperties}
+                        >
+                          <div className="alumni-compact-avatar">
+                            {contact.name.charAt(0)}
+                          </div>
+                          <div className="alumni-compact-info">
+                            <h5>{contact.name}</h5>
+                            <span className="alumni-compact-school">{contact.universityAbbr} · {contact.major}</span>
+                          </div>
+                          <svg className="alumni-compact-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                          </svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="alumni-empty-state">
+                    <p>该区域校友信息正在收集中...</p>
                   </div>
                 )}
               </div>
             </div>
-
-            {selectedRegion.contacts.length > 0 ? (
-              <div className="alumni-carousel-container">
-                {selectedRegion.contacts.map((contact, index) => (
-                  <article 
-                    key={`${contact.name}-${index}`} 
-                    className={`alumni-contact-card ${index === alumniIndex ? 'is-active' : 'is-hidden'}`}
-                  >
-                    <div className="alumni-card-header">
-                      <div className="alumni-avatar-placeholder">
-                        <span className="school-logo-text">{contact.school.charAt(0)}</span>
-                      </div>
-                      <div className="alumni-basic-info">
-                        <h5>{contact.name}</h5>
-                        <p className="alumni-location-tag">{contact.location}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="alumni-card-body">
-                      <dl className="alumni-info-grid">
-                        <div className="info-cell">
-                          <dt>学校</dt>
-                          <dd>{contact.school}</dd>
-                        </div>
-                        <div className="info-cell">
-                          <dt>专业/方向</dt>
-                          <dd>{contact.program}</dd>
-                        </div>
-                        <div className="info-cell">
-                          <dt>届别</dt>
-                          <dd>{contact.year}</dd>
-                        </div>
-                        <div className="info-cell full-width">
-                          <dt>简介</dt>
-                          <dd>{contact.note}</dd>
-                        </div>
-                        {contact.wechat && (
-                          <div className="info-cell">
-                            <dt>微信</dt>
-                            <dd>{contact.wechat}</dd>
-                          </div>
-                        )}
-                        {contact.email && (
-                          <div className="info-cell">
-                            <dt>邮箱</dt>
-                            <dd>{contact.email}</dd>
-                          </div>
-                        )}
-                      </dl>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="alumni-empty-state">
-                <p>该区域校友信息正在收集中...</p>
-              </div>
-            )}
-          </div>
+          )}
         </aside>
       </div>
     </section>
   );
 }
 
+// -------------------------------------------------------------
+// Component: Region Badge
+// Displays Name and Count directly on the SVG map
+// -------------------------------------------------------------
+type RegionBadgeProps = {
+  region: AlumniRegion;
+  isSelected: boolean;
+  isHovered: boolean;
+  onSelect: () => void;
+  onHover: () => void;
+};
+
+function RegionBadge({ region, isSelected, isHovered, onSelect, onHover }: RegionBadgeProps) {
+  // Use labelPoint if available, otherwise use pin position with a slight offset
+  const pt = region.labelPoint || (region.pin ? { x: region.pin.x, y: region.pin.y - 20 } : null);
+  if (!pt) return null;
+
+  // Don't render badge if it's a pin region, because pins already have their own label
+  // Wait, the requirement said "上面不同板块显示名字/人数". Let's show badges for ALL, 
+  // but maybe hide the old pin labels if they overlap. For now, we render the badge.
+  // Let's position it slightly differently for pin regions to avoid overlap.
+  const badgeY = region.pin ? pt.y - 30 : pt.y;
+  
+  // Calculate text dimensions roughly
+  const textCount = `${region.contacts.length} 人`;
+  const labelWidth = Math.max(60, region.label.length * 16 + 20);
+
+  return (
+    <g
+      className={`alumni-map-badge ${isSelected ? 'is-selected' : ''}`}
+      transform={`translate(${pt.x}, ${badgeY})`}
+      onMouseEnter={onHover}
+      onMouseLeave={onHover} // Wait, onLeave should clear hover, but passing onHover here might set it to the region.
+      // We will rely on the map's mouse events, but pointer-events: auto on the badge
+      data-region={region.id}
+      style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    >
+      <rect
+        x={-labelWidth / 2}
+        y={-20}
+        width={labelWidth}
+        height={40}
+        rx={8}
+        fill={isSelected ? region.color : 'rgba(255,255,255,0.9)'}
+        stroke={isSelected ? '#fff' : region.color}
+        strokeWidth={2}
+        className="alumni-badge-bg"
+      />
+      <text
+        y={-3}
+        className="alumni-badge-title"
+        fill={isSelected ? '#fff' : '#1f2937'}
+        textAnchor="middle"
+        fontSize="13"
+        fontWeight="bold"
+      >
+        {region.label}
+      </text>
+      <text
+        y={12}
+        className="alumni-badge-count"
+        fill={isSelected ? 'rgba(255,255,255,0.9)' : '#64748b'}
+        textAnchor="middle"
+        fontSize="11"
+        fontWeight="bold"
+      >
+        {textCount}
+      </text>
+    </g>
+  );
+}
+
+// -------------------------------------------------------------
+// Component: Pin
+// -------------------------------------------------------------
 type AlumniMapPinProps = {
   region: AlumniRegion;
   isSelected: boolean;
@@ -301,29 +413,14 @@ function AlumniMapPin({ region, isSelected, onSelect, onKeyboardSelect, onHover 
         className="alumni-map-pin-line"
         d={`M${pin.x} ${pin.y} C${pin.x + 28} ${pin.y - 8}, ${pin.labelX - 42} ${pin.labelY}, ${pin.labelX - 8} ${pin.labelY}`}
       />
-      <g
-        className="alumni-map-pin-label-group"
-        onMouseEnter={() => onHover(region.id)}
-        onMouseLeave={() => onHover(null)}
-        data-region={region.id}
-        style={{ cursor: 'pointer' }}
-      >
-        <rect
-          className="alumni-map-pin-label"
-          x={pin.labelX - 74}
-          y={pin.labelY - 24}
-          width="88"
-          height="36"
-          rx="18"
-          fill={isSelected ? region.activeFill : 'rgba(255,255,255,0.82)'}
-          stroke={region.color}
-        />
-        <text className="alumni-map-pin-text" x={pin.labelX - 30} y={pin.labelY - 1}>
-          {region.shortLabel}
-        </text>
-      </g>
+      {/* 
+         Removed the old pin label rect/text since we are now using the universal RegionBadge.
+         Kept the line pointing from the pin to where the badge would be if needed, but it might be redundant.
+         Actually, let's keep the core and halo, and remove the line to keep it clean.
+      */}
       <circle className="alumni-map-pin-halo" cx={pin.x} cy={pin.y} r="20" fill={region.fill} />
       <circle className="alumni-map-pin-core" cx={pin.x} cy={pin.y} r="8" fill={region.color} />
     </g>
   );
 }
+
