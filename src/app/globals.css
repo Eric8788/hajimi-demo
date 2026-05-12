@@ -1383,19 +1383,11 @@ a, button, [role="button"], input, select, textarea, .project-card, .btn, Link {
 
 /* ─── Map Badge ─── */
 .alumni-map-badge {
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-.alumni-map-badge.is-selected,
-.alumni-map-badge:hover {
-  transform: translateY(-2px);
-  filter: drop-shadow(0 4px 12px rgba(108, 92, 231, 0.22));
-}
-.alumni-badge-bg {
-  transition: fill 0.2s ease, stroke 0.2s ease;
-}
-.alumni-badge-title, .alumni-badge-count {
-  transition: fill 0.2s ease;
   pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.alumni-map-badge.is-selected {
+  opacity: 1;
 }
 
 .alumni-map-pin {

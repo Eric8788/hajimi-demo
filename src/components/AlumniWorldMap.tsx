@@ -323,62 +323,27 @@ type RegionBadgeProps = {
   onHover: () => void;
 };
 
-function RegionBadge({ region, isSelected, isHovered, onSelect, onHover }: RegionBadgeProps) {
-  // Use labelPoint if available, otherwise use pin position with a slight offset
+function RegionBadge({ region, isSelected }: RegionBadgeProps) {
   const pt = region.labelPoint || (region.pin ? { x: region.pin.x, y: region.pin.y - 20 } : null);
   if (!pt) return null;
 
-  // Don't render badge if it's a pin region, because pins already have their own label
-  // Wait, the requirement said "上面不同板块显示名字/人数". Let's show badges for ALL, 
-  // but maybe hide the old pin labels if they overlap. For now, we render the badge.
-  // Let's position it slightly differently for pin regions to avoid overlap.
   const badgeY = region.pin ? pt.y - 30 : pt.y;
-  
-  // Calculate text dimensions roughly
-  const textCount = `${region.contacts.length} 人`;
-  const labelWidth = Math.max(60, region.label.length * 16 + 20);
 
   return (
     <g
       className={`alumni-map-badge ${isSelected ? 'is-selected' : ''}`}
       transform={`translate(${pt.x}, ${badgeY})`}
-      onMouseEnter={onHover}
-      onMouseLeave={onHover} // Wait, onLeave should clear hover, but passing onHover here might set it to the region.
-      // We will rely on the map's mouse events, but pointer-events: auto on the badge
-      data-region={region.id}
-      style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      style={{ pointerEvents: 'none' }}
     >
-      <rect
-        x={-labelWidth / 2}
-        y={-20}
-        width={labelWidth}
-        height={40}
-        rx={8}
-        fill={isSelected ? region.color : 'rgba(255,255,255,0.9)'}
-        stroke={isSelected ? '#fff' : region.color}
-        strokeWidth={2}
-        className="alumni-badge-bg"
-      />
       <text
-        y={-3}
-        className="alumni-badge-title"
-        fill={isSelected ? '#fff' : '#1f2937'}
+        y={0}
+        fill={isSelected ? region.color : '#4b5563'}
         textAnchor="middle"
-        fontSize="13"
-        fontWeight="bold"
+        fontSize="14"
+        fontWeight="800"
+        style={{ textShadow: '0 2px 4px rgba(255,255,255,0.8), 0 0 2px rgba(255,255,255,1)' }}
       >
-        {region.label}
-      </text>
-      <text
-        y={12}
-        className="alumni-badge-count"
-        fill={isSelected ? 'rgba(255,255,255,0.9)' : '#64748b'}
-        textAnchor="middle"
-        fontSize="11"
-        fontWeight="bold"
-      >
-        {textCount}
+        {region.label} {region.contacts.length}人
       </text>
     </g>
   );
