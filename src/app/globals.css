@@ -1340,7 +1340,7 @@ textarea:hover,
   grid-template-columns: minmax(0, 1fr) minmax(330px, 380px);
   align-items: stretch;
   gap: 20px;
-  --alumni-map-stage-height: clamp(690px, calc(100vh - 235px), 780px);
+  --alumni-map-stage-height: clamp(480px, calc(100vh - 255px), 620px);
 }
 
 .alumni-map-main {
@@ -2309,11 +2309,11 @@ textarea:hover,
   .alumni-map-content-grid {
     grid-template-columns: minmax(0, 1fr) minmax(290px, 330px);
     gap: 14px;
-    --alumni-map-stage-height: clamp(620px, 58vw, 700px);
+    --alumni-map-stage-height: clamp(420px, 48vw, 540px);
   }
 
   .alumni-map-stage {
-    min-height: 500px;
+    min-height: 420px;
   }
 
   .alumni-card-facts {
@@ -2412,8 +2412,8 @@ textarea:hover,
   }
 
   .alumni-map-stage {
-    height: 430px;
-    min-height: 430px;
+    height: 360px;
+    min-height: 360px;
     border-radius: 16px;
   }
 

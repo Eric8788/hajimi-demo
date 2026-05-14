@@ -17,7 +17,7 @@ import {
   type AlumniRegionId,
 } from '@/data/alumni';
 
-const WORLD_VIEW_BOX = { x: 0, y: 190, width: 905, height: 410 };
+const WORLD_VIEW_BOX = { x: 0, y: 230, width: 905, height: 340 };
 const MAP_PAN_BOUNDS = WORLD_VIEW_BOX;
 const VIEWBOX_ANIMATION_MS = 460;
 // mapPoint values are hand-calibrated in the same SVG coordinate space as the
@@ -466,19 +466,6 @@ export default function AlumniWorldMap() {
     const stage = stageRef.current;
     if (!stage) return;
 
-    const handleStageWheel = (event: globalThis.WheelEvent) => {
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-      event.stopPropagation();
-      const bounds = stage.getBoundingClientRect();
-      const xRatio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
-      const yRatio = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
-      const factor = event.deltaY > 0 ? 1.18 : 0.84;
-
-      setManualViewBox(zoomViewBoxAt(animatedViewBoxRef.current, factor, { xRatio, yRatio }));
-    };
-
     const handleStageTouchMove = (event: globalThis.TouchEvent) => {
       if (event.cancelable) {
         event.preventDefault();
@@ -486,10 +473,8 @@ export default function AlumniWorldMap() {
       event.stopPropagation();
     };
 
-    stage.addEventListener('wheel', handleStageWheel, { passive: false });
     stage.addEventListener('touchmove', handleStageTouchMove, { passive: false });
     return () => {
-      stage.removeEventListener('wheel', handleStageWheel);
       stage.removeEventListener('touchmove', handleStageTouchMove);
     };
   }, []);
