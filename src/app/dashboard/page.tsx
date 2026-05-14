@@ -1,5 +1,5 @@
 import { getSession } from '@/lib/auth';
-import { getUserById } from '@/lib/db';
+import { getUserById, type User } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Shell from '@/components/Shell';
 import CheckInButton from '@/components/CheckInButton';
@@ -8,16 +8,37 @@ import TarotGame from '@/components/TarotGame';
 import { getPosts } from '@/lib/db';
 import LeaderboardWidget from '@/components/LeaderboardWidget';
 import Avatar from '@/components/Avatar';
-import AlumniWorldMap from '@/components/AlumniWorldMap';
+
+function getDevDashboardUser(userId: number): User {
+  return {
+    id: userId,
+    username: 'Local Tester',
+    points: 0,
+    level: 1,
+    role: 'student',
+    avatar: '😊',
+    streak_count: 0,
+    daily_likes_count: 0,
+    created_at: new Date().toISOString(),
+  };
+}
 
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const user = await getUserById(Number(session.userId));
+  const user = await getUserById(Number(session.userId)).catch((error) => {
+    if (process.env.NODE_ENV === 'production') throw error;
+    console.warn('Dashboard user unavailable in dev, using local fallback:', error);
+    return getDevDashboardUser(Number(session.userId));
+  });
   if (!user) redirect('/login');
 
-  const latestPosts = await getPosts('time');
+  const latestPosts = await getPosts('time').catch((error) => {
+    if (process.env.NODE_ENV === 'production') throw error;
+    console.warn('Dashboard posts unavailable:', error);
+    return [];
+  });
   const recentTwo = latestPosts.slice(0, 2);
 
   return (
@@ -73,8 +94,6 @@ export default async function DashboardPage() {
             </Link>
           </div>
         </div>
-
-        <AlumniWorldMap />
 
         <div className="dashboard-grid">
 

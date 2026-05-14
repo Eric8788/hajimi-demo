@@ -1,401 +1,1098 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
 import AlumniMapSVG from './AlumniMapSVG';
 import {
   ALUMNI_REGIONS,
-  DEFAULT_ALUMNI_REGION_ID,
+  type AlumniContact,
   type AlumniRegion,
   type AlumniRegionId,
-  type AlumniContact,
 } from '@/data/alumni';
 
-function isSelectKey(event: KeyboardEvent<SVGElement | HTMLElement>) {
-  return event.key === 'Enter' || event.key === ' ';
+const WORLD_VIEW_BOX = { x: 0, y: 190, width: 905, height: 410 };
+const MAP_PAN_BOUNDS = WORLD_VIEW_BOX;
+const VIEWBOX_ANIMATION_MS = 460;
+// mapPoint values are hand-calibrated in the same SVG coordinate space as the
+// base map. Lat/lng stay in the data for geography, but drawing uses mapPoint.
+const MIN_ZOOM_VIEW_BOX = { width: 28, height: 18 };
+const WORLD_SCHOOL_DOT_VIEWBOX_WIDTH = 620;
+const WORLD_REGION_IDS: AlumniRegionId[] = [
+  'united-states',
+  'canada',
+  'united-kingdom',
+  'europe',
+  'hong-kong',
+  'australia',
+];
+const REGION_FOCUS_RULES: Partial<Record<AlumniRegionId, {
+  minWidth: number;
+  minHeight: number;
+  paddingX: number;
+  paddingY: number;
+  viewBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  offsetX?: number;
+  offsetY?: number;
+}>> = {
+  'united-states': { minWidth: 205, minHeight: 112, paddingX: 24, paddingY: 22 },
+  canada: {
+    minWidth: 210,
+    minHeight: 140,
+    paddingX: 28,
+    paddingY: 22,
+    viewBox: { x: 76, y: 210, width: 285, height: 175 },
+  },
+  'united-kingdom': { minWidth: 94, minHeight: 70, paddingX: 18, paddingY: 18, offsetY: -8 },
+  'hong-kong': {
+    minWidth: 70,
+    minHeight: 36,
+    paddingX: 12,
+    paddingY: 10,
+    viewBox: { x: 762, y: 388, width: 44, height: 28 },
+  },
+  australia: {
+    minWidth: 165,
+    minHeight: 125,
+    paddingX: 30,
+    paddingY: 24,
+    viewBox: { x: 748, y: 468, width: 157, height: 132 },
+  },
+};
+
+type AlumniMapPoint = {
+  id: string;
+  regionId: AlumniRegionId;
+  contact: AlumniContact;
+  contacts: AlumniContact[];
+  anchorX: number;
+  anchorY: number;
+  x: number;
+  y: number;
+  labelDx: number;
+  labelDy: number;
+};
+
+type MapViewBox = typeof WORLD_VIEW_BOX;
+type DragState = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startViewBox: MapViewBox;
+  moved: boolean;
+};
+
+function formatViewBox(viewBox: MapViewBox) {
+  return `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
+}
+
+function isSameViewBox(a: MapViewBox, b: MapViewBox) {
+  return (
+    Math.abs(a.x - b.x) < 0.5 &&
+    Math.abs(a.y - b.y) < 0.5 &&
+    Math.abs(a.width - b.width) < 0.5 &&
+    Math.abs(a.height - b.height) < 0.5
+  );
+}
+
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function clampViewBox(viewBox: MapViewBox): MapViewBox {
+  const width = Math.min(Math.max(viewBox.width, MIN_ZOOM_VIEW_BOX.width), MAP_PAN_BOUNDS.width);
+  const height = Math.min(Math.max(viewBox.height, MIN_ZOOM_VIEW_BOX.height), MAP_PAN_BOUNDS.height);
+  const maxX = MAP_PAN_BOUNDS.x + MAP_PAN_BOUNDS.width - width;
+  const maxY = MAP_PAN_BOUNDS.y + MAP_PAN_BOUNDS.height - height;
+
+  return {
+    x: Math.min(Math.max(viewBox.x, MAP_PAN_BOUNDS.x), maxX),
+    y: Math.min(Math.max(viewBox.y, MAP_PAN_BOUNDS.y), maxY),
+    width,
+    height,
+  };
+}
+
+function zoomViewBoxAt(
+  viewBox: MapViewBox,
+  factor: number,
+  anchor: { xRatio: number; yRatio: number } = { xRatio: 0.5, yRatio: 0.5 },
+): MapViewBox {
+  const nextWidth = viewBox.width * factor;
+  const nextHeight = viewBox.height * factor;
+  const anchorX = viewBox.x + viewBox.width * anchor.xRatio;
+  const anchorY = viewBox.y + viewBox.height * anchor.yRatio;
+
+  return clampViewBox({
+    x: anchorX - nextWidth * anchor.xRatio,
+    y: anchorY - nextHeight * anchor.yRatio,
+    width: nextWidth,
+    height: nextHeight,
+  });
+}
+
+function isMapInteractiveTarget(target: EventTarget | null) {
+  const element = target instanceof Element ? target : null;
+  return Boolean(element?.closest('.alumni-city-pin, .alumni-map-zoom-controls, button, a, input'));
+}
+
+function buildWorldRegions() {
+  const regionsById = new Map(ALUMNI_REGIONS.map((region) => [region.id, region]));
+
+  return WORLD_REGION_IDS
+    .map((regionId) => regionsById.get(regionId) ?? null)
+    .filter((region): region is AlumniRegion => Boolean(region && region.contacts.length > 0));
+}
+
+function getContactMapPoint(contact: AlumniContact) {
+  return contact.mapPoint;
+}
+
+function getRegionFocusViewBox(region: AlumniRegion): MapViewBox {
+  if (region.contacts.length === 0) {
+    return region.fallbackViewBox;
+  }
+
+  const projectedContacts = region.contacts.map(getContactMapPoint);
+  const minX = Math.min(...projectedContacts.map((point) => point.x));
+  const maxX = Math.max(...projectedContacts.map((point) => point.x));
+  const minY = Math.min(...projectedContacts.map((point) => point.y));
+  const maxY = Math.max(...projectedContacts.map((point) => point.y));
+  const rule = REGION_FOCUS_RULES[region.id] ?? {
+    minWidth: region.fallbackViewBox.width,
+    minHeight: region.fallbackViewBox.height,
+    paddingX: 24,
+    paddingY: 20,
+  };
+
+  if (rule.viewBox) {
+    return clampViewBox(rule.viewBox);
+  }
+
+  const width = Math.max(rule.minWidth, maxX - minX + rule.paddingX * 2);
+  const height = Math.max(rule.minHeight, maxY - minY + rule.paddingY * 2);
+  const centerX = (minX + maxX) / 2 + (rule.offsetX ?? 0);
+  const centerY = (minY + maxY) / 2 + (rule.offsetY ?? 0);
+
+  return clampViewBox({
+    x: centerX - width / 2,
+    y: centerY - height / 2,
+    width,
+    height,
+  });
+}
+
+function getTargetViewBox(region: AlumniRegion | null): MapViewBox {
+  return region ? getRegionFocusViewBox(region) : WORLD_VIEW_BOX;
+}
+
+function getRegionClusterPoint(region: AlumniRegion) {
+  if (region.pin) return { x: region.pin.x, y: region.pin.y };
+  if (region.labelPoint) return region.labelPoint;
+  if (region.contacts.length === 0) return null;
+
+  const projectedContacts = region.contacts.map(getContactMapPoint);
+  const x = projectedContacts.reduce((sum, point) => sum + point.x, 0) / projectedContacts.length;
+  const y = projectedContacts.reduce((sum, point) => sum + point.y, 0) / projectedContacts.length;
+
+  return { x, y };
+}
+
+function getSchoolPoints(
+  contacts: AlumniContact[],
+  selectedAlumniId: string | null,
+  regionId: AlumniRegionId,
+): AlumniMapPoint[] {
+  const groups = new Map<string, AlumniContact[]>();
+
+  contacts.forEach((contact) => {
+    const key = `${contact.university}-${contact.campus}`;
+    groups.set(key, [...(groups.get(key) ?? []), contact]);
+  });
+
+  const points = Array.from(groups.entries()).map(([id, group], index) => {
+    const anchor = group[0];
+    const selectedContact = group.find((contact) => contact.alumniId === selectedAlumniId) ?? anchor;
+    const projectedPoint = getContactMapPoint(anchor);
+
+    return {
+      id,
+      regionId,
+      contact: selectedContact,
+      contacts: group,
+      anchorX: projectedPoint.x,
+      anchorY: projectedPoint.y,
+      x: projectedPoint.x,
+      y: projectedPoint.y,
+      labelDx: anchor.mapPoint.labelDx ?? (index % 2 === 0 ? 14 : -46),
+      labelDy: anchor.mapPoint.labelDy ?? -14,
+    };
+  });
+
+  return points;
 }
 
 export default function AlumniWorldMap() {
-  const [selectedId, setSelectedId] = useState<AlumniRegionId>(DEFAULT_ALUMNI_REGION_ID);
-  const [hoveredId, setHoveredId] = useState<AlumniRegionId | null>(null);
+  const worldRegions = useMemo(() => buildWorldRegions(), []);
+  const worldRegionById = useMemo(
+    () => new Map(worldRegions.map((region) => [region.id, region])),
+    [worldRegions],
+  );
+  const [selectedRegionId, setSelectedRegionId] = useState<AlumniRegionId | null>(null);
+  const [hoveredRegionId, setHoveredRegionId] = useState<AlumniRegionId | null>(null);
   const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
+  const [animatedViewBox, setAnimatedViewBox] = useState<MapViewBox>(WORLD_VIEW_BOX);
+  const [isDraggingMap, setIsDraggingMap] = useState(false);
+  const previousViewBoxRef = useRef<MapViewBox>(WORLD_VIEW_BOX);
+  const animatedViewBoxRef = useRef<MapViewBox>(WORLD_VIEW_BOX);
+  const dragStateRef = useRef<DragState | null>(null);
+  const suppressNextStageClickRef = useRef(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const selectedRegion = useMemo(
-    () => ALUMNI_REGIONS.find((region) => region.id === selectedId) ?? ALUMNI_REGIONS[0],
-    [selectedId],
+    () => worldRegions.find((region) => region.id === selectedRegionId) ?? null,
+    [selectedRegionId, worldRegions],
   );
 
-  const activeRegionId = hoveredId ?? selectedId;
+  const selectedAlumni = useMemo(() => {
+    if (!selectedRegion) return null;
+    return selectedRegion.contacts.find((contact) => contact.alumniId === selectedAlumniId) ?? null;
+  }, [selectedAlumniId, selectedRegion]);
 
-  const totalContacts = ALUMNI_REGIONS.reduce((sum, region) => sum + region.contacts.length, 0);
+  const currentPoints = useMemo(() => {
+    if (!selectedRegion) return [];
+    return getSchoolPoints(selectedRegion.contacts, selectedAlumniId, selectedRegion.id);
+  }, [selectedAlumniId, selectedRegion]);
 
-  // Reset selected alumni when region changes
-  useMemo(() => {
-    setSelectedAlumniId(null);
-  }, [selectedId]);
+  const worldSchoolPoints = useMemo(
+    () => worldRegions.flatMap((region) => getSchoolPoints(region.contacts, selectedAlumniId, region.id)),
+    [selectedAlumniId, worldRegions],
+  );
 
-  // Calculate unique schools and locations for the selected region
-  const selectedStats = useMemo(() => {
-    const schools = new Set(selectedRegion.contacts.map((c) => c.university));
-    const cities = new Set(selectedRegion.contacts.map((c) => c.city));
-    return {
-      schoolCount: schools.size,
-      locationCount: cities.size,
-      locationList: Array.from(cities).join(', '),
+  const selectedPoint = useMemo(() => {
+    if (!selectedAlumni) return null;
+    return currentPoints.find((point) =>
+      point.contacts.some((contact) => contact.alumniId === selectedAlumni.alumniId),
+    ) ?? null;
+  }, [currentPoints, selectedAlumni]);
+
+  const totalContacts = worldRegions.reduce((sum, region) => sum + region.contacts.length, 0);
+  const totalSchools = getUniqueCountFromContacts(
+    worldRegions.flatMap((region) => region.contacts),
+    'university',
+  );
+  const totalCities = getUniqueCountFromContacts(
+    worldRegions.flatMap((region) => region.contacts),
+    'city',
+  );
+  const isWorldAtHome = !selectedRegion && isSameViewBox(animatedViewBox, WORLD_VIEW_BOX);
+  const isWorldExploring = !selectedRegion && !isWorldAtHome;
+  const shouldShowWorldSchoolDots = !selectedRegion && animatedViewBox.width <= WORLD_SCHOOL_DOT_VIEWBOX_WIDTH;
+
+  useEffect(() => {
+    const from = previousViewBoxRef.current;
+    const to = getTargetViewBox(selectedRegion);
+    const startedAt = performance.now();
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / VIEWBOX_ANIMATION_MS);
+      const eased = easeInOutCubic(progress);
+      const next = {
+        x: from.x + (to.x - from.x) * eased,
+        y: from.y + (to.y - from.y) * eased,
+        width: from.width + (to.width - from.width) * eased,
+        height: from.height + (to.height - from.height) * eased,
+      };
+
+      const normalizedNext = selectedRegion ? clampViewBox(next) : next;
+
+      setAnimatedViewBox(normalizedNext);
+      animatedViewBoxRef.current = normalizedNext;
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(tick);
+      } else {
+        previousViewBoxRef.current = normalizedNext;
+      }
     };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
   }, [selectedRegion]);
 
-  const areaRegions = ALUMNI_REGIONS.filter((region) => region.shapePath && region.contacts.length > 0);
-  const pinRegions = ALUMNI_REGIONS.filter((region) => region.pin && region.contacts.length > 0);
-
-  const selectRegion = (regionId: AlumniRegionId) => {
-    setSelectedId(regionId);
+  const selectRegion = (region: AlumniRegion) => {
+    setSelectedRegionId(region.id);
     setSelectedAlumniId(null);
   };
 
-  const handleKeyboardSelect = (event: KeyboardEvent<SVGElement>, regionId: AlumniRegionId) => {
-    if (!isSelectKey(event)) return;
+  const selectWorldSchoolPoint = (point: AlumniMapPoint) => {
+    setSelectedRegionId(point.regionId);
+    setSelectedAlumniId(point.contact.alumniId);
+  };
+
+  const resetWorld = () => {
+    if (!selectedRegionId) {
+      setManualViewBox(WORLD_VIEW_BOX);
+    }
+    setSelectedRegionId(null);
+    setHoveredRegionId(null);
+    setSelectedAlumniId(null);
+  };
+
+  const findRegionFromTarget = (target: EventTarget | null) => {
+    const element = target instanceof Element ? target : null;
+    const regionId = element?.closest('[data-region]')?.getAttribute('data-region') as AlumniRegionId | null;
+
+    return regionId ? worldRegionById.get(regionId) ?? null : null;
+  };
+
+  const setManualViewBox = (nextViewBox: MapViewBox) => {
+    const normalizedViewBox = clampViewBox(nextViewBox);
+    setAnimatedViewBox(normalizedViewBox);
+    animatedViewBoxRef.current = normalizedViewBox;
+    previousViewBoxRef.current = normalizedViewBox;
+  };
+
+  const zoomIn = () => {
+    setManualViewBox(zoomViewBoxAt(animatedViewBoxRef.current, 0.82));
+  };
+
+  const zoomOut = () => {
+    setManualViewBox(zoomViewBoxAt(animatedViewBoxRef.current, 1.18));
+  };
+
+  const fitSelectedRegion = () => {
+    setManualViewBox(getTargetViewBox(selectedRegion));
+  };
+
+  const handleStageClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (suppressNextStageClickRef.current) {
+      suppressNextStageClickRef.current = false;
+      return;
+    }
+
+    const target = event.target as Element;
+    if (isMapInteractiveTarget(target)) return;
+
+    const clickedRegion = findRegionFromTarget(target);
+    if (clickedRegion) {
+      selectRegion(clickedRegion);
+      return;
+    }
+
+    if (!selectedRegion) {
+      return;
+    }
+
+    resetWorld();
+  };
+
+  const handleMapSvgClick = (event: MouseEvent<SVGSVGElement>) => {
+    const clickedRegion = findRegionFromTarget(event.target);
+    if (!clickedRegion) return;
+
+    event.stopPropagation();
+    selectRegion(clickedRegion);
+  };
+
+  const handleMapSvgPointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const hoveredRegion = findRegionFromTarget(event.target);
+    setHoveredRegionId(hoveredRegion?.id ?? null);
+  };
+
+  const handleStagePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!selectedRegion && isWorldAtHome) return;
+
+    const target = event.target as Element;
+    if (isMapInteractiveTarget(target)) return;
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startViewBox: animatedViewBox,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleStagePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - dragState.startClientX;
+    const deltaY = event.clientY - dragState.startClientY;
+    if (!dragState.moved && Math.hypot(deltaX, deltaY) < 4) return;
+
+    dragState.moved = true;
+    setIsDraggingMap(true);
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const nextViewBox = clampViewBox({
+      ...dragState.startViewBox,
+      x: dragState.startViewBox.x - (deltaX / bounds.width) * dragState.startViewBox.width,
+      y: dragState.startViewBox.y - (deltaY / bounds.height) * dragState.startViewBox.height,
+    });
+
+    setAnimatedViewBox(nextViewBox);
+    animatedViewBoxRef.current = nextViewBox;
+    previousViewBoxRef.current = nextViewBox;
+  };
+
+  const handleStagePointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    if (dragState.moved) {
+      suppressNextStageClickRef.current = true;
+    }
+    dragStateRef.current = null;
+    setIsDraggingMap(false);
+  };
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const handleStageWheel = (event: globalThis.WheelEvent) => {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      event.stopPropagation();
+      const bounds = stage.getBoundingClientRect();
+      const xRatio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+      const yRatio = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+      const factor = event.deltaY > 0 ? 1.18 : 0.84;
+
+      setManualViewBox(zoomViewBoxAt(animatedViewBoxRef.current, factor, { xRatio, yRatio }));
+    };
+
+    const handleStageTouchMove = (event: globalThis.TouchEvent) => {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      event.stopPropagation();
+    };
+
+    stage.addEventListener('wheel', handleStageWheel, { passive: false });
+    stage.addEventListener('touchmove', handleStageTouchMove, { passive: false });
+    return () => {
+      stage.removeEventListener('wheel', handleStageWheel);
+      stage.removeEventListener('touchmove', handleStageTouchMove);
+    };
+  }, []);
+
+  const handleStagePointerMoveWithinMap = (event: PointerEvent<HTMLDivElement>) => {
+    if (isMapInteractiveTarget(event.target)) return;
+
     event.preventDefault();
-    selectRegion(regionId);
+    event.stopPropagation();
+
+    if (!dragStateRef.current) {
+      const hoveredRegion = findRegionFromTarget(event.target);
+      setHoveredRegionId(hoveredRegion?.id ?? null);
+    }
+
+    handleStagePointerMove(event);
   };
 
-  const handleHover = (regionId: AlumniRegionId | null) => {
-    setHoveredId(regionId);
-  };
-
-  const selectedAlumni = selectedRegion.contacts.find((c) => c.alumniId === selectedAlumniId);
+  const regionClass = selectedRegionId ? ` active-region-${selectedRegionId}` : '';
+  const hoveredClass = hoveredRegionId ? ` hovered-region-${hoveredRegionId}` : '';
+  const availableRegionClass = worldRegions.map((region) => ` has-region-${region.id}`).join('');
+  const draggingClass = isDraggingMap ? ' is-dragging' : '';
+  const exploringClass = isWorldExploring ? ' is-map-exploring' : '';
+  const worldDotsClass = shouldShowWorldSchoolDots ? ' show-world-school-dots' : '';
 
   return (
     <section className="glass-card full-width alumni-map-panel" aria-labelledby="alumni-map-title">
       <div className="alumni-map-header">
         <div>
-          <div className="alumni-map-kicker">AI Club Network</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <h3 id="alumni-map-title" style={{ margin: 0 }}>校友世界地图</h3>
-            <span className="alumni-total-pill" aria-label={`当前已登记 ${totalContacts} 位联系人`}>
-              共 {totalContacts} 位学长学姐
+          <div className="alumni-map-title-row">
+            <h3 id="alumni-map-title">学长学姐在哪里</h3>
+          </div>
+          <p><strong>AI Club Network</strong> · 探索全球校友分布，连接校友资源</p>
+        </div>
+        <div className="alumni-map-actions">
+          <button type="button" className="alumni-map-share-button">
+            分享地图
+          </button>
+          <div className="alumni-map-total" aria-label={`已登记校友 ${totalContacts} 位`}>
+            <span className="alumni-map-avatar-stack" aria-hidden="true">
+              {worldRegions.flatMap((region) => region.contacts).slice(0, 3).map((contact) => (
+                <i key={contact.alumniId}>{getInitial(contact)}</i>
+              ))}
             </span>
+            <span>已登记校友</span>
+            <strong>{totalContacts} 位</strong>
           </div>
         </div>
       </div>
 
-      <div className="alumni-map-layout">
-        <div className="alumni-map-main">
-          <div
-            className={`alumni-map-stage active-region-${selectedId} ${hoveredId ? `hovered-region-${hoveredId}` : ''}`}
-            onClick={(e) => {
-              const target = e.target as SVGElement;
-              const region = target.getAttribute('data-region') as AlumniRegionId | null;
-              if (region) {
-                selectRegion(region);
-              }
-            }}
-            onMouseMove={(e) => {
-              const target = e.target as SVGElement;
-              const region = target.getAttribute('data-region') as AlumniRegionId | null;
-              if (region !== hoveredId) {
-                setHoveredId(region);
-              }
-            }}
-            onMouseLeave={() => setHoveredId(null)}
-          >
-            <AlumniMapSVG className="alumni-map-base alumni-map-inline" />
-            <svg
-              className="alumni-map-overlay"
-              viewBox="0 0 2000 857"
-              role="img"
-              aria-label="AI Club 校友留学区域地图"
-              style={{ pointerEvents: 'none' }}
+      <div className={`alumni-map-shell${selectedRegion ? ' is-zoomed' : ' is-world'}`}>
+        <div className="alumni-map-content-grid">
+          <div className="alumni-map-main">
+            <div
+              ref={stageRef}
+              className={`alumni-map-stage${availableRegionClass}${regionClass}${hoveredClass}${draggingClass}${exploringClass}${worldDotsClass}`}
+              onClick={handleStageClick}
+              onPointerDown={handleStagePointerDown}
+              onPointerMove={handleStagePointerMoveWithinMap}
+              onPointerUp={handleStagePointerEnd}
+              onPointerCancel={handleStagePointerEnd}
+              onPointerLeave={() => setHoveredRegionId(null)}
             >
-              <defs>
-                <filter id="alumni-region-glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#6c5ce7" floodOpacity="0.25" />
-                </filter>
-                <filter id="alumni-pin-glow" x="-80%" y="-80%" width="260%" height="260%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#ffffff" floodOpacity="0.85" />
-                  <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="#6c5ce7" floodOpacity="0.28" />
-                </filter>
-              </defs>
+              <AlumniMapSVG
+                className="alumni-map-base alumni-map-inline"
+                viewBox={formatViewBox(animatedViewBox)}
+                onClick={handleMapSvgClick}
+                onPointerMove={handleMapSvgPointerMove}
+                onPointerLeave={() => setHoveredRegionId(null)}
+              />
 
-              {areaRegions.map((region) => {
-                const isActive = region.id === activeRegionId;
-                return (
-                  <g key={region.id} className="alumni-map-region-group">
-                    <path
-                      d={region.shapePath}
-                      className={`alumni-map-region-surface${isActive ? ' is-active' : ''}`}
-                      data-region={region.id}
-                      onClick={() => selectRegion(region.id)}
-                    />
-                  </g>
-                );
-              })}
+              <svg className="alumni-map-overlay" viewBox={formatViewBox(animatedViewBox)} aria-label="校友地图点位">
+                {!selectedRegion && (
+                  <>
+                    <g>
+                      {worldRegions.map((region) => (
+                        <RegionCluster
+                          key={region.id}
+                          region={region}
+                          isHovered={hoveredRegionId === region.id}
+                          onSelect={() => selectRegion(region)}
+                          onHover={setHoveredRegionId}
+                          viewBoxWidth={animatedViewBox.width}
+                        />
+                      ))}
+                    </g>
+                    <g className="alumni-world-school-points" aria-hidden={!shouldShowWorldSchoolDots}>
+                      {worldSchoolPoints.map((point) => {
+                        const region = worldRegionById.get(point.regionId);
+                        if (!region) return null;
 
-              {pinRegions.map((region) => (
-                <AlumniMapPin
-                  key={region.id}
-                  region={region}
-                  isSelected={region.id === selectedId}
-                  onSelect={selectRegion}
-                  onKeyboardSelect={handleKeyboardSelect}
-                  onHover={handleHover}
-                />
-              ))}
-
-              {/* Render Map Badges for regions with contacts */}
-              {ALUMNI_REGIONS.filter((r) => r.contacts.length > 0).map((region) => (
-                <RegionBadge
-                  key={`badge-${region.id}`}
-                  region={region}
-                  isSelected={region.id === selectedId}
-                  isHovered={region.id === hoveredId}
-                  onSelect={() => selectRegion(region.id)}
-                  onHover={() => handleHover(region.id)}
-                />
-              ))}
-            </svg>
-          </div>
-
-          <div className="alumni-region-strip" aria-label="校友区域列表">
-            {ALUMNI_REGIONS.filter((r) => r.contacts.length > 0).map((region) => (
-              <button
-                key={region.id}
-                type="button"
-                className={`alumni-region-chip${region.id === selectedId ? ' is-selected' : ''}${
-                  region.id === hoveredId ? ' is-hovered' : ''
-                }`}
-                style={{ '--alumni-region-color': region.color } as CSSProperties}
-                onClick={() => selectRegion(region.id)}
-                onMouseEnter={() => setHoveredId(region.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                aria-pressed={region.id === selectedId}
-              >
-                <span>{region.label}</span>
-                <small>{region.contacts.length} 位</small>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <aside className="alumni-map-detail" aria-live="polite">
-          {selectedAlumni ? (
-            /* =========================================
-               DETAIL VIEW: Individual Alumni Profile
-               ========================================= */
-            <div className="alumni-profile-view">
-              <button
-                className="alumni-back-btn"
-                onClick={() => setSelectedAlumniId(null)}
-                aria-label="返回列表"
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 18 9 12 15 6"></polyline>
-                </svg>
-                返回区域列表
-              </button>
-
-              <div className="alumni-profile-header">
-                <div className="alumni-profile-avatar" style={{ '--accent': selectedRegion.color } as CSSProperties}>
-                  {selectedAlumni.name.charAt(0)}
-                </div>
-                <div className="alumni-profile-title">
-                  <h2>{selectedAlumni.name}</h2>
-                  <span className="alumni-grad-year">{selectedAlumni.graduationYear} 届</span>
-                </div>
-              </div>
-
-              <div className="alumni-profile-content">
-                <div className="alumni-info-group">
-                  <dt>录取院校</dt>
-                  <dd>
-                    <strong>{selectedAlumni.university}</strong>
-                    <span className="info-subtext">({selectedAlumni.universityAbbr})</span>
-                  </dd>
-                </div>
-                <div className="alumni-info-group">
-                  <dt>专业</dt>
-                  <dd>{selectedAlumni.major}</dd>
-                </div>
-                <div className="alumni-info-group">
-                  <dt>位置与校区</dt>
-                  <dd>
-                    {selectedAlumni.city}, {selectedAlumni.state ? `${selectedAlumni.state}, ` : ''}{selectedAlumni.country}
-                    <br />
-                    <span className="info-subtext">{selectedAlumni.campus}</span>
-                  </dd>
-                </div>
-                {selectedAlumni.rankType && selectedAlumni.rankValue && (
-                  <div className="alumni-info-group">
-                    <dt>院校排名</dt>
-                    <dd className="alumni-rank-badge">
-                      <span className="rank-type">{selectedAlumni.rankType}</span>
-                      <span className="rank-value">Top {selectedAlumni.rankValue}</span>
-                    </dd>
-                  </div>
+                        return (
+                          <AlumniPoint
+                            key={point.id}
+                            point={point}
+                            region={region}
+                            isSelected={point.contacts.some((contact) => contact.alumniId === selectedAlumniId)}
+                            onSelect={() => selectWorldSchoolPoint(point)}
+                            viewBoxWidth={animatedViewBox.width}
+                            showLabelOnVisible
+                          />
+                        );
+                      })}
+                    </g>
+                  </>
                 )}
-                
-                <div className="alumni-contact-callout">
-                  <p>如需获取更多联系方式，请咨询社团指导老师。</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* =========================================
-               LIST VIEW: Region Overview & Compact List
-               ========================================= */
-            <div className="alumni-list-view">
-              <div className="alumni-detail-heading">
-                <span
-                  className="alumni-detail-dot"
-                  style={{ background: selectedRegion.color }}
-                  aria-hidden="true"
-                />
-                <div>
-                  <h4>{selectedRegion.label}</h4>
-                  <p>{selectedRegion.summary}</p>
-                </div>
-              </div>
-
-              <div className="alumni-detail-stats">
-                <div className="alumni-stat-item">
-                  <label>涵盖学校</label>
-                  <strong>{selectedStats.schoolCount}</strong>
-                </div>
-                <div className="alumni-stat-item">
-                  <label>分布城市</label>
-                  <strong title={selectedStats.locationList}>{selectedStats.locationCount}</strong>
-                </div>
-              </div>
-
-              <div className="alumni-contact-section">
-                <div className="alumni-contact-head">
-                  <span>学长学姐在这里 ({selectedRegion.contacts.length})</span>
-                </div>
-
-                {selectedRegion.contacts.length > 0 ? (
-                  <ul className="alumni-compact-list">
-                    {selectedRegion.contacts.map((contact) => (
-                      <li key={contact.alumniId}>
-                        <button
-                          className="alumni-compact-card"
-                          onClick={() => setSelectedAlumniId(contact.alumniId)}
-                          style={{ '--accent': selectedRegion.color } as CSSProperties}
-                        >
-                          <div className="alumni-compact-avatar">
-                            {contact.name.charAt(0)}
-                          </div>
-                          <div className="alumni-compact-info">
-                            <h5>{contact.name}</h5>
-                            <span className="alumni-compact-school">{contact.universityAbbr} · {contact.major}</span>
-                          </div>
-                          <svg className="alumni-compact-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="9 18 15 12 9 6"></polyline>
-                          </svg>
-                        </button>
-                      </li>
+                {selectedRegion && (
+                  <g>
+                    {currentPoints.map((point) => (
+                      <AlumniPoint
+                        key={point.id}
+                        point={point}
+                        region={selectedRegion}
+                        isSelected={point.contacts.some((contact) => contact.alumniId === selectedAlumniId)}
+                        onSelect={() => setSelectedAlumniId(point.contact.alumniId)}
+                      />
                     ))}
-                  </ul>
-                ) : (
-                  <div className="alumni-empty-state">
-                    <p>该区域校友信息正在收集中...</p>
-                  </div>
+                  </g>
                 )}
+              </svg>
+
+              <div className="alumni-map-zoom-controls" aria-label="地图缩放控制">
+                <button type="button" className="alumni-map-zoom-button" onClick={zoomIn} aria-label="放大地图">
+                  +
+                </button>
+                <button type="button" className="alumni-map-zoom-button" onClick={zoomOut} aria-label="缩小地图">
+                  -
+                </button>
+                <button type="button" className="alumni-map-zoom-fit" onClick={fitSelectedRegion} disabled={!selectedRegion && isWorldAtHome}>
+                  适配
+                </button>
               </div>
+
+              {!selectedRegion && (
+                <div className="alumni-map-stat-strip" aria-label="校友地图统计">
+                  <MapStat icon="👥" label="全球校友" value={`${totalContacts}`} suffix="人" />
+                  <MapStat icon="🏙️" label="国家/地区" value={`${worldRegions.length}`} suffix="个" />
+                  <MapStat icon="🏫" label="学校" value={`${totalSchools}`} suffix="所" />
+                  <MapStat icon="📍" label="城市" value={`${totalCities}`} suffix="个" />
+                </div>
+              )}
             </div>
-          )}
-        </aside>
+          </div>
+
+          <AlumniInfoPanel
+            worldRegions={worldRegions}
+            selectedRegion={selectedRegion}
+            selectedAlumni={selectedAlumni}
+            relatedContacts={selectedPoint?.contacts ?? []}
+            onSelectRegion={selectRegion}
+            onHoverRegion={setHoveredRegionId}
+            onSelectContact={setSelectedAlumniId}
+            onBackToRegion={() => setSelectedAlumniId(null)}
+            onBackToWorld={resetWorld}
+          />
+        </div>
       </div>
     </section>
   );
 }
 
-// -------------------------------------------------------------
-// Component: Region Badge
-// Displays Name and Count directly on the SVG map
-// -------------------------------------------------------------
-type RegionBadgeProps = {
-  region: AlumniRegion;
-  isSelected: boolean;
-  isHovered: boolean;
-  onSelect: () => void;
-  onHover: () => void;
+type MapStatProps = {
+  icon: string;
+  label: string;
+  value: string;
+  suffix: string;
 };
 
-function RegionBadge({ region, isSelected }: RegionBadgeProps) {
-  const pt = region.labelPoint || (region.pin ? { x: region.pin.x, y: region.pin.y - 20 } : null);
-  if (!pt) return null;
-
-  const badgeY = region.pin ? pt.y - 30 : pt.y;
-
+function MapStat({ icon, label, value, suffix }: MapStatProps) {
   return (
-    <g transform={`translate(${pt.x}, ${badgeY})`}>
-      <text
-        y={-6}
-        fill={isSelected ? region.color : '#374151'}
-        textAnchor="middle"
-        fontSize="14"
-        fontWeight="800"
-        paintOrder="stroke"
-        stroke="rgba(255,255,255,0.9)"
-        strokeWidth="3"
-        strokeLinejoin="round"
-      >
-        {region.label}
-      </text>
-      <text
-        y={10}
-        fill={isSelected ? region.color : '#6b7280'}
-        textAnchor="middle"
-        fontSize="11"
-        fontWeight="700"
-        paintOrder="stroke"
-        stroke="rgba(255,255,255,0.9)"
-        strokeWidth="3"
-        strokeLinejoin="round"
-      >
-        {region.contacts.length}人
-      </text>
-    </g>
+    <div className="alumni-map-stat">
+      <span aria-hidden="true">{icon}</span>
+      <div>
+        <small>{label}</small>
+        <strong>{value}<em>{suffix}</em></strong>
+      </div>
+    </div>
   );
 }
 
-// -------------------------------------------------------------
-// Component: Pin
-// -------------------------------------------------------------
-type AlumniMapPinProps = {
+type RegionClusterProps = {
   region: AlumniRegion;
-  isSelected: boolean;
-  onSelect: (regionId: AlumniRegionId) => void;
-  onKeyboardSelect: (event: KeyboardEvent<SVGElement>, regionId: AlumniRegionId) => void;
+  isHovered: boolean;
+  onSelect: () => void;
   onHover: (regionId: AlumniRegionId | null) => void;
+  viewBoxWidth: number;
 };
 
-function AlumniMapPin({ region, isSelected, onSelect, onKeyboardSelect, onHover }: AlumniMapPinProps) {
-  if (!region.pin) return null;
+function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: RegionClusterProps) {
+  const point = getRegionClusterPoint(region);
+  if (!point) return null;
 
-  const { pin } = region;
+  const x = point.x;
+  const y = point.y;
+  const markerScale = Math.max(0.28, Math.min(1, viewBoxWidth / WORLD_VIEW_BOX.width));
+  const ringRadius = 34 * markerScale;
+  const coreRadius = 16 * markerScale;
+  const countOffsetY = 4 * markerScale;
+  const labelOffsetY = 55 * markerScale;
+  const countFontSize = 17 * markerScale;
+  const labelFontSize = 20 * markerScale;
 
   return (
     <g
-      className={`alumni-map-pin${isSelected ? ' is-selected' : ''}`}
+      className={`alumni-region-cluster${isHovered ? ' is-hovered' : ''}`}
       role="button"
       tabIndex={0}
-      aria-pressed={isSelected}
-      aria-label={`${region.label}校友区域`}
-      onClick={() => onSelect(region.id)}
-      onKeyDown={(event) => onKeyboardSelect(event, region.id)}
+      aria-label={`${region.label}，${region.contacts.length} 位校友`}
+      onClick={onSelect}
+      onMouseEnter={() => onHover(region.id)}
+      onMouseLeave={() => onHover(null)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
     >
-      <path
-        className="alumni-map-pin-line"
-        d={`M${pin.x} ${pin.y} C${pin.x + 28} ${pin.y - 8}, ${pin.labelX - 42} ${pin.labelY}, ${pin.labelX - 8} ${pin.labelY}`}
-      />
-      {/* 
-         Removed the old pin label rect/text since we are now using the universal RegionBadge.
-         Kept the line pointing from the pin to where the badge would be if needed, but it might be redundant.
-         Actually, let's keep the core and halo, and remove the line to keep it clean.
-      */}
-      <circle className="alumni-map-pin-halo" cx={pin.x} cy={pin.y} r="20" fill={region.fill} />
-      <circle className="alumni-map-pin-core" cx={pin.x} cy={pin.y} r="8" fill={region.color} />
+      <circle className="alumni-region-cluster-ring" cx={x} cy={y} r={ringRadius} fill={region.fill} stroke={region.color} />
+      <circle className="alumni-region-cluster-core" cx={x} cy={y} r={coreRadius} fill={region.color} />
+      <text
+        className="alumni-region-cluster-count"
+        x={x}
+        y={y + countOffsetY}
+        style={{ fontSize: `${countFontSize}px`, strokeWidth: `${1.2 * markerScale}px` }}
+      >
+        {region.contacts.length}
+      </text>
+      <text
+        className="alumni-region-cluster-label"
+        x={x}
+        y={y + labelOffsetY}
+        style={{ fontSize: `${labelFontSize}px`, strokeWidth: `${5 * markerScale}px` }}
+      >
+        {region.label}
+      </text>
     </g>
   );
 }
 
+type AlumniPointProps = {
+  point: AlumniMapPoint;
+  region: AlumniRegion;
+  isSelected: boolean;
+  onSelect: () => void;
+  viewBoxWidth?: number;
+  showLabelOnVisible?: boolean;
+};
+
+function AlumniPoint({
+  point,
+  region,
+  isSelected,
+  onSelect,
+  viewBoxWidth,
+  showLabelOnVisible = false,
+}: AlumniPointProps) {
+  const baseViewBoxWidth = viewBoxWidth ?? getRegionFocusViewBox(region).width;
+  const markerScale = Math.max(0.11, Math.min(0.24, baseViewBoxWidth / WORLD_VIEW_BOX.width));
+  const labelX = point.x + point.labelDx * markerScale;
+  const labelY = point.y + point.labelDy * markerScale;
+  const haloRadius = 20 * markerScale;
+  const ringRadius = 13 * markerScale;
+  const coreRadius = 7.4 * markerScale;
+  const hitRadius = Math.max(10 * markerScale, coreRadius + 2 * markerScale);
+  const labelFontSize = 13 * markerScale;
+  const labelStrokeWidth = 3.4 * markerScale;
+  const countFontSize = 9 * markerScale;
+  const countOffsetY = 2.8 * markerScale;
+
+  return (
+    <g
+      className={`alumni-city-pin${isSelected ? ' is-selected' : ''}${showLabelOnVisible ? ' show-label' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${point.contact.name}，${point.contact.university}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          onSelect();
+        }
+      }}
+    >
+      <circle className="alumni-city-pin-hit-area" cx={point.x} cy={point.y} r={hitRadius} fill="transparent" />
+      <circle className="alumni-city-pin-halo" cx={point.x} cy={point.y} r={haloRadius} fill="white" />
+      <circle className="alumni-city-pin-ring" cx={point.x} cy={point.y} r={ringRadius} fill="white" />
+      <circle className="alumni-city-pin-core" cx={point.x} cy={point.y} r={coreRadius} fill={region.color} />
+      {point.contacts.length > 1 && (
+        <text
+          className="alumni-city-pin-count"
+          x={point.x}
+          y={point.y + countOffsetY}
+          style={{ fontSize: `${countFontSize}px` }}
+        >
+          {point.contacts.length}
+        </text>
+      )}
+      <text
+        className="alumni-city-pin-label"
+        x={labelX}
+        y={labelY}
+        style={{ fontSize: `${labelFontSize}px`, strokeWidth: `${labelStrokeWidth}px` }}
+      >
+        {point.contact.universityAbbr}
+      </text>
+    </g>
+  );
+}
+
+type AlumniInfoPanelProps = {
+  worldRegions: AlumniRegion[];
+  selectedRegion: AlumniRegion | null;
+  selectedAlumni: AlumniContact | null;
+  relatedContacts: AlumniContact[];
+  onSelectRegion: (region: AlumniRegion) => void;
+  onHoverRegion: (regionId: AlumniRegionId | null) => void;
+  onSelectContact: (alumniId: string) => void;
+  onBackToRegion: () => void;
+  onBackToWorld: () => void;
+};
+
+function AlumniInfoPanel({
+  worldRegions,
+  selectedRegion,
+  selectedAlumni,
+  relatedContacts,
+  onSelectRegion,
+  onHoverRegion,
+  onSelectContact,
+  onBackToRegion,
+  onBackToWorld,
+}: AlumniInfoPanelProps) {
+  if (!selectedRegion) {
+    return (
+      <aside className="alumni-info-stack" aria-label="校友地图概览">
+        <section className="alumni-info-panel alumni-ranking-panel">
+          <div className="alumni-panel-title-row">
+            <h4>校友分布排行</h4>
+            <span>{worldRegions.length} 个地区</span>
+          </div>
+
+          <div className="alumni-country-list">
+            {worldRegions
+              .slice()
+              .sort((a, b) => b.contacts.length - a.contacts.length)
+              .map((region, index) => (
+                <button
+                  key={region.id}
+                  type="button"
+                  className="alumni-country-row"
+                  style={{ '--accent': region.color } as CSSProperties}
+                  onClick={() => onSelectRegion(region)}
+                  onMouseEnter={() => onHoverRegion(region.id)}
+                  onMouseLeave={() => onHoverRegion(null)}
+                >
+                  <span className="alumni-country-rank">{index + 1}</span>
+                  <span className="alumni-country-copy">
+                    <strong>{region.label}</strong>
+                    <small>{formatRegionMeta(region)}</small>
+                  </span>
+                  <span className="alumni-country-count" aria-label={`${region.contacts.length}`}>
+                    <strong>{region.contacts.length}</strong>
+                  </span>
+                </button>
+              ))}
+          </div>
+        </section>
+
+        <section className="alumni-info-panel alumni-hot-panel">
+          <div className="alumni-panel-title-row">
+            <h4>热门城市</h4>
+            <span>按人数排序</span>
+          </div>
+          <div className="alumni-hot-city-grid">
+            {getHotCities(worldRegions).map((city) => (
+              <button
+                key={city.name}
+                type="button"
+                className="alumni-hot-city"
+                style={{ '--accent': city.color } as CSSProperties}
+                onClick={() => onSelectRegion(city.region)}
+                onMouseEnter={() => onHoverRegion(city.region.id)}
+                onMouseLeave={() => onHoverRegion(null)}
+              >
+                <strong>{city.name}</strong>
+                <span>{city.count} 人</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      </aside>
+    );
+  }
+
+  const regionSchools = getUniqueCount(selectedRegion.contacts, 'university');
+  const regionCities = getUniqueCount(selectedRegion.contacts, 'city');
+
+  if (selectedAlumni) {
+    return (
+      <aside
+        className="alumni-info-panel is-detail"
+        style={{ '--accent': selectedRegion.color } as CSSProperties}
+        aria-label={`${selectedAlumni.name}校友详情`}
+      >
+        <button type="button" className="alumni-info-back" onClick={onBackToRegion}>
+          返回{selectedRegion.label}校友列表
+        </button>
+        <AlumniDetailCard
+          contact={selectedAlumni}
+          relatedContacts={relatedContacts}
+          onSelectContact={onSelectContact}
+        />
+      </aside>
+    );
+  }
+
+  return (
+    <aside
+      className="alumni-info-panel"
+      style={{ '--accent': selectedRegion.color } as CSSProperties}
+      aria-label={`${selectedRegion.label}校友信息`}
+    >
+      <div className="alumni-info-region-top">
+        <PanelHeader
+          eyebrow={selectedRegion.groupLabel}
+          title={`${selectedRegion.label}校友`}
+          description={selectedRegion.summary}
+        />
+        <button type="button" className="alumni-info-back" onClick={onBackToWorld}>
+          返回全球概览
+        </button>
+      </div>
+
+      <div className="alumni-region-summary-line">
+        <span>{selectedRegion.contacts.length} 位学长学姐 · {regionSchools} 所学校 · {regionCities} 个城市</span>
+      </div>
+
+      <div className="alumni-info-section-head">
+        <span>选择学长学姐</span>
+        <small>{selectedRegion.contacts.length} 位</small>
+      </div>
+
+      <div className="alumni-contact-list">
+        {selectedRegion.contacts.map((contact) => (
+          <button
+            key={contact.alumniId}
+            type="button"
+            className="alumni-contact-row"
+            onClick={() => onSelectContact(contact.alumniId)}
+          >
+            <span className="alumni-contact-mini-avatar" aria-hidden="true">
+              {getInitial(contact)}
+            </span>
+            <span className="alumni-contact-row-copy">
+              <strong>{contact.name}</strong>
+              <small>{contact.universityAbbr} · {contact.major}</small>
+              <em>{formatLocation(contact)}</em>
+            </span>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+type PanelHeaderProps = {
+  eyebrow: string;
+  title: string;
+  description: string;
+};
+
+function PanelHeader({ eyebrow, title, description }: PanelHeaderProps) {
+  return (
+    <div className="alumni-info-panel-head">
+      <span>{eyebrow}</span>
+      <h4>{title}</h4>
+      <p>{description}</p>
+    </div>
+  );
+}
+
+function getUniqueCount(contacts: AlumniContact[], field: 'university' | 'city' | 'state' | 'country') {
+  return new Set(contacts.map((contact) => contact[field]).filter(Boolean)).size;
+}
+
+function getUniqueCountFromContacts(contacts: AlumniContact[], field: 'university' | 'city' | 'state' | 'country') {
+  return getUniqueCount(contacts, field);
+}
+
+function getHotCities(worldRegions: AlumniRegion[]) {
+  const cities = new Map<string, { name: string; count: number; region: AlumniRegion; color: string; order: number }>();
+  let nextOrder = 0;
+
+  worldRegions.forEach((region) => {
+    region.contacts.forEach((contact) => {
+      const current = cities.get(contact.city);
+      if (current) {
+        current.count += 1;
+      } else {
+        cities.set(contact.city, {
+          name: contact.city,
+          count: 1,
+          region,
+          color: region.color,
+          order: nextOrder,
+        });
+        nextOrder += 1;
+      }
+    });
+  });
+
+  return Array.from(cities.values())
+    .sort((a, b) => b.count - a.count || a.order - b.order)
+    .slice(0, 6);
+}
+
+function formatRegionMeta(region: AlumniRegion) {
+  const schoolCount = getUniqueCount(region.contacts, 'university');
+  const cityCount = getUniqueCount(region.contacts, 'city');
+  const firstContact = region.contacts[0];
+
+  if (firstContact && schoolCount === 1) {
+    return `${firstContact.universityAbbr} · ${firstContact.city}`;
+  }
+
+  return `${schoolCount} 所学校 · ${cityCount} 个城市`;
+}
+
+function getInitial(contact: AlumniContact) {
+  return contact.name.charAt(0).toUpperCase();
+}
+
+function formatLocation(contact: AlumniContact) {
+  return `${contact.city}${contact.state ? ` · ${contact.state}` : ''}`;
+}
+
+type AlumniDetailCardProps = {
+  contact: AlumniContact;
+  relatedContacts: AlumniContact[];
+  onSelectContact: (alumniId: string) => void;
+};
+
+function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniDetailCardProps) {
+  return (
+    <article className="alumni-detail-card" aria-live="polite">
+      <div className="alumni-card-region-row">
+        <span>{contact.country}</span>
+        <strong>{contact.graduationYear} 届</strong>
+      </div>
+
+      <div className="alumni-card-head">
+        <div className="alumni-card-avatar" aria-hidden="true">
+          {getInitial(contact)}
+        </div>
+        <div>
+          <h4>{contact.name}</h4>
+          <p>{contact.universityAbbr} · {contact.major}</p>
+        </div>
+      </div>
+
+      {relatedContacts.length > 1 && (
+        <div className="alumni-card-switcher" aria-label={`${contact.university} 的校友`}>
+          {relatedContacts.map((relatedContact) => (
+            <button
+              key={relatedContact.alumniId}
+              type="button"
+              className={relatedContact.alumniId === contact.alumniId ? 'is-selected' : ''}
+              onClick={() => onSelectContact(relatedContact.alumniId)}
+            >
+              {relatedContact.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <dl className="alumni-card-facts">
+        <div>
+          <dt>学校</dt>
+          <dd>{contact.university}</dd>
+        </div>
+        <div>
+          <dt>位置</dt>
+          <dd>{formatLocation(contact)}</dd>
+        </div>
+        <div>
+          <dt>校区</dt>
+          <dd>{contact.campus}</dd>
+        </div>
+      </dl>
+
+      <div className="alumni-card-footer">
+        {contact.rankType && contact.rankValue ? (
+          <span className="alumni-rank-pill">{contact.rankType.replace('世界大学排名', '')} Top {contact.rankValue}</span>
+        ) : (
+          <span className="alumni-rank-pill is-muted">排名信息待补充</span>
+        )}
+        <span className="alumni-contact-pill">联系请咨询指导老师</span>
+      </div>
+    </article>
+  );
+}

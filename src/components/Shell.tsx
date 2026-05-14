@@ -15,6 +15,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
+        { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '💬', path: '/resources', label: 'Forum' },
         { icon: '🚀', path: '/functions', label: 'Hub' },
     ];
@@ -126,9 +127,11 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                 >
                     {children}
                 </motion.div>
-                <footer className="app-version-footer">
-                    {APP_VERSION_LABEL} · {APP_RELEASE_DATE}
-                </footer>
+                {pathname !== '/alumni-map' && (
+                    <footer className="app-version-footer">
+                        {APP_VERSION_LABEL} · {APP_RELEASE_DATE}
+                    </footer>
+                )}
             </div>
         </div>
     );

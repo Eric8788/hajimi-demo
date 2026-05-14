@@ -41,7 +41,7 @@ async function main() {
         const port = await findAvailablePort();
         console.log(`\n🚀 Starting development server on port ${port}...\n`);
 
-        const nextDev = spawn('npx', ['next', 'dev', '-H', HOSTNAME, '-p', port.toString()], {
+        const nextDev = spawn('npx', ['next', 'dev', '--webpack', '-H', HOSTNAME, '-p', port.toString()], {
             stdio: 'inherit',
             cwd: process.cwd(),
         });

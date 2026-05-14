@@ -2,32 +2,45 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import ParticleBackground from '@/components/ParticleBackground';
 
 export default function LoginPage() {
+    const router = useRouter();
     const [isRegister, setIsRegister] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
+        setIsSubmitting(true);
 
-        const res = await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, isRegister, inviteCode }),
-        });
+        try {
+            const res = await fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, isRegister, inviteCode }),
+            });
 
-        const data = await res.json();
+            const data = await res.json().catch(() => ({ error: 'Login failed. Please try again.' }));
 
-        if (res.ok) {
-            // Force hard refresh to ensure session state updates
-            window.location.href = '/';
-        } else {
-            setError(data.error);
+            if (res.ok) {
+                router.replace('/dashboard');
+                window.setTimeout(() => {
+                    window.location.assign('/dashboard');
+                }, 1200);
+                return;
+            }
+
+            setError(data.error || 'Login failed. Please try again.');
+            setIsSubmitting(false);
+        } catch {
+            setError('Network error. Please try again.');
+            setIsSubmitting(false);
         }
     };
 
@@ -103,8 +116,13 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    <button type="submit" className="btn btn-primary auth-submit" style={{ justifyContent: 'center' }}>
-                        {isRegister ? 'Create Account' : 'Sign In'}
+                    <button
+                        type="submit"
+                        className="btn btn-primary auth-submit"
+                        style={{ justifyContent: 'center' }}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? (isRegister ? 'Creating...' : 'Signing in...') : (isRegister ? 'Create Account' : 'Sign In')}
                     </button>
                 </form>
 
@@ -116,6 +134,7 @@ export default function LoginPage() {
                                 setIsRegister(!isRegister);
                                 setError('');
                                 setInviteCode('');
+                                setIsSubmitting(false);
                             }}
                             className="auth-switch-btn"
                         >
@@ -183,6 +202,11 @@ export default function LoginPage() {
 	        .auth-submit:hover {
             transform: translateY(-2px) scale(1.02);
             box-shadow: 0 18px 42px rgba(108,92,231,0.34);
+	        }
+	        .auth-submit:disabled {
+	          cursor: wait;
+	          opacity: 0.72;
+	          transform: none;
 	        }
 	        .glass-input {
 	          width: 100%;
