@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -85,13 +86,6 @@ type AlumniMapPoint = {
 };
 
 type MapViewBox = typeof WORLD_VIEW_BOX;
-type DragState = {
-  pointerId: number;
-  startClientX: number;
-  startClientY: number;
-  startViewBox: MapViewBox;
-  moved: boolean;
-};
 
 function formatViewBox(viewBox: MapViewBox) {
   return `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
@@ -253,11 +247,8 @@ export default function AlumniWorldMap() {
   const [hoveredRegionId, setHoveredRegionId] = useState<AlumniRegionId | null>(null);
   const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
   const [animatedViewBox, setAnimatedViewBox] = useState<MapViewBox>(WORLD_VIEW_BOX);
-  const [isDraggingMap, setIsDraggingMap] = useState(false);
-  const previousViewBoxRef = useRef<MapViewBox>(WORLD_VIEW_BOX);
   const animatedViewBoxRef = useRef<MapViewBox>(WORLD_VIEW_BOX);
-  const dragStateRef = useRef<DragState | null>(null);
-  const suppressNextStageClickRef = useRef(false);
+  const viewBoxAnimationRef = useRef(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
   const selectedRegion = useMemo(
@@ -300,11 +291,12 @@ export default function AlumniWorldMap() {
   const isWorldExploring = !selectedRegion && !isWorldAtHome;
   const shouldShowWorldSchoolDots = !selectedRegion && animatedViewBox.width <= WORLD_SCHOOL_DOT_VIEWBOX_WIDTH;
 
-  useEffect(() => {
-    const from = previousViewBoxRef.current;
-    const to = getTargetViewBox(selectedRegion);
+  const animateViewBoxTo = useCallback((targetViewBox: MapViewBox) => {
+    cancelAnimationFrame(viewBoxAnimationRef.current);
+
+    const from = animatedViewBoxRef.current;
+    const to = clampViewBox(targetViewBox);
     const startedAt = performance.now();
-    let frameId = 0;
 
     const tick = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / VIEWBOX_ANIMATION_MS);
@@ -316,21 +308,28 @@ export default function AlumniWorldMap() {
         height: from.height + (to.height - from.height) * eased,
       };
 
-      const normalizedNext = selectedRegion ? clampViewBox(next) : next;
+      const normalizedNext = clampViewBox(next);
 
       setAnimatedViewBox(normalizedNext);
       animatedViewBoxRef.current = normalizedNext;
 
       if (progress < 1) {
-        frameId = requestAnimationFrame(tick);
+        viewBoxAnimationRef.current = requestAnimationFrame(tick);
       } else {
-        previousViewBoxRef.current = normalizedNext;
+        animatedViewBoxRef.current = normalizedNext;
       }
     };
 
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [selectedRegion]);
+    viewBoxAnimationRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(() => {
+    animateViewBoxTo(getTargetViewBox(selectedRegion));
+  }, [animateViewBoxTo, selectedRegion]);
+
+  useEffect(() => {
+    return () => cancelAnimationFrame(viewBoxAnimationRef.current);
+  }, []);
 
   const selectRegion = (region: AlumniRegion) => {
     setSelectedRegionId(region.id);
@@ -344,7 +343,7 @@ export default function AlumniWorldMap() {
 
   const resetWorld = () => {
     if (!selectedRegionId) {
-      setManualViewBox(WORLD_VIEW_BOX);
+      animateViewBoxTo(WORLD_VIEW_BOX);
     }
     setSelectedRegionId(null);
     setHoveredRegionId(null);
@@ -358,31 +357,19 @@ export default function AlumniWorldMap() {
     return regionId ? worldRegionById.get(regionId) ?? null : null;
   };
 
-  const setManualViewBox = (nextViewBox: MapViewBox) => {
-    const normalizedViewBox = clampViewBox(nextViewBox);
-    setAnimatedViewBox(normalizedViewBox);
-    animatedViewBoxRef.current = normalizedViewBox;
-    previousViewBoxRef.current = normalizedViewBox;
-  };
-
   const zoomIn = () => {
-    setManualViewBox(zoomViewBoxAt(animatedViewBoxRef.current, 0.82));
+    animateViewBoxTo(zoomViewBoxAt(animatedViewBoxRef.current, 0.82));
   };
 
   const zoomOut = () => {
-    setManualViewBox(zoomViewBoxAt(animatedViewBoxRef.current, 1.18));
+    animateViewBoxTo(zoomViewBoxAt(animatedViewBoxRef.current, 1.18));
   };
 
   const fitSelectedRegion = () => {
-    setManualViewBox(getTargetViewBox(selectedRegion));
+    animateViewBoxTo(getTargetViewBox(selectedRegion));
   };
 
   const handleStageClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (suppressNextStageClickRef.current) {
-      suppressNextStageClickRef.current = false;
-      return;
-    }
-
     const target = event.target as Element;
     if (isMapInteractiveTarget(target)) return;
 
@@ -412,56 +399,6 @@ export default function AlumniWorldMap() {
     setHoveredRegionId(hoveredRegion?.id ?? null);
   };
 
-  const handleStagePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (!selectedRegion && isWorldAtHome) return;
-
-    const target = event.target as Element;
-    if (isMapInteractiveTarget(target)) return;
-
-    dragStateRef.current = {
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startViewBox: animatedViewBox,
-      moved: false,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleStagePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const dragState = dragStateRef.current;
-    if (!dragState || dragState.pointerId !== event.pointerId) return;
-
-    const deltaX = event.clientX - dragState.startClientX;
-    const deltaY = event.clientY - dragState.startClientY;
-    if (!dragState.moved && Math.hypot(deltaX, deltaY) < 4) return;
-
-    dragState.moved = true;
-    setIsDraggingMap(true);
-
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const nextViewBox = clampViewBox({
-      ...dragState.startViewBox,
-      x: dragState.startViewBox.x - (deltaX / bounds.width) * dragState.startViewBox.width,
-      y: dragState.startViewBox.y - (deltaY / bounds.height) * dragState.startViewBox.height,
-    });
-
-    setAnimatedViewBox(nextViewBox);
-    animatedViewBoxRef.current = nextViewBox;
-    previousViewBoxRef.current = nextViewBox;
-  };
-
-  const handleStagePointerEnd = (event: PointerEvent<HTMLDivElement>) => {
-    const dragState = dragStateRef.current;
-    if (!dragState || dragState.pointerId !== event.pointerId) return;
-
-    if (dragState.moved) {
-      suppressNextStageClickRef.current = true;
-    }
-    dragStateRef.current = null;
-    setIsDraggingMap(false);
-  };
-
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -485,18 +422,13 @@ export default function AlumniWorldMap() {
     event.preventDefault();
     event.stopPropagation();
 
-    if (!dragStateRef.current) {
-      const hoveredRegion = findRegionFromTarget(event.target);
-      setHoveredRegionId(hoveredRegion?.id ?? null);
-    }
-
-    handleStagePointerMove(event);
+    const hoveredRegion = findRegionFromTarget(event.target);
+    setHoveredRegionId(hoveredRegion?.id ?? null);
   };
 
   const regionClass = selectedRegionId ? ` active-region-${selectedRegionId}` : '';
   const hoveredClass = hoveredRegionId ? ` hovered-region-${hoveredRegionId}` : '';
   const availableRegionClass = worldRegions.map((region) => ` has-region-${region.id}`).join('');
-  const draggingClass = isDraggingMap ? ' is-dragging' : '';
   const exploringClass = isWorldExploring ? ' is-map-exploring' : '';
   const worldDotsClass = shouldShowWorldSchoolDots ? ' show-world-school-dots' : '';
 
@@ -530,12 +462,9 @@ export default function AlumniWorldMap() {
           <div className="alumni-map-main">
             <div
               ref={stageRef}
-              className={`alumni-map-stage${availableRegionClass}${regionClass}${hoveredClass}${draggingClass}${exploringClass}${worldDotsClass}`}
+              className={`alumni-map-stage${availableRegionClass}${regionClass}${hoveredClass}${exploringClass}${worldDotsClass}`}
               onClick={handleStageClick}
-              onPointerDown={handleStagePointerDown}
               onPointerMove={handleStagePointerMoveWithinMap}
-              onPointerUp={handleStagePointerEnd}
-              onPointerCancel={handleStagePointerEnd}
               onPointerLeave={() => setHoveredRegionId(null)}
             >
               <AlumniMapSVG
@@ -608,15 +537,16 @@ export default function AlumniWorldMap() {
                 </button>
               </div>
 
-              {!selectedRegion && (
-                <div className="alumni-map-stat-strip" aria-label="校友地图统计">
-                  <MapStat icon="👥" label="全球校友" value={`${totalContacts}`} suffix="人" />
-                  <MapStat icon="🏙️" label="国家/地区" value={`${worldRegions.length}`} suffix="个" />
-                  <MapStat icon="🏫" label="学校" value={`${totalSchools}`} suffix="所" />
-                  <MapStat icon="📍" label="城市" value={`${totalCities}`} suffix="个" />
-                </div>
-              )}
             </div>
+
+            {!selectedRegion && (
+              <div className="alumni-map-stat-strip" aria-label="校友地图统计">
+                <MapStat icon="👥" label="全球校友" value={`${totalContacts}`} suffix="人" />
+                <MapStat icon="🏙️" label="国家/地区" value={`${worldRegions.length}`} suffix="个" />
+                <MapStat icon="🏫" label="学校" value={`${totalSchools}`} suffix="所" />
+                <MapStat icon="📍" label="城市" value={`${totalCities}`} suffix="个" />
+              </div>
+            )}
           </div>
 
           <AlumniInfoPanel
