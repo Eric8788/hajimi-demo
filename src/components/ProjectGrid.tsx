@@ -187,6 +187,7 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState('');
+    const [xpBurst, setXpBurst] = useState('');
 
     const handleStarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -250,6 +251,10 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
             body: JSON.stringify({ projectId: project.id, content: tempContent })
         });
         if (res.ok) {
+            if (!isUpdate) {
+                setXpBurst('+2 XP');
+                window.setTimeout(() => setXpBurst(''), 900);
+            }
             fetchComments();
         }
     };
@@ -313,6 +318,20 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(243, 156, 18, 0.2)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'rgba(243, 156, 18, 0.1)'}
                 >
+                    <AnimatePresence>
+                        {xpBurst && (
+                            <motion.span
+                                key={xpBurst}
+                                className="project-xp-burst"
+                                initial={{ opacity: 0, y: 8, scale: 0.72 }}
+                                animate={{ opacity: 1, y: -12, scale: 1 }}
+                                exit={{ opacity: 0, y: -24, scale: 0.66 }}
+                                transition={{ duration: 0.45 }}
+                            >
+                                {xpBurst}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
                     <span style={{ color: '#f39c12', fontSize: '1.05rem', transform: 'translateY(-1px)' }}>⭐</span>
                     {rating.toFixed(1)}
                     <span style={{ marginLeft: '4px' }}>💬 {project.commentCount || comments.length || 0}</span>

@@ -539,7 +539,7 @@ export async function createProject(data: Omit<Project, 'id' | 'likes' | 'create
       RETURNING id
     `;
 
-    await addAwardPointsOnce(data.author_id, 'hub_project_bonus', 200);
+    await addAwardPointsOnce(data.author_id, 'hub_project_bonus', 100);
 
     return rows[0].id;
 }

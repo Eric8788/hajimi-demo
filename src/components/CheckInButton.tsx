@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CheckInButton() {
     const router = useRouter();
     const [checkedIn, setCheckedIn] = useState(false);
     const [loading, setLoading] = useState(true);
     const [buttonText, setButtonText] = useState('Check In');
+    const [xpBurst, setXpBurst] = useState(0);
 
     useEffect(() => {
         let isActive = true;
@@ -44,6 +46,8 @@ export default function CheckInButton() {
                 setCheckedIn(true);
                 const streakBonus = data.streak > 1 ? ` · 🔥 ${data.streak} Day Streak!` : '';
                 setButtonText(`Signed In · +${data.pointsAdded} XP${streakBonus}`);
+                setXpBurst(Number(data.pointsAdded || 0));
+                window.setTimeout(() => setXpBurst(0), 1000);
                 router.refresh();
             } else {
                 const alreadyChecked = data.error === 'Already checked in today';
@@ -70,6 +74,20 @@ export default function CheckInButton() {
                 height: '46px'
             }}
         >
+            <AnimatePresence>
+                {xpBurst > 0 && (
+                    <motion.span
+                        key={xpBurst}
+                        className="checkin-xp-burst"
+                        initial={{ opacity: 0, y: 8, scale: 0.78 }}
+                        animate={{ opacity: 1, y: -18, scale: 1 }}
+                        exit={{ opacity: 0, y: -32, scale: 0.7 }}
+                        transition={{ duration: 0.65, ease: 'easeOut' }}
+                    >
+                        +{xpBurst} XP
+                    </motion.span>
+                )}
+            </AnimatePresence>
             <span style={{ marginRight: '8px' }}>{checkedIn ? '✅' : '🍄'}</span>
             {loading ? 'Checking...' : buttonText}
         </button>

@@ -67,7 +67,7 @@ async function backfillPointAwards() {
 
   let hubProjectCount = 0;
   for (const row of regattaInfoAuthors.rows) {
-    const awarded = await addAwardPointsOnce(row.author_id, 'hub_project_bonus', 200);
+    const awarded = await addAwardPointsOnce(row.author_id, 'hub_project_bonus', 100);
     if (awarded) hubProjectCount += 1;
   }
 

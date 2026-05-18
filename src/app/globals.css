@@ -976,6 +976,7 @@ textarea:hover,
 }
 
 .checkin-button {
+  position: relative;
   min-width: 142px;
   min-height: 48px;
   padding: 0 18px;
@@ -1008,6 +1009,26 @@ textarea:hover,
 
 .checkin-button:disabled {
   cursor: default;
+}
+
+.checkin-xp-burst,
+.project-xp-burst {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  z-index: 2;
+  transform: translateX(-50%);
+  pointer-events: none;
+  color: #6c5ce7;
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
+  text-shadow: 0 2px 12px rgba(255,255,255,0.95);
+}
+
+.project-xp-burst {
+  color: #00a884;
+  top: -14px;
 }
 
 /* Widgets */
@@ -3044,7 +3065,11 @@ html *::after {
   top: -10px;
   transform: translateX(-50%);
   pointer-events: none;
+  color: #6c5ce7;
   font-size: 0.9rem;
+  font-weight: 900;
+  white-space: nowrap;
+  text-shadow: 0 2px 12px rgba(255,255,255,0.95);
 }
 
 .notification-popover {

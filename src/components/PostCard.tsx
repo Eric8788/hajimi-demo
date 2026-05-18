@@ -90,6 +90,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [likeBurst, setLikeBurst] = useState(0);
     const [bookmarkBurst, setBookmarkBurst] = useState(0);
     const [commentLikeBurst, setCommentLikeBurst] = useState<number | null>(null);
+    const [commentXpBurst, setCommentXpBurst] = useState(0);
 
     // Comments
     const [showComments, setShowComments] = useState(false);
@@ -206,6 +207,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             method: 'POST',
             body: JSON.stringify({ action: 'bookmark', postId: post.id })
         });
+        if (nextBookmarked) {
+            window.dispatchEvent(new CustomEvent('hajimi-xp-feedback', { detail: { amount: 3, label: 'author saved' } }));
+        }
         window.dispatchEvent(new Event('hajimi-notifications-refresh'));
     };
 
@@ -344,6 +348,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         });
 
         if (res.ok) {
+            setCommentXpBurst(count => {
+                const next = count + 1;
+                window.setTimeout(() => setCommentXpBurst(current => current === next ? 0 : current), 800);
+                return next;
+            });
             setComments(current => [
                 ...current,
                 {
@@ -591,11 +600,27 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
                 <button
                     onClick={toggleComments}
+                    className="reaction-button"
                     style={{
+                        position: 'relative',
                         background: 'none', border: 'none', cursor: 'pointer', color: '#636e72',
                         display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600
                     }}
                 >
+                    <AnimatePresence>
+                        {commentXpBurst > 0 && (
+                            <motion.span
+                                key={commentXpBurst}
+                                className="reaction-burst"
+                                initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                animate={{ opacity: 1, y: -10, scale: 1 }}
+                                exit={{ opacity: 0, y: -22, scale: 0.6 }}
+                                transition={{ duration: 0.45 }}
+                            >
+                                +5 XP
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
                     💬 Comment {commentsLoaded && comments.length > 0 ? `(${comments.length})` : ''}
                 </button>
             </div>
@@ -649,7 +674,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                                     exit={{ opacity: 0, y: -18, scale: 0.6 }}
                                                                     transition={{ duration: 0.42 }}
                                                                 >
-                                                                    +1
+                                                                    liked
                                                                 </motion.span>
                                                             )}
                                                         </AnimatePresence>

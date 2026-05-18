@@ -40,9 +40,9 @@ const FORUM_PROMOS = [
     },
     {
         kicker: 'AI Club Hub 🚀',
-        title: '发布项目进 Hub 领 200 积分！',
+        title: '发布项目进 Hub 领 100 积分！',
         body: '把你的游戏、工具或实验发布到 Hub，让大家打开体验，也让创作者徽章亮起来。',
-        notes: ['ship it', 'creator badge', '+200 XP'],
+        notes: ['ship it', 'creator badge', '+100 XP'],
         pin: '✦',
         accent: 'aqua',
     },
