@@ -18,6 +18,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '💬', path: '/resources', label: 'Forum' },
         { icon: '🚀', path: '/functions', label: 'Hub' },
+        { icon: '🏆', path: '/leaderboard', label: 'Rank' },
     ];
 
     const loadUnreadCount = useCallback(async () => {

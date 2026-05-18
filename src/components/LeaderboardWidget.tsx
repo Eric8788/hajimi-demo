@@ -1,17 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Avatar from './Avatar';
 import { User } from '@/lib/db';
 import CreatorBadge from './CreatorBadge';
 import RoleBadge from './RoleBadge';
 
-export default function LeaderboardWidget({ limit = 10 }: { limit?: number }) {
+const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
+
+export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { limit?: number; showViewAll?: boolean }) {
+    const router = useRouter();
     const [leaderboard, setLeaderboard] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('/api/leaderboard')
+        fetch(`/api/leaderboard?limit=${limit}`)
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -21,6 +25,10 @@ export default function LeaderboardWidget({ limit = 10 }: { limit?: number }) {
             .catch(err => console.error('Failed to load leaderboard:', err))
             .finally(() => setLoading(false));
     }, [limit]);
+
+    const openProfile = (userId: number) => {
+        router.push(`/profile/${userId}`);
+    };
 
     if (loading) {
         return (
@@ -33,29 +41,42 @@ export default function LeaderboardWidget({ limit = 10 }: { limit?: number }) {
     return (
         <div className="glass-card full-width leaderboard-card">
             <div className="leaderboard-head">
-                <h3>🏆 Hall of Fame</h3>
-                <span>Top {limit} Members</span>
+                <button type="button" className="leaderboard-title-button" onClick={() => router.push('/leaderboard')}>
+                    <h3>🏆 Hall of Fame</h3>
+                    <span>Top {limit} Members</span>
+                </button>
+                {showViewAll && (
+                    <button type="button" className="leaderboard-view-all" onClick={() => router.push('/leaderboard')}>
+                        View all →
+                    </button>
+                )}
             </div>
             
             <div className="leaderboard-list">
                 {leaderboard.map((user, index) => (
                     <div 
                         key={user.id} 
-                        className={`leaderboard-row${index === 0 ? ' is-top' : ''}`}
+                        className={`leaderboard-row${index < 3 ? ` is-podium is-rank-${index + 1}` : ''}`}
                     >
                         <div className="leaderboard-member">
-                            <div
-                                className="leaderboard-rank"
-                                style={{ color: index === 0 ? '#d35400' : index === 1 ? '#636e72' : index === 2 ? '#e17055' : '#b2bec3' }}
-                            >
-                                {index + 1}
+                            <div className="leaderboard-rank">
+                                {index < 3 ? PODIUM_LABELS[index] : index + 1}
                             </div>
-                            <Avatar value={user.avatar} size={36} />
+                            <button
+                                type="button"
+                                className="leaderboard-avatar-button"
+                                onClick={() => openProfile(user.id)}
+                                aria-label={`View ${user.username}'s profile`}
+                            >
+                                <Avatar value={user.avatar} size={36} />
+                            </button>
                             <div className="leaderboard-copy">
                                 <div className="leaderboard-name-line">
-                                    <span className="leaderboard-username">{user.username}</span>
-                                    <RoleBadge role={user.role} showStudent />
-                                    {user.is_creator && <CreatorBadge compact />}
+                                    <button type="button" className="leaderboard-username" onClick={() => openProfile(user.id)}>
+                                        {user.username}
+                                    </button>
+                                    <RoleBadge role={user.role} showStudent compact iconOnly />
+                                    {user.is_creator && <CreatorBadge compact iconOnly />}
                                 </div>
                                 <span className="leaderboard-level">Level {user.level}</span>
                             </div>

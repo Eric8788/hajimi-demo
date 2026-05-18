@@ -506,13 +506,13 @@ export async function toggleBookmark(userId: number, postId: number) {
     }
 }
 
-export async function getLeaderboard(): Promise<User[]> {
+export async function getLeaderboard(limit = 10): Promise<User[]> {
     const { rows } = await sql<User>`
       SELECT id, username, avatar, points, level, role, 
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM users 
       ORDER BY points DESC 
-      LIMIT 10
+      LIMIT ${limit}
     `;
     return rows;
 }

@@ -1115,6 +1115,18 @@ textarea:hover,
   margin-bottom: 20px;
 }
 
+.leaderboard-title-button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
 .leaderboard-head h3 {
   margin: 0;
   font-size: 1.4rem;
@@ -1125,6 +1137,27 @@ textarea:hover,
   font-size: 0.85rem;
   font-weight: 650;
   white-space: nowrap;
+}
+
+.leaderboard-view-all {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(108, 92, 231, 0.1);
+  color: #6c5ce7;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.leaderboard-title-button:hover h3,
+.leaderboard-view-all:hover {
+  transform: translateY(-1px);
+}
+
+.leaderboard-view-all:hover {
+  background: rgba(108, 92, 231, 0.16);
 }
 
 .leaderboard-list {
@@ -1144,10 +1177,24 @@ textarea:hover,
   border: 1px solid rgba(255, 255, 255, 0.8);
 }
 
-.leaderboard-row.is-top {
+.leaderboard-row.is-podium {
+  box-shadow: 0 5px 16px rgba(108, 92, 231, 0.08);
+}
+
+.leaderboard-row.is-rank-1 {
   background: linear-gradient(90deg, rgba(255, 234, 167, 0.4), rgba(255, 255, 255, 0.4));
   border-color: rgba(253, 203, 110, 0.5);
   box-shadow: 0 4px 12px rgba(253, 203, 110, 0.1);
+}
+
+.leaderboard-row.is-rank-2 {
+  background: linear-gradient(90deg, rgba(223, 230, 233, 0.58), rgba(255, 255, 255, 0.42));
+  border-color: rgba(178, 190, 195, 0.55);
+}
+
+.leaderboard-row.is-rank-3 {
+  background: linear-gradient(90deg, rgba(225, 112, 85, 0.14), rgba(255, 255, 255, 0.42));
+  border-color: rgba(225, 112, 85, 0.3);
 }
 
 .leaderboard-member {
@@ -1165,6 +1212,24 @@ textarea:hover,
   text-align: center;
 }
 
+.leaderboard-avatar-button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.leaderboard-avatar-button:hover {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
+}
+
 .leaderboard-copy {
   min-width: 0;
   display: flex;
@@ -1180,9 +1245,21 @@ textarea:hover,
 }
 
 .leaderboard-username {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #2d3436;
+  font-family: inherit;
+  font-size: 1rem;
   font-weight: 700;
+  text-align: left;
   overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.leaderboard-username:hover {
+  color: #6c5ce7;
 }
 
 .leaderboard-level {
@@ -1211,6 +1288,41 @@ textarea:hover,
   padding: 20px;
   text-align: center;
   opacity: 0.5;
+}
+
+.leaderboard-page {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.leaderboard-page-hero {
+  margin-bottom: 24px;
+  padding: 30px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(253, 203, 110, 0.2), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.74), rgba(245, 241, 255, 0.64));
+  border: 1px solid rgba(108, 92, 231, 0.14);
+  box-shadow: 0 16px 42px rgba(108, 92, 231, 0.08);
+}
+
+.leaderboard-page-hero span {
+  color: #6c5ce7;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.leaderboard-page-hero h1 {
+  margin: 8px 0;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+}
+
+.leaderboard-page-hero p {
+  max-width: 620px;
+  color: #636e72;
+  line-height: 1.6;
 }
 
 .alumni-map-panel {
@@ -2377,6 +2489,12 @@ textarea:hover,
   .leaderboard-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .leaderboard-title-button {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .leaderboard-row {
