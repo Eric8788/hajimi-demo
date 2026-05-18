@@ -539,15 +539,7 @@ export async function createProject(data: Omit<Project, 'id' | 'likes' | 'create
       RETURNING id
     `;
 
-    const { rows: projectCountRows } = await sql<{ project_count: number }>`
-      SELECT COUNT(*)::int as project_count
-      FROM projects
-      WHERE author_id = ${data.author_id}
-    `;
-
-    if ((projectCountRows[0]?.project_count ?? 0) === 1) {
-        await addAwardPointsOnce(data.author_id, 'hub_project_bonus', 200);
-    }
+    await addAwardPointsOnce(data.author_id, 'hub_project_bonus', 200);
 
     return rows[0].id;
 }

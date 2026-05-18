@@ -58,19 +58,21 @@ async function backfillPointAwards() {
     if (awarded) firstPostCount += 1;
   }
 
-  const projectAuthors = await sql<{ author_id: number }>`
-    SELECT DISTINCT author_id
+  const regattaInfoAuthors = await sql<{ author_id: number }>`
+    SELECT author_id
     FROM projects
+    WHERE title = 'Regatta Info'
+      AND url = 'https://regatta-info.top/'
   `;
 
   let hubProjectCount = 0;
-  for (const row of projectAuthors.rows) {
+  for (const row of regattaInfoAuthors.rows) {
     const awarded = await addAwardPointsOnce(row.author_id, 'hub_project_bonus', 200);
     if (awarded) hubProjectCount += 1;
   }
 
   console.log(`Backfilled first-post awards for ${firstPostCount} users.`);
-  console.log(`Backfilled Hub project awards for ${hubProjectCount} users.`);
+  console.log(`Backfilled new Hub project awards for ${hubProjectCount} users.`);
 }
 
 backfillPointAwards()
