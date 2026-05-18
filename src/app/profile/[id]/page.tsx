@@ -1,5 +1,5 @@
 import { getSession } from '@/lib/auth';
-import { getUserById } from '@/lib/db';
+import { getPostsByAuthor, getProjectsByAuthor, getUserById } from '@/lib/db';
 import { notFound, redirect } from 'next/navigation';
 import ProfileCard from '@/components/ProfileCard';
 import Shell from '@/components/Shell';
@@ -18,14 +18,14 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
     const profileUser = await getUserById(profileId);
     if (!profileUser) notFound();
+    const posts = await getPostsByAuthor(profileUser.id, viewer.id);
+    const projects = await getProjectsByAuthor(profileUser.id);
 
     return (
         <Shell user={viewer}>
-            <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-                <h1 style={{ marginBottom: '30px', fontSize: '2.5rem', textAlign: 'center' }}>Member Profile</h1>
-
-                <div className="glass-panel" style={{ padding: '50px', background: 'rgba(255,255,255,0.7)' }}>
-                    <ProfileCard user={profileUser} readOnly />
+            <div className="profile-page-shell">
+                <div className="glass-panel profile-page-panel">
+                    <ProfileCard user={profileUser} readOnly posts={posts} projects={projects} />
                 </div>
             </div>
         </Shell>

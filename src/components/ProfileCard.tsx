@@ -1,9 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { User } from '@/lib/db';
+import { User, type Post, type Project } from '@/lib/db';
 import Avatar from './Avatar';
 import { getAvailableBadges, normalizeBadgePreferences, type BadgeId } from '@/lib/badges';
 import BadgePill from './BadgePill';
@@ -11,7 +11,6 @@ import UserBadges from './UserBadges';
 import { formatHajimiId } from '@/lib/hajimiId';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
-
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -47,7 +46,48 @@ async function compressProfileImage(file: File) {
     return canvas.toDataURL('image/webp', 0.82);
 }
 
-export default function ProfilePage({ user, readOnly = false }: { user: User; readOnly?: boolean }) {
+function formatDate(value?: Date | string | null) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+}
+
+function stripMarkdownLinks(text: string) {
+    return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1');
+}
+
+function getPreviewText(text?: string | null, max = 118) {
+    const compact = stripMarkdownLinks(text || '').replace(/\s+/g, ' ').trim();
+    return compact.length > max ? `${compact.slice(0, max)}...` : compact;
+}
+
+function estimateReadMinutes(text?: string | null) {
+    const length = (text || '').replace(/\s+/g, '').length;
+    return Math.max(1, Math.ceil(length / 420));
+}
+
+function getTagLabel(tag?: string | null) {
+    if (!tag || tag === 'general') return '#General';
+    if (tag === 'announcement') return '#Announcement';
+    return `#${tag}`;
+}
+
+function getRoleLabel(user: User) {
+    const role = (user.role || 'student').toLowerCase();
+    if (role === 'admin') return '管理员';
+    if (role === 'teacher') return '老师';
+    return '学生';
+}
+
+type ProfileCardProps = {
+    user: User;
+    readOnly?: boolean;
+    posts?: Post[];
+    projects?: Project[];
+};
+
+export default function ProfilePage({ user, readOnly = false, posts = [], projects = [] }: ProfileCardProps) {
     const router = useRouter();
     const [bio, setBio] = useState(user.bio || '');
     const [avatar, setAvatar] = useState(user.avatar || '😊');
@@ -67,11 +107,6 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     const [profileImageError, setProfileImageError] = useState('');
     const dragState = useRef<{ pointerId: number | null; lastX: number; lastY: number }>({ pointerId: null, lastX: 0, lastY: 0 });
 
-    const handleLogout = async () => {
-        await fetch('/api/auth/logout', { method: 'POST' });
-        window.location.href = '/';
-    };
-
     const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
     const totalXp = Number(user.points || 0);
     const displayLevel = Math.max(Number(user.level || 1), Math.floor(Math.sqrt(totalXp / 50)) + 1);
@@ -79,11 +114,47 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     const xpForNextLevel = 50 * Math.pow(displayLevel, 2);
     const xpInCurrentLevel = totalXp - xpForCurrentLevel;
     const xpRequiredForLevel = xpForNextLevel - xpForCurrentLevel;
-    
     const progressPercent = Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
     const xpToNext = xpForNextLevel - totalXp;
     const availableBadges = getAvailableBadges(user);
+    const profileUser = { ...user, avatar, bio, profile_image: profileImage, badge_preferences: badgePreferences };
     const hajimiId = formatHajimiId(user.id);
+    const featuredPost = posts[0];
+    const recentPosts = posts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
+    const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
+    const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
+
+    const activities = useMemo(() => {
+        const items: { id: string; icon: string; title: string; meta: string }[] = [];
+
+        posts.slice(0, 3).forEach(post => {
+            items.push({
+                id: `post-${post.id}`,
+                icon: '✍️',
+                title: `发布了《${post.title}》`,
+                meta: formatDate(post.created_at) || '最近',
+            });
+        });
+
+        projects.slice(0, 2).forEach(project => {
+            items.push({
+                id: `project-${project.id}`,
+                icon: project.emoji || '🚀',
+                title: `发布项目 ${project.title}`,
+                meta: project.status === 'live' ? 'Live project' : 'Coming soon',
+            });
+        });
+
+        if (user.streak_count > 0) {
+            items.push({ id: 'streak', icon: '🔥', title: `连续签到 ${user.streak_count} 天`, meta: 'Learning streak' });
+        }
+
+        if (items.length === 0) {
+            items.push({ id: 'empty', icon: '✨', title: '主页内容正在准备中', meta: 'Creator space' });
+        }
+
+        return items.slice(0, 5);
+    }, [posts, projects, user.streak_count]);
 
     const toggleBadgePreference = (badgeId: BadgeId) => {
         setBadgePreferences(current => {
@@ -93,6 +164,11 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
 
             return [...current, badgeId].slice(0, 3);
         });
+    };
+
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/';
     };
 
     const handleSave = async () => {
@@ -116,17 +192,15 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
         }
 
         setLoading(true);
-        // Profile basics
         await fetch('/api/profile', {
             method: 'POST',
             body: JSON.stringify({ bio, avatar, profile_image: profileImage, badge_preferences: badgePreferences }),
         });
 
-        // Account security if changed
-        if (newUsername !== user.username || newPassword !== '') {
+        if (cleanUsername !== user.username || newPassword !== '') {
             const res = await fetch('/api/profile/account', {
                 method: 'POST',
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     username: cleanUsername !== user.username ? cleanUsername : undefined,
                     password: newPassword !== '' ? newPassword : undefined,
                     confirmPassword: newPassword !== '' ? confirmPassword : undefined,
@@ -263,243 +337,419 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
         }
     };
 
-    return (
-        <div className="profile-card-layout">
-            <aside className="profile-identity-card">
-                <div className="profile-identity-top">
-                    <div
-                        className={`profile-avatar-frame ${avatarSource ? 'is-draggable' : ''}`}
-                        onPointerDown={handleAvatarDragStart}
-                        onPointerMove={handleAvatarDragMove}
-                        onPointerUp={handleAvatarDragEnd}
-                        onPointerCancel={handleAvatarDragEnd}
-                    >
-                        {avatarSource ? (
-                            <img
-                                src={avatarSource}
-                                alt="Avatar crop preview"
-                                className="profile-avatar-crop-preview"
-                                style={{ transform: `translate(${avatarOffsetX * 0.62}px, ${avatarOffsetY * 0.62}px) scale(${avatarZoom})` }}
-                            />
-                        ) : (
-                            <Avatar value={avatar} fallback="😊" size={148} style={{ fontSize: '4.6rem' }} />
-                        )}
-                    </div>
-                    <div className="profile-identity-copy">
-                        <h2>{user.username}</h2>
-                        <div className="profile-badge-row">
-                            <UserBadges user={{ ...user, badge_preferences: badgePreferences }} />
-                        </div>
-                        <span className="hajimi-id-chip">Hajimi ID {hajimiId}</span>
-                    </div>
-                </div>
-
-                {avatarSource && <div className="profile-avatar-drag-hint">Drag to reposition</div>}
-                {isEditing && !readOnly && (
-                    <div className="profile-avatar-editor">
-                        <label className="btn profile-avatar-upload">
-                            Upload image
-                            <input type="file" accept="image/*" onChange={handleAvatarFile} />
-                        </label>
-                        <input
-                            value={avatarSource || avatarIsImage ? '' : avatar}
-                            onChange={e => setAvatar(e.target.value)}
-                            placeholder="Or emoji"
-                            className="glass-input"
-                            maxLength={4}
-                        />
-                        {avatarSource && (
-                            <div className="profile-avatar-crop-controls">
-                                <label>
-                                    Zoom
-                                    <input type="range" min="1" max="2.2" step="0.05" value={avatarZoom} onChange={e => setAvatarZoom(Number(e.target.value))} />
-                                </label>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                    <button type="button" className="btn btn-primary" onClick={applyCroppedAvatar}>Use crop</button>
-                                    <button type="button" className="btn" style={{ background: 'white', border: '1px solid #dfe6e9' }} onClick={() => setAvatarSource('')}>Cancel image</button>
-                                </div>
-                            </div>
-                        )}
-                        {avatarError && <div className="profile-avatar-error">{avatarError}</div>}
-                    </div>
-                )}
-
-                <div className="profile-level-card">
-                    <div className="profile-level-row">
-                        <span>Level {displayLevel}</span>
-                        <span>{totalXp} XP</span>
-                    </div>
-                    <div className="profile-level-progress" aria-label={`Level progress ${progressPercent}%`}>
-                        <span style={{ width: `${progressPercent}%` }} />
-                    </div>
-                    <div className="profile-level-next">
-                        {xpToNext} XP to Level {displayLevel + 1}
-                    </div>
-                    {user.streak_count > 0 && (
-                        <div className="profile-streak-chip">
-                            🔥 {user.streak_count} Day Streak
-                        </div>
-                    )}
-                </div>
-            </aside>
-
-            <section className="profile-details-stack">
-                {isEditing ? (
-                    <>
-                        <section className="profile-composer-card">
-                            <div className="profile-section-heading">
-                                <h3>主页图文</h3>
-                                <p>像发一条个人动态一样介绍自己。</p>
-                            </div>
-                            <textarea
-                                value={bio}
-                                onChange={e => setBio(e.target.value)}
-                                placeholder="写一段会出现在主页上的介绍，可以像朋友圈/微博一样随意一点。"
-                                className="glass-input profile-bio-input"
-                                rows={5}
-                            />
-                            <div className="profile-image-composer">
-                                {profileImage ? (
-                                    <div className="profile-image-preview">
-                                        <img src={profileImage} alt="Profile post preview" />
-                                        <button type="button" onClick={() => setProfileImage('')}>Remove image</button>
-                                    </div>
-                                ) : (
-                                    <label className="profile-image-upload">
-                                        <span>＋</span>
-                                        <strong>Upload profile image</strong>
-                                        <small>JPEG, PNG, WebP. 会压缩后保存。</small>
-                                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleProfileImageFile} />
-                                    </label>
-                                )}
-                                {profileImageError && <div className="profile-account-error">{profileImageError}</div>}
-                            </div>
-                        </section>
-
-                        <section className="profile-badge-editor">
-                            <div className="profile-section-heading">
-                                <h3>主页 badge</h3>
-                                <p>最多显示 3 个；其他位置会自动使用 emoji 简版。</p>
-                            </div>
-                            <div className="profile-badge-options">
-                                {availableBadges.map(badge => {
-                                    const active = badgePreferences.includes(badge.id);
-                                    const disabled = !active && badgePreferences.length >= 3;
-
-                                    return (
-                                        <button
-                                            key={badge.id}
-                                            type="button"
-                                            className={`profile-badge-option${active ? ' is-active' : ''}`}
-                                            onClick={() => toggleBadgePreference(badge.id)}
-                                            disabled={disabled}
-                                        >
-                                            <BadgePill badge={badge} compact />
-                                            <span>{active ? '显示中' : disabled ? '已满' : '显示'}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </section>
-
-                        <section className="profile-account-editor">
-                            <div className="profile-account-head">
-                                <div>
-                                    <h4>账号设置</h4>
-                                    <p>公开身份仍然只展示昵称和 Hajimi ID。</p>
-                                </div>
-                                <span>{hajimiId}</span>
-                            </div>
-                            <div className="profile-account-fields">
-                                <label className="profile-field-label">
-                                    用户名
-                                    <input
-                                        value={newUsername}
-                                        onChange={e => setNewUsername(e.target.value)}
-                                        className="glass-input"
-                                    />
-                                    <small>2-24 个字符；不能包含空格或 URL 特殊符号。</small>
-                                </label>
-                                <label className="profile-field-label">
-                                    新密码
-                                    <input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={e => setNewPassword(e.target.value)}
-                                        placeholder="留空则不修改"
-                                        className="glass-input"
-                                        autoComplete="new-password"
-                                    />
-                                    <small>至少 8 位，并包含大小写字母和数字。</small>
-                                </label>
-                                {newPassword && (
-                                    <label className="profile-field-label">
-                                        再输入一次新密码
-                                        <input
-                                            type="password"
-                                            value={confirmPassword}
-                                            onChange={e => setConfirmPassword(e.target.value)}
-                                            placeholder="确认新密码"
-                                            className="glass-input"
-                                            autoComplete="new-password"
-                                        />
-                                    </label>
-                                )}
-                                {accountError && <div className="profile-account-error">{accountError}</div>}
-                                <div>
-                                    <button
-                                        type="button"
-                                        onClick={handleDeleteAccount}
-                                        className="profile-delete-button"
-                                    >
-                                        Delete My Account Permanently
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
-                    </>
+    const renderHero = (compact = false) => (
+        <section className={`profile-hero${compact ? ' is-preview' : ''}`}>
+            <div className="profile-hero-media">
+                {profileImage ? (
+                    <img src={profileImage} alt={`${user.username}'s banner`} />
                 ) : (
-                    <section className="profile-post-card">
-                        {profileImage && (
-                            <div className="profile-post-image">
-                                <img src={profileImage} alt={`${user.username}'s profile post`} />
-                            </div>
-                        )}
-                        <div className="profile-post-body">
-                            <p>{user.bio || 'No post yet. Edit your profile to add a profile note.'}</p>
-                        </div>
-                    </section>
+                    <div className="profile-hero-gradient" />
                 )}
-
-                {!readOnly && (
-                    <div className="profile-action-row">
-                        {isEditing ? (
-                            <>
-                                <button onClick={handleSave} className="btn btn-primary" disabled={loading}>
-                                    {loading ? 'Saving...' : 'Save Changes'}
-                                </button>
-                                <button onClick={() => setIsEditing(false)} className="btn profile-secondary-button">
-                                    Cancel
-                                </button>
-                            </>
-                        ) : (
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="btn profile-secondary-button"
-                            >
+            </div>
+            <div className="profile-hero-shade" />
+            <div className="profile-hero-content">
+                <div className="profile-hero-avatar">
+                    <Avatar value={avatar} fallback="😊" size={compact ? 76 : 104} style={{ fontSize: compact ? '2.3rem' : '3.2rem' }} />
+                </div>
+                <div className="profile-hero-copy">
+                    <div className="profile-hero-name-row">
+                        <h2>{user.username}</h2>
+                        <UserBadges user={profileUser} />
+                    </div>
+                    <p className="profile-hero-subtitle">{getRoleLabel(user)} · Hajimi ID {hajimiId}</p>
+                    <p className="profile-hero-bio">{getPreviewText(heroIntro, compact ? 80 : 150)}</p>
+                </div>
+                {!compact && (
+                    <div className="profile-hero-actions">
+                        {!readOnly && (
+                            <button type="button" className="profile-hero-button is-primary" onClick={() => setIsEditing(true)}>
                                 Edit Profile
                             </button>
                         )}
-
                         <button
-                            onClick={handleLogout}
-                            className="btn profile-logout-button"
+                            type="button"
+                            className="profile-hero-button"
+                            onClick={() => navigator.clipboard?.writeText(window.location.href)}
                         >
-                            Logout
+                            Share
                         </button>
                     </div>
                 )}
-            </section>
+            </div>
+        </section>
+    );
+
+    if (isEditing && !readOnly) {
+        return (
+            <div className="profile-editor-layout">
+                <section className="profile-editor-main">
+                    <div className="profile-editor-head">
+                        <div>
+                            <span>Profile editor</span>
+                            <h2>编辑个人主页</h2>
+                            <p>保留头像、badge、等级这些身份信息，但让主页更像一条可阅读的个人动态。</p>
+                        </div>
+                        <button type="button" className="profile-secondary-button btn" onClick={() => setIsEditing(false)}>
+                            返回主页
+                        </button>
+                    </div>
+
+                    <section className="profile-composer-card">
+                        <div className="profile-section-heading">
+                            <h3>主页图文</h3>
+                            <p>这会出现在你的 Hero 和 About 区域，像朋友圈/微博一样介绍自己。</p>
+                        </div>
+                        <textarea
+                            value={bio}
+                            onChange={e => setBio(e.target.value)}
+                            placeholder="写一段会出现在主页上的介绍，可以分享你最近在做什么、擅长什么、想认识什么同学。"
+                            className="glass-input profile-bio-input"
+                            rows={5}
+                        />
+                        <div className="profile-image-composer">
+                            {profileImage ? (
+                                <div className="profile-image-preview">
+                                    <img src={profileImage} alt="Profile post preview" />
+                                    <button type="button" onClick={() => setProfileImage('')}>Remove image</button>
+                                </div>
+                            ) : (
+                                <label className="profile-image-upload">
+                                    <span>＋</span>
+                                    <strong>Upload banner / profile image</strong>
+                                    <small>JPEG, PNG, WebP. 会压缩后保存。</small>
+                                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleProfileImageFile} />
+                                </label>
+                            )}
+                            {profileImageError && <div className="profile-account-error">{profileImageError}</div>}
+                        </div>
+                    </section>
+
+                    <section className="profile-avatar-settings">
+                        <div className="profile-section-heading">
+                            <h3>头像</h3>
+                            <p>支持上传裁剪，也可以继续使用 emoji。</p>
+                        </div>
+                        <div className="profile-avatar-editor-row">
+                            <div
+                                className={`profile-avatar-frame ${avatarSource ? 'is-draggable' : ''}`}
+                                onPointerDown={handleAvatarDragStart}
+                                onPointerMove={handleAvatarDragMove}
+                                onPointerUp={handleAvatarDragEnd}
+                                onPointerCancel={handleAvatarDragEnd}
+                            >
+                                {avatarSource ? (
+                                    <img
+                                        src={avatarSource}
+                                        alt="Avatar crop preview"
+                                        className="profile-avatar-crop-preview"
+                                        style={{ transform: `translate(${avatarOffsetX * 0.62}px, ${avatarOffsetY * 0.62}px) scale(${avatarZoom})` }}
+                                    />
+                                ) : (
+                                    <Avatar value={avatar} fallback="😊" size={116} style={{ fontSize: '3.6rem' }} />
+                                )}
+                            </div>
+                            <div className="profile-avatar-editor">
+                                <label className="btn profile-avatar-upload">
+                                    Upload image
+                                    <input type="file" accept="image/*" onChange={handleAvatarFile} />
+                                </label>
+                                <input
+                                    value={avatarSource || avatarIsImage ? '' : avatar}
+                                    onChange={e => setAvatar(e.target.value)}
+                                    placeholder="Or emoji"
+                                    className="glass-input"
+                                    maxLength={4}
+                                />
+                                {avatarSource && (
+                                    <div className="profile-avatar-crop-controls">
+                                        <label>
+                                            Zoom
+                                            <input type="range" min="1" max="2.2" step="0.05" value={avatarZoom} onChange={e => setAvatarZoom(Number(e.target.value))} />
+                                        </label>
+                                        <div className="profile-editor-button-row">
+                                            <button type="button" className="btn btn-primary" onClick={applyCroppedAvatar}>Use crop</button>
+                                            <button type="button" className="btn profile-secondary-button" onClick={() => setAvatarSource('')}>Cancel image</button>
+                                        </div>
+                                    </div>
+                                )}
+                                {avatarSource && <div className="profile-avatar-drag-hint">Drag avatar to reposition</div>}
+                                {avatarError && <div className="profile-avatar-error">{avatarError}</div>}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="profile-badge-editor">
+                        <div className="profile-section-heading">
+                            <h3>主页 badge</h3>
+                            <p>最多显示 3 个；完整身份信息仍会保留在个人主页里。</p>
+                        </div>
+                        <div className="profile-badge-options">
+                            {availableBadges.map(badge => {
+                                const active = badgePreferences.includes(badge.id);
+                                const disabled = !active && badgePreferences.length >= 3;
+
+                                return (
+                                    <button
+                                        key={badge.id}
+                                        type="button"
+                                        className={`profile-badge-option${active ? ' is-active' : ''}`}
+                                        onClick={() => toggleBadgePreference(badge.id)}
+                                        disabled={disabled}
+                                    >
+                                        <BadgePill badge={badge} compact />
+                                        <span>{active ? '显示中' : disabled ? '已满' : '显示'}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    <section className="profile-account-editor">
+                        <div className="profile-account-head">
+                            <div>
+                                <h4>账号设置</h4>
+                                <p>公开身份仍然只展示昵称和 Hajimi ID。</p>
+                            </div>
+                            <span>{hajimiId}</span>
+                        </div>
+                        <div className="profile-account-fields">
+                            <label className="profile-field-label">
+                                用户名
+                                <input value={newUsername} onChange={e => setNewUsername(e.target.value)} className="glass-input" />
+                                <small>2-24 个字符；不能包含空格或 URL 特殊符号。</small>
+                            </label>
+                            <label className="profile-field-label">
+                                新密码
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    placeholder="留空则不修改"
+                                    className="glass-input"
+                                    autoComplete="new-password"
+                                />
+                                <small>至少 8 位，并包含大小写字母和数字。</small>
+                            </label>
+                            {newPassword && (
+                                <label className="profile-field-label">
+                                    再输入一次新密码
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={e => setConfirmPassword(e.target.value)}
+                                        placeholder="确认新密码"
+                                        className="glass-input"
+                                        autoComplete="new-password"
+                                    />
+                                </label>
+                            )}
+                            {accountError && <div className="profile-account-error">{accountError}</div>}
+                        </div>
+                    </section>
+
+                    <div className="profile-action-row">
+                        <button onClick={handleSave} className="btn btn-primary" disabled={loading}>
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                        <button onClick={() => setIsEditing(false)} className="btn profile-secondary-button">
+                            Cancel
+                        </button>
+                        <button onClick={handleLogout} className="btn profile-logout-button">
+                            Logout
+                        </button>
+                        <button type="button" onClick={handleDeleteAccount} className="profile-delete-button">
+                            Delete My Account
+                        </button>
+                    </div>
+                </section>
+
+                <aside className="profile-editor-preview">
+                    <span>Live preview</span>
+                    {renderHero(true)}
+                    <div className="profile-preview-note">
+                        <strong>{user.username}</strong>
+                        <p>{getPreviewText(heroIntro, 140)}</p>
+                    </div>
+                </aside>
+            </div>
+        );
+    }
+
+    return (
+        <div className="profile-home">
+            {renderHero()}
+
+            <div className="profile-home-grid">
+                <aside className="profile-home-sidebar">
+                    <section className="profile-side-section">
+                        <h3>About</h3>
+                        <p>{getPreviewText(heroIntro, 180)}</p>
+                        <div className="profile-mini-meta">
+                            <span>{getRoleLabel(user)}</span>
+                            <span>{hajimiId}</span>
+                        </div>
+                    </section>
+
+                    <section className="profile-side-section">
+                        <h3>Stats</h3>
+                        <div className="profile-stat-grid">
+                            <div><strong>Lv.{displayLevel}</strong><span>Level</span></div>
+                            <div><strong>{totalXp}</strong><span>XP</span></div>
+                            <div><strong>{posts.length}</strong><span>Posts</span></div>
+                            <div><strong>{projects.length}</strong><span>Projects</span></div>
+                        </div>
+                        <div className="profile-level-progress" aria-label={`Level progress ${progressPercent}%`}>
+                            <span style={{ width: `${progressPercent}%` }} />
+                        </div>
+                        <p className="profile-level-next">{xpToNext} XP to Level {displayLevel + 1}</p>
+                    </section>
+
+                    <section className="profile-side-section">
+                        <h3>Achievements</h3>
+                        <div className="profile-achievement-list">
+                            {user.streak_count > 0 && <span>🔥 {user.streak_count} Day Streak</span>}
+                            {user.is_creator && <span>🛠️ Creator</span>}
+                            <span>✨ Hajimi member</span>
+                        </div>
+                    </section>
+
+                    {projects.length > 0 && (
+                        <section className="profile-side-section">
+                            <h3>Links</h3>
+                            <div className="profile-link-list">
+                                {projects.filter(project => project.url).slice(0, 3).map(project => (
+                                    <a key={project.id} href={project.url || '#'} target="_blank" rel="noopener noreferrer">
+                                        {project.emoji || '🚀'} {project.title}
+                                    </a>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+                </aside>
+
+                <main className="profile-feed">
+                    {featuredPost ? (
+                        <section className="profile-featured-post">
+                            <div className="profile-feed-label">Featured Post</div>
+                            <div className="profile-featured-content">
+                                {featuredPost.attachment_url && (
+                                    <img src={featuredPost.attachment_url} alt="" />
+                                )}
+                                <div>
+                                    <span>{getTagLabel(featuredPost.tag)}</span>
+                                    <h3>{featuredPost.title}</h3>
+                                    <p>{getPreviewText(featuredPost.content, 170)}</p>
+                                    <div className="profile-post-meta">
+                                        <span>{formatDate(featuredPost.created_at)}</span>
+                                        <span>{estimateReadMinutes(featuredPost.content)} min read</span>
+                                        <span>{featuredPost.likes} likes</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    ) : (profileImage || bio) ? (
+                        <section className="profile-featured-post">
+                            <div className="profile-feed-label">Profile Note</div>
+                            <div className="profile-featured-content">
+                                {profileImage && (
+                                    <img src={profileImage} alt={`${user.username}'s profile note`} />
+                                )}
+                                <div>
+                                    <span>#Profile</span>
+                                    <h3>{user.username} 的主页动态</h3>
+                                    <p>{getPreviewText(heroIntro, 180)}</p>
+                                    <div className="profile-post-meta">
+                                        <span>Personal note</span>
+                                        <span>{projects.length} projects</span>
+                                        <span>{posts.length} posts</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    ) : (
+                        <section className="profile-empty-featured">
+                            <div className="profile-feed-label">Featured Post</div>
+                            <h3>{readOnly ? '还没有置顶内容' : '写下你的第一篇主页内容'}</h3>
+                            <p>{readOnly ? '这个主页还在生长中。' : '去 Forum 发第一篇帖子后，它会自动出现在这里。'}</p>
+                        </section>
+                    )}
+
+                    <section className="profile-feed-section">
+                        <div className="profile-feed-heading">
+                            <div>
+                                <span>Recent Posts</span>
+                                <h3>最近文章</h3>
+                            </div>
+                            {!readOnly && <button type="button" onClick={() => router.push('/resources')}>写文章</button>}
+                        </div>
+                        <div className="profile-post-list">
+                            {recentPosts.length > 0 ? recentPosts.map(post => (
+                                <article key={post.id} className="profile-post-list-item">
+                                    {post.attachment_url && <img src={post.attachment_url} alt="" />}
+                                    <div>
+                                        <h4>{post.title}</h4>
+                                        <p>{getPreviewText(post.content, 96)}</p>
+                                        <div className="profile-post-meta">
+                                            <span>{getTagLabel(post.tag)}</span>
+                                            <span>{formatDate(post.created_at)}</span>
+                                            <span>{post.comment_count || 0} comments</span>
+                                        </div>
+                                    </div>
+                                </article>
+                            )) : (
+                                <div className="profile-empty-row">{hasContent ? '暂无更多文章。' : '这个主页还没有文章。'}</div>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className="profile-feed-section">
+                        <div className="profile-feed-heading">
+                            <div>
+                                <span>Pinned Projects</span>
+                                <h3>项目展示</h3>
+                            </div>
+                            {!readOnly && <button type="button" onClick={() => router.push('/functions')}>去 Hub</button>}
+                        </div>
+                        <div className="profile-project-grid">
+                            {projects.length > 0 ? projects.slice(0, 4).map(project => (
+                                <article key={project.id} className="profile-project-card">
+                                    <div className="profile-project-icon">{project.emoji || '🚀'}</div>
+                                    <div>
+                                        <h4>{project.title}</h4>
+                                        <p>{getPreviewText(project.description, 82)}</p>
+                                        <div className="profile-project-meta">
+                                            <span>{project.status === 'live' ? 'Live' : 'Coming soon'}</span>
+                                            <span>⭐ {Number(project.rating || 0).toFixed(1)}</span>
+                                        </div>
+                                    </div>
+                                </article>
+                            )) : (
+                                <div className="profile-empty-row">暂无公开项目。</div>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className="profile-feed-section">
+                        <div className="profile-feed-heading">
+                            <div>
+                                <span>Activity</span>
+                                <h3>最近动态</h3>
+                            </div>
+                        </div>
+                        <div className="profile-activity-list">
+                            {activities.map(item => (
+                                <div key={item.id} className="profile-activity-item">
+                                    <span>{item.icon}</span>
+                                    <div>
+                                        <strong>{item.title}</strong>
+                                        <small>{item.meta}</small>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </main>
+            </div>
         </div>
     );
 }

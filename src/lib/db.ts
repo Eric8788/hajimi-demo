@@ -115,7 +115,10 @@ async function ensureUserProfileEnhancements() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
             await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
-        })();
+        })().catch(error => {
+            userProfileEnhancementsReady = null;
+            throw error;
+        });
     }
 
     return userProfileEnhancementsReady;
@@ -351,6 +354,31 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
     return rows as Post[];
 }
 
+export async function getPostsByAuthor(authorId: number, viewerId?: number, limit = 12) {
+    await ensureUserProfileEnhancements();
+    await ensureForumEnhancements();
+
+    const { rows } = await sql`
+      SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      users.badge_preferences as author_badge_preferences,
+      (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
+      (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
+      CASE WHEN ${viewerId ?? null}::int IS NOT NULL THEN
+        EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${viewerId ?? null}::int AND post_id = posts.id)
+      ELSE false END as is_bookmarked,
+      CASE WHEN ${viewerId ?? null}::int IS NOT NULL THEN
+        EXISTS(SELECT 1 FROM post_likes WHERE user_id = ${viewerId ?? null}::int AND post_id = posts.id)
+      ELSE false END as has_liked
+      FROM posts
+      JOIN users ON posts.author_id = users.id
+      WHERE posts.author_id = ${authorId}
+      ORDER BY posts.created_at DESC
+      LIMIT ${limit}
+    `;
+
+    return rows as Post[];
+}
+
 export async function getComments(postId: number, userId?: number) {
     await ensureUserProfileEnhancements();
     await ensureForumEnhancements();
@@ -560,6 +588,21 @@ export async function getProjects(): Promise<Project[]> {
       JOIN users ON projects.author_id = users.id
       ORDER BY created_at DESC
     `;
+    return rows;
+}
+
+export async function getProjectsByAuthor(authorId: number): Promise<Project[]> {
+    const { rows } = await sql<Project>`
+      SELECT projects.*, users.username as author_name,
+        COALESCE(projects.rating, 0.0) as rating,
+        COALESCE(projects.rating_count, 0) as rating_count,
+        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount"
+      FROM projects
+      JOIN users ON projects.author_id = users.id
+      WHERE projects.author_id = ${authorId}
+      ORDER BY created_at DESC
+    `;
+
     return rows;
 }
 
