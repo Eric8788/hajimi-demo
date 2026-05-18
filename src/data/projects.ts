@@ -58,6 +58,17 @@ export const PROJECTS: Project[] = [
         status: 'live',
     },
     {
+        id: 'regatta-info',
+        title: 'Regatta Info',
+        author: 'Albert',
+        description: 'A sailing regatta information hub for checking event details, race resources, and training references.',
+        tags: ['Tool', 'Sailing'],
+        emoji: '🏁',
+        url: 'https://regatta-info.top/',
+        accentColor: 'rgba(9, 132, 227, 0.18)',
+        status: 'live',
+    },
+    {
         id: 'boxhead',
         title: 'Boxhead',
         author: 'Cooka',
