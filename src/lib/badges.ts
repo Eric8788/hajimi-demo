@@ -65,7 +65,7 @@ export const BADGE_DEFINITIONS: Record<BadgeId, BadgeDefinition> = {
     },
 };
 
-const AI_CLUB_USERNAMES = new Set(['eric', 'alberty', 'p1tter', '1ming', 'cooka', 'jackz', 'luna1919810']);
+const AI_CLUB_USERNAMES = new Set(['eric', 'alberty', 'p1tter', '1ming', '🥚1ming', 'cooka', 'jackz', 'luna1919810']);
 const VALID_BADGE_IDS = new Set<BadgeId>(Object.keys(BADGE_DEFINITIONS) as BadgeId[]);
 const DEFAULT_BADGE_ORDER: BadgeId[] = ['admin', 'teacher', 'student', 'ai_club', 'creator'];
 
