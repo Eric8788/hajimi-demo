@@ -29,6 +29,24 @@ const TARGET_COMPRESSED_IMAGE_SIZE = 900 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const FORUM_PROMOS = [
+    {
+        kicker: 'AI Club Hallway 🎉',
+        title: '首次发帖立得 100 积分！',
+        body: '发帖、获赞、被收藏都能涨分，快来成为社区大佬吧！',
+        notes: ['announcement', 'project drop', 'feedback'],
+        pin: '★',
+        accent: 'purple',
+    },
+    {
+        kicker: 'AI Club Hub 🚀',
+        title: '发布项目进 Hub 领 200 积分！',
+        body: '把你的游戏、工具或实验发布到 Hub，让大家打开体验，也让创作者徽章亮起来。',
+        notes: ['ship it', 'creator badge', '+200 XP'],
+        pin: '✦',
+        accent: 'aqua',
+    },
+] as const;
 
 function formatFileSize(bytes: number) {
     if (bytes >= 1024 * 1024) {
@@ -143,6 +161,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [createError, setCreateError] = useState('');
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+    const [promoIndex, setPromoIndex] = useState(0);
+    const activePromo = FORUM_PROMOS[promoIndex];
 
     const requireLogin = () => {
         if (!user) {
@@ -183,6 +203,14 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         document.addEventListener('pointerdown', handlePointerDown);
         return () => document.removeEventListener('pointerdown', handlePointerDown);
     }, [file, isCreating, isPreparingImage, loading, newContent, newTitle, user]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            setPromoIndex(current => (current + 1) % FORUM_PROMOS.length);
+        }, 5200);
+
+        return () => window.clearInterval(intervalId);
+    }, []);
 
     const fetchPosts = async (sort: string = sortType, filter: string = filterType, tag: string = selectedTag) => {
         const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
@@ -383,29 +411,51 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             </AnimatePresence>
 
             <div
-                className="glass-card forum-welcome-board"
+                className={`glass-card forum-welcome-board is-${activePromo.accent}`}
                 style={{ marginBottom: '20px' }}
             >
                 <div className="forum-welcome-picture" aria-label="Hajimi Hallway welcome illustration">
-                    <div className="forum-picture-copy">
-                        <span className="forum-picture-kicker">AI Club Hallway 🎉</span>
-                        <strong>首次发帖立得 100 积分！</strong>
-                        <span>发帖、获赞、被收藏都能涨分，快来成为社区大佬吧！</span>
-                    </div>
-                    <div className="forum-picture-scene" aria-hidden="true">
-                        <div className="forum-picture-pin">★</div>
-                        <div className="forum-picture-note note-a">announcement</div>
-                        <div className="forum-picture-note note-b">project drop</div>
-                        <div className="forum-picture-note note-c">feedback</div>
-                        <div className="forum-picture-cat">
-                            <span className="cat-ear left" />
-                            <span className="cat-ear right" />
-                            <span className="cat-eye left" />
-                            <span className="cat-eye right" />
-                            <span className="cat-smile" />
-                        </div>
-                        <div className="forum-picture-orbit one" />
-                        <div className="forum-picture-orbit two" />
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activePromo.title}
+                            className="forum-welcome-slide"
+                            initial={{ opacity: 0, x: 18 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -18 }}
+                            transition={{ duration: 0.35, ease: 'easeOut' }}
+                        >
+                            <div className="forum-picture-copy">
+                                <span className="forum-picture-kicker">{activePromo.kicker}</span>
+                                <strong>{activePromo.title}</strong>
+                                <span>{activePromo.body}</span>
+                            </div>
+                            <div className="forum-picture-scene" aria-hidden="true">
+                                <div className="forum-picture-pin">{activePromo.pin}</div>
+                                <div className="forum-picture-note note-a">{activePromo.notes[0]}</div>
+                                <div className="forum-picture-note note-b">{activePromo.notes[1]}</div>
+                                <div className="forum-picture-note note-c">{activePromo.notes[2]}</div>
+                                <div className="forum-picture-cat">
+                                    <span className="cat-ear left" />
+                                    <span className="cat-ear right" />
+                                    <span className="cat-eye left" />
+                                    <span className="cat-eye right" />
+                                    <span className="cat-smile" />
+                                </div>
+                                <div className="forum-picture-orbit one" />
+                                <div className="forum-picture-orbit two" />
+                            </div>
+                        </motion.div>
+                    </AnimatePresence>
+                    <div className="forum-promo-dots" aria-label="Hallway promotional slides">
+                        {FORUM_PROMOS.map((promo, index) => (
+                            <button
+                                key={promo.title}
+                                type="button"
+                                className={index === promoIndex ? 'is-active' : ''}
+                                aria-label={`Show ${promo.title}`}
+                                onClick={() => setPromoIndex(index)}
+                            />
+                        ))}
                     </div>
                 </div>
             </div>

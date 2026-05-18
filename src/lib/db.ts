@@ -191,6 +191,37 @@ export async function addPoints(userId: number, amount: number) {
   `;
 }
 
+async function ensurePointAwardsTable() {
+    await sql`
+      CREATE TABLE IF NOT EXISTS point_awards (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        award_key TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, award_key)
+      );
+    `;
+}
+
+async function addAwardPointsOnce(userId: number, awardKey: string, amount: number) {
+    await ensurePointAwardsTable();
+
+    const { rows } = await sql<{ id: number }>`
+      INSERT INTO point_awards (user_id, award_key, amount)
+      VALUES (${userId}, ${awardKey}, ${amount})
+      ON CONFLICT (user_id, award_key) DO NOTHING
+      RETURNING id
+    `;
+
+    if (rows[0]) {
+        await addPoints(userId, amount);
+        return true;
+    }
+
+    return false;
+}
+
 // --- Check-in Helpers ---
 
 export async function hasCheckedInToday(userId: number) {
@@ -303,7 +334,19 @@ export async function createPost(authorId: number, title: string, content: strin
     VALUES (${authorId}, ${title}, ${content}, ${type}, ${attachmentUrl}, ${tag})
     RETURNING id
   `;
-    await addPoints(authorId, 10);
+    const { rows: postCountRows } = await sql<{ post_count: number }>`
+      SELECT COUNT(*)::int as post_count
+      FROM posts
+      WHERE author_id = ${authorId}
+    `;
+    const isFirstPost = (postCountRows[0]?.post_count ?? 0) === 1;
+
+    if (isFirstPost) {
+        await addAwardPointsOnce(authorId, 'first_post_bonus', 100);
+    } else {
+        await addPoints(authorId, 10);
+    }
+
     return rows[0]?.id;
 }
 
@@ -444,9 +487,17 @@ export async function createProject(data: Omit<Project, 'id' | 'likes' | 'create
       VALUES (${data.author_id}, ${data.title}, ${data.description}, ${data.emoji}, ${data.url}, ${JSON.stringify(data.tags)}, ${data.accent_color}, ${data.status})
       RETURNING id
     `;
-    
-    // Reward for publishing: 100 XP
-    await addPoints(data.author_id, 100);
+
+    const { rows: projectCountRows } = await sql<{ project_count: number }>`
+      SELECT COUNT(*)::int as project_count
+      FROM projects
+      WHERE author_id = ${data.author_id}
+    `;
+
+    if ((projectCountRows[0]?.project_count ?? 0) === 1) {
+        await addAwardPointsOnce(data.author_id, 'hub_project_bonus', 200);
+    }
+
     return rows[0].id;
 }
 
@@ -844,6 +895,8 @@ export async function initDB() {
     );
   `;
 
+    await ensurePointAwardsTable();
+    await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;
     await ensureNotificationsTable();
 
     // Seeding logic (optional, but keep for now if needed)

@@ -2498,6 +2498,14 @@ p {
   box-shadow: 0 16px 34px rgba(108, 92, 231, 0.1);
 }
 
+.forum-welcome-board.is-aqua {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(55,198,208,0.16), transparent 32%),
+    linear-gradient(135deg, rgba(255,255,255,0.82), rgba(232,255,248,0.68));
+  border-color: rgba(55,198,208,0.18);
+  box-shadow: 0 16px 34px rgba(55,198,208,0.11);
+}
+
 .forum-welcome-board::after {
   display: none;
 }
@@ -2509,6 +2517,43 @@ p {
   align-items: stretch;
   position: relative;
   isolation: isolate;
+}
+
+.forum-welcome-slide {
+  display: contents;
+}
+
+.forum-promo-dots {
+  position: absolute;
+  left: 30px;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.forum-promo-dots button {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(108,92,231,0.24);
+  cursor: pointer;
+  transition: width 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.forum-promo-dots button.is-active {
+  width: 20px;
+  background: #6c5ce7;
+}
+
+.forum-welcome-board.is-aqua .forum-promo-dots button {
+  background: rgba(55,198,208,0.24);
+}
+
+.forum-welcome-board.is-aqua .forum-promo-dots button.is-active {
+  background: #00b894;
 }
 
 .forum-picture-copy {
@@ -2532,6 +2577,12 @@ p {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.forum-welcome-board.is-aqua .forum-picture-kicker {
+  color: #008f8c;
+  background: rgba(55,198,208,0.12);
+  border-color: rgba(55,198,208,0.18);
 }
 
 .forum-picture-copy strong {
@@ -2588,6 +2639,11 @@ p {
   font-weight: 900;
   box-shadow: 0 16px 30px rgba(253,121,168,0.24);
   transform: rotate(8deg);
+}
+
+.forum-welcome-board.is-aqua .forum-picture-pin {
+  background: linear-gradient(135deg, #00cec9, #6c5ce7);
+  box-shadow: 0 16px 30px rgba(0,206,201,0.22);
 }
 
 .forum-picture-note {
