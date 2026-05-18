@@ -3,15 +3,25 @@ import { getUser, createUser } from '@/lib/db';
 import { createSession } from '@/lib/auth';
 import { isRegistrationConfigured, resolveInviteRole } from '@/lib/inviteCodes';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
+import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { username, password, isRegister, inviteCode } = body;
+        const username = normalizeUsernameInput(body.username);
+        const { password, isRegister, inviteCode } = body;
 
         if (!username || !password) {
             return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+        }
+
+        if (isRegister && !validateUsername(username)) {
+            return NextResponse.json({ error: USERNAME_REQUIREMENT_MESSAGE }, { status: 400 });
+        }
+
+        if (isRegister && body.confirmPassword !== password) {
+            return NextResponse.json({ error: '两次输入的密码不一致。' }, { status: 400 });
         }
 
         if (isRegister && !isStrongPassword(password)) {

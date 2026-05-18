@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { updateUserProfile } from '@/lib/db';
+import { normalizeBadgePreferences } from '@/lib/badges';
 
 export async function POST(request: Request) {
     try {
@@ -9,8 +10,14 @@ export async function POST(request: Request) {
 
         const body = await request.json();
         const userId = Number(session.userId);
+        const profileUpdates = {
+            ...body,
+            ...(Object.prototype.hasOwnProperty.call(body, 'badge_preferences')
+                ? { badge_preferences: normalizeBadgePreferences(body.badge_preferences) }
+                : {}),
+        };
 
-        await updateUserProfile(userId, body);
+        await updateUserProfile(userId, profileUpdates);
 
         return NextResponse.json({ success: true });
     } catch (err) {

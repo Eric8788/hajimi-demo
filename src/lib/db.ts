@@ -15,6 +15,7 @@ export interface User {
     age?: number;
     ethnicity?: string;
     is_creator?: boolean;
+    badge_preferences?: string[] | null;
     streak_count: number;
     last_checkin_at?: string;
     daily_likes_count: number;
@@ -65,6 +66,7 @@ export interface Post {
     author_avatar?: string;
     author_role?: string;
     author_is_creator?: boolean;
+    author_badge_preferences?: string[] | null;
     comment_count?: number;
     is_bookmarked?: boolean;
     has_liked?: boolean;
@@ -84,6 +86,7 @@ export interface Comment {
     author_avatar?: string;
     author_role?: string;
     author_is_creator?: boolean;
+    author_badge_preferences?: string[] | null;
     has_liked?: boolean;
 }
 
@@ -103,12 +106,29 @@ export interface Notification {
 
 // --- User Helpers ---
 
+let userProfileEnhancementsReady: Promise<void> | null = null;
+
+async function ensureUserProfileEnhancements() {
+    if (!userProfileEnhancementsReady) {
+        userProfileEnhancementsReady = (async () => {
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
+            await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
+        })();
+    }
+
+    return userProfileEnhancementsReady;
+}
+
 export async function getUser(username: string) {
+    await ensureUserProfileEnhancements();
+
     const { rows } = await sql<User>`SELECT * FROM users WHERE username = ${username} LIMIT 1`;
     return rows[0];
 }
 
 export async function getUserById(id: number): Promise<User | null> {
+    await ensureUserProfileEnhancements();
+
     const { rows } = await sql<User>`
       SELECT users.*, 
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
@@ -129,7 +149,11 @@ export async function createUser(username: string, passwordHash: string, role = 
     return rows[0].id;
 }
 
-export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; grade?: string; age?: number; ethnicity?: string }) {
+export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; grade?: string; age?: number; ethnicity?: string; badge_preferences?: string[] }) {
+    await ensureUserProfileEnhancements();
+
+    const badgePreferencesJson = Array.isArray(updates.badge_preferences) ? JSON.stringify(updates.badge_preferences) : null;
+
     // Construct dynamic query carefully or just update all fields?
     // Updating individually is safer with COALESCE but sql template tag needs careful handling for dynamic columns.
     // Easiest verified way: use separate updates or smart COALESCE with all params passed.
@@ -140,7 +164,8 @@ export async function updateUserProfile(id: number, updates: { bio?: string; ava
       avatar = COALESCE(${updates.avatar ?? null}, avatar), 
       grade = COALESCE(${updates.grade ?? null}, grade), 
       age = COALESCE(${updates.age ?? null}, age), 
-      ethnicity = COALESCE(${updates.ethnicity ?? null}, ethnicity) 
+      ethnicity = COALESCE(${updates.ethnicity ?? null}, ethnicity),
+      badge_preferences = COALESCE(${badgePreferencesJson}::jsonb, badge_preferences)
     WHERE id = ${id}
   `;
 }
@@ -290,10 +315,12 @@ async function ensureForumEnhancements() {
 }
 
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
+    await ensureUserProfileEnhancements();
     await ensureForumEnhancements();
 
     const { rows } = await sql`
       SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      users.badge_preferences as author_badge_preferences,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
@@ -325,10 +352,12 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
 }
 
 export async function getComments(postId: number, userId?: number) {
+    await ensureUserProfileEnhancements();
     await ensureForumEnhancements();
 
     const { rows } = await sql`
       SELECT comments.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      users.badge_preferences as author_badge_preferences,
       parent_users.username as reply_author_name,
       parent_comments.content as reply_content,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
@@ -507,8 +536,10 @@ export async function toggleBookmark(userId: number, postId: number) {
 }
 
 export async function getLeaderboard(limit = 10): Promise<User[]> {
+    await ensureUserProfileEnhancements();
+
     const { rows } = await sql<User>`
-      SELECT id, username, avatar, points, level, role, 
+      SELECT id, username, avatar, points, level, role, badge_preferences,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM users 
       ORDER BY points DESC 
@@ -836,6 +867,7 @@ export async function initDB() {
       last_checkin_at TIMESTAMP WITH TIME ZONE,
       daily_likes_count INTEGER DEFAULT 0,
       last_like_at TIMESTAMP WITH TIME ZONE,
+      badge_preferences JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
@@ -846,6 +878,8 @@ export async function initDB() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_checkin_at TIMESTAMP WITH TIME ZONE`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_likes_count INTEGER DEFAULT 0`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_like_at TIMESTAMP WITH TIME ZONE`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
+    await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
   } catch (e) {
     console.log("Migration columns already exist or failed:", e);
   }

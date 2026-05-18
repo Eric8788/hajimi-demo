@@ -1,4 +1,4 @@
-export const PASSWORD_REQUIREMENT_MESSAGE = 'Password must be at least 8 characters and include uppercase, lowercase, and a number.';
+export const PASSWORD_REQUIREMENT_MESSAGE = '密码至少 8 位，并包含大小写字母和数字。';
 
 export function isStrongPassword(password: unknown) {
     const value = String(password || '');

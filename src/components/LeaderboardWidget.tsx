@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Avatar from './Avatar';
 import { User } from '@/lib/db';
-import CreatorBadge from './CreatorBadge';
-import RoleBadge from './RoleBadge';
+import UserBadges from './UserBadges';
 
 const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
 
@@ -75,8 +74,7 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
                                     <button type="button" className="leaderboard-username" onClick={() => openProfile(user.id)}>
                                         {user.username}
                                     </button>
-                                    <RoleBadge role={user.role} showStudent compact iconOnly />
-                                    {user.is_creator && <CreatorBadge compact iconOnly />}
+                                    <UserBadges user={user} compact iconOnly />
                                 </div>
                                 <span className="leaderboard-level">Level {user.level}</span>
                             </div>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { updateUserAuth } from '@/lib/db';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
+import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
@@ -9,16 +10,22 @@ export async function POST(request: Request) {
         const session = await getSession();
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const { username, password } = await request.json();
+        const { username, password, confirmPassword } = await request.json();
         const userId = Number(session.userId);
         const updates: { username?: string; passwordHash?: string } = {};
+        const normalizedUsername = username ? normalizeUsernameInput(username) : '';
 
-        if (username) {
-            if (username.length < 2) return NextResponse.json({ error: 'Username too short' }, { status: 400 });
-            updates.username = username;
+        if (normalizedUsername) {
+            if (!validateUsername(normalizedUsername)) {
+                return NextResponse.json({ error: USERNAME_REQUIREMENT_MESSAGE }, { status: 400 });
+            }
+            updates.username = normalizedUsername;
         }
 
         if (password) {
+            if (confirmPassword !== password) {
+                return NextResponse.json({ error: '两次输入的密码不一致。' }, { status: 400 });
+            }
             if (!isStrongPassword(password)) {
                 return NextResponse.json({ error: PASSWORD_REQUIREMENT_MESSAGE }, { status: 400 });
             }

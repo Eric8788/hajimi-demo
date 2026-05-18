@@ -4,9 +4,13 @@
 import { useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/db';
-import RoleBadge from './RoleBadge';
 import Avatar from './Avatar';
-import CreatorBadge from './CreatorBadge';
+import { getAvailableBadges, normalizeBadgePreferences, type BadgeId } from '@/lib/badges';
+import BadgePill from './BadgePill';
+import UserBadges from './UserBadges';
+import { formatHajimiId } from '@/lib/hajimiId';
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
+import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 
 
 function loadAvatarImage(src: string) {
@@ -27,6 +31,9 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     const [ethnicity, setEthnicity] = useState(user.ethnicity || '');
     const [newUsername, setNewUsername] = useState(user.username);
     const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [accountError, setAccountError] = useState('');
+    const [badgePreferences, setBadgePreferences] = useState<BadgeId[]>(normalizeBadgePreferences(user.badge_preferences));
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [avatarSource, setAvatarSource] = useState('');
@@ -51,13 +58,44 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
     
     const progressPercent = Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
     const xpToNext = xpForNextLevel - totalXp;
+    const availableBadges = getAvailableBadges(user);
+    const hajimiId = formatHajimiId(user.id);
+
+    const toggleBadgePreference = (badgeId: BadgeId) => {
+        setBadgePreferences(current => {
+            if (current.includes(badgeId)) {
+                return current.filter(id => id !== badgeId);
+            }
+
+            return [...current, badgeId].slice(0, 3);
+        });
+    };
 
     const handleSave = async () => {
+        const cleanUsername = normalizeUsernameInput(newUsername);
+        setAccountError('');
+
+        if (cleanUsername !== user.username && !validateUsername(cleanUsername)) {
+            setAccountError(USERNAME_REQUIREMENT_MESSAGE);
+            return;
+        }
+
+        if (newPassword) {
+            if (!isStrongPassword(newPassword)) {
+                setAccountError(PASSWORD_REQUIREMENT_MESSAGE);
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                setAccountError('两次输入的密码不一致。');
+                return;
+            }
+        }
+
         setLoading(true);
         // Profile basics
         await fetch('/api/profile', {
             method: 'POST',
-            body: JSON.stringify({ bio, avatar, grade, age: age || undefined, ethnicity }),
+            body: JSON.stringify({ bio, avatar, grade, age: age || undefined, ethnicity, badge_preferences: badgePreferences }),
         });
 
         // Account security if changed
@@ -65,13 +103,14 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
             const res = await fetch('/api/profile/account', {
                 method: 'POST',
                 body: JSON.stringify({ 
-                    username: newUsername !== user.username ? newUsername : undefined,
-                    password: newPassword !== '' ? newPassword : undefined
+                    username: cleanUsername !== user.username ? cleanUsername : undefined,
+                    password: newPassword !== '' ? newPassword : undefined,
+                    confirmPassword: newPassword !== '' ? confirmPassword : undefined,
                 }),
             });
             const data = await res.json();
             if (data.error) {
-                alert(data.error);
+                setAccountError(data.error);
                 setLoading(false);
                 return;
             }
@@ -79,6 +118,8 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
 
         setLoading(false);
         setIsEditing(false);
+        setNewPassword('');
+        setConfirmPassword('');
         router.refresh();
     };
 
@@ -254,9 +295,8 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                         {user.username}
                     </h2>
                     <div style={{ marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <RoleBadge role={user.role} showStudent />
-                        {user.is_creator && <CreatorBadge />}
-                        <span style={{ fontSize: '0.85rem', color: '#b2bec3', background: 'rgba(0,0,0,0.05)', padding: '2px 8px', borderRadius: '4px' }}>ID: {user.id}</span>
+                        <UserBadges user={{ ...user, badge_preferences: badgePreferences }} />
+                        <span className="hajimi-id-chip">Hajimi ID {hajimiId}</span>
                     </div>
 
                     {isEditing ? (
@@ -291,30 +331,79 @@ export default function ProfilePage({ user, readOnly = false }: { user: User; re
                                     style={{ flex: 1, minWidth: '150px', padding: '10px 15px', borderRadius: '10px', border: '1px solid #dfe6e9', fontSize: '0.95rem' }}
                                 />
                             </div>
+                            <div className="profile-badge-editor">
+                                <div>
+                                    <h4>主页 badge</h4>
+                                    <p>最多显示 3 个；其他位置会自动使用 emoji 简版。</p>
+                                </div>
+                                <div className="profile-badge-options">
+                                    {availableBadges.map(badge => {
+                                        const active = badgePreferences.includes(badge.id);
+                                        const disabled = !active && badgePreferences.length >= 3;
 
-                            <div style={{ marginTop: '20px', padding: '20px', background: 'rgba(255,107,107,0.05)', borderRadius: '12px', border: '1px solid rgba(255,107,107,0.1)' }}>
-                                <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#e17055' }}>Security & Account</h4>
+                                        return (
+                                            <button
+                                                key={badge.id}
+                                                type="button"
+                                                className={`profile-badge-option${active ? ' is-active' : ''}`}
+                                                onClick={() => toggleBadgePreference(badge.id)}
+                                                disabled={disabled}
+                                            >
+                                                <BadgePill badge={badge} compact />
+                                                <span>{active ? '显示中' : disabled ? '已满' : '显示'}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="profile-account-editor">
+                                <div className="profile-account-head">
+                                    <div>
+                                        <h4>账号设置</h4>
+                                        <p>公开身份仍然只展示昵称和 Hajimi ID。</p>
+                                    </div>
+                                    <span>{hajimiId}</span>
+                                </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.85rem', color: '#636e72' }}>
-                                        Change Nickname (Login Name)
+                                    <label className="profile-field-label">
+                                        用户名
                                         <input
                                             value={newUsername}
                                             onChange={e => setNewUsername(e.target.value)}
                                             className="glass-input"
                                             style={{ fontSize: '1rem' }}
                                         />
+                                        <small>2-24 个字符；不能包含空格或 URL 特殊符号。</small>
                                     </label>
-                                    <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.85rem', color: '#636e72' }}>
-                                        New Password (Leave blank to keep current)
+                                    <label className="profile-field-label">
+                                        新密码
                                         <input
                                             type="password"
                                             value={newPassword}
                                             onChange={e => setNewPassword(e.target.value)}
-                                            placeholder="••••••••"
+                                            placeholder="留空则不修改"
                                             className="glass-input"
                                             style={{ fontSize: '1rem' }}
+                                            autoComplete="new-password"
                                         />
+                                        <small>至少 8 位，并包含大小写字母和数字。</small>
                                     </label>
+                                    {newPassword && (
+                                        <label className="profile-field-label">
+                                            再输入一次新密码
+                                            <input
+                                                type="password"
+                                                value={confirmPassword}
+                                                onChange={e => setConfirmPassword(e.target.value)}
+                                                placeholder="确认新密码"
+                                                className="glass-input"
+                                                style={{ fontSize: '1rem' }}
+                                                autoComplete="new-password"
+                                            />
+                                        </label>
+                                    )}
+                                    {accountError && <div className="profile-account-error">{accountError}</div>}
                                     <div style={{ marginTop: '10px' }}>
                                         <button 
                                             type="button" 

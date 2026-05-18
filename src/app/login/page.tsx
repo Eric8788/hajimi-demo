@@ -4,12 +4,15 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import ParticleBackground from '@/components/ParticleBackground';
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
+import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 
 export default function LoginPage() {
     const router = useRouter();
     const [isRegister, setIsRegister] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,13 +20,27 @@ export default function LoginPage() {
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
+        const cleanUsername = normalizeUsernameInput(username);
+        if (isRegister && !validateUsername(cleanUsername)) {
+            setError(USERNAME_REQUIREMENT_MESSAGE);
+            return;
+        }
+        if (isRegister && !isStrongPassword(password)) {
+            setError(PASSWORD_REQUIREMENT_MESSAGE);
+            return;
+        }
+        if (isRegister && password !== confirmPassword) {
+            setError('两次输入的密码不一致。');
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
             const res = await fetch('/api/auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, isRegister, inviteCode }),
+                body: JSON.stringify({ username: cleanUsername, password, confirmPassword, isRegister, inviteCode }),
             });
 
             const data = await res.json().catch(() => ({ error: 'Login failed. Please try again.' }));
@@ -68,7 +85,13 @@ export default function LoginPage() {
                             required
                             className="glass-input"
                             placeholder="Username"
+                            autoComplete={isRegister ? 'username' : 'username'}
                         />
+                        {isRegister && (
+                            <div className="auth-field-hint">
+                                2-24 characters. No spaces or URL symbols.
+                            </div>
+                        )}
                     </div>
 
                     {isRegister && (
@@ -97,11 +120,26 @@ export default function LoginPage() {
                             autoComplete={isRegister ? 'new-password' : 'current-password'}
                         />
                         {isRegister && (
-                            <div style={{ color: '#636e72', fontSize: '0.78rem', marginTop: '8px', lineHeight: 1.4 }}>
+                            <div className="auth-field-hint">
                                 At least 8 characters with uppercase, lowercase, and a number.
                             </div>
                         )}
                     </div>
+
+                    {isRegister && (
+                        <div>
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                className="glass-input"
+                                placeholder="Confirm password"
+                                autoComplete="new-password"
+                            />
+                        </div>
+                    )}
 
                     {error && (
                         <div style={{
@@ -134,6 +172,7 @@ export default function LoginPage() {
                                 setIsRegister(!isRegister);
                                 setError('');
                                 setInviteCode('');
+                                setConfirmPassword('');
                                 setIsSubmitting(false);
                             }}
                             className="auth-switch-btn"
@@ -223,6 +262,13 @@ export default function LoginPage() {
 	        .glass-input[type="password"] {
 	          letter-spacing: 0.15em;
 	        }
+          .auth-field-hint {
+            color: #636e72;
+            font-size: 0.78rem;
+            margin-top: 8px;
+            line-height: 1.4;
+            font-weight: 700;
+          }
 	        .glass-input:focus {
 	          background: #fff;
 	          box-shadow: 0 0 0 4px rgba(162,155,254,0.18), 0 10px 26px rgba(108,92,231,0.08);
