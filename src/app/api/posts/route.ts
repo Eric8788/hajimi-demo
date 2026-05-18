@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getPosts, createPost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
+import { getPosts, createPost, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
 import { isStaffRole } from '@/lib/roles';
 import { put } from '@vercel/blob';
 
@@ -119,6 +119,49 @@ export async function POST(request: Request) {
         }
 
         await createPost(userId, title, content, type, attachmentUrl, tag);
+        return NextResponse.json({ success: true });
+    } catch (err: unknown) {
+        console.error(err);
+        return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    }
+}
+
+export async function PATCH(request: Request) {
+    try {
+        const session = await getSession();
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const userId = Number(session.userId);
+        const user = await getUserById(userId);
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const postId = Number(body.postId);
+        const title = String(body.title || '').trim();
+        const content = String(body.content || '').trim();
+        const tag = normalizeHashtag(body.tag || 'general');
+
+        if (!postId || !title || !content) {
+            return NextResponse.json({ error: 'Post, title, and content are required' }, { status: 400 });
+        }
+
+        if (tag === 'announcement' && !isStaffRole(user.role)) {
+            return NextResponse.json({ error: 'Only teachers and admins can publish announcements' }, { status: 403 });
+        }
+
+        if (!HASHTAG_PATTERN.test(tag)) {
+            return NextResponse.json({ error: 'Hashtags can use letters, numbers, Chinese characters, underscores, or hyphens' }, { status: 400 });
+        }
+
+        const updated = await updatePost(userId, postId, title, content, tag);
+        if (!updated) {
+            return NextResponse.json({ error: 'Cannot edit post' }, { status: 403 });
+        }
+
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
         console.error(err);

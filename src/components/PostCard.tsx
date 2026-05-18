@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
@@ -11,12 +11,78 @@ import RoleBadge from './RoleBadge';
 import Avatar from './Avatar';
 import CreatorBadge from './CreatorBadge';
 
+const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
+
+function safeExternalUrl(url: string) {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : '';
+    } catch {
+        return '';
+    }
+}
+
+function renderRichText(text: string) {
+    const lines = text.split('\n');
+
+    return lines.map((line, lineIndex) => {
+        const parts: ReactNode[] = [];
+        let lastIndex = 0;
+
+        for (const match of line.matchAll(LINK_PATTERN)) {
+            const matchIndex = match.index ?? 0;
+            if (matchIndex > lastIndex) {
+                parts.push(line.slice(lastIndex, matchIndex));
+            }
+
+            const rawHref = match[2] || match[3] || '';
+            const label = match[1] || match[3] || rawHref;
+            const href = safeExternalUrl(rawHref);
+            const rawText = match[0];
+
+            if (href) {
+                parts.push(
+                    <a key={`${lineIndex}-${matchIndex}`} href={href} target="_blank" rel="noopener noreferrer" className="post-rich-link">
+                        {label}
+                    </a>
+                );
+            } else {
+                parts.push(rawText);
+            }
+
+            lastIndex = matchIndex + rawText.length;
+        }
+
+        if (lastIndex < line.length) {
+            parts.push(line.slice(lastIndex));
+        }
+
+        return (
+            <span key={lineIndex}>
+                {parts}
+                {lineIndex < lines.length - 1 && <br />}
+            </span>
+        );
+    });
+}
+
+function shortPreview(text?: string | null) {
+    if (!text) return '';
+    const compact = text.replace(/\s+/g, ' ').trim();
+    return compact.length > 80 ? `${compact.slice(0, 80)}...` : compact;
+}
+
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
     const isGuest = !currentUser;
     const canModerate = isAdminRole(currentUser?.role);
     const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
-    const isAnnouncement = post.tag === 'announcement';
+    const canEditPost = !!currentUser && post.author_id === currentUser.id;
+    const [displayTitle, setDisplayTitle] = useState(post.title);
+    const [displayContent, setDisplayContent] = useState(post.content);
+    const [displayTag, setDisplayTag] = useState(post.tag || 'general');
+    const [displayUpdatedAt, setDisplayUpdatedAt] = useState<Date | string | undefined>(post.updated_at);
+    const isAnnouncement = displayTag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
     const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
@@ -32,6 +98,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     const [newComment, setNewComment] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState(post.title);
+    const [editContent, setEditContent] = useState(post.content);
+    const [editTag, setEditTag] = useState(post.tag || 'general');
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [editError, setEditError] = useState('');
 
     // Image Modal State
     const [showImageModal, setShowImageModal] = useState(false);
@@ -65,6 +138,16 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
         return () => { isActive = false; };
     }, [post.comment_count, post.id, commentsLoaded]);
+
+    useEffect(() => {
+        setDisplayTitle(post.title);
+        setDisplayContent(post.content);
+        setDisplayTag(post.tag || 'general');
+        setDisplayUpdatedAt(post.updated_at);
+        setEditTitle(post.title);
+        setEditContent(post.content);
+        setEditTag(post.tag || 'general');
+    }, [post.content, post.tag, post.title, post.updated_at]);
 
     // Lock Body Scroll when Modal is Open
     useEffect(() => {
@@ -163,6 +246,55 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         }
     };
 
+    const startEditing = () => {
+        setEditTitle(displayTitle);
+        setEditContent(displayContent);
+        setEditTag(displayTag);
+        setEditError('');
+        setIsEditing(true);
+        setExpanded(true);
+    };
+
+    const cancelEditing = () => {
+        setIsEditing(false);
+        setEditError('');
+    };
+
+    const saveEdit = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!editTitle.trim() || !editContent.trim()) {
+            setEditError('Title and content are required.');
+            return;
+        }
+
+        setSavingEdit(true);
+        setEditError('');
+
+        const res = await fetch('/api/posts', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                postId: post.id,
+                title: editTitle,
+                content: editContent,
+                tag: editTag,
+            }),
+        });
+
+        if (res.ok) {
+            setDisplayTitle(editTitle.trim());
+            setDisplayContent(editContent.trim());
+            setDisplayTag(editTag.trim().replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24) || 'general');
+            setDisplayUpdatedAt(new Date());
+            setIsEditing(false);
+        } else {
+            const data = await res.json().catch(() => null);
+            setEditError(data?.error || 'Could not save this edit.');
+        }
+
+        setSavingEdit(false);
+    };
+
     const handleDeleteComment = async (commentId: number) => {
         const comment = comments.find(c => c.id === commentId);
         const message = comment?.author_id === currentUser?.id
@@ -208,7 +340,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
-            body: JSON.stringify({ action: 'comment', postId: post.id, content: newComment })
+            body: JSON.stringify({ action: 'comment', postId: post.id, content: newComment, parentCommentId: replyingTo?.id })
         });
 
         if (res.ok) {
@@ -225,9 +357,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     author_avatar: currentUser.avatar,
                     author_role: currentUser.role,
                     author_is_creator: currentUser.is_creator,
+                    parent_comment_id: replyingTo?.id ?? null,
+                    reply_author_name: replyingTo?.author_name ?? null,
+                    reply_content: replyingTo?.content ?? null,
                 }
             ]);
             setNewComment('');
+            setReplyingTo(null);
             if (!showComments) setShowComments(true); // Auto expand if adding new
         }
         setSendingComment(false);
@@ -261,12 +397,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         <RoleBadge role={post.author_role} showStudent compact />
                         {post.author_is_creator && <CreatorBadge compact />}
                     </div>
-                    <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>{new Date(post.created_at).toLocaleDateString()}</div>
+                    <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>
+                        {new Date(post.created_at).toLocaleDateString()}
+                        {displayUpdatedAt && <span> · edited</span>}
+                    </div>
                 </div>
 
                 <div className="post-card-actions">
                     <div className={`post-tag-badge ${isAnnouncement ? 'is-announcement' : ''}`}>
-                        {isAnnouncement ? '📢 announcement' : `#${post.tag || 'general'}`}
+                        {isAnnouncement ? '📢 announcement' : `#${displayTag || 'general'}`}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '34px' }}>
                         {/* Bookmark Button */}
@@ -299,6 +438,17 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             </AnimatePresence>
                             {isBookmarked ? '⭐' : '☆'}
                         </motion.button>
+                        {canEditPost && (
+                            <button
+                                onClick={startEditing}
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem',
+                                    color: '#6c5ce7', transition: 'color 0.2s',
+                                    display: 'flex', alignItems: 'center', padding: 0
+                                }}
+                                title="Edit Post"
+                            >✏️</button>
+                        )}
                         {/* Delete Button (Owner or Moderator) */}
                         {canDeletePost && (
                             <button
@@ -317,35 +467,73 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Content Body */}
             <div>
-                <h3 style={{ marginBottom: '10px', fontSize: '1.2rem' }}>{post.title}</h3>
+                {isEditing ? (
+                    <form onSubmit={saveEdit} className="post-edit-form">
+                        <input
+                            className="glass-input"
+                            value={editTitle}
+                            onChange={e => setEditTitle(e.target.value)}
+                            maxLength={120}
+                            required
+                        />
+                        <textarea
+                            className="glass-input"
+                            value={editContent}
+                            onChange={e => setEditContent(e.target.value)}
+                            rows={6}
+                            required
+                        />
+                        <div className="post-edit-helper">
+                            <span>Links: paste https://... or use [text](https://...)</span>
+                            <input
+                                className="glass-input"
+                                value={editTag}
+                                onChange={e => setEditTag(e.target.value)}
+                                maxLength={24}
+                                aria-label="Post tag"
+                            />
+                        </div>
+                        {editError && <div className="post-edit-error">{editError}</div>}
+                        <div className="post-edit-actions">
+                            <button type="button" className="btn" onClick={cancelEditing}>Cancel</button>
+                            <button type="submit" className="btn btn-primary" disabled={savingEdit}>
+                                {savingEdit ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <>
+                        <h3 style={{ marginBottom: '10px', fontSize: '1.2rem' }}>{displayTitle}</h3>
 
-                {/* Truncated Text */}
-                <div style={{
-                    position: 'relative',
-                    maxHeight: expanded ? 'none' : '100px',
-                    overflow: 'hidden',
-                    lineHeight: '1.6',
-                    color: '#4a4a4a'
-                }}>
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{post.content}</p>
-                    {/* Fade Out Overlay if truncated */}
-                    {!expanded && post.content.length > 150 && (
+                        {/* Truncated Text */}
                         <div style={{
-                            position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40px',
-                            background: 'linear-gradient(transparent, rgba(255,255,255,0.9))',
-                            display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
-                        }} />
-                    )}
-                </div>
+                            position: 'relative',
+                            maxHeight: expanded ? 'none' : '100px',
+                            overflow: 'hidden',
+                            lineHeight: '1.6',
+                            color: '#4a4a4a'
+                        }}>
+                            <p style={{ whiteSpace: 'pre-wrap' }}>{renderRichText(displayContent)}</p>
+                            {/* Fade Out Overlay if truncated */}
+                            {!expanded && displayContent.length > 150 && (
+                                <div style={{
+                                    position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40px',
+                                    background: 'linear-gradient(transparent, rgba(255,255,255,0.9))',
+                                    display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+                                }} />
+                            )}
+                        </div>
 
-                {/* Expand Button */}
-                {post.content.length > 150 && (
-                    <button
-                        onClick={() => setExpanded(!expanded)}
-                        style={{ background: 'none', border: 'none', color: '#6c5ce7', fontSize: '0.9rem', marginTop: '5px', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                        {expanded ? 'Show Less' : 'Read More...'}
-                    </button>
+                        {/* Expand Button */}
+                        {displayContent.length > 150 && (
+                            <button
+                                onClick={() => setExpanded(!expanded)}
+                                style={{ background: 'none', border: 'none', color: '#6c5ce7', fontSize: '0.9rem', marginTop: '5px', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                                {expanded ? 'Show Less' : 'Read More...'}
+                            </button>
+                        )}
+                    </>
                 )}
 
                 {/* Attachment / Thumbnail */}
@@ -467,6 +655,16 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                         </AnimatePresence>
                                                         {c.has_liked ? '❤️' : '🤍'}
                                                     </motion.button>
+                                                    {!isGuest && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setReplyingTo(c);
+                                                                setShowComments(true);
+                                                            }}
+                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6c5ce7', fontSize: '0.8rem', fontWeight: 700 }}
+                                                            title={`Reply to ${c.author_name}`}
+                                                        >Reply</button>
+                                                    )}
                                                     {!isGuest && currentUser && (c.author_id === currentUser.id || canModerate) && (
                                                         <button
                                                             onClick={() => handleDeleteComment(c.id)}
@@ -476,7 +674,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                     )}
                                                 </div>
                                             </div>
-                                            <div style={{ fontSize: '0.9rem', color: '#444' }}>{c.content}</div>
+                                            {c.reply_author_name && (
+                                                <div className="comment-reply-context">
+                                                    Replying to @{c.reply_author_name}: {shortPreview(c.reply_content)}
+                                                </div>
+                                            )}
+                                            <div style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>{renderRichText(c.content)}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -493,11 +696,17 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
                             {/* Comment Input - Only visible when fully expanded or if no comments yet */}
                             {showComments && (
-                                <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px' }}>
+                                <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    {replyingTo && (
+                                        <div className="comment-reply-pill">
+                                            Replying to @{replyingTo.author_name}
+                                            <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">×</button>
+                                        </div>
+                                    )}
                                     <input
                                         className="glass-input"
-                                        style={{ flex: 1, padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
-                                        placeholder="Write a comment..."
+                                        style={{ flex: '1 1 220px', padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
+                                        placeholder={replyingTo ? `Reply to ${replyingTo.author_name}...` : 'Write a comment...'}
                                         value={newComment}
                                         onChange={e => setNewComment(e.target.value)}
                                     />

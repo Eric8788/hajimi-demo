@@ -15,7 +15,7 @@ export async function POST(request: Request) {
         const canModerate = isAdminRole(user.role);
 
         const body = await request.json();
-        const { action, postId, commentId, content } = body;
+        const { action, postId, commentId, content, parentCommentId } = body;
 
         if (action === 'like') {
             if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
         else if (action === 'comment') {
             if (!postId || !content) return NextResponse.json({ error: 'Missing data' }, { status: 400 });
-            await createComment(userId, postId, content);
+            await createComment(userId, postId, content, parentCommentId ? Number(parentCommentId) : null);
             return NextResponse.json({ success: true });
         }
 

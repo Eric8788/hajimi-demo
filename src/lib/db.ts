@@ -60,6 +60,7 @@ export interface Post {
     attachment_url?: string;
     likes: number;
     created_at: Date;
+    updated_at?: Date;
     author_name?: string;
     author_avatar?: string;
     author_role?: string;
@@ -76,6 +77,9 @@ export interface Comment {
     content: string;
     likes: number;
     created_at: Date;
+    parent_comment_id?: number | null;
+    reply_author_name?: string | null;
+    reply_content?: string | null;
     author_name?: string;
     author_avatar?: string;
     author_role?: string;
@@ -280,7 +284,14 @@ export async function doCheckIn(userId: number) {
 
 // --- Forum Helpers ---
 
+async function ensureForumEnhancements() {
+    await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
+    await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
+}
+
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
+    await ensureForumEnhancements();
+
     const { rows } = await sql`
       SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
@@ -314,14 +325,20 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
 }
 
 export async function getComments(postId: number, userId?: number) {
+    await ensureForumEnhancements();
+
     const { rows } = await sql`
       SELECT comments.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      parent_users.username as reply_author_name,
+      parent_comments.content as reply_content,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = comments.id)
       ELSE false END as has_liked
       FROM comments
       JOIN users ON comments.author_id = users.id
+      LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
+      LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
       WHERE post_id = ${postId}
       ORDER BY comments.likes DESC, comments.created_at DESC
   `;
@@ -350,6 +367,27 @@ export async function createPost(authorId: number, title: string, content: strin
     return rows[0]?.id;
 }
 
+export async function updatePost(userId: number, postId: number, title: string, content: string, tag: string, canModerate = false): Promise<boolean> {
+    await ensureForumEnhancements();
+
+    const { rows } = await sql<{ author_id: number }>`
+      SELECT author_id
+      FROM posts
+      WHERE id = ${postId}
+      LIMIT 1
+    `;
+
+    if (!rows[0] || (!canModerate && rows[0].author_id !== userId)) return false;
+
+    await sql`
+      UPDATE posts
+      SET title = ${title}, content = ${content}, tag = ${tag}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${postId}
+    `;
+
+    return true;
+}
+
 export async function countRecentAttachmentsByUser(userId: number) {
     const { rows } = await sql<{ upload_count: number }>`
       SELECT COUNT(*)::int as upload_count
@@ -375,10 +413,23 @@ export async function countAttachmentsByUser(userId: number) {
     return rows[0]?.upload_count ?? 0;
 }
 
-export async function createComment(authorId: number, postId: number, content: string) {
+export async function createComment(authorId: number, postId: number, content: string, parentCommentId?: number | null) {
+    await ensureForumEnhancements();
+
+    let replyToId: number | null = null;
+    if (parentCommentId) {
+        const { rows } = await sql<{ id: number }>`
+          SELECT id
+          FROM comments
+          WHERE id = ${parentCommentId} AND post_id = ${postId}
+          LIMIT 1
+        `;
+        replyToId = rows[0]?.id ?? null;
+    }
+
     await sql`
-    INSERT INTO comments (author_id, post_id, content) 
-    VALUES (${authorId}, ${postId}, ${content})
+    INSERT INTO comments (author_id, post_id, content, parent_comment_id)
+    VALUES (${authorId}, ${postId}, ${content}, ${replyToId})
   `;
     await addPoints(authorId, 5);
 }
@@ -841,6 +892,8 @@ export async function initDB() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
+
+    await ensureForumEnhancements();
 
     await sql`
     CREATE TABLE IF NOT EXISTS post_likes (

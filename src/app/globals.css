@@ -2925,6 +2925,107 @@ html *::after {
   background: #fff;
 }
 
+.post-rich-link {
+  color: #5f4bd8;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(108, 92, 231, 0.28);
+  overflow-wrap: anywhere;
+}
+
+.post-rich-link:hover {
+  color: #00a8a8;
+  border-bottom-color: rgba(0, 184, 148, 0.38);
+}
+
+.post-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.post-edit-form textarea {
+  resize: vertical;
+}
+
+.post-edit-helper {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 180px);
+  gap: 10px;
+  align-items: center;
+  color: #636e72;
+  font-size: 0.82rem;
+}
+
+.post-edit-error {
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(255, 118, 117, 0.14);
+  color: #d63031;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.post-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.comment-reply-context {
+  width: fit-content;
+  max-width: 100%;
+  margin: 5px 0 4px;
+  padding: 5px 8px;
+  border-left: 3px solid rgba(108, 92, 231, 0.34);
+  border-radius: 8px;
+  background: rgba(108, 92, 231, 0.08);
+  color: #636e72;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.comment-reply-pill {
+  flex: 1 0 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid rgba(108, 92, 231, 0.16);
+  border-radius: 10px;
+  background: rgba(108, 92, 231, 0.08);
+  color: #5f4bd8;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.comment-reply-pill button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.14);
+  color: #5f4bd8;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .post-edit-helper {
+    grid-template-columns: 1fr;
+  }
+
+  .post-edit-actions {
+    justify-content: stretch;
+  }
+
+  .post-edit-actions .btn {
+    flex: 1;
+  }
+}
+
 .reaction-button {
   position: relative;
   border-radius: 999px;
