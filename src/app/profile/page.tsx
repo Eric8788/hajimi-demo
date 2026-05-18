@@ -12,10 +12,13 @@ export default async function Page() {
 
     return (
         <Shell user={user}>
-            <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
-                <h1 style={{ marginBottom: '30px', fontSize: '2.5rem', textAlign: 'center' }}>My Profile</h1>
+            <div className="profile-page-shell">
+                <div className="profile-page-heading">
+                    <span>Hajimi account</span>
+                    <h1>My Profile</h1>
+                </div>
 
-                <div className="glass-panel" style={{ padding: '50px', background: 'rgba(255,255,255,0.7)' }}>
+                <div className="glass-panel profile-page-panel">
                     <ProfileCard user={user} />
                 </div>
             </div>

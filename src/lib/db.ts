@@ -11,6 +11,7 @@ export interface User {
     password_hash?: string;
     bio?: string;
     avatar?: string;
+    profile_image?: string;
     grade?: string;
     age?: number;
     ethnicity?: string;
@@ -113,6 +114,7 @@ async function ensureUserProfileEnhancements() {
         userProfileEnhancementsReady = (async () => {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
             await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
         })();
     }
 
@@ -149,7 +151,7 @@ export async function createUser(username: string, passwordHash: string, role = 
     return rows[0].id;
 }
 
-export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; grade?: string; age?: number; ethnicity?: string; badge_preferences?: string[] }) {
+export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; profile_image?: string; badge_preferences?: string[] }) {
     await ensureUserProfileEnhancements();
 
     const badgePreferencesJson = Array.isArray(updates.badge_preferences) ? JSON.stringify(updates.badge_preferences) : null;
@@ -162,9 +164,7 @@ export async function updateUserProfile(id: number, updates: { bio?: string; ava
     SET 
       bio = COALESCE(${updates.bio ?? null}, bio), 
       avatar = COALESCE(${updates.avatar ?? null}, avatar), 
-      grade = COALESCE(${updates.grade ?? null}, grade), 
-      age = COALESCE(${updates.age ?? null}, age), 
-      ethnicity = COALESCE(${updates.ethnicity ?? null}, ethnicity),
+      profile_image = COALESCE(${updates.profile_image ?? null}, profile_image),
       badge_preferences = COALESCE(${badgePreferencesJson}::jsonb, badge_preferences)
     WHERE id = ${id}
   `;
@@ -860,6 +860,7 @@ export async function initDB() {
       role TEXT DEFAULT 'student',
       bio TEXT DEFAULT 'New student at Hajimi High!',
       avatar TEXT DEFAULT '😊',
+      profile_image TEXT,
       grade TEXT,
       age INTEGER,
       ethnicity TEXT,
@@ -880,6 +881,7 @@ export async function initDB() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_like_at TIMESTAMP WITH TIME ZONE`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
     await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
   } catch (e) {
     console.log("Migration columns already exist or failed:", e);
   }
