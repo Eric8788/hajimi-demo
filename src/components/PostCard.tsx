@@ -389,6 +389,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     return (
         <div
+            id={`post-${post.id}`}
             className="glass-card"
             style={{
                 transition: 'all 0.3s',

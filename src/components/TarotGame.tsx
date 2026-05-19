@@ -39,10 +39,44 @@ export default function TarotGame() {
     const [cards, setCards] = useState<(TarotCard | null)[]>([null, null, null]);
     const [flipped, setFlipped] = useState([false, false, false]);
     const [isShuffling, setIsShuffling] = useState(false);
+    const [isReading, setIsReading] = useState(false);
     const [reading, setReading] = useState('');
 
+    const getFallbackReading = (drawn: TarotCard[]) => (
+        `过去的 ${drawn[0].name} 提醒你保留 ${drawn[0].meaning.toLowerCase()} 的能量；现在的 ${drawn[1].name} 适合把注意力放回当下行动；未来的 ${drawn[2].name} 指向新的创作和成长线索。`
+    );
+
+    const generateAiReading = async (drawn: TarotCard[]) => {
+        setIsReading(true);
+        try {
+            const res = await fetch('/api/oracle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cards: drawn.map((card, index) => ({
+                        position: positions[index],
+                        name: card.name,
+                        meaning: card.meaning,
+                    })),
+                }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || typeof data?.reading !== 'string' || !data.reading.trim()) {
+                throw new Error(data?.error || 'Oracle AI did not return a reading');
+            }
+
+            setReading(data.reading.trim());
+        } catch (error) {
+            console.warn('[tarot] falling back to local reading', error);
+            setReading(getFallbackReading(drawn));
+        } finally {
+            setIsReading(false);
+        }
+    };
+
     const drawCards = () => {
-        if (isShuffling) return;
+        if (isShuffling || isReading) return;
         setIsShuffling(true);
         setCards([null, null, null]);
         setFlipped([false, false, false]);
@@ -70,8 +104,7 @@ export default function TarotGame() {
             // Flip 3
             setTimeout(() => {
                 setFlipped([true, true, true]);
-                // Generate reading (simple string composition for now)
-                setReading(`The past is defined by ${drawn[0].name}, suggesting ${drawn[0].meaning.toLowerCase()} Currently, ${drawn[1].name} governs you with ${drawn[1].meaning.toLowerCase()} Your path leads to ${drawn[2].name}: ${drawn[2].meaning.toLowerCase()}`);
+                void generateAiReading(drawn);
             }, 1700);
         }, 800);
     };
@@ -131,25 +164,27 @@ export default function TarotGame() {
             </div>
 
             <AnimatePresence>
-                {reading && (
+                {(reading || isReading) && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         style={{ maxWidth: '700px', margin: '0 auto 30px', padding: '20px', background: 'rgba(162, 155, 254, 0.1)', borderRadius: '15px', border: '1px solid rgba(162, 155, 254, 0.3)' }}
                     >
                         <h4 style={{ marginBottom: '10px', color: '#6c5ce7' }}>✨ Oracle&apos;s Insight</h4>
-                        <p style={{ lineHeight: '1.6', fontSize: '1.05rem' }}>{reading}</p>
+                        <p style={{ lineHeight: '1.6', fontSize: '1.05rem' }}>
+                            {isReading ? 'AI Oracle 正在解读这组三张牌...' : reading}
+                        </p>
                     </motion.div>
                 )}
             </AnimatePresence>
 
             <button
                 onClick={drawCards}
-                disabled={isShuffling}
+                disabled={isShuffling || isReading}
                 className="btn btn-primary"
                 style={{ minWidth: '180px', padding: '12px 24px', fontSize: '1.1rem' }}
             >
-                {isShuffling ? 'Consulting the Void...' : 'Reveal My Destiny'}
+                {isShuffling ? 'Consulting the Void...' : isReading ? 'AI is reading...' : 'Reveal My Destiny'}
             </button>
         </div>
     );

@@ -25,6 +25,7 @@ const VIEWBOX_ANIMATION_MS = 460;
 // base map. Lat/lng stay in the data for geography, but drawing uses mapPoint.
 const MIN_ZOOM_VIEW_BOX = { width: 28, height: 18 };
 const WORLD_SCHOOL_DOT_VIEWBOX_WIDTH = 620;
+const DRAG_CLICK_THRESHOLD = 4;
 const WORLD_REGION_IDS: AlumniRegionId[] = [
   'united-states',
   'canada',
@@ -86,6 +87,14 @@ type AlumniMapPoint = {
 };
 
 type MapViewBox = typeof WORLD_VIEW_BOX;
+type MapDragState = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
+  moved: boolean;
+};
 
 function formatViewBox(viewBox: MapViewBox) {
   return `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
@@ -247,9 +256,12 @@ export default function AlumniWorldMap() {
   const [hoveredRegionId, setHoveredRegionId] = useState<AlumniRegionId | null>(null);
   const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
   const [animatedViewBox, setAnimatedViewBox] = useState<MapViewBox>(WORLD_VIEW_BOX);
+  const [isDraggingMap, setIsDraggingMap] = useState(false);
   const animatedViewBoxRef = useRef<MapViewBox>(WORLD_VIEW_BOX);
   const viewBoxAnimationRef = useRef(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const mapDragRef = useRef<MapDragState | null>(null);
+  const suppressNextClickRef = useRef(false);
 
   const selectedRegion = useMemo(
     () => worldRegions.find((region) => region.id === selectedRegionId) ?? null,
@@ -370,6 +382,13 @@ export default function AlumniWorldMap() {
   };
 
   const handleStageClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const target = event.target as Element;
     if (isMapInteractiveTarget(target)) return;
 
@@ -399,6 +418,22 @@ export default function AlumniWorldMap() {
     setHoveredRegionId(hoveredRegion?.id ?? null);
   };
 
+  const handleStagePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || isMapInteractiveTarget(event.target)) return;
+
+    cancelAnimationFrame(viewBoxAnimationRef.current);
+    mapDragRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      lastClientX: event.clientX,
+      lastClientY: event.clientY,
+      moved: false,
+    };
+    setIsDraggingMap(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -417,6 +452,38 @@ export default function AlumniWorldMap() {
   }, []);
 
   const handleStagePointerMoveWithinMap = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = mapDragRef.current;
+    if (dragState?.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const rect = stage.getBoundingClientRect();
+      const deltaX = event.clientX - dragState.lastClientX;
+      const deltaY = event.clientY - dragState.lastClientY;
+      const totalDeltaX = event.clientX - dragState.startClientX;
+      const totalDeltaY = event.clientY - dragState.startClientY;
+      const currentViewBox = animatedViewBoxRef.current;
+      const nextViewBox = clampViewBox({
+        ...currentViewBox,
+        x: currentViewBox.x - (deltaX / rect.width) * currentViewBox.width,
+        y: currentViewBox.y - (deltaY / rect.height) * currentViewBox.height,
+      });
+
+      dragState.lastClientX = event.clientX;
+      dragState.lastClientY = event.clientY;
+      dragState.moved =
+        dragState.moved ||
+        Math.hypot(totalDeltaX, totalDeltaY) > DRAG_CLICK_THRESHOLD;
+
+      setAnimatedViewBox(nextViewBox);
+      animatedViewBoxRef.current = nextViewBox;
+      setHoveredRegionId(null);
+      return;
+    }
+
     if (isMapInteractiveTarget(event.target)) return;
 
     event.preventDefault();
@@ -426,11 +493,25 @@ export default function AlumniWorldMap() {
     setHoveredRegionId(hoveredRegion?.id ?? null);
   };
 
+  const finishMapDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = mapDragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    suppressNextClickRef.current = dragState.moved;
+    mapDragRef.current = null;
+    setIsDraggingMap(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   const regionClass = selectedRegionId ? ` active-region-${selectedRegionId}` : '';
   const hoveredClass = hoveredRegionId ? ` hovered-region-${hoveredRegionId}` : '';
   const availableRegionClass = worldRegions.map((region) => ` has-region-${region.id}`).join('');
   const exploringClass = isWorldExploring ? ' is-map-exploring' : '';
   const worldDotsClass = shouldShowWorldSchoolDots ? ' show-world-school-dots' : '';
+  const draggingClass = isDraggingMap ? ' is-dragging-map' : '';
 
   return (
     <section className="glass-card full-width alumni-map-panel" aria-labelledby="alumni-map-title">
@@ -462,10 +543,16 @@ export default function AlumniWorldMap() {
           <div className="alumni-map-main">
             <div
               ref={stageRef}
-              className={`alumni-map-stage${availableRegionClass}${regionClass}${hoveredClass}${exploringClass}${worldDotsClass}`}
+              className={`alumni-map-stage${availableRegionClass}${regionClass}${hoveredClass}${exploringClass}${worldDotsClass}${draggingClass}`}
               onClick={handleStageClick}
+              onPointerDown={handleStagePointerDown}
               onPointerMove={handleStagePointerMoveWithinMap}
-              onPointerLeave={() => setHoveredRegionId(null)}
+              onPointerUp={finishMapDrag}
+              onPointerCancel={finishMapDrag}
+              onPointerLeave={(event) => {
+                finishMapDrag(event);
+                setHoveredRegionId(null);
+              }}
             >
               <AlumniMapSVG
                 className="alumni-map-base alumni-map-inline"
@@ -669,11 +756,15 @@ function AlumniPoint({
   const haloRadius = 20 * markerScale;
   const ringRadius = 13 * markerScale;
   const coreRadius = 7.4 * markerScale;
+  const logoSize = 18 * markerScale;
   const hitRadius = Math.max(10 * markerScale, coreRadius + 2 * markerScale);
   const labelFontSize = 13 * markerScale;
   const labelStrokeWidth = 3.4 * markerScale;
   const countFontSize = 9 * markerScale;
-  const countOffsetY = 2.8 * markerScale;
+  const countX = point.x + 9 * markerScale;
+  const countY = point.y - 9 * markerScale;
+  const countBadgeRadius = 5.6 * markerScale;
+  const logoFallbackFontSize = Math.min(5.2, Math.max(3.4, 24 / point.contact.universityAbbr.length)) * markerScale;
 
   return (
     <g
@@ -696,16 +787,40 @@ function AlumniPoint({
       <circle className="alumni-city-pin-hit-area" cx={point.x} cy={point.y} r={hitRadius} fill="transparent" />
       <circle className="alumni-city-pin-halo" cx={point.x} cy={point.y} r={haloRadius} fill="white" />
       <circle className="alumni-city-pin-ring" cx={point.x} cy={point.y} r={ringRadius} fill="white" />
-      <circle className="alumni-city-pin-core" cx={point.x} cy={point.y} r={coreRadius} fill={region.color} />
+      <circle className="alumni-city-pin-core" cx={point.x} cy={point.y} r={coreRadius} fill="white" />
+      <clipPath id={`logo-clip-${point.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`}>
+        <circle cx={point.x} cy={point.y} r={coreRadius * 0.92} />
+      </clipPath>
+      <image
+        className="alumni-city-pin-logo"
+        href={point.contact.logoUrl}
+        x={point.x - logoSize / 2}
+        y={point.y - logoSize / 2}
+        width={logoSize}
+        height={logoSize}
+        preserveAspectRatio="xMidYMid meet"
+        clipPath={`url(#logo-clip-${point.id.replace(/[^a-zA-Z0-9_-]/g, '-')})`}
+      />
+      <text
+        className="alumni-city-pin-logo-fallback"
+        x={point.x}
+        y={point.y + 1.5 * markerScale}
+        style={{ fontSize: `${logoFallbackFontSize}px` }}
+      >
+        {point.contact.universityAbbr}
+      </text>
       {point.contacts.length > 1 && (
-        <text
-          className="alumni-city-pin-count"
-          x={point.x}
-          y={point.y + countOffsetY}
-          style={{ fontSize: `${countFontSize}px` }}
-        >
-          {point.contacts.length}
-        </text>
+        <>
+          <circle className="alumni-city-pin-count-badge" cx={countX} cy={countY} r={countBadgeRadius} fill={region.color} />
+          <text
+            className="alumni-city-pin-count"
+            x={countX}
+            y={countY + 2.8 * markerScale}
+            style={{ fontSize: `${countFontSize}px` }}
+          >
+            {point.contacts.length}
+          </text>
+        </>
       )}
       <text
         className="alumni-city-pin-label"

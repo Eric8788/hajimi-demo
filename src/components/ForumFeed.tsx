@@ -212,6 +212,26 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         return () => window.clearInterval(intervalId);
     }, []);
 
+    useEffect(() => {
+        if (!window.location.hash) return;
+
+        const targetId = window.location.hash.slice(1);
+        if (!targetId.startsWith('post-')) return;
+
+        const scrollToTarget = () => {
+            const target = document.getElementById(targetId);
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        const frameId = window.requestAnimationFrame(scrollToTarget);
+        const timeoutId = window.setTimeout(scrollToTarget, 320);
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+            window.clearTimeout(timeoutId);
+        };
+    }, [posts.length]);
+
     const fetchPosts = async (sort: string = sortType, filter: string = filterType, tag: string = selectedTag) => {
         const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
         const res = await fetch(`/api/posts?sort=${sort}&filter=${filter}${tagParam}`, { cache: 'no-store' });

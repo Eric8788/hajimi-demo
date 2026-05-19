@@ -24,6 +24,7 @@ export type AlumniContact = {
   rankValue: number | null;
   graduationYear: number;
   avatarId: string;
+  logoUrl: string;
   mapPoint: {
     x: number;
     y: number;
@@ -95,6 +96,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 6,
         graduationYear: 2026,
         avatarId: "avatar_harry",
+        logoUrl: "/alumni-logos/duke.svg",
         mapPoint: { x: 269.6, y: 359.3, labelDx: 8, labelDy: -10 }
       },
       {
@@ -113,6 +115,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 33,
         graduationYear: 2026,
         avatarId: "avatar_kevin",
+        logoUrl: "/alumni-logos/uc-davis.svg",
         mapPoint: { x: 155.3, y: 350.8, labelDx: -30, labelDy: -10 }
       },
       {
@@ -131,6 +134,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 33,
         graduationYear: 2026,
         avatarId: "avatar_thomas",
+        logoUrl: "/alumni-logos/uiuc.svg",
         mapPoint: { x: 244.7, y: 345.4, labelDx: 9, labelDy: -10 }
       },
       {
@@ -149,6 +153,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 27,
         graduationYear: 2026,
         avatarId: "avatar_victor",
+        logoUrl: "/alumni-logos/usc.svg",
         mapPoint: { x: 164.6, y: 365.7, labelDx: -18, labelDy: 16 }
       },
       {
@@ -167,6 +172,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 7,
         graduationYear: 2026,
         avatarId: "avatar_alice",
+        logoUrl: "/alumni-logos/uw-seattle.svg",
         mapPoint: { x: 153.9, y: 317.4, labelDx: -12, labelDy: -12 }
       },
       {
@@ -185,6 +191,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 22,
         graduationYear: 2026,
         avatarId: "avatar_jimmy",
+        logoUrl: "/alumni-logos/unc-chapel-hill.svg",
         mapPoint: { x: 269.2, y: 359.6, labelDx: -38, labelDy: 16 }
       },
       {
@@ -203,6 +210,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 28,
         graduationYear: 2026,
         avatarId: "avatar_jeremy",
+        logoUrl: "/alumni-logos/ucsd.svg",
         mapPoint: { x: 167.4, y: 369.4, labelDx: 9, labelDy: 18 }
       }
     ],
@@ -239,6 +247,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 38,
         graduationYear: 2026,
         avatarId: "avatar_flier",
+        logoUrl: "/alumni-logos/ubc.svg",
         mapPoint: { x: 151.3, y: 310.9, labelDx: 10, labelDy: -10 }
       }
     ],
@@ -275,6 +284,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: null,
         graduationYear: 2026,
         avatarId: "avatar_moana",
+        logoUrl: "/alumni-logos/cardiff.svg",
         mapPoint: { x: 471.5, y: 301.7, labelDx: -28, labelDy: 15 }
       },
       {
@@ -293,6 +303,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 9,
         graduationYear: 2026,
         avatarId: "avatar_emily",
+        logoUrl: "/alumni-logos/ucl.svg",
         mapPoint: { x: 479.6, y: 301.5, labelDx: 16, labelDy: -14 }
       },
       {
@@ -311,6 +322,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 4,
         graduationYear: 2026,
         avatarId: "avatar_patrick",
+        logoUrl: "/alumni-logos/oxford.svg",
         mapPoint: { x: 476.6, y: 300.5, labelDx: 18, labelDy: 14 }
       }
     ],
@@ -344,6 +356,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 11,
         graduationYear: 2026,
         avatarId: "avatar_jiahan",
+        logoUrl: "/alumni-logos/hku.svg",
         mapPoint: { x: 784.4, y: 401.3, labelDx: -30, labelDy: -12 }
       },
       {
@@ -362,6 +375,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 11,
         graduationYear: 2026,
         avatarId: "avatar_angel",
+        logoUrl: "/alumni-logos/hku.svg",
         mapPoint: { x: 784.4, y: 401.3, labelDx: -30, labelDy: -12 }
       }
     ],
@@ -412,6 +426,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         rankValue: 25,
         graduationYear: 2026,
         avatarId: "avatar_ryan",
+        logoUrl: "/alumni-logos/usyd.svg",
         mapPoint: { x: 883.2, y: 558.5, labelDx: 14, labelDy: -12 }
       }
     ],

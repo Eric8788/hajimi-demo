@@ -67,11 +67,18 @@ export default function CheckInButton() {
             disabled={checkedIn || loading}
             className={`btn btn-primary checkin-button ${checkedIn ? 'is-complete' : 'is-ready'}`}
             style={{ 
-                minWidth: '180px', 
+                minWidth: '180px',
+                justifyContent: 'center',
+                textAlign: 'center',
                 opacity: loading ? 0.7 : 1,
                 fontSize: '0.95rem',
-                padding: '0 24px',
-                height: '46px'
+                padding: '0 22px',
+                height: '46px',
+                background: checkedIn
+                  ? 'linear-gradient(135deg, rgba(162, 155, 254, 0.92), rgba(108, 92, 231, 0.92))'
+                  : 'linear-gradient(135deg, #a29bfe, #6c5ce7)',
+                border: '1px solid rgba(255,255,255,0.28)',
+                boxShadow: '0 4px 15px rgba(108, 92, 231, 0.3)',
             }}
         >
             <AnimatePresence>
@@ -88,8 +95,8 @@ export default function CheckInButton() {
                     </motion.span>
                 )}
             </AnimatePresence>
-            <span style={{ marginRight: '8px' }}>{checkedIn ? '✅' : '🍄'}</span>
-            {loading ? 'Checking...' : buttonText}
+            <span style={{ marginRight: '8px', display: 'inline-flex', alignItems: 'center' }}>{checkedIn ? '✅' : '🍄'}</span>
+            <span style={{ lineHeight: 1 }}>{loading ? 'Checking...' : buttonText}</span>
         </button>
     );
 }

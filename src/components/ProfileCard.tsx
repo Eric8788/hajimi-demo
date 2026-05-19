@@ -2,6 +2,7 @@
 'use client';
 
 import { useMemo, useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, type Post, type Project } from '@/lib/db';
 import Avatar from './Avatar';
@@ -73,6 +74,10 @@ function getTagLabel(tag?: string | null) {
     return `#${tag}`;
 }
 
+function getPostHref(postId: number) {
+    return `/resources#post-${postId}`;
+}
+
 function getRoleLabel(user: User) {
     const role = (user.role || 'student').toLowerCase();
     if (role === 'admin') return '管理员';
@@ -125,7 +130,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
 
     const activities = useMemo(() => {
-        const items: { id: string; icon: string; title: string; meta: string }[] = [];
+        const items: { id: string; icon: string; title: string; meta: string; href?: string }[] = [];
 
         posts.slice(0, 3).forEach(post => {
             items.push({
@@ -133,6 +138,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 icon: '✍️',
                 title: `发布了《${post.title}》`,
                 meta: formatDate(post.created_at) || '最近',
+                href: getPostHref(post.id),
             });
         });
 
@@ -631,7 +637,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                     {featuredPost ? (
                         <section className="profile-featured-post">
                             <div className="profile-feed-label">Featured Post</div>
-                            <div className="profile-featured-content">
+                            <Link href={getPostHref(featuredPost.id)} className="profile-featured-content profile-post-link-card" aria-label={`打开论坛帖子：${featuredPost.title}`}>
                                 {featuredPost.attachment_url && (
                                     <img src={featuredPost.attachment_url} alt="" />
                                 )}
@@ -645,7 +651,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                         <span>{featuredPost.likes} likes</span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         </section>
                     ) : (profileImage || bio) ? (
                         <section className="profile-featured-post">
@@ -684,7 +690,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         </div>
                         <div className="profile-post-list">
                             {recentPosts.length > 0 ? recentPosts.map(post => (
-                                <article key={post.id} className="profile-post-list-item">
+                                <Link key={post.id} href={getPostHref(post.id)} className="profile-post-list-item profile-post-link-card" aria-label={`打开论坛帖子：${post.title}`}>
                                     {post.attachment_url && <img src={post.attachment_url} alt="" />}
                                     <div>
                                         <h4>{post.title}</h4>
@@ -695,7 +701,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                             <span>{post.comment_count || 0} comments</span>
                                         </div>
                                     </div>
-                                </article>
+                                </Link>
                             )) : (
                                 <div className="profile-empty-row">{hasContent ? '暂无更多文章。' : '这个主页还没有文章。'}</div>
                             )}
@@ -737,7 +743,15 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             </div>
                         </div>
                         <div className="profile-activity-list">
-                            {activities.map(item => (
+                            {activities.map(item => item.href ? (
+                                <Link key={item.id} href={item.href} className="profile-activity-item profile-activity-link">
+                                    <span>{item.icon}</span>
+                                    <div>
+                                        <strong>{item.title}</strong>
+                                        <small>{item.meta}</small>
+                                    </div>
+                                </Link>
+                            ) : (
                                 <div key={item.id} className="profile-activity-item">
                                     <span>{item.icon}</span>
                                     <div>

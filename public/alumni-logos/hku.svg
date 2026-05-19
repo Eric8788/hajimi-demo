@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="HKU logo">
+  <defs>
+    <linearGradient id="g" x1="20" y1="16" x2="108" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00205b"/>
+      <stop offset="1" stop-color="#a80532"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="32" fill="white"/>
+  <rect x="10" y="10" width="108" height="108" rx="27" fill="url(#g)"/>
+  <circle cx="100" cy="29" r="11" fill="rgba(255,255,255,0.22)"/>
+  <text x="64" y="72" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Inter, Arial, Helvetica, sans-serif" font-size="30" font-weight="900" letter-spacing="-0.5">HKU</text>
+</svg>

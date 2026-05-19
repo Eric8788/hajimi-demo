@@ -18,7 +18,7 @@
 
   --radius-lg: 24px;
   --radius-md: 16px;
-  --cursor-alien: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' style='font-size:32px'><text y='32'>👾</text></svg>") 16 16, auto;
+  --cursor-alien: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' style='font-size:24px'><text y='24'>👾</text></svg>") 12 12, auto;
 }
 
 * {
@@ -1025,6 +1025,8 @@ textarea:hover,
 .profile-achievement-list span,
 .profile-link-list a {
   min-width: 0;
+  display: flex;
+  align-items: center;
   border-radius: 14px;
   padding: 9px 10px;
   color: #2d3436;
@@ -1034,6 +1036,21 @@ textarea:hover,
   font-weight: 850;
   text-decoration: none;
   overflow-wrap: anywhere;
+}
+
+.profile-link-list a {
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.profile-link-list a:hover,
+.profile-link-list a:focus-visible {
+  color: #4f46e5;
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(108,92,231,0.28);
+  box-shadow: 0 12px 24px rgba(108,92,231,0.1);
+  transform: translateY(-2px);
+  outline: none;
 }
 
 .profile-feed {
@@ -1063,6 +1080,22 @@ textarea:hover,
   gap: 18px;
   align-items: center;
   margin-top: 14px;
+}
+
+.profile-post-link-card {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.profile-post-link-card:hover,
+.profile-post-link-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(108,92,231,0.22);
+  box-shadow: 0 16px 34px rgba(108,92,231,0.1);
+  background: rgba(255,255,255,0.74);
+  outline: none;
 }
 
 .profile-featured-content > img {
@@ -1205,6 +1238,20 @@ textarea:hover,
   align-items: center;
   padding: 11px 0;
   border-top: 1px solid rgba(108,92,231,0.08);
+}
+
+.profile-activity-link {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 14px;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.profile-activity-link:hover,
+.profile-activity-link:focus-visible {
+  background: rgba(108,92,231,0.06);
+  transform: translateX(3px);
+  outline: none;
 }
 
 .profile-activity-item:first-child {
@@ -1884,13 +1931,14 @@ textarea:hover,
 }
 
 .checkin-button.is-ready {
-  background: linear-gradient(135deg, #6c5ce7, #8378ff 55%, #37c6d0);
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
 }
 
 .checkin-button.is-complete {
   color: #fff;
-  background: linear-gradient(135deg, #16a085, #37c6d0);
-  box-shadow: 0 12px 26px rgba(22, 160, 133, 0.18);
+  background: linear-gradient(135deg, rgba(162, 155, 254, 0.92), rgba(108, 92, 231, 0.92));
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 12px 26px rgba(108, 92, 231, 0.18);
 }
 
 .checkin-button:hover:not(:disabled) {
@@ -1988,11 +2036,11 @@ textarea:hover,
 
 .dashboard-alumni-preview {
   margin-top: 24px;
-  padding: 24px;
+  padding: 20px;
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
-  gap: 22px;
-  align-items: stretch;
+  grid-template-columns: minmax(420px, 1.45fr) minmax(230px, 0.55fr);
+  gap: 18px;
+  align-items: center;
   background:
     radial-gradient(circle at 82% 18%, rgba(55,198,208,0.2), transparent 32%),
     linear-gradient(135deg, rgba(255,255,255,0.74), rgba(241,246,255,0.7));
@@ -2005,7 +2053,8 @@ textarea:hover,
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 14px;
+  gap: 13px;
+  padding: 4px 4px 4px 2px;
 }
 
 .dashboard-widget-kicker {
@@ -2020,7 +2069,7 @@ textarea:hover,
 .dashboard-alumni-copy h3 {
   margin: 0;
   color: #2d3436;
-  font-size: clamp(1.35rem, 3vw, 1.85rem);
+  font-size: clamp(1.26rem, 2.1vw, 1.66rem);
   letter-spacing: 0;
   line-height: 1.08;
 }
@@ -2032,23 +2081,28 @@ textarea:hover,
   line-height: 1.62;
 }
 
-.dashboard-alumni-stats,
-.dashboard-alumni-region-list {
+.dashboard-alumni-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 8px;
+}
+
+.dashboard-alumni-region-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: 8px;
 }
 
 .dashboard-alumni-stats span {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
-  padding: 8px 11px;
-  border-radius: 14px;
+  padding: 7px 10px;
+  border-radius: 13px;
   background: rgba(255,255,255,0.68);
   border: 1px solid rgba(108,92,231,0.1);
   color: #6b7480;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 850;
 }
 
@@ -2058,16 +2112,17 @@ textarea:hover,
 }
 
 .dashboard-alumni-region-list span {
-  min-width: 84px;
+  min-width: 0;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 10px;
+  padding: 7px 9px;
   border-radius: 999px;
   color: #2d3436;
   background: rgba(255,255,255,0.7);
   border: 1px solid color-mix(in srgb, var(--region-color, #6c5ce7) 26%, transparent);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 900;
 }
 
@@ -2088,9 +2143,9 @@ textarea:hover,
   width: fit-content;
   margin-top: 2px;
   border-radius: 999px;
-  padding: 10px 14px;
+  padding: 10px 15px;
   color: white;
-  background: linear-gradient(135deg, #6c5ce7, #37c6d0);
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
   text-decoration: none;
   font-size: 0.88rem;
   font-weight: 950;
@@ -2105,7 +2160,9 @@ textarea:hover,
 
 .dashboard-alumni-map {
   position: relative;
-  min-height: 268px;
+  width: 100%;
+  aspect-ratio: 965 / 503;
+  align-self: center;
   border-radius: 22px;
   overflow: hidden;
   background:
@@ -2121,7 +2178,7 @@ textarea:hover,
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  display: block;
   opacity: 0.98;
   filter: saturate(1.04) contrast(1.02);
 }
@@ -2129,6 +2186,8 @@ textarea:hover,
 .dashboard-alumni-map-overlay {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 2;
   pointer-events: none;
 }
@@ -2147,12 +2206,13 @@ textarea:hover,
 }
 
 .dashboard-alumni-map-pin {
-  position: absolute;
-  z-index: 2;
+  width: max-content;
+  max-width: 84px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  transform: translate(-50%, -50%);
   padding: 5px 8px 5px 5px;
   border-radius: 999px;
   color: #2d3436;
@@ -2162,6 +2222,7 @@ textarea:hover,
   font-size: 0.72rem;
   font-weight: 950;
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .dashboard-alumni-map-pin strong {
@@ -2178,38 +2239,6 @@ textarea:hover,
 
 .dashboard-alumni-map-pin em {
   font-style: normal;
-}
-
-.dashboard-alumni-map-caption {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 14px;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.76);
-  border: 1px solid rgba(255,255,255,0.72);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 10px 22px rgba(45,52,54,0.08);
-}
-
-.dashboard-alumni-map-caption span {
-  color: #6c5ce7;
-  font-size: 0.74rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.dashboard-alumni-map-caption strong {
-  color: #2d3436;
-  font-size: 0.9rem;
-  font-weight: 800;
 }
 
 .leaderboard-card {
@@ -2621,11 +2650,17 @@ textarea:hover,
   cursor: default;
   overscroll-behavior: contain;
   touch-action: none;
+  user-select: none;
 }
 
 .alumni-map-shell.is-zoomed .alumni-map-stage,
 .alumni-map-stage.is-map-exploring {
   cursor: var(--cursor-alien);
+}
+
+.alumni-map-stage.is-dragging-map,
+.alumni-map-stage.is-dragging-map * {
+  cursor: grabbing !important;
 }
 
 .alumni-map-base,
@@ -2897,7 +2932,9 @@ textarea:hover,
 .alumni-city-pin-hit-area,
 .alumni-city-pin-halo,
 .alumni-city-pin-ring,
-.alumni-city-pin-core {
+.alumni-city-pin-core,
+.alumni-city-pin-logo,
+.alumni-city-pin-count-badge {
   filter: none;
   transform-origin: center;
   transform-box: fill-box;
@@ -2969,8 +3006,23 @@ textarea:hover,
 
 .alumni-city-pin-core {
   opacity: 1;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 2.2;
+}
+
+.alumni-city-pin-logo {
+  pointer-events: none;
+  opacity: 1;
+}
+
+.alumni-city-pin-logo-fallback {
+  pointer-events: none;
+  text-anchor: middle;
+  fill: #4f46e5;
+  font-weight: 950;
   stroke: white;
-  stroke-width: 1.8;
+  stroke-width: 0.4;
+  paint-order: stroke;
 }
 
 .alumni-city-pin-label {
@@ -2991,6 +3043,12 @@ textarea:hover,
   font-weight: 950;
 }
 
+.alumni-city-pin-count-badge {
+  pointer-events: none;
+  stroke: white;
+  stroke-width: 1.2;
+}
+
 .alumni-city-pin:hover .alumni-city-pin-halo,
 .alumni-city-pin.is-selected .alumni-city-pin-halo,
 .alumni-city-pin:focus-visible .alumni-city-pin-halo {
@@ -3000,7 +3058,10 @@ textarea:hover,
 
 .alumni-city-pin:hover .alumni-city-pin-core,
 .alumni-city-pin.is-selected .alumni-city-pin-core,
-.alumni-city-pin:focus-visible .alumni-city-pin-core {
+.alumni-city-pin:focus-visible .alumni-city-pin-core,
+.alumni-city-pin:hover .alumni-city-pin-logo,
+.alumni-city-pin.is-selected .alumni-city-pin-logo,
+.alumni-city-pin:focus-visible .alumni-city-pin-logo {
   transform: scale(1.25);
 }
 
@@ -3030,9 +3091,12 @@ textarea:hover,
   overflow-y: auto;
   padding: 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 44px rgba(31, 41, 55, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.9), rgba(250,252,255,0.72));
+  border: 1px solid rgba(108, 92, 231, 0.1);
+  box-shadow:
+    0 10px 26px rgba(108, 92, 231, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(22px);
   animation: fadeIn 0.24s ease;
 }
@@ -3044,7 +3108,7 @@ textarea:hover,
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   align-content: start;
-  gap: 16px;
+  gap: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
@@ -3061,7 +3125,9 @@ textarea:hover,
 }
 
 .alumni-hot-panel {
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   min-height: 0;
   max-height: none;
 }
@@ -3175,8 +3241,8 @@ textarea:hover,
   min-height: 61px;
   padding: 10px 12px;
   border-radius: 15px;
-  background: color-mix(in srgb, var(--accent, #6c5ce7) 8%, white);
-  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 16%, white);
+  background: color-mix(in srgb, var(--accent, #6c5ce7) 5%, rgba(255,255,255,0.86));
+  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 13%, rgba(255,255,255,0.92));
 }
 
 .alumni-country-row:hover,
@@ -3186,8 +3252,8 @@ textarea:hover,
 .alumni-contact-row.is-selected {
   transform: translateY(-1px);
   background: white;
-  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 30%, white);
-  box-shadow: 0 12px 24px rgba(31, 41, 55, 0.08);
+  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 24%, white);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--accent, #6c5ce7) 9%, transparent);
   outline: none;
 }
 
@@ -3268,7 +3334,11 @@ textarea:hover,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  max-height: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 154px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
@@ -3279,6 +3349,8 @@ textarea:hover,
 .alumni-hot-city-grid::-webkit-scrollbar-thumb { background: rgba(108, 92, 231, 0.2); border-radius: 999px; }
 
 .alumni-hot-city {
+  width: 100%;
+  min-width: 0;
   min-height: 47px;
   display: grid;
   gap: 3px;
@@ -3290,6 +3362,7 @@ textarea:hover,
   background: color-mix(in srgb, var(--accent, #6c5ce7) 7%, white);
   font: inherit;
   text-align: center;
+  overflow: hidden;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
@@ -3302,14 +3375,22 @@ textarea:hover,
 }
 
 .alumni-hot-city strong {
+  max-width: 100%;
+  overflow: hidden;
   font-size: 0.8rem;
   font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alumni-hot-city span {
+  max-width: 100%;
+  overflow: hidden;
   color: #7a8094;
   font-size: 0.68rem;
   font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alumni-contact-row {
@@ -3665,12 +3746,11 @@ textarea:hover,
   }
 
   .dashboard-alumni-map {
-    min-height: 220px;
+    min-height: 0;
   }
 
   .dashboard-alumni-region-list span {
-    min-width: 0;
-    flex: 1 1 118px;
+    width: 100%;
   }
 
   .dashboard-alumni-map-pin {
@@ -4107,6 +4187,15 @@ html *::after {
   gap: 12px;
   margin-bottom: 15px;
   min-width: 0;
+}
+
+[id^="post-"] {
+  scroll-margin-top: 24px;
+}
+
+[id^="post-"]:target {
+  border-color: rgba(108, 92, 231, 0.32) !important;
+  box-shadow: 0 18px 42px rgba(108, 92, 231, 0.16) !important;
 }
 
 .post-author-avatar {
