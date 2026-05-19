@@ -4110,6 +4110,14 @@ p {
   box-shadow: 0 16px 34px rgba(55,198,208,0.11);
 }
 
+.forum-welcome-board.is-trust {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(0,184,148,0.14), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.84), rgba(242,255,249,0.7));
+  border-color: rgba(0,184,148,0.2);
+  box-shadow: 0 16px 34px rgba(0,184,148,0.1);
+}
+
 .forum-welcome-board::after {
   display: none;
 }
@@ -4160,6 +4168,14 @@ p {
   background: #00b894;
 }
 
+.forum-welcome-board.is-trust .forum-promo-dots button {
+  background: rgba(0,184,148,0.24);
+}
+
+.forum-welcome-board.is-trust .forum-promo-dots button.is-active {
+  background: #00b894;
+}
+
 .forum-picture-copy {
   padding: 26px 30px;
   display: flex;
@@ -4187,6 +4203,12 @@ p {
   color: #008f8c;
   background: rgba(55,198,208,0.12);
   border-color: rgba(55,198,208,0.18);
+}
+
+.forum-welcome-board.is-trust .forum-picture-kicker {
+  color: #008f63;
+  background: rgba(0,184,148,0.12);
+  border-color: rgba(0,184,148,0.2);
 }
 
 .forum-picture-copy strong {
@@ -4248,6 +4270,49 @@ p {
 .forum-welcome-board.is-aqua .forum-picture-pin {
   background: linear-gradient(135deg, #00cec9, #6c5ce7);
   box-shadow: 0 16px 30px rgba(0,206,201,0.22);
+}
+
+.forum-welcome-board.is-trust .forum-picture-pin {
+  background: linear-gradient(135deg, #00b894, #6c5ce7);
+  box-shadow: 0 16px 30px rgba(0,184,148,0.22);
+}
+
+.dashboard-promo-board {
+  margin-top: 24px;
+  margin-bottom: 22px;
+}
+
+.dashboard-promo-picture {
+  min-height: 156px;
+  grid-template-columns: minmax(300px, 0.92fr) minmax(300px, 1.08fr);
+}
+
+.dashboard-promo-copy {
+  padding: 24px 28px;
+}
+
+.dashboard-promo-copy strong {
+  max-width: 440px;
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+}
+
+.dashboard-promo-action {
+  width: fit-content;
+  margin-top: 8px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 900;
+  box-shadow: 0 12px 26px rgba(108,92,231,0.2);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dashboard-promo-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(108,92,231,0.28);
 }
 
 .forum-picture-note {
