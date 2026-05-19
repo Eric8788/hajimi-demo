@@ -34,6 +34,38 @@ const WORLD_REGION_IDS: AlumniRegionId[] = [
   'hong-kong',
   'australia',
 ];
+const REGION_HIT_AREAS: Partial<Record<AlumniRegionId, Array<{
+  type: 'rect';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} | {
+  type: 'ellipse';
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}>>> = {
+  'united-states': [
+    { type: 'rect', x: 148, y: 306, width: 166, height: 94 },
+    { type: 'ellipse', cx: 114, cy: 246, rx: 120, ry: 58 },
+    { type: 'ellipse', cx: 53, cy: 403, rx: 22, ry: 12 },
+  ],
+  canada: [
+    { type: 'rect', x: 112, y: 230, width: 205, height: 96 },
+    { type: 'ellipse', cx: 232, cy: 172, rx: 120, ry: 86 },
+  ],
+  'united-kingdom': [
+    { type: 'ellipse', cx: 463, cy: 295, rx: 28, ry: 46 },
+  ],
+  'hong-kong': [
+    { type: 'ellipse', cx: 780, cy: 403, rx: 18, ry: 14 },
+  ],
+  australia: [
+    { type: 'ellipse', cx: 832, cy: 544, rx: 82, ry: 62 },
+  ],
+};
 const REGION_FOCUS_RULES: Partial<Record<AlumniRegionId, {
   minWidth: number;
   minHeight: number;
@@ -89,6 +121,7 @@ type AlumniMapPoint = {
 type MapViewBox = typeof WORLD_VIEW_BOX;
 type MapDragState = {
   pointerId: number;
+  startRegionId: AlumniRegionId | null;
   startClientX: number;
   startClientY: number;
   lastClientX: number;
@@ -390,13 +423,13 @@ export default function AlumniWorldMap() {
     }
 
     const target = event.target as Element;
-    if (isMapInteractiveTarget(target)) return;
-
     const clickedRegion = findRegionFromTarget(target);
     if (clickedRegion) {
       selectRegion(clickedRegion);
       return;
     }
+
+    if (isMapInteractiveTarget(target)) return;
 
     if (!selectedRegion) {
       return;
@@ -421,9 +454,12 @@ export default function AlumniWorldMap() {
   const handleStagePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || isMapInteractiveTarget(event.target)) return;
 
+    const pressedRegion = findRegionFromTarget(event.target);
+
     cancelAnimationFrame(viewBoxAnimationRef.current);
     mapDragRef.current = {
       pointerId: event.pointerId,
+      startRegionId: pressedRegion?.id ?? null,
       startClientX: event.clientX,
       startClientY: event.clientY,
       lastClientX: event.clientX,
@@ -498,6 +534,13 @@ export default function AlumniWorldMap() {
     if (!dragState || dragState.pointerId !== event.pointerId) return;
 
     suppressNextClickRef.current = dragState.moved;
+    if (!dragState.moved && dragState.startRegionId) {
+      const pressedRegion = worldRegionById.get(dragState.startRegionId);
+      if (pressedRegion) {
+        suppressNextClickRef.current = true;
+        selectRegion(pressedRegion);
+      }
+    }
     mapDragRef.current = null;
     setIsDraggingMap(false);
 
@@ -565,6 +608,34 @@ export default function AlumniWorldMap() {
               <svg className="alumni-map-overlay" viewBox={formatViewBox(animatedViewBox)} aria-label="校友地图点位">
                 {!selectedRegion && (
                   <>
+                    <g className="alumni-region-hit-areas" aria-hidden="true">
+                      {worldRegions.flatMap((region) =>
+                        (REGION_HIT_AREAS[region.id] ?? []).map((area, index) => (
+                          area.type === 'rect' ? (
+                            <rect
+                              key={`${region.id}-${index}`}
+                              className="alumni-region-hit-area"
+                              data-region={region.id}
+                              x={area.x}
+                              y={area.y}
+                              width={area.width}
+                              height={area.height}
+                              rx={14}
+                            />
+                          ) : (
+                            <ellipse
+                              key={`${region.id}-${index}`}
+                              className="alumni-region-hit-area"
+                              data-region={region.id}
+                              cx={area.cx}
+                              cy={area.cy}
+                              rx={area.rx}
+                              ry={area.ry}
+                            />
+                          )
+                        )),
+                      )}
+                    </g>
                     <g>
                       {worldRegions.map((region) => (
                         <RegionCluster
@@ -697,6 +768,7 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
   return (
     <g
       className={`alumni-region-cluster${isHovered ? ' is-hovered' : ''}`}
+      data-region={region.id}
       role="button"
       tabIndex={0}
       aria-label={`${region.label}，${region.contacts.length} 位校友`}

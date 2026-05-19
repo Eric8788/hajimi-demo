@@ -2798,6 +2798,12 @@ textarea:hover,
   pointer-events: auto;
 }
 
+.alumni-region-hit-area {
+  fill: rgba(255, 255, 255, 0.001);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
 .alumni-map-zoom-controls {
   position: absolute;
   top: 18px;
