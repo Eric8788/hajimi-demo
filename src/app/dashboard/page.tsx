@@ -8,6 +8,7 @@ import TarotGame from '@/components/TarotGame';
 import { getPosts } from '@/lib/db';
 import LeaderboardWidget from '@/components/LeaderboardWidget';
 import Avatar from '@/components/Avatar';
+import DashboardAlumniPreview from '@/components/DashboardAlumniPreview';
 
 function getDevDashboardUser(userId: number): User {
   return {
@@ -94,6 +95,8 @@ export default async function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        <DashboardAlumniPreview />
 
         <div className="dashboard-grid">
 
