@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
+import AlumniMapSVG from './AlumniMapSVG';
 import { ALUMNI_REGIONS } from '@/data/alumni';
 
 const MAP_VIEW_BOX = {
@@ -24,12 +25,19 @@ export default function DashboardAlumniPreview() {
   const cityCount = new Set(contacts.map((contact) => `${contact.country}-${contact.city}`)).size;
   const topRegions = [...regions].sort((a, b) => b.contacts.length - a.contacts.length);
 
+  const previewRegions = topRegions
+    .map((region) => ({
+      region,
+      anchor: region.pin ?? region.labelPoint ?? region.contacts[0]?.mapPoint ?? null,
+    }))
+    .filter((entry) => entry.anchor);
+
   return (
     <section className="glass-card full-width dashboard-alumni-preview">
       <div className="dashboard-alumni-copy">
         <div className="dashboard-widget-kicker">Alumni Network</div>
         <h3>学长学姐在哪里</h3>
-        <p>先看全球分布概览，进入地图页后可以按国家、城市和学校查看校友卡片与联系方式提示。</p>
+        <p>这里先展示完整世界地图和分布概览，国家、城市、学校和校友卡片的细节都放到地图页里展开。</p>
 
         <div className="dashboard-alumni-stats" aria-label="校友地图概览">
           <span><strong>{contacts.length}</strong> 位校友</span>
@@ -53,16 +61,12 @@ export default function DashboardAlumniPreview() {
       </div>
 
       <Link href="/alumni-map" className="dashboard-alumni-map" aria-label="打开校友地图">
-        <div className="dashboard-mini-map-shape is-americas" />
-        <div className="dashboard-mini-map-shape is-europe" />
-        <div className="dashboard-mini-map-shape is-asia" />
-        <div className="dashboard-mini-map-shape is-australia" />
+        <AlumniMapSVG className="dashboard-alumni-map-svg" aria-hidden="true" focusable="false" />
 
-        {topRegions.map((region) => {
-          const anchor = region.pin ?? region.labelPoint ?? region.contacts[0]?.mapPoint;
-          if (!anchor) return null;
+        <div className="dashboard-alumni-map-overlay" aria-hidden="true">
+          <div className="dashboard-alumni-map-glow" />
 
-          return (
+          {previewRegions.map(({ region, anchor }) => (
             <span
               key={region.id}
               className="dashboard-alumni-map-pin"
@@ -75,8 +79,13 @@ export default function DashboardAlumniPreview() {
               <strong>{region.contacts.length}</strong>
               <em>{region.label}</em>
             </span>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="dashboard-alumni-map-caption">
+          <span>完整地图预览</span>
+          <strong>进入地图页查看校友卡片</strong>
+        </div>
       </Link>
     </section>
   );
