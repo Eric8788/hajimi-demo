@@ -3106,7 +3106,7 @@ textarea:hover,
   height: var(--alumni-map-total-height);
   max-height: var(--alumni-map-total-height);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, auto) minmax(168px, 1fr);
   align-content: start;
   gap: 14px;
   overflow-y: auto;
@@ -3120,7 +3120,7 @@ textarea:hover,
 }
 
 .alumni-ranking-panel {
-  overflow: visible;
+  overflow: hidden;
   min-height: 0;
 }
 
@@ -3129,6 +3129,7 @@ textarea:hover,
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  height: 100%;
   max-height: none;
 }
 
@@ -3137,7 +3138,7 @@ textarea:hover,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .alumni-panel-title-row h4 {
@@ -3238,8 +3239,8 @@ textarea:hover,
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  min-height: 61px;
-  padding: 10px 12px;
+  min-height: 54px;
+  padding: 8px 11px;
   border-radius: 15px;
   background: color-mix(in srgb, var(--accent, #6c5ce7) 5%, rgba(255,255,255,0.86));
   border-color: color-mix(in srgb, var(--accent, #6c5ce7) 13%, rgba(255,255,255,0.92));
@@ -3259,8 +3260,8 @@ textarea:hover,
 
 .alumni-country-rank,
 .alumni-country-dot {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3271,7 +3272,7 @@ textarea:hover,
   color: white;
   background: var(--accent, #6c5ce7);
   box-shadow: 0 10px 20px color-mix(in srgb, var(--accent, #6c5ce7) 18%, transparent);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 950;
 }
 
@@ -3292,7 +3293,7 @@ textarea:hover,
   display: block;
   overflow: hidden;
   color: #111827;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3304,7 +3305,7 @@ textarea:hover,
   display: block;
   overflow: hidden;
   color: #7a8094;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-style: normal;
   font-weight: 780;
   line-height: 1.35;
@@ -3325,19 +3326,20 @@ textarea:hover,
 }
 
 .alumni-country-count strong {
-  font-size: 1.08rem;
+  font-size: 1rem;
   line-height: 1;
   font-weight: 950;
 }
 
 .alumni-hot-city-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 7px;
   width: 100%;
   min-width: 0;
   min-height: 0;
-  max-height: 154px;
+  flex: 1;
+  max-height: none;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -3351,17 +3353,18 @@ textarea:hover,
 .alumni-hot-city {
   width: 100%;
   min-width: 0;
-  min-height: 47px;
-  display: grid;
-  gap: 3px;
-  place-items: center;
-  padding: 8px;
-  border-radius: 14px;
+  min-height: 37px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 15%, white);
   color: #1f2937;
   background: color-mix(in srgb, var(--accent, #6c5ce7) 7%, white);
   font: inherit;
-  text-align: center;
+  text-align: left;
   overflow: hidden;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
@@ -3377,17 +3380,18 @@ textarea:hover,
 .alumni-hot-city strong {
   max-width: 100%;
   overflow: hidden;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   font-weight: 920;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .alumni-hot-city span {
+  flex: 0 0 auto;
   max-width: 100%;
   overflow: hidden;
   color: #7a8094;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
