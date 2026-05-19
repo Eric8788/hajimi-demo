@@ -104,6 +104,21 @@ const REGION_FOCUS_RULES: Partial<Record<AlumniRegionId, {
     viewBox: { x: 748, y: 468, width: 157, height: 132 },
   },
 };
+const SCHOOL_LOGO_SOURCES: Record<string, string> = {
+  Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cardiff%20University%20(logo).svg',
+  Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Athletics%20logo.svg',
+  HKU: 'https://www.hku.hk/assets/img/hku-115.svg',
+  Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Oxford.svg',
+  UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British%20columbia%20ca%20univ%20logo.svg',
+  'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20wordmark.svg',
+  UCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/UCL%20Logo%2C%20plain%20background.svg',
+  UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20California%2C%20San%20Diego%20logo.svg',
+  UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Illinois%20at%20Urbana%E2%80%93Champaign%20logo.svg',
+  'UNC-Chapel Hill': 'https://commons.wikimedia.org/wiki/Special:FilePath/North%20Carolina%20Tar%20Heels%20logo.svg',
+  USC: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Southern%20California%20logo.svg',
+  USYD: 'https://www.sydney.edu.au/content/dam/icons/logos/logo-usyd-dark.svg',
+  'UW Seattle': 'https://commons.wikimedia.org/wiki/Special:FilePath/Washington%20Huskies%20logo.svg',
+};
 
 type AlumniMapPoint = {
   id: string;
@@ -1047,8 +1062,17 @@ function AlumniInfoPanel({
             className="alumni-contact-row"
             onClick={() => onSelectContact(contact.alumniId)}
           >
-            <span className="alumni-contact-mini-avatar" aria-hidden="true">
-              {getInitial(contact)}
+            <span className="alumni-contact-school-logo" aria-hidden="true">
+              <img
+                src={SCHOOL_LOGO_SOURCES[contact.universityAbbr] ?? contact.logoUrl}
+                alt=""
+                loading="lazy"
+                onError={(event) => {
+                  const fallbackUrl = contact.logoUrl;
+                  if (event.currentTarget.src.endsWith(fallbackUrl)) return;
+                  event.currentTarget.src = fallbackUrl;
+                }}
+              />
             </span>
             <span className="alumni-contact-row-copy">
               <strong>{contact.name}</strong>
@@ -1148,8 +1172,17 @@ function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniD
       </div>
 
       <div className="alumni-card-head">
-        <div className="alumni-card-avatar" aria-hidden="true">
-          {getInitial(contact)}
+        <div className="alumni-card-school-logo" aria-hidden="true">
+          <img
+            src={SCHOOL_LOGO_SOURCES[contact.universityAbbr] ?? contact.logoUrl}
+            alt=""
+            loading="lazy"
+            onError={(event) => {
+              const fallbackUrl = contact.logoUrl;
+              if (event.currentTarget.src.endsWith(fallbackUrl)) return;
+              event.currentTarget.src = fallbackUrl;
+            }}
+          />
         </div>
         <div>
           <h4>{contact.name}</h4>
