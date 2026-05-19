@@ -3431,7 +3431,7 @@ textarea:hover,
 
 .alumni-info-region-top {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 14px;
 }
 
@@ -3441,14 +3441,14 @@ textarea:hover,
 
 .alumni-info-back {
   justify-self: start;
-  min-height: 34px;
-  padding: 7px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 22%, white);
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 18%, white);
   border-radius: 999px;
   color: var(--accent, #6c5ce7);
-  background: color-mix(in srgb, var(--accent, #6c5ce7) 9%, white);
+  background: color-mix(in srgb, var(--accent, #6c5ce7) 6%, white);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 900;
   cursor: pointer;
   transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;

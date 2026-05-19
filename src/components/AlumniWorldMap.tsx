@@ -1002,7 +1002,7 @@ function AlumniInfoPanel({
         aria-label={`${selectedAlumni.name}校友详情`}
       >
         <button type="button" className="alumni-info-back" onClick={onBackToRegion}>
-          返回{selectedRegion.label}校友列表
+          返回
         </button>
         <AlumniDetailCard
           contact={selectedAlumni}
@@ -1020,14 +1020,14 @@ function AlumniInfoPanel({
       aria-label={`${selectedRegion.label}校友信息`}
     >
       <div className="alumni-info-region-top">
+        <button type="button" className="alumni-info-back" onClick={onBackToWorld}>
+          返回
+        </button>
         <PanelHeader
           eyebrow={selectedRegion.groupLabel}
           title={`${selectedRegion.label}校友`}
           description={selectedRegion.summary}
         />
-        <button type="button" className="alumni-info-back" onClick={onBackToWorld}>
-          返回全球概览
-        </button>
       </div>
 
       <div className="alumni-region-summary-line">
