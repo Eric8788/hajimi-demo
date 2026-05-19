@@ -7,7 +7,6 @@ import { motion } from 'framer-motion';
 import NotificationsBell from './NotificationsBell';
 import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 import Avatar from './Avatar';
-import { isAdminRole } from '@/lib/roles';
 
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
@@ -21,10 +20,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '🏆', path: '/leaderboard', label: 'Rank' },
     ];
-    const visibleNavItems = isAdminRole(user?.role)
-        ? [...navItems, { icon: '✅', path: '/admin/verifications', label: 'Verify' }]
-        : navItems;
-
     const loadUnreadCount = useCallback(async () => {
         if (!user) {
             setUnreadCount(0);
@@ -76,7 +71,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     <span className="sidebar-brand-text">Hajimi</span>
                 </button>
 
-                {visibleNavItems.map((item) => {
+                {navItems.map((item) => {
                     const isActive = pathname === item.path;
                     return (
                         <div
