@@ -15,9 +15,9 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
-        { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '💬', path: '/resources', label: 'Forum' },
         { icon: '🚀', path: '/functions', label: 'Hub' },
+        { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '🏆', path: '/leaderboard', label: 'Rank' },
     ];
 
