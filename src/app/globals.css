@@ -135,16 +135,16 @@ textarea:hover,
 }
 
 .sidebar-logo-mark {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 17px;
-  background: rgba(255,255,255,0.88);
+  border-radius: 0;
+  background: transparent;
   color: #fff;
-  box-shadow: 0 14px 28px rgba(108, 92, 231, 0.24);
-  border: 2px solid rgba(255,255,255,0.86);
+  box-shadow: none;
+  border: 0;
   line-height: 1;
 }
 
@@ -174,8 +174,8 @@ textarea:hover,
 }
 
 .sidebar-logo-image {
-  width: 40px;
-  height: 40px;
+  width: 37px;
+  height: 37px;
   display: block;
   object-fit: contain;
 }
@@ -1374,6 +1374,7 @@ textarea:hover,
 .profile-avatar-settings,
 .profile-badge-editor,
 .profile-account-editor,
+.profile-verification-editor,
 .profile-editor-preview {
   padding: 18px;
 }
@@ -1521,6 +1522,12 @@ textarea:hover,
   align-items: stretch;
 }
 
+.profile-avatar-inline-selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .profile-avatar-upload {
   justify-content: center;
   background: rgba(255,255,255,0.72);
@@ -1573,6 +1580,75 @@ textarea:hover,
   color: #d63031;
   background: rgba(255,118,117,0.12);
   border: 1px solid rgba(255,118,117,0.18);
+}
+
+.profile-verification-status,
+.profile-verification-success,
+.forum-verification-callout,
+.admin-verification-message {
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.profile-verification-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #636e72;
+  background: rgba(255,255,255,0.62);
+  border: 1px solid rgba(162,155,254,0.16);
+}
+
+.profile-verification-status strong {
+  color: #6c5ce7;
+}
+
+.profile-verification-status.is-verified {
+  background: rgba(0,184,148,0.1);
+  border-color: rgba(0,184,148,0.24);
+}
+
+.profile-verification-status.is-verified strong {
+  color: #00a884;
+}
+
+.profile-verification-status.is-pending {
+  background: rgba(253,203,110,0.14);
+  border-color: rgba(253,203,110,0.32);
+}
+
+.profile-verification-status.is-pending strong {
+  color: #b7791f;
+}
+
+.profile-verification-status.is-rejected {
+  background: rgba(255,118,117,0.1);
+  border-color: rgba(255,118,117,0.24);
+}
+
+.profile-verification-status.is-rejected strong {
+  color: #d63031;
+}
+
+.profile-verification-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.profile-verification-submit {
+  align-self: flex-start;
+}
+
+.profile-verification-success,
+.admin-verification-message {
+  color: #00a884;
+  background: rgba(0,184,148,0.1);
+  border: 1px solid rgba(0,184,148,0.2);
 }
 
 .profile-editor-button-row,
@@ -2472,6 +2548,137 @@ textarea:hover,
   line-height: 1.6;
 }
 
+.admin-verification-page {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.admin-verification-panel {
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.66);
+  border: 1px solid rgba(255,255,255,0.82);
+  box-shadow: 0 18px 46px rgba(108,92,231,0.1);
+}
+
+.admin-verification-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.admin-verification-head span {
+  color: #6c5ce7;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-verification-head h3 {
+  margin: 4px 0 0;
+  color: #2d3436;
+  font-size: 1.4rem;
+}
+
+.admin-verification-head button,
+.admin-verification-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-verification-head button {
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.1);
+}
+
+.admin-verification-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-verification-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.62);
+  border: 1px solid rgba(108,92,231,0.14);
+}
+
+.admin-verification-card.has-conflict {
+  border-color: rgba(255,118,117,0.34);
+  background: rgba(255,118,117,0.06);
+}
+
+.admin-verification-user {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-verification-user strong {
+  color: #2d3436;
+}
+
+.admin-verification-user span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.08);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.admin-verification-card p {
+  margin: 8px 0 0;
+  color: #636e72;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.admin-verification-conflict {
+  width: fit-content;
+  margin-top: 8px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #d63031;
+  background: rgba(255,118,117,0.14);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.admin-verification-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-verification-actions .is-approve {
+  color: white;
+  background: #00b894;
+}
+
+.admin-verification-actions .is-reject {
+  color: #d63031;
+  background: rgba(255,118,117,0.12);
+}
+
+.admin-verification-empty {
+  margin: 0;
+  padding: 22px;
+  text-align: center;
+  color: #8f96a3;
+  font-weight: 800;
+}
+
 .alumni-map-panel {
   margin-top: 24px;
   padding: 28px;
@@ -2671,6 +2878,14 @@ textarea:hover,
   height: 100%;
 }
 
+.alumni-map-base {
+  z-index: 1;
+}
+
+.alumni-map-overlay {
+  z-index: 2;
+}
+
 /* Inline SVG base layer */
 .alumni-map-inline {
   object-fit: contain;
@@ -2784,7 +2999,7 @@ textarea:hover,
 }
 
 .alumni-map-overlay {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .alumni-world-school-points {
@@ -2928,23 +3143,25 @@ textarea:hover,
   outline: none;
 }
 
+.alumni-region-cluster-hit-area {
+  pointer-events: all;
+}
+
 .alumni-region-cluster-ring,
 .alumni-region-cluster-core {
+  pointer-events: none;
   transform-origin: center;
   transform-box: fill-box;
   transition: transform 0.18s ease, opacity 0.18s ease;
 }
 
 .alumni-city-pin-hit-area,
-.alumni-city-pin-halo,
-.alumni-city-pin-ring,
-.alumni-city-pin-core,
 .alumni-city-pin-logo,
 .alumni-city-pin-count-badge {
   filter: none;
   transform-origin: center;
   transform-box: fill-box;
-  transition: transform 0.18s ease, opacity 0.18s ease;
+  transition: transform 0.18s ease, opacity 0.18s ease, stroke 0.18s ease, fill 0.18s ease;
 }
 
 .alumni-city-pin-hit-area {
@@ -2961,8 +3178,7 @@ textarea:hover,
 }
 
 .alumni-region-cluster-count,
-.alumni-region-cluster-label,
-.alumni-city-pin-label {
+.alumni-region-cluster-label {
   pointer-events: none;
   text-anchor: middle;
   paint-order: stroke;
@@ -2998,46 +3214,11 @@ textarea:hover,
   transform: scale(1.08);
 }
 
-.alumni-city-pin-halo {
-  opacity: 0.86;
-  stroke: rgba(108, 92, 231, 0.14);
-  stroke-width: 1.2;
-}
-
-.alumni-city-pin-ring {
-  opacity: 1;
-  stroke: rgba(31, 41, 55, 0.24);
-  stroke-width: 0.72;
-}
-
-.alumni-city-pin-core {
-  opacity: 1;
-  stroke: rgba(255, 255, 255, 0.95);
-  stroke-width: 2.2;
-}
-
 .alumni-city-pin-logo {
   pointer-events: none;
   opacity: 1;
-}
-
-.alumni-city-pin-logo-fallback {
-  pointer-events: none;
-  text-anchor: middle;
-  fill: #4f46e5;
-  font-weight: 950;
-  stroke: white;
-  stroke-width: 0.4;
-  paint-order: stroke;
-}
-
-.alumni-city-pin-label {
-  fill: #111827;
-  stroke-width: 2.8;
-  font-size: 7.6px;
-  font-weight: 950;
-  opacity: 0;
-  transition: opacity 0.18s ease;
+  image-rendering: auto;
+  filter: drop-shadow(0 2px 4px rgba(31, 41, 55, 0.16));
 }
 
 .alumni-city-pin-count {
@@ -3055,34 +3236,11 @@ textarea:hover,
   stroke-width: 1.2;
 }
 
-.alumni-city-pin:hover .alumni-city-pin-halo,
-.alumni-city-pin.is-selected .alumni-city-pin-halo,
-.alumni-city-pin:focus-visible .alumni-city-pin-halo {
-  transform: scale(1.35);
-  opacity: 1;
-}
-
-.alumni-city-pin:hover .alumni-city-pin-core,
-.alumni-city-pin.is-selected .alumni-city-pin-core,
-.alumni-city-pin:focus-visible .alumni-city-pin-core,
 .alumni-city-pin:hover .alumni-city-pin-logo,
 .alumni-city-pin.is-selected .alumni-city-pin-logo,
 .alumni-city-pin:focus-visible .alumni-city-pin-logo {
-  transform: scale(1.25);
-}
-
-.alumni-city-pin.is-selected .alumni-city-pin-label {
-  fill: var(--primary);
-  opacity: 1;
-}
-
-.alumni-city-pin.show-label .alumni-city-pin-label {
-  opacity: 0.78;
-}
-
-.alumni-city-pin:hover .alumni-city-pin-label,
-.alumni-city-pin:focus-visible .alumni-city-pin-label {
-  opacity: 1;
+  transform: scale(1.16);
+  filter: drop-shadow(0 4px 8px rgba(108, 92, 231, 0.24));
 }
 
 @keyframes fadeIn {
@@ -3162,7 +3320,7 @@ textarea:hover,
 .alumni-info-panel.is-detail {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .alumni-info-panel::-webkit-scrollbar { width: 4px; }
@@ -3173,10 +3331,26 @@ textarea:hover,
   margin-bottom: 14px;
 }
 
-.alumni-info-panel-head span {
+.alumni-info-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+
+.alumni-info-panel-heading h4 {
+  min-width: 0;
+  margin: 0;
+  color: #111827;
+  font-size: 1.16rem;
+}
+
+.alumni-info-panel-heading span {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
+  flex: 0 0 auto;
   padding: 4px 9px;
   border-radius: 999px;
   color: var(--accent, #6c5ce7);
@@ -3184,12 +3358,6 @@ textarea:hover,
   border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 22%, white);
   font-size: 0.72rem;
   font-weight: 900;
-}
-
-.alumni-info-panel-head h4 {
-  margin: 10px 0 6px;
-  color: #111827;
-  font-size: 1.16rem;
 }
 
 .alumni-info-panel-head p {
@@ -3337,10 +3505,10 @@ textarea:hover,
   font-weight: 950;
 }
 
-.alumni-hot-city-grid {
+.alumni-hot-school-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
-  gap: 7px;
+  grid-template-columns: 1fr;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -3352,20 +3520,20 @@ textarea:hover,
   padding-right: 2px;
 }
 
-.alumni-hot-city-grid::-webkit-scrollbar { width: 4px; }
-.alumni-hot-city-grid::-webkit-scrollbar-track { background: transparent; }
-.alumni-hot-city-grid::-webkit-scrollbar-thumb { background: rgba(108, 92, 231, 0.2); border-radius: 999px; }
+.alumni-hot-school-list::-webkit-scrollbar { width: 4px; }
+.alumni-hot-school-list::-webkit-scrollbar-track { background: transparent; }
+.alumni-hot-school-list::-webkit-scrollbar-thumb { background: rgba(108, 92, 231, 0.2); border-radius: 999px; }
 
-.alumni-hot-city {
+.alumni-hot-school {
   width: 100%;
   min-width: 0;
-  min-height: 37px;
-  display: flex;
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 9px;
-  border-radius: 12px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 15%, white);
   color: #1f2937;
   background: color-mix(in srgb, var(--accent, #6c5ce7) 7%, white);
@@ -3375,32 +3543,72 @@ textarea:hover,
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
-.alumni-hot-city:hover,
-.alumni-hot-city:focus-visible {
+.alumni-hot-school:hover,
+.alumni-hot-school:focus-visible {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--accent, #6c5ce7) 35%, white);
   background: color-mix(in srgb, var(--accent, #6c5ce7) 12%, white);
   outline: none;
 }
 
-.alumni-hot-city strong {
+.alumni-hot-school-logo {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 18%, white);
+}
+
+.alumni-hot-school-logo img {
+  width: 26px;
+  height: 26px;
+  display: block;
+  object-fit: contain;
+}
+
+.alumni-hot-school-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.alumni-hot-school-copy strong,
+.alumni-hot-school-copy small {
+  display: block;
   max-width: 100%;
   overflow: hidden;
-  font-size: 0.76rem;
-  font-weight: 920;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.alumni-hot-city span {
-  flex: 0 0 auto;
-  max-width: 100%;
-  overflow: hidden;
+.alumni-hot-school-copy strong {
+  color: #111827;
+  font-size: 0.8rem;
+  font-weight: 930;
+}
+
+.alumni-hot-school-copy small {
   color: #7a8094;
   font-size: 0.66rem;
-  font-weight: 820;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 780;
+}
+
+.alumni-hot-school-count {
+  flex: 0 0 auto;
+  min-width: 26px;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--accent, #6c5ce7);
+  background: rgba(255, 255, 255, 0.76);
+  font-size: 0.78rem;
+  font-weight: 950;
 }
 
 .alumni-contact-row {
@@ -3437,27 +3645,39 @@ textarea:hover,
 
 .alumni-info-region-top {
   display: grid;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .alumni-info-region-top .alumni-info-panel-head {
   margin-bottom: 0;
 }
 
+.alumni-info-nav-row {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+}
+
 .alumni-info-back {
   justify-self: start;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 18%, white);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  min-height: 40px;
+  padding: 9px 15px;
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 30%, white);
   border-radius: 999px;
   color: var(--accent, #6c5ce7);
-  background: color-mix(in srgb, var(--accent, #6c5ce7) 6%, white);
+  background: color-mix(in srgb, var(--accent, #6c5ce7) 10%, white);
   font: inherit;
-  font-size: 0.72rem;
-  font-weight: 900;
+  font-size: 0.86rem;
+  font-weight: 950;
+  line-height: 1;
   cursor: pointer;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 10px 18px color-mix(in srgb, var(--accent, #6c5ce7) 10%, transparent);
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .alumni-info-back:hover,
@@ -3465,6 +3685,7 @@ textarea:hover,
   transform: translateY(-1px);
   background: white;
   border-color: color-mix(in srgb, var(--accent, #6c5ce7) 42%, white);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 22px color-mix(in srgb, var(--accent, #6c5ce7) 16%, transparent);
   outline: none;
 }
 
@@ -4200,6 +4421,28 @@ html *::after {
   border-color: rgba(108, 92, 231, 0.45) !important;
   box-shadow: 0 14px 30px rgba(108, 92, 231, 0.12);
   background: rgba(255,255,255,0.48) !important;
+}
+
+.forum-verification-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.08);
+  border: 1px solid rgba(108,92,231,0.18);
+}
+
+.forum-verification-callout button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: white;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(108,92,231,0.18);
 }
 
 .post-card-header {

@@ -12,6 +12,7 @@ import UserBadges from './UserBadges';
 import { formatHajimiId } from '@/lib/hajimiId';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
+import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avatarThemes';
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -96,12 +97,22 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const router = useRouter();
     const [bio, setBio] = useState(user.bio || '');
     const [avatar, setAvatar] = useState(user.avatar || '😊');
+    const [avatarEmoji, setAvatarEmoji] = useState(user.avatar_emoji || user.avatar || '😊');
+    const [avatarTheme, setAvatarTheme] = useState<AvatarThemeId>((user.avatar_theme as AvatarThemeId) || 'lavender');
     const [profileImage, setProfileImage] = useState(user.profile_image || '');
     const [newUsername, setNewUsername] = useState(user.username);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [accountError, setAccountError] = useState('');
     const [badgePreferences, setBadgePreferences] = useState<BadgeId[]>(normalizeBadgePreferences(user.badge_preferences));
+    const [verificationStatus, setVerificationStatus] = useState(user.verification_status || 'unverified');
+    const [verificationName, setVerificationName] = useState('');
+    const [verificationGrade, setVerificationGrade] = useState('G10');
+    const [verificationSubject, setVerificationSubject] = useState('');
+    const [verificationStudentId, setVerificationStudentId] = useState('');
+    const [verificationError, setVerificationError] = useState('');
+    const [verificationMessage, setVerificationMessage] = useState('');
+    const [verificationLoading, setVerificationLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [avatarSource, setAvatarSource] = useState('');
@@ -122,12 +133,20 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const progressPercent = Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
     const xpToNext = xpForNextLevel - totalXp;
     const availableBadges = getAvailableBadges(user);
-    const profileUser = { ...user, avatar, bio, profile_image: profileImage, badge_preferences: badgePreferences };
+    const profileUser = { ...user, avatar, avatar_emoji: avatarEmoji, avatar_theme: avatarTheme, bio, profile_image: profileImage, badge_preferences: badgePreferences };
     const hajimiId = formatHajimiId(user.id);
     const featuredPost = posts[0];
     const recentPosts = posts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
     const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
     const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
+    const roleType = (user.role || 'student').toLowerCase() === 'teacher' ? 'teacher' : 'student';
+    const verificationCopy = verificationStatus === 'verified'
+        ? '已认证，具备发帖和榜单权益。'
+        : verificationStatus === 'pending'
+            ? '认证正在审核中，审核通过后会自动解锁发帖和榜单。'
+            : verificationStatus === 'rejected'
+                ? '认证未通过，可以修改信息后重新提交。'
+                : '认证通过后可以发帖并进入 Hall of Fame。';
 
     const activities = useMemo(() => {
         const items: { id: string; icon: string; title: string; meta: string; href?: string }[] = [];
@@ -200,7 +219,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         setLoading(true);
         await fetch('/api/profile', {
             method: 'POST',
-            body: JSON.stringify({ bio, avatar, profile_image: profileImage, badge_preferences: badgePreferences }),
+            body: JSON.stringify({ bio, avatar, avatar_emoji: avatarEmoji, avatar_theme: avatarTheme, profile_image: profileImage, badge_preferences: badgePreferences }),
         });
 
         if (cleanUsername !== user.username || newPassword !== '') {
@@ -225,6 +244,38 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         setNewPassword('');
         setConfirmPassword('');
         router.refresh();
+    };
+
+    const submitVerification = async () => {
+        setVerificationError('');
+        setVerificationMessage('');
+        setVerificationLoading(true);
+
+        try {
+            const res = await fetch('/api/profile/verification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: roleType,
+                    name: verificationName,
+                    grade: verificationGrade,
+                    subject: verificationSubject,
+                    studentId: verificationStudentId,
+                }),
+            });
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok) {
+                setVerificationError(data?.error || '认证提交失败，请稍后再试。');
+                return;
+            }
+
+            setVerificationStatus('pending');
+            setVerificationMessage('认证已提交，等待管理员审核。');
+            setVerificationStudentId('');
+        } finally {
+            setVerificationLoading(false);
+        }
     };
 
     const handleDeleteAccount = async () => {
@@ -466,6 +517,18 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                     className="glass-input"
                                     maxLength={4}
                                 />
+                                <div className="profile-avatar-inline-selects">
+                                    <select value={avatarEmoji} onChange={e => { setAvatarEmoji(e.target.value); setAvatar(e.target.value); }} className="glass-input">
+                                        {AVATAR_EMOJIS.map(emoji => (
+                                            <option key={emoji} value={emoji}>{emoji}</option>
+                                        ))}
+                                    </select>
+                                    <select value={avatarTheme} onChange={e => setAvatarTheme(e.target.value as AvatarThemeId)} className="glass-input">
+                                        {AVATAR_THEME_IDS.map(theme => (
+                                            <option key={theme} value={theme}>{theme}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 {avatarSource && (
                                     <div className="profile-avatar-crop-controls">
                                         <label>
@@ -553,6 +616,51 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         </div>
                     </section>
 
+                    <section className="profile-verification-editor">
+                        <div className="profile-section-heading">
+                            <h3>Hajimi 认证</h3>
+                            <p>{verificationCopy}</p>
+                        </div>
+                        <div className={`profile-verification-status is-${verificationStatus}`}>
+                            <strong>{verificationStatus === 'verified' ? '已认证' : verificationStatus === 'pending' ? '审核中' : verificationStatus === 'rejected' ? '需重新提交' : '未认证'}</strong>
+                            <span>真实信息仅管理员审核可见，主页不会公开。</span>
+                        </div>
+                        {(verificationStatus === 'unverified' || verificationStatus === 'rejected') && (
+                            <div className="profile-verification-form">
+                                <label className="profile-field-label">
+                                    真实姓名
+                                    <input value={verificationName} onChange={e => setVerificationName(e.target.value)} className="glass-input" />
+                                </label>
+                                {roleType === 'student' ? (
+                                    <>
+                                        <label className="profile-field-label">
+                                            年级
+                                            <select value={verificationGrade} onChange={e => setVerificationGrade(e.target.value)} className="glass-input">
+                                                {['G10', 'G11', 'G12', 'G13'].map(grade => <option key={grade} value={grade}>{grade}</option>)}
+                                            </select>
+                                        </label>
+                                        <label className="profile-field-label">
+                                            学号（可选）
+                                            <input value={verificationStudentId} onChange={e => setVerificationStudentId(e.target.value)} className="glass-input" />
+                                            <small>只保存加密 hash 和后四位，用于确认主号。</small>
+                                        </label>
+                                    </>
+                                ) : (
+                                    <label className="profile-field-label">
+                                        任教学科
+                                        <input value={verificationSubject} onChange={e => setVerificationSubject(e.target.value)} className="glass-input" />
+                                    </label>
+                                )}
+                                {verificationError && <div className="profile-account-error">{verificationError}</div>}
+                                {verificationMessage && <div className="profile-verification-success">{verificationMessage}</div>}
+                                <button type="button" className="btn btn-primary profile-verification-submit" onClick={submitVerification} disabled={verificationLoading}>
+                                    {verificationLoading ? 'Submitting...' : '提交认证'}
+                                </button>
+                            </div>
+                        )}
+                        {verificationMessage && verificationStatus === 'pending' && <div className="profile-verification-success">{verificationMessage}</div>}
+                    </section>
+
                     <div className="profile-action-row">
                         <button onClick={handleSave} className="btn btn-primary" disabled={loading}>
                             {loading ? 'Saving...' : 'Save Changes'}
@@ -615,6 +723,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <div className="profile-achievement-list">
                             {user.streak_count > 0 && <span>🔥 {user.streak_count} Day Streak</span>}
                             {user.is_creator && <span>🛠️ Creator</span>}
+                            {user.verification_status === 'verified' && <span>✅ Hajimi 认证</span>}
                             <span>✨ Hajimi member</span>
                         </div>
                     </section>

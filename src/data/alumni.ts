@@ -116,7 +116,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         graduationYear: 2026,
         avatarId: "avatar_kevin",
         logoUrl: "/alumni-logos/uc-davis.svg",
-        mapPoint: { x: 155.3, y: 350.8, labelDx: -30, labelDy: -10 }
+        mapPoint: { x: 157.8, y: 344.8, labelDx: -30, labelDy: -10 }
       },
       {
         alumniId: "A008",
@@ -154,7 +154,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         graduationYear: 2026,
         avatarId: "avatar_victor",
         logoUrl: "/alumni-logos/usc.svg",
-        mapPoint: { x: 164.6, y: 365.7, labelDx: -18, labelDy: 16 }
+        mapPoint: { x: 167.2, y: 358.8, labelDx: -18, labelDy: 16 }
       },
       {
         alumniId: "A012",
@@ -211,7 +211,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         graduationYear: 2026,
         avatarId: "avatar_jeremy",
         logoUrl: "/alumni-logos/ucsd.svg",
-        mapPoint: { x: 167.4, y: 369.4, labelDx: 9, labelDy: 18 }
+        mapPoint: { x: 169.6, y: 362.8, labelDx: 9, labelDy: 18 }
       }
     ],
   },
@@ -357,7 +357,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         graduationYear: 2026,
         avatarId: "avatar_jiahan",
         logoUrl: "/alumni-logos/hku.svg",
-        mapPoint: { x: 784.4, y: 401.3, labelDx: -30, labelDy: -12 }
+        mapPoint: { x: 783.6, y: 400.4, labelDx: -30, labelDy: -12 }
       },
       {
         alumniId: "A009",
@@ -376,7 +376,7 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         graduationYear: 2026,
         avatarId: "avatar_angel",
         logoUrl: "/alumni-logos/hku.svg",
-        mapPoint: { x: 784.4, y: 401.3, labelDx: -30, labelDy: -12 }
+        mapPoint: { x: 783.6, y: 400.4, labelDx: -30, labelDy: -12 }
       }
     ],
   },

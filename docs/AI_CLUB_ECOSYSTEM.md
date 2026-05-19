@@ -92,10 +92,11 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
 - **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Announcement posts are visually highlighted and sorted like pinned posts at the top of the main Hallway feed. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
+- **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. Students submit name, G10-G13 grade, and optional student ID; teachers submit name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for creating posts and appearing on the leaderboard; comments, likes, bookmarks, and check-ins remain open to logged-in users.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
-- **Cyber Oracle AI:** `POST /api/oracle` powers the Dashboard tarot insight. It runs server-side only and reads `DASHSCOPE_API_KEY`, `SILICONFLOW_API_KEY`, or the custom `HAJIMI_ORACLE_API_KEY` + `HAJIMI_ORACLE_API_URL` + `HAJIMI_ORACLE_MODEL` trio. The client falls back to a local reading if no provider is configured.
+- **Cyber Oracle AI:** `POST /api/oracle` powers the Dashboard tarot insight. It runs server-side only and reads `DASHSCOPE_API_KEY`, `SILICONFLOW_API_KEY`, or the custom `HAJIMI_ORACLE_API_KEY` + `HAJIMI_ORACLE_API_URL` + `HAJIMI_ORACLE_MODEL` trio. Readings are deeper reflective Chinese responses and are limited to 3 successful readings per user per day through the `oracle_readings` table. If no provider is configured or the provider fails, the server returns a deeper local fallback and still counts that successful reading.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.
 - **Image Uploads:** `POST /api/posts` stores public images in Vercel Blob and saves the Blob URL in `posts.attachment_url`. Production requires `BLOB_READ_WRITE_TOKEN`. Guardrails: JPEG/PNG/WebP/GIF only, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user, and post deletion attempts to delete the associated Blob. The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
 - **Landing/Auth particles:** `src/components/ParticleBackground.tsx` — Canvas-based, `zIndex: 0`, free-floating with mouse repulsion.
@@ -103,11 +104,12 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 ### DB Schema
 | Table | Key Columns |
 |---|---|
-| `users` | `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `grade`, `age` |
+| `users` | `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `grade`, `age`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4` |
 | `posts` | `id`, `author_id`, `title`, `content`, `type`, `tag`, `attachment_url`, `likes`, `created_at` |
 | `comments` | `id`, `post_id`, `author_id`, `content`, `likes`, `created_at` |
 | `checkins` | `user_id`, `checkin_date` |
 | `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
+| `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
 
 ### App Routes
 | Route | Access | Description |

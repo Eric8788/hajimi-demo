@@ -26,13 +26,14 @@ The app uses Next.js App Router (`src/app/`).
   - **Welcome Widget:** Daily insight and Check-in button.
   - **Beta Test Mission:** Quick entry points for trying Function Hall and opening the pinned feedback announcement.
   - **Timeline Dancer:** Static daily schedule visualization.
-  - **Cyber Oracle (`<TarotGame />`):** A client-side Tarot card drawing game.
+  - **Cyber Oracle (`<TarotGame />`):** A Tarot reflection widget backed by `/api/oracle`, with deeper Chinese interpretation and a 3-successful-readings-per-user-per-day limit.
   - **Rec Room:** Displays the absolute latest posts directly from the database.
 - `/resources` **(The Hallway - Hybrid Access):** 
   - The main forum. **Guest Mode is enabled.**
   - Announcement posts behave like pinned posts in the main feed; beta feedback is collected as comments under Eric's announcement.
   - Normal posts support custom hashtags; `announcement` is the only reserved staff-only tag.
   - Non-logged-in users can browse and read all posts.
+  - Logged-in users can comment, like, bookmark, and browse before verification. Creating posts requires `verification_status = 'verified'`.
   - **Action Interceptor Pattern:** Clicking "Like", "Comment", or "New Post" without a session triggers a localized Login Modal instead of a hard redirect.
 - `/functions` **(Function Hall - Public):** 
   - Replaces the legacy "AI Club Hub".
@@ -48,12 +49,13 @@ The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not 
 
 ## 5. Database Schema (`src/lib/db.ts`)
 Database interactions are handled via standard SQL functions.
-- **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`.
+- **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
 - **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
+- **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
 
-*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through `HAJIMI_STUDENT_INVITE_CODE` and optional `HAJIMI_TEACHER_INVITE_CODE`. Invite codes are set in Vercel environment variables and shared manually. If neither invite code is configured, registration is closed but existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number.*
+*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through `HAJIMI_STUDENT_INVITE_CODE` and optional `HAJIMI_TEACHER_INVITE_CODE`. Invite codes are set in Vercel environment variables and shared manually. If neither invite code is configured, registration is closed but existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification uses optional registration/profile forms and admin review. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
 
 ## 6. Important Workflows for AI Assistants
 1. **Adding a new student project:** 
@@ -78,6 +80,8 @@ Database interactions are handled via standard SQL functions.
    - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
    - Only `admin` can delete any post or comment; teachers and students can delete only their own posts/comments.
    - Staff roles are visually marked with badges on posts, comments, and profile pages.
+   - Hajimi verified accounts receive a compact verified badge and can create posts. The leaderboard only includes verified accounts.
+   - Admins review pending verification requests at `/admin/verifications`. Real names, subjects, and student ID metadata must stay out of public profile/forum UI.
 6. **Hashtag and beta feedback workflow:**
    - Students can create posts with custom hashtags. Suggested examples include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`.
    - Beta feedback should be left as comments under the pinned announcement post, not as a separate feedback module.

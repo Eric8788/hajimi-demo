@@ -67,7 +67,7 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
                                 onClick={() => openProfile(user.id)}
                                 aria-label={`View ${user.username}'s profile`}
                             >
-                                <Avatar value={user.avatar} size={36} />
+                                <Avatar value={user.avatar} theme={user.avatar_theme} size={36} />
                             </button>
                             <div className="leaderboard-copy">
                                 <div className="leaderboard-name-line">

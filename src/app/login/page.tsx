@@ -6,6 +6,20 @@ import { useRouter } from 'next/navigation';
 import ParticleBackground from '@/components/ParticleBackground';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
+import { AVATAR_EMOJIS, AVATAR_THEMES, AVATAR_THEME_IDS } from '@/lib/avatarThemes';
+
+const AVATAR_THEME_LABELS: Record<string, string> = {
+    lavender: '薰衣草',
+    peach: '蜜桃',
+    rose: '玫瑰',
+    sunny: '阳光',
+    mint: '薄荷',
+    sky: '晴空',
+    ocean: '海洋',
+    sand: '沙滩',
+    berry: '莓果',
+    charcoal: '灰调',
+};
 
 export default function LoginPage() {
     const router = useRouter();
@@ -14,8 +28,18 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [inviteCode, setInviteCode] = useState('');
+    const [verificationEnabled, setVerificationEnabled] = useState(false);
+    const [verificationType, setVerificationType] = useState<'student' | 'teacher'>('student');
+    const [verifiedName, setVerifiedName] = useState('');
+    const [verifiedGrade, setVerifiedGrade] = useState('G10');
+    const [verifiedSubject, setVerifiedSubject] = useState('');
+    const [studentId, setStudentId] = useState('');
+    const [bio, setBio] = useState('');
+    const [avatarEmoji, setAvatarEmoji] = useState('');
+    const [avatarTheme, setAvatarTheme] = useState('lavender');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const selectedAvatarTheme = AVATAR_THEMES[avatarTheme as keyof typeof AVATAR_THEMES] || AVATAR_THEMES.lavender;
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -40,7 +64,27 @@ export default function LoginPage() {
             const res = await fetch('/api/auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: cleanUsername, password, confirmPassword, isRegister, inviteCode }),
+                body: JSON.stringify({
+                    username: cleanUsername,
+                    password,
+                    confirmPassword,
+                    isRegister,
+                    inviteCode,
+                    bio: isRegister ? bio : undefined,
+                    avatar: isRegister ? {
+                        useDefault: !avatarEmoji.trim(),
+                        emoji: avatarEmoji,
+                        theme: avatarTheme,
+                    } : undefined,
+                    verification: isRegister && verificationEnabled ? {
+                        enabled: true,
+                        type: verificationType,
+                        name: verifiedName,
+                        grade: verifiedGrade,
+                        subject: verifiedSubject,
+                        studentId,
+                    } : undefined,
+                }),
             });
 
             const data = await res.json().catch(() => ({ error: 'Login failed. Please try again.' }));
@@ -108,6 +152,120 @@ export default function LoginPage() {
                         </div>
                     )}
 
+                    {isRegister && (
+                        <div className="auth-verification-card">
+                            <label className="auth-verification-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={verificationEnabled}
+                                    onChange={(e) => setVerificationEnabled(e.target.checked)}
+                                />
+                                <span>提交 Hajimi 认证（可跳过）</span>
+                            </label>
+                            <p>认证通过后可以发帖并进入 Hall of Fame；公开主页不会展示真实姓名或学号。</p>
+                            {verificationEnabled && (
+                                <div className="auth-verification-fields">
+                                    <div className="auth-verification-tabs">
+                                        <button
+                                            type="button"
+                                            className={verificationType === 'student' ? 'is-active' : ''}
+                                            onClick={() => setVerificationType('student')}
+                                        >
+                                            学生
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={verificationType === 'teacher' ? 'is-active' : ''}
+                                            onClick={() => setVerificationType('teacher')}
+                                        >
+                                            老师
+                                        </button>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={verifiedName}
+                                        onChange={(e) => setVerifiedName(e.target.value)}
+                                        className="glass-input"
+                                        placeholder="真实姓名"
+                                        autoComplete="name"
+                                    />
+                                    {verificationType === 'student' ? (
+                                        <>
+                                            <select value={verifiedGrade} onChange={(e) => setVerifiedGrade(e.target.value)} className="glass-input">
+                                                {['G10', 'G11', 'G12', 'G13'].map(grade => (
+                                                    <option key={grade} value={grade}>{grade}</option>
+                                                ))}
+                                            </select>
+                                            <input
+                                                type="text"
+                                                value={studentId}
+                                                onChange={(e) => setStudentId(e.target.value)}
+                                                className="glass-input"
+                                                placeholder="学号（可选）"
+                                                autoComplete="off"
+                                            />
+                                        </>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={verifiedSubject}
+                                            onChange={(e) => setVerifiedSubject(e.target.value)}
+                                            className="glass-input"
+                                            placeholder="任教学科"
+                                            autoComplete="off"
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {isRegister && (
+                        <div className="auth-avatar-card">
+                            <div className="auth-avatar-card-head">
+                                <div>
+                                    <strong>头像设置</strong>
+                                    <p>可以随机，也可以自己选 emoji 和底色。</p>
+                                </div>
+                                <button type="button" className="auth-avatar-random" onClick={() => {
+                                    const nextEmoji = AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
+                                    const nextTheme = AVATAR_THEME_IDS[Math.floor(Math.random() * AVATAR_THEME_IDS.length)];
+                                    setAvatarEmoji(nextEmoji);
+                                    setAvatarTheme(nextTheme);
+                                }}>
+                                    随机
+                                </button>
+                            </div>
+                            <div className="auth-avatar-preview" style={{ background: selectedAvatarTheme.background, color: selectedAvatarTheme.color }}>
+                                <span>{avatarEmoji || '😊'}</span>
+                            </div>
+                            <div className="auth-avatar-fields">
+                                <select value={avatarEmoji} onChange={(e) => setAvatarEmoji(e.target.value)} className="glass-input">
+                                    <option value="">随机 emoji</option>
+                                    {AVATAR_EMOJIS.map(emoji => (
+                                        <option key={emoji} value={emoji}>{emoji}</option>
+                                    ))}
+                                </select>
+                                <select value={avatarTheme} onChange={(e) => setAvatarTheme(e.target.value)} className="glass-input">
+                                    {AVATAR_THEME_IDS.map(theme => (
+                                        <option key={theme} value={theme}>{AVATAR_THEME_LABELS[theme] || theme}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    {isRegister && (
+                        <textarea
+                            value={bio}
+                            onChange={(e) => setBio(e.target.value)}
+                            maxLength={180}
+                            className="glass-input auth-bio-input"
+                            placeholder="一句话介绍自己（可选）"
+                            rows={3}
+                        />
+                    )}
+
                     <div>
                         <input
                             type="password"
@@ -173,6 +331,14 @@ export default function LoginPage() {
                                 setError('');
                                 setInviteCode('');
                                 setConfirmPassword('');
+                                setVerificationEnabled(false);
+                                setVerifiedName('');
+                                setVerifiedGrade('G10');
+                                setVerifiedSubject('');
+                                setStudentId('');
+                                setBio('');
+                                setAvatarEmoji('');
+                                setAvatarTheme('lavender');
                                 setIsSubmitting(false);
                             }}
                             className="auth-switch-btn"
@@ -268,6 +434,119 @@ export default function LoginPage() {
             margin-top: 8px;
             line-height: 1.4;
             font-weight: 700;
+          }
+          .auth-verification-card {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.45);
+            border: 1px solid rgba(108,92,231,0.16);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+          }
+          .auth-verification-card p {
+            margin: 8px 0 0;
+            color: #636e72;
+            font-size: 0.78rem;
+            line-height: 1.45;
+            font-weight: 650;
+          }
+          .auth-verification-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #2d3436;
+            font-weight: 900;
+            cursor: pointer;
+          }
+          .auth-verification-toggle input {
+            accent-color: #6c5ce7;
+          }
+          .auth-verification-fields {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+          }
+          .auth-avatar-card {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.45);
+            border: 1px solid rgba(108,92,231,0.16);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+            display: grid;
+            gap: 12px;
+          }
+          .auth-avatar-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+          }
+          .auth-avatar-card-head strong {
+            display: block;
+            color: #2d3436;
+            font-size: 0.92rem;
+            margin-bottom: 4px;
+          }
+          .auth-avatar-card-head p {
+            margin: 0;
+            color: #636e72;
+            font-size: 0.78rem;
+            line-height: 1.45;
+            font-weight: 650;
+          }
+          .auth-avatar-random {
+            border: 1px solid rgba(108,92,231,0.18);
+            border-radius: 999px;
+            background: rgba(255,255,255,0.62);
+            color: #6c5ce7;
+            font-weight: 850;
+            padding: 8px 12px;
+            cursor: pointer;
+          }
+          .auth-avatar-preview {
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 10px 24px rgba(108,92,231,0.16);
+          }
+          .auth-avatar-fields {
+            display: grid;
+            gap: 10px;
+          }
+          .auth-bio-input {
+            resize: vertical;
+            min-height: 92px;
+            line-height: 1.5;
+            letter-spacing: 0;
+          }
+          .auth-verification-fields .glass-input {
+            padding: 12px 14px;
+            font-size: 0.95rem;
+          }
+          .auth-verification-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 4px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.54);
+          }
+          .auth-verification-tabs button {
+            border: none;
+            border-radius: 12px;
+            padding: 9px 12px;
+            color: #636e72;
+            font-weight: 850;
+            background: transparent;
+            cursor: pointer;
+          }
+          .auth-verification-tabs button.is-active {
+            color: white;
+            background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+            box-shadow: 0 8px 18px rgba(108,92,231,0.18);
           }
 	        .glass-input:focus {
 	          background: #fff;

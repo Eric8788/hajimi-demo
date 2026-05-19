@@ -143,6 +143,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const router = useRouter();
     const composerRef = useRef<HTMLFormElement | null>(null);
     const canPostAnnouncement = isStaffRole(user?.role);
+    const canCreatePost = user?.verification_status === 'verified';
     const visibleTagOptions = canPostAnnouncement
         ? [{ id: 'announcement', label: '📢 Announcement' }, ...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS]
         : [...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS];
@@ -269,6 +270,10 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
     const openComposer = () => {
         if (requireLogin()) return;
+        if (!canCreatePost) {
+            setCreateError('完成 Hajimi 认证后可以发帖；评论、点赞和浏览仍然开放。');
+            return;
+        }
 
         setCreateError('');
         setFileStatus('');
@@ -284,6 +289,10 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         e.preventDefault();
         if (isPreparingImage) {
             setCreateError('Please wait for image optimization to finish.');
+            return;
+        }
+        if (!newContent.trim() && !file) {
+            setCreateError('写点内容或上传一张图片就可以发布。');
             return;
         }
 
@@ -550,17 +559,25 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
             {/* Create Trigger */}
             {!isCreating && (
-                <div
-                    onClick={() => openComposer()}
-                    className="glass-card composer-trigger"
-                    style={{ marginBottom: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', border: '2px dashed rgba(162, 155, 254, 0.5)', background: 'rgba(255,255,255,0.3)' }}
-                >
-                    <Avatar value={user?.avatar} fallback="✍️" size={48} style={{ background: '#fab1a0', fontSize: '1.5rem', border: '2px solid white' }} />
-                    <div style={{ flex: 1, padding: '12px 20px', borderRadius: '20px', background: 'rgba(255,255,255,0.6)', color: '#636e72', fontWeight: 500 }}>
-                        {user ? `Share your thoughts, ${user.username}...` : 'Sign in to share your thoughts...'}
+                <>
+                    <div
+                        onClick={() => openComposer()}
+                        className="glass-card composer-trigger"
+                        style={{ marginBottom: createError ? '10px' : '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', border: '2px dashed rgba(162, 155, 254, 0.5)', background: 'rgba(255,255,255,0.3)' }}
+                    >
+                        <Avatar value={user?.avatar} theme={user?.avatar_theme} fallback="✍️" size={48} style={{ fontSize: '1.5rem', border: '2px solid white' }} />
+                        <div style={{ flex: 1, padding: '12px 20px', borderRadius: '20px', background: 'rgba(255,255,255,0.6)', color: '#636e72', fontWeight: 500 }}>
+                            {user ? canCreatePost ? `Share your thoughts, ${user.username}...` : '完成 Hajimi 认证后可以发帖' : 'Sign in to share your thoughts...'}
+                        </div>
+                        <div style={{ width: '40px', height: '40px', background: '#a29bfe', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>{canCreatePost ? '✒️' : '✅'}</div>
                     </div>
-                    <div style={{ width: '40px', height: '40px', background: '#a29bfe', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>✒️</div>
-                </div>
+                    {createError && (
+                        <div className="forum-verification-callout" style={{ marginBottom: '30px' }}>
+                            <span>{createError}</span>
+                            <button type="button" onClick={() => router.push('/profile')}>去认证</button>
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Create Form (only shown when logged in and isCreating) */}
@@ -569,9 +586,10 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                     <motion.form ref={composerRef} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} onSubmit={handleCreate} className="glass-panel" style={{ padding: '25px', marginBottom: '30px', background: 'rgba(255,255,255,0.8)' }}>
                         <h3 style={{ marginBottom: '20px' }}>✨ Create a New Post</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <input placeholder="Title..." value={newTitle} onChange={e => setNewTitle(e.target.value)} required className="glass-input" style={{ fontWeight: 'bold', fontSize: '1.1rem' }} />
+                            <textarea placeholder="分享一下近况、问题或资源..." value={newContent} onChange={e => setNewContent(e.target.value)} rows={5} className="glass-input" style={{ resize: 'vertical' }} />
+                            <input placeholder="标题（可选，不填会自动生成）" value={newTitle} onChange={e => setNewTitle(e.target.value)} className="glass-input" style={{ fontWeight: 'bold', fontSize: '1.02rem' }} />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <label style={{ fontSize: '0.9rem', color: '#636e72', fontWeight: 700 }}>Hashtag</label>
+                                <label style={{ fontSize: '0.9rem', color: '#636e72', fontWeight: 700 }}>Hashtag（可选）</label>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <span style={{ color: '#6c5ce7', fontWeight: 800, fontSize: '1.05rem' }}>#</span>
                                     <input
@@ -588,10 +606,9 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                                     ))}
                                 </div>
                                 <div style={{ color: '#636e72', fontSize: '0.8rem' }}>
-                                    Use letters, numbers, Chinese characters, underscores, or hyphens. Announcements are staff-only and behave like pinned posts.
+                                    不填默认 General；可以直接选一个常用标签。Announcements are staff-only and behave like pinned posts.
                                 </div>
                             </div>
-                            <textarea placeholder="What's on your mind?" value={newContent} onChange={e => setNewContent(e.target.value)} required rows={5} className="glass-input" style={{ resize: 'vertical' }} />
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading || isPreparingImage ? 'default' : 'pointer', color: '#636e72' }}>🖼️ {isPreparingImage ? 'Optimizing image...' : file ? file.name : 'Attach image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInputChange} disabled={loading || isPreparingImage} style={{ display: 'none' }} /></label>
                                 <div style={{ color: '#636e72', fontSize: '0.8rem', marginTop: '8px' }}>JPEG, PNG, WebP, or GIF · auto-compresses to max 1 MB · 5/day · 30 total</div>
@@ -607,7 +624,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                         </div>
                         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '20px' }}>
                             <button type="button" onClick={resetComposer} className="btn" style={{ background: 'transparent', border: '1px solid #b2bec3' }}>Cancel</button>
-                            <button type="submit" className="btn btn-primary" disabled={loading || isPreparingImage}>{loading ? 'Posting...' : isPreparingImage ? 'Optimizing...' : '🚀 Publish'}</button>
+                            <button type="submit" className="btn btn-primary" disabled={loading || isPreparingImage}>{loading ? 'Posting...' : isPreparingImage ? 'Optimizing...' : '🚀 发布'}</button>
                         </div>
                     </motion.form>
                 )}

@@ -58,7 +58,8 @@ BLOB_READ_WRITE_TOKEN=...
 HAJIMI_STUDENT_INVITE_CODE=...
 HAJIMI_TEACHER_INVITE_CODE=...
 DASHSCOPE_API_KEY=...      # optional, powers dashboard Cyber Oracle AI reading
-SILICONFLOW_API_KEY=...    # optional fallback for Cyber Oracle
+SILICONFLOW_API_KEY=...    # optional fallback provider for Cyber Oracle
+HAJIMI_VERIFICATION_PEPPER=... # recommended, hashes optional student IDs for Hajimi verification
 ```
 
 Important:
@@ -66,6 +67,8 @@ Important:
 - Invite codes are compared as exact strings.
 - The code must be in the Vercel variable `Value`, not in `Note`.
 - After changing invite codes, redeploy Production before testing registration again.
+- Hajimi verification is optional at registration but required for posting and leaderboard entry after admin approval.
+- Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider failures use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks
 

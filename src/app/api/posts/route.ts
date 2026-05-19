@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getPosts, createPost, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
 import { isStaffRole } from '@/lib/roles';
+import { isVerifiedAccount } from '@/lib/verification';
 import { put } from '@vercel/blob';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
@@ -31,6 +32,17 @@ function normalizeHashtag(value: FormDataEntryValue | null) {
         .replace(/^#+/, '')
         .replace(/\s+/g, '')
         .slice(0, 24) || 'general';
+}
+
+function buildPostTitle(title: string, content: string, hasFile: boolean) {
+    if (title) return title.slice(0, 80);
+
+    const compact = content.replace(/\s+/g, ' ').trim();
+    if (compact) {
+        return compact.length > 32 ? `${compact.slice(0, 32)}...` : compact;
+    }
+
+    return hasFile ? '图片动态' : '新动态';
 }
 
 export async function GET(request: Request) {
@@ -64,15 +76,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        if (!isVerifiedAccount(user)) {
+            return NextResponse.json({ error: '完成 Hajimi 认证后可以发帖。' }, { status: 403 });
+        }
+
         const formData = await request.formData();
         const title = String(formData.get('title') || '').trim();
         const content = String(formData.get('content') || '').trim();
         let type = 'text';
         const tag = normalizeHashtag(formData.get('tag'));
         const file = formData.get('file') as File | null;
+        const hasFile = Boolean(file && file.size > 0);
 
-        if (!title || !content) {
-            return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
+        if (!content && !hasFile) {
+            return NextResponse.json({ error: '写点内容或上传一张图片就可以发布。' }, { status: 400 });
         }
 
         if (tag === 'announcement' && !isStaffRole(user.role)) {
@@ -85,7 +102,7 @@ export async function POST(request: Request) {
 
         let attachmentUrl = '';
 
-        if (file && file.size > 0) {
+        if (hasFile && file) {
             if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
                 return NextResponse.json({ error: 'Only JPEG, PNG, WebP, or GIF images can be uploaded' }, { status: 415 });
             }
@@ -118,7 +135,7 @@ export async function POST(request: Request) {
             type = 'image';
         }
 
-        await createPost(userId, title, content, type, attachmentUrl, tag);
+        await createPost(userId, buildPostTitle(title, content, hasFile), content, type, attachmentUrl, tag);
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
         console.error(err);

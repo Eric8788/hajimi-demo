@@ -4,6 +4,8 @@ import { createSession } from '@/lib/auth';
 import { isRegistrationConfigured, resolveInviteRole } from '@/lib/inviteCodes';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
+import { buildVerificationDraft } from '@/lib/verification';
+import { normalizeAvatarEmoji, normalizeAvatarThemeId } from '@/lib/avatarThemes';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
@@ -44,8 +46,28 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Invalid invite code' }, { status: 403 });
             }
 
+            const shouldSubmitVerification = Boolean(body.verification?.enabled);
+            const verificationResult = shouldSubmitVerification
+                ? await buildVerificationDraft(inviteRole, body.verification)
+                : null;
+
+            if (verificationResult && !verificationResult.ok) {
+                return NextResponse.json({ error: verificationResult.error }, { status: 400 });
+            }
+
             const hashedPassword = await bcrypt.hash(password, 10);
-            const userId = await createUser(username, hashedPassword, inviteRole);
+            const avatarSelection = {
+                emoji: normalizeAvatarEmoji(body.avatar?.emoji),
+                theme: normalizeAvatarThemeId(body.avatar?.theme),
+            };
+            const userId = await createUser(
+                username,
+                hashedPassword,
+                inviteRole,
+                verificationResult?.ok ? verificationResult.draft : null,
+                avatarSelection,
+                { bio: body.bio },
+            );
             // Automatically log in
             await createSession(Number(userId));
             return NextResponse.json({ success: true, role: inviteRole });

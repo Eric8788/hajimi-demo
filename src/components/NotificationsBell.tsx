@@ -144,7 +144,7 @@ export default function NotificationsBell() {
                                         key={notification.id}
                                         className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
                                     >
-                                        <Avatar value={notification.actor_avatar} fallback="👤" size={28} style={{ background: '#fab1a0' }} />
+                                        <Avatar value={notification.actor_avatar} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
                                         <div className="notification-copy">
                                             <div
                                                 className="notification-message"

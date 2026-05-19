@@ -1,8 +1,8 @@
 import type { User } from './db';
 
-export type BadgeId = 'admin' | 'teacher' | 'student' | 'creator' | 'ai_club';
+export type BadgeId = 'admin' | 'teacher' | 'student' | 'verified' | 'creator' | 'ai_club';
 
-export type BadgeUser = Pick<User, 'role' | 'username' | 'is_creator' | 'badge_preferences'>;
+export type BadgeUser = Pick<User, 'role' | 'username' | 'is_creator' | 'badge_preferences' | 'verification_status'>;
 
 export interface BadgeDefinition {
     id: BadgeId;
@@ -39,6 +39,13 @@ export const BADGE_DEFINITIONS: Record<BadgeId, BadgeDefinition> = {
         title: '学生',
         tone: { bg: 'rgba(0, 184, 148, 0.15)', border: '1px solid rgba(0, 184, 148, 0.4)', color: '#00b894' },
     },
+    verified: {
+        id: 'verified',
+        emoji: '✅',
+        label: '认证',
+        title: 'Hajimi 已认证',
+        tone: { bg: 'rgba(108, 92, 231, 0.14)', border: '1px solid rgba(108, 92, 231, 0.34)', color: '#6c5ce7' },
+    },
     creator: {
         id: 'creator',
         emoji: '🛠️',
@@ -67,7 +74,7 @@ export const BADGE_DEFINITIONS: Record<BadgeId, BadgeDefinition> = {
 
 const AI_CLUB_USERNAMES = new Set(['eric', 'alberty', 'p1tter', '1ming', '🥚1ming', 'cooka', 'jackz', 'luna1919810']);
 const VALID_BADGE_IDS = new Set<BadgeId>(Object.keys(BADGE_DEFINITIONS) as BadgeId[]);
-const DEFAULT_BADGE_ORDER: BadgeId[] = ['admin', 'teacher', 'student', 'ai_club', 'creator'];
+const DEFAULT_BADGE_ORDER: BadgeId[] = ['admin', 'teacher', 'student', 'verified', 'ai_club', 'creator'];
 
 function normalizeUsername(username?: string | null) {
     return (username || '').trim().toLowerCase();
@@ -102,6 +109,7 @@ export function getAvailableBadges(user: BadgeUser): BadgeDefinition[] {
         ids.add('student');
     }
 
+    if (user.verification_status === 'verified') ids.add('verified');
     if (isAiClubMember(user.username)) ids.add('ai_club');
     if (user.is_creator) ids.add('creator');
 

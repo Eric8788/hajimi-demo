@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type TarotCard = {
@@ -41,10 +41,31 @@ export default function TarotGame() {
     const [isShuffling, setIsShuffling] = useState(false);
     const [isReading, setIsReading] = useState(false);
     const [reading, setReading] = useState('');
+    const [remainingReadings, setRemainingReadings] = useState<number | null>(null);
+    const [dailyLimit, setDailyLimit] = useState(3);
+    const [limitMessage, setLimitMessage] = useState('');
 
-    const getFallbackReading = (drawn: TarotCard[]) => (
-        `过去的 ${drawn[0].name} 提醒你保留 ${drawn[0].meaning.toLowerCase()} 的能量；现在的 ${drawn[1].name} 适合把注意力放回当下行动；未来的 ${drawn[2].name} 指向新的创作和成长线索。`
-    );
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadOracleQuota = async () => {
+            try {
+                const res = await fetch('/api/oracle');
+                const data = await res.json();
+                if (!isMounted || !res.ok) return;
+                if (typeof data.remaining === 'number') setRemainingReadings(data.remaining);
+                if (typeof data.limit === 'number') setDailyLimit(data.limit);
+            } catch (error) {
+                console.warn('[tarot] failed to load oracle quota', error);
+            }
+        };
+
+        void loadOracleQuota();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const generateAiReading = async (drawn: TarotCard[]) => {
         setIsReading(true);
@@ -62,14 +83,34 @@ export default function TarotGame() {
             });
             const data = await res.json();
 
+            if (res.status === 429) {
+                const remaining = typeof data?.remaining === 'number' ? data.remaining : 0;
+                const limit = typeof data?.limit === 'number' ? data.limit : dailyLimit;
+                setRemainingReadings(remaining);
+                setDailyLimit(limit);
+                setLimitMessage(data?.error || '今日 Oracle 解读次数已用完，明天再来抽牌吧。');
+                setReading('');
+                return;
+            }
+
             if (!res.ok || typeof data?.reading !== 'string' || !data.reading.trim()) {
                 throw new Error(data?.error || 'Oracle AI did not return a reading');
             }
 
             setReading(data.reading.trim());
+            if (typeof data.remaining === 'number') {
+                setRemainingReadings(data.remaining);
+            }
+            if (typeof data.limit === 'number') {
+                setDailyLimit(data.limit);
+            }
+            setLimitMessage('');
         } catch (error) {
-            console.warn('[tarot] falling back to local reading', error);
-            setReading(getFallbackReading(drawn));
+            console.warn('[tarot] oracle reading failed', error);
+            setReading('');
+            if (limitMessage === '') {
+                setLimitMessage('Oracle 暂时没有成功连接，请稍后再试。');
+            }
         } finally {
             setIsReading(false);
         }
@@ -77,10 +118,15 @@ export default function TarotGame() {
 
     const drawCards = () => {
         if (isShuffling || isReading) return;
+        if (remainingReadings === 0) {
+            setLimitMessage('今日 Oracle 解读次数已用完，明天再来抽牌吧。');
+            return;
+        }
         setIsShuffling(true);
         setCards([null, null, null]);
         setFlipped([false, false, false]);
         setReading('');
+        setLimitMessage('');
 
         // Draw 3 unique cards
         const drawn: TarotCard[] = [];
@@ -116,7 +162,10 @@ export default function TarotGame() {
             <h2 style={{ fontSize: '2rem', marginBottom: '10px', background: 'linear-gradient(to right, #a29bfe, #6c5ce7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                 🔮 Cyber Tarot Trinity
             </h2>
-            <p style={{ marginBottom: '40px', opacity: 0.7 }}>Reveal your timeline: Past, Present, and Future.</p>
+            <p style={{ marginBottom: '12px', opacity: 0.7 }}>Reveal your timeline: Past, Present, and Future.</p>
+            <div style={{ marginBottom: '32px', color: '#6c5ce7', fontSize: '0.85rem', fontWeight: 800 }}>
+                今日可解读 {remainingReadings === null ? dailyLimit : remainingReadings} / {dailyLimit} 次
+            </div>
 
             <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px' }}>
                 {cards.map((card, idx) => (
@@ -168,19 +217,25 @@ export default function TarotGame() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        style={{ maxWidth: '700px', margin: '0 auto 30px', padding: '20px', background: 'rgba(162, 155, 254, 0.1)', borderRadius: '15px', border: '1px solid rgba(162, 155, 254, 0.3)' }}
+                        style={{ maxWidth: '760px', margin: '0 auto 30px', padding: '22px 24px', background: 'rgba(162, 155, 254, 0.1)', borderRadius: '15px', border: '1px solid rgba(162, 155, 254, 0.3)' }}
                     >
                         <h4 style={{ marginBottom: '10px', color: '#6c5ce7' }}>✨ Oracle&apos;s Insight</h4>
-                        <p style={{ lineHeight: '1.6', fontSize: '1.05rem' }}>
+                        <p style={{ lineHeight: '1.8', fontSize: '1.02rem', textAlign: 'left', whiteSpace: 'pre-wrap' }}>
                             {isReading ? 'AI Oracle 正在解读这组三张牌...' : reading}
                         </p>
                     </motion.div>
                 )}
             </AnimatePresence>
 
+            {limitMessage && (
+                <div style={{ maxWidth: '700px', margin: '0 auto 20px', color: '#6c5ce7', fontWeight: 800 }}>
+                    {limitMessage}
+                </div>
+            )}
+
             <button
                 onClick={drawCards}
-                disabled={isShuffling || isReading}
+                disabled={isShuffling || isReading || remainingReadings === 0}
                 className="btn btn-primary"
                 style={{ minWidth: '180px', padding: '12px 24px', fontSize: '1.1rem' }}
             >

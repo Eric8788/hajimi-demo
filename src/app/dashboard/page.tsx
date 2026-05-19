@@ -18,6 +18,7 @@ function getDevDashboardUser(userId: number): User {
     level: 1,
     role: 'student',
     avatar: '😊',
+    avatar_theme: 'lavender',
     streak_count: 0,
     daily_likes_count: 0,
     created_at: new Date().toISOString(),
@@ -51,7 +52,7 @@ export default async function DashboardPage() {
           <div className="dashboard-cat-mascot" aria-hidden="true" style={{ left: '-20px', opacity: 0.35 }} />
           
           <div className="dashboard-welcome-content">
-            <Avatar value={user.avatar} size={64} />
+            <Avatar value={user.avatar} theme={user.avatar_theme} size={64} />
             <div>
               <h2 className="dashboard-welcome-title">Good Morning, {user.username}! 🌤️</h2>
               <p className="dashboard-welcome-insight">Today&apos;s Insight: Life is like a mushroom, handle with care.</p>

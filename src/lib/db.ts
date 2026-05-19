@@ -1,4 +1,6 @@
 import { sql } from '@vercel/postgres';
+import type { VerificationStatus, VerificationType, VerificationDraft } from './verification';
+import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 
 // --- Interfaces ---
 
@@ -11,17 +13,40 @@ export interface User {
     password_hash?: string;
     bio?: string;
     avatar?: string;
+    avatar_emoji?: string;
+    avatar_theme?: string;
     profile_image?: string;
     grade?: string;
     age?: number;
     ethnicity?: string;
     is_creator?: boolean;
     badge_preferences?: string[] | null;
+    verification_status?: VerificationStatus;
+    verification_type?: VerificationType | null;
     streak_count: number;
     last_checkin_at?: string;
     daily_likes_count: number;
     last_like_at?: string;
     created_at: string;
+}
+
+export interface VerificationRequest {
+    id: number;
+    username: string;
+    role: string;
+    avatar?: string;
+    avatar_emoji?: string | null;
+    avatar_theme?: string | null;
+    verification_status: VerificationStatus;
+    verification_type: VerificationType | null;
+    verified_name: string | null;
+    verified_grade: string | null;
+    verified_subject: string | null;
+    student_id_last4: string | null;
+    has_verified_student_id_conflict: boolean;
+    verification_submitted_at?: string;
+    verified_at?: string;
+    verification_note?: string;
 }
 
 export interface Project {
@@ -48,6 +73,7 @@ export interface ProjectComment {
     author_id: number;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_theme?: string | null;
     content: string;
     created_at: string;
 }
@@ -65,9 +91,11 @@ export interface Post {
     updated_at?: Date;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_theme?: string | null;
     author_role?: string;
     author_is_creator?: boolean;
     author_badge_preferences?: string[] | null;
+    author_verification_status?: VerificationStatus | null;
     comment_count?: number;
     is_bookmarked?: boolean;
     has_liked?: boolean;
@@ -85,9 +113,11 @@ export interface Comment {
     reply_content?: string | null;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_theme?: string | null;
     author_role?: string;
     author_is_creator?: boolean;
     author_badge_preferences?: string[] | null;
+    author_verification_status?: VerificationStatus | null;
     has_liked?: boolean;
 }
 
@@ -102,6 +132,7 @@ export interface Notification {
     created_at: Date;
     actor_name?: string;
     actor_avatar?: string;
+    actor_avatar_theme?: string | null;
     post_title?: string;
 }
 
@@ -115,6 +146,9 @@ async function ensureUserProfileEnhancements() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
             await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '😊'`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
+            await ensureVerificationColumns();
         })().catch(error => {
             userProfileEnhancementsReady = null;
             throw error;
@@ -124,10 +158,36 @@ async function ensureUserProfileEnhancements() {
     return userProfileEnhancementsReady;
 }
 
+async function ensureVerificationColumns() {
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'unverified'`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_type TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_name TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_grade TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_subject TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS student_id_hash TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS student_id_last4 TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_submitted_at TIMESTAMP WITH TIME ZONE`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_reviewed_by INTEGER`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_note TEXT`;
+    await sql`UPDATE users SET verification_status = 'verified', verification_type = COALESCE(verification_type, CASE WHEN role = 'teacher' THEN 'teacher' ELSE 'student' END), verified_at = COALESCE(verified_at, CURRENT_TIMESTAMP) WHERE lower(username) = 'eric' AND verification_status IS DISTINCT FROM 'verified'`;
+    await sql`UPDATE users SET verification_status = 'unverified' WHERE verification_status IS NULL`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_users_verification_status ON users(verification_status)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_users_student_id_hash ON users(student_id_hash) WHERE student_id_hash IS NOT NULL`;
+}
+
 export async function getUser(username: string) {
     await ensureUserProfileEnhancements();
 
-    const { rows } = await sql<User>`SELECT * FROM users WHERE username = ${username} LIMIT 1`;
+    const { rows } = await sql<User>`
+      SELECT
+        id, username, password_hash, points, level, role, bio, avatar, avatar_emoji, avatar_theme, profile_image,
+        grade, age, ethnicity, badge_preferences, verification_status, verification_type,
+        streak_count, last_checkin_at, daily_likes_count, last_like_at, created_at
+      FROM users
+      WHERE username = ${username}
+      LIMIT 1
+    `;
     return rows[0];
 }
 
@@ -135,7 +195,28 @@ export async function getUserById(id: number): Promise<User | null> {
     await ensureUserProfileEnhancements();
 
     const { rows } = await sql<User>`
-      SELECT users.*, 
+      SELECT
+        users.id,
+        users.username,
+        users.points,
+        users.level,
+        users.role,
+        users.bio,
+        users.avatar,
+        users.avatar_emoji,
+        users.avatar_theme,
+        users.profile_image,
+        users.grade,
+        users.age,
+        users.ethnicity,
+        users.badge_preferences,
+        users.verification_status,
+        users.verification_type,
+        users.streak_count,
+        users.last_checkin_at,
+        users.daily_likes_count,
+        users.last_like_at,
+        users.created_at,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM users 
       WHERE id = ${id} 
@@ -144,17 +225,157 @@ export async function getUserById(id: number): Promise<User | null> {
     return rows[0] || null;
 }
 
-export async function createUser(username: string, passwordHash: string, role = 'student') {
+export async function createUser(
+    username: string,
+    passwordHash: string,
+    role = 'student',
+    verification?: VerificationDraft | null,
+    avatar?: { emoji?: string | null; theme?: string | null } | null,
+    profile?: { bio?: string | null } | null
+) {
+    await ensureUserProfileEnhancements();
+    const avatarEmoji = normalizeAvatarEmoji(avatar?.emoji || undefined);
+    const avatarTheme = avatar?.theme && isAvatarThemeId(avatar.theme) ? avatar.theme : pickRandomAvatarThemeId();
+    const bio = String(profile?.bio || '').trim().slice(0, 180) || 'New student at Hajimi High!';
+
     // Use RETURNING id to get the ID immediately
     const { rows } = await sql`
-    INSERT INTO users (username, password_hash, points, role)
-    VALUES (${username}, ${passwordHash}, 0, ${role})
+    INSERT INTO users (
+      username,
+      password_hash,
+      points,
+      role,
+      bio,
+      avatar,
+      avatar_emoji,
+      avatar_theme,
+      verification_status,
+      verification_type,
+      verified_name,
+      verified_grade,
+      verified_subject,
+      student_id_hash,
+      student_id_last4,
+      verification_submitted_at
+    )
+    VALUES (
+      ${username},
+      ${passwordHash},
+      0,
+      ${role},
+      ${bio},
+      ${avatarEmoji},
+      ${avatarEmoji},
+      ${avatarTheme},
+      ${verification ? 'pending' : 'unverified'},
+      ${verification?.verification_type ?? null},
+      ${verification?.verified_name ?? null},
+      ${verification?.verified_grade ?? null},
+      ${verification?.verified_subject ?? null},
+      ${verification?.student_id_hash ?? null},
+      ${verification?.student_id_last4 ?? null},
+      ${verification ? new Date().toISOString() : null}
+    )
     RETURNING id
   `;
     return rows[0].id;
 }
 
-export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; profile_image?: string; badge_preferences?: string[] }) {
+export async function submitUserVerification(userId: number, verification: VerificationDraft) {
+    await ensureUserProfileEnhancements();
+
+    await sql`
+      UPDATE users
+      SET
+        verification_status = 'pending',
+        verification_type = ${verification.verification_type},
+        verified_name = ${verification.verified_name},
+        verified_grade = ${verification.verified_grade},
+        verified_subject = ${verification.verified_subject},
+        student_id_hash = ${verification.student_id_hash},
+        student_id_last4 = ${verification.student_id_last4},
+        verification_submitted_at = CURRENT_TIMESTAMP,
+        verified_at = NULL,
+        verification_reviewed_by = NULL,
+        verification_note = NULL
+      WHERE id = ${userId}
+    `;
+}
+
+export async function getPendingVerificationRequests(): Promise<VerificationRequest[]> {
+    await ensureUserProfileEnhancements();
+
+    const { rows } = await sql<VerificationRequest>`
+      SELECT
+        users.id,
+        users.username,
+        users.role,
+        users.avatar,
+        users.verification_status,
+        users.verification_type,
+        users.verified_name,
+        users.verified_grade,
+        users.verified_subject,
+        users.student_id_last4,
+        users.verification_submitted_at,
+        users.verified_at,
+        users.verification_note,
+        CASE
+          WHEN users.student_id_hash IS NULL THEN false
+          ELSE EXISTS (
+            SELECT 1
+            FROM users verified_users
+            WHERE verified_users.student_id_hash = users.student_id_hash
+              AND verified_users.verification_status = 'verified'
+              AND verified_users.id != users.id
+          )
+        END as has_verified_student_id_conflict
+      FROM users
+      WHERE users.verification_status = 'pending'
+      ORDER BY users.verification_submitted_at ASC NULLS LAST, users.id ASC
+    `;
+
+    return rows;
+}
+
+export async function reviewUserVerification(targetUserId: number, reviewerId: number, status: 'verified' | 'rejected', note = '') {
+    await ensureUserProfileEnhancements();
+
+    if (status === 'verified') {
+        const { rows: conflictRows } = await sql<{ has_conflict: boolean }>`
+          SELECT CASE
+            WHEN target.student_id_hash IS NULL THEN false
+            ELSE EXISTS (
+              SELECT 1
+              FROM users verified_users
+              WHERE verified_users.student_id_hash = target.student_id_hash
+                AND verified_users.verification_status = 'verified'
+                AND verified_users.id != target.id
+            )
+          END as has_conflict
+          FROM users target
+          WHERE target.id = ${targetUserId}
+          LIMIT 1
+        `;
+
+        if (conflictRows[0]?.has_conflict) {
+            throw new Error('Student ID already verified');
+        }
+    }
+
+    await sql`
+      UPDATE users
+      SET
+        verification_status = ${status},
+        verified_at = CASE WHEN ${status} = 'verified' THEN CURRENT_TIMESTAMP ELSE NULL END,
+        verification_reviewed_by = ${reviewerId},
+        verification_note = ${note.trim() || null}
+      WHERE id = ${targetUserId}
+        AND verification_status = 'pending'
+    `;
+}
+
+export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; avatar_emoji?: string; avatar_theme?: string; profile_image?: string; badge_preferences?: string[] }) {
     await ensureUserProfileEnhancements();
 
     const badgePreferencesJson = Array.isArray(updates.badge_preferences) ? JSON.stringify(updates.badge_preferences) : null;
@@ -167,6 +388,8 @@ export async function updateUserProfile(id: number, updates: { bio?: string; ava
     SET 
       bio = COALESCE(${updates.bio ?? null}, bio), 
       avatar = COALESCE(${updates.avatar ?? null}, avatar), 
+      avatar_emoji = COALESCE(${updates.avatar_emoji ?? updates.avatar ?? null}, avatar_emoji),
+      avatar_theme = COALESCE(${updates.avatar_theme ?? null}, avatar_theme),
       profile_image = COALESCE(${updates.profile_image ?? null}, profile_image),
       badge_preferences = COALESCE(${badgePreferencesJson}::jsonb, badge_preferences)
     WHERE id = ${id}
@@ -323,7 +546,9 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
 
     const { rows } = await sql`
       SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      users.avatar_theme as author_avatar_theme,
       users.badge_preferences as author_badge_preferences,
+      users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
@@ -360,7 +585,9 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
 
     const { rows } = await sql`
       SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      users.avatar_theme as author_avatar_theme,
       users.badge_preferences as author_badge_preferences,
+      users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       CASE WHEN ${viewerId ?? null}::int IS NOT NULL THEN
@@ -385,7 +612,9 @@ export async function getComments(postId: number, userId?: number) {
 
     const { rows } = await sql`
       SELECT comments.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      users.avatar_theme as author_avatar_theme,
       users.badge_preferences as author_badge_preferences,
+      users.verification_status as author_verification_status,
       parent_users.username as reply_author_name,
       parent_comments.content as reply_content,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
@@ -567,9 +796,10 @@ export async function getLeaderboard(limit = 10): Promise<User[]> {
     await ensureUserProfileEnhancements();
 
     const { rows } = await sql<User>`
-      SELECT id, username, avatar, points, level, role, badge_preferences,
+      SELECT id, username, avatar, avatar_theme, points, level, role, badge_preferences, verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM users 
+      WHERE verification_status = 'verified'
       ORDER BY points DESC 
       LIMIT ${limit}
     `;
@@ -824,7 +1054,7 @@ export async function getNotifications(userId: number) {
     await ensureNotificationsTable();
 
     const { rows } = await sql<Notification>`
-      SELECT notifications.*, users.username as actor_name, users.avatar as actor_avatar, posts.title as post_title
+      SELECT notifications.*, users.username as actor_name, users.avatar as actor_avatar, users.avatar_theme as actor_avatar_theme, posts.title as post_title
       FROM notifications
       JOIN users ON notifications.actor_id = users.id
       LEFT JOIN posts ON notifications.post_id = posts.id
@@ -903,10 +1133,23 @@ export async function initDB() {
       role TEXT DEFAULT 'student',
       bio TEXT DEFAULT 'New student at Hajimi High!',
       avatar TEXT DEFAULT '😊',
+      avatar_emoji TEXT DEFAULT '😊',
+      avatar_theme TEXT DEFAULT 'lavender',
       profile_image TEXT,
       grade TEXT,
       age INTEGER,
       ethnicity TEXT,
+      verification_status TEXT DEFAULT 'unverified',
+      verification_type TEXT,
+      verified_name TEXT,
+      verified_grade TEXT,
+      verified_subject TEXT,
+      student_id_hash TEXT,
+      student_id_last4 TEXT,
+      verification_submitted_at TIMESTAMP WITH TIME ZONE,
+      verified_at TIMESTAMP WITH TIME ZONE,
+      verification_reviewed_by INTEGER,
+      verification_note TEXT,
       streak_count INTEGER DEFAULT 0,
       last_checkin_at TIMESTAMP WITH TIME ZONE,
       daily_likes_count INTEGER DEFAULT 0,
@@ -925,6 +1168,9 @@ export async function initDB() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
     await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '😊'`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
+    await ensureVerificationColumns();
   } catch (e) {
     console.log("Migration columns already exist or failed:", e);
   }
@@ -1021,6 +1267,7 @@ export async function initDB() {
 
     await ensurePointAwardsTable();
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;
+    await ensureVerificationColumns();
     await ensureNotificationsTable();
 
     // Seeding logic (optional, but keep for now if needed)

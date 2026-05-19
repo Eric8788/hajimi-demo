@@ -95,6 +95,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         role: post.author_role || 'student',
         is_creator: post.author_is_creator,
         badge_preferences: post.author_badge_preferences,
+        verification_status: post.author_verification_status || undefined,
     };
 
     // Comments
@@ -369,9 +370,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     created_at: new Date(),
                     author_name: currentUser.username,
                     author_avatar: currentUser.avatar,
+                    author_avatar_theme: currentUser.avatar_theme,
                     author_role: currentUser.role,
                     author_is_creator: currentUser.is_creator,
                     author_badge_preferences: currentUser.badge_preferences,
+                    author_verification_status: currentUser.verification_status,
                     parent_comment_id: replyingTo?.id ?? null,
                     reply_author_name: replyingTo?.author_name ?? null,
                     reply_content: replyingTo?.content ?? null,
@@ -405,7 +408,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     onClick={() => openProfile(post.author_id)}
                     aria-label={`View ${post.author_name || 'author'} profile`}
                 >
-                    <Avatar className="post-author-avatar" value={post.author_avatar} fallback="👤" size={40} style={{ background: '#fab1a0', fontSize: '1.2rem', border: '2px solid white' }} />
+                    <Avatar className="post-author-avatar" value={post.author_avatar} theme={post.author_avatar_theme} fallback="👤" size={40} style={{ fontSize: '1.2rem', border: '2px solid white' }} />
                 </button>
                 <div className="post-author-meta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -651,7 +654,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                             onClick={() => openProfile(c.author_id)}
                                             aria-label={`View ${c.author_name || 'comment author'} profile`}
                                         >
-                                            <Avatar value={c.author_avatar} fallback="👤" size={24} style={{ background: '#b2bec3', fontSize: '0.8rem' }} />
+                                            <Avatar value={c.author_avatar} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
                                         </button>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -663,6 +666,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                             role: c.author_role || 'student',
                                                             is_creator: c.author_is_creator,
                                                             badge_preferences: c.author_badge_preferences,
+                                                            verification_status: c.author_verification_status || undefined,
                                                         }}
                                                         compact
                                                         iconOnly

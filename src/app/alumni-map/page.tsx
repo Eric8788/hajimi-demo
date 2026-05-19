@@ -12,6 +12,7 @@ function getDevAlumniMapUser(userId: number): User {
     level: 1,
     role: 'student',
     avatar: '😊',
+    avatar_theme: 'lavender',
     streak_count: 0,
     daily_likes_count: 0,
     created_at: new Date().toISOString(),

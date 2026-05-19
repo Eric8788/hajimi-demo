@@ -19,7 +19,7 @@ import {
 } from '@/data/alumni';
 
 const WORLD_VIEW_BOX = { x: 0, y: 230, width: 905, height: 340 };
-const MAP_PAN_BOUNDS = WORLD_VIEW_BOX;
+const MAP_PAN_BOUNDS = { x: 0, y: 210, width: 920, height: 405 };
 const VIEWBOX_ANIMATION_MS = 460;
 // mapPoint values are hand-calibrated in the same SVG coordinate space as the
 // base map. Lat/lng stay in the data for geography, but drawing uses mapPoint.
@@ -104,6 +104,19 @@ const REGION_FOCUS_RULES: Partial<Record<AlumniRegionId, {
     viewBox: { x: 748, y: 468, width: 157, height: 132 },
   },
 };
+const SCHOOL_FOCUS_RULES: Partial<Record<AlumniRegionId, {
+  width: number;
+  height: number;
+  offsetX?: number;
+  offsetY?: number;
+}>> = {
+  'united-states': { width: 108, height: 70 },
+  canada: { width: 112, height: 78 },
+  'united-kingdom': { width: 58, height: 42 },
+  'hong-kong': { width: 34, height: 22 },
+  australia: { width: 96, height: 68 },
+  europe: { width: 96, height: 68 },
+};
 const SCHOOL_LOGO_SOURCES: Record<string, string> = {
   Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cardiff%20University%20(logo).svg',
   Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Athletics%20logo.svg',
@@ -111,7 +124,7 @@ const SCHOOL_LOGO_SOURCES: Record<string, string> = {
   Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Oxford.svg',
   UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British%20columbia%20ca%20univ%20logo.svg',
   'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20wordmark.svg',
-  UCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/UCL%20Logo%2C%20plain%20background.svg',
+  UCL: '/alumni-logos/ucl.svg',
   UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20California%2C%20San%20Diego%20logo.svg',
   UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Illinois%20at%20Urbana%E2%80%93Champaign%20logo.svg',
   'UNC-Chapel Hill': 'https://commons.wikimedia.org/wiki/Special:FilePath/North%20Carolina%20Tar%20Heels%20logo.svg',
@@ -119,6 +132,32 @@ const SCHOOL_LOGO_SOURCES: Record<string, string> = {
   USYD: 'https://www.sydney.edu.au/content/dam/icons/logos/logo-usyd-dark.svg',
   'UW Seattle': 'https://commons.wikimedia.org/wiki/Special:FilePath/Washington%20Huskies%20logo.svg',
 };
+const SCHOOL_MAP_LOGO_SOURCES: Record<string, string> = {
+  Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Shield%20of%20the%20University%20of%20Cardiff.svg',
+  Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Blue%20Devils%20logo.svg',
+  HKU: '/alumni-logos/hku-shield.png',
+  Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/Coat%20of%20arms%20of%20the%20University%20of%20Oxford.svg',
+  UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British_columbia_univ_coat_arms.svg',
+  'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20Aggies%20logo.svg',
+  UCL: '/alumni-logos/ucl.svg',
+  UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/Seal%20of%20the%20University%20of%20California%2C%20San%20Diego.svg',
+  UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Illinois%20Fighting%20Illini%20logo.svg',
+  USC: 'https://commons.wikimedia.org/wiki/Special:FilePath/USC%20Trojans%20logo.svg',
+  USYD: 'https://commons.wikimedia.org/wiki/Special:FilePath/Arms%20of%20Sydney.svg',
+};
+const SCHOOL_MAP_FAN_OUT: Record<string, { x: number; y: number }> = {
+  Duke: { x: -1.4, y: -1.2 },
+  'UNC-Chapel Hill': { x: 1.4, y: 1.2 },
+  USC: { x: -0.35, y: -0.25 },
+  UCSD: { x: 0.35, y: 0.25 },
+};
+function getSchoolLogoUrl(contact: AlumniContact) {
+  return SCHOOL_LOGO_SOURCES[contact.universityAbbr] ?? contact.logoUrl;
+}
+
+function getMapSchoolLogoUrl(contact: AlumniContact) {
+  return SCHOOL_MAP_LOGO_SOURCES[contact.universityAbbr] ?? getSchoolLogoUrl(contact);
+}
 
 type AlumniMapPoint = {
   id: string;
@@ -131,6 +170,18 @@ type AlumniMapPoint = {
   y: number;
   labelDx: number;
   labelDy: number;
+};
+type HotSchool = {
+  key: string;
+  university: string;
+  universityAbbr: string;
+  campus: string;
+  city: string;
+  count: number;
+  region: AlumniRegion;
+  firstContact: AlumniContact;
+  color: string;
+  order: number;
 };
 
 type MapViewBox = typeof WORLD_VIEW_BOX;
@@ -248,6 +299,35 @@ function getTargetViewBox(region: AlumniRegion | null): MapViewBox {
   return region ? getRegionFocusViewBox(region) : WORLD_VIEW_BOX;
 }
 
+function getSchoolFocusViewBox(region: AlumniRegion, point: AlumniMapPoint): MapViewBox {
+  const regionViewBox = getRegionFocusViewBox(region);
+  const rule = SCHOOL_FOCUS_RULES[region.id];
+  const fallbackWidth = Math.max(MIN_ZOOM_VIEW_BOX.width, regionViewBox.width * 0.52);
+  const fallbackHeight = Math.max(MIN_ZOOM_VIEW_BOX.height, regionViewBox.height * 0.56);
+  const width = Math.min(regionViewBox.width, Math.max(MIN_ZOOM_VIEW_BOX.width, rule?.width ?? fallbackWidth));
+  const height = Math.min(regionViewBox.height, Math.max(MIN_ZOOM_VIEW_BOX.height, rule?.height ?? fallbackHeight));
+  const centerX = point.x + (rule?.offsetX ?? 0);
+  const centerY = point.y + (rule?.offsetY ?? 0);
+
+  return clampViewBox({
+    x: centerX - width / 2,
+    y: centerY - height / 2,
+    width,
+    height,
+  });
+}
+
+function getCurrentTargetViewBox(
+  region: AlumniRegion | null,
+  selectedPoint: AlumniMapPoint | null,
+): MapViewBox {
+  if (region && selectedPoint) {
+    return getSchoolFocusViewBox(region, selectedPoint);
+  }
+
+  return getTargetViewBox(region);
+}
+
 function getRegionClusterPoint(region: AlumniRegion) {
   if (region.pin) return { x: region.pin.x, y: region.pin.y };
   if (region.labelPoint) return region.labelPoint;
@@ -276,6 +356,7 @@ function getSchoolPoints(
     const anchor = group[0];
     const selectedContact = group.find((contact) => contact.alumniId === selectedAlumniId) ?? anchor;
     const projectedPoint = getContactMapPoint(anchor);
+    const fanOut = SCHOOL_MAP_FAN_OUT[anchor.universityAbbr] ?? { x: 0, y: 0 };
 
     return {
       id,
@@ -284,8 +365,8 @@ function getSchoolPoints(
       contacts: group,
       anchorX: projectedPoint.x,
       anchorY: projectedPoint.y,
-      x: projectedPoint.x,
-      y: projectedPoint.y,
+      x: projectedPoint.x + fanOut.x,
+      y: projectedPoint.y + fanOut.y,
       labelDx: anchor.mapPoint.labelDx ?? (index % 2 === 0 ? 14 : -46),
       labelDy: anchor.mapPoint.labelDy ?? -14,
     };
@@ -350,6 +431,10 @@ export default function AlumniWorldMap() {
   const isWorldAtHome = !selectedRegion && isSameViewBox(animatedViewBox, WORLD_VIEW_BOX);
   const isWorldExploring = !selectedRegion && !isWorldAtHome;
   const shouldShowWorldSchoolDots = !selectedRegion && animatedViewBox.width <= WORLD_SCHOOL_DOT_VIEWBOX_WIDTH;
+  const targetViewBox = useMemo(
+    () => getCurrentTargetViewBox(selectedRegion, selectedPoint),
+    [selectedPoint, selectedRegion],
+  );
 
   const animateViewBoxTo = useCallback((targetViewBox: MapViewBox) => {
     cancelAnimationFrame(viewBoxAnimationRef.current);
@@ -384,8 +469,14 @@ export default function AlumniWorldMap() {
   }, []);
 
   useEffect(() => {
-    animateViewBoxTo(getTargetViewBox(selectedRegion));
-  }, [animateViewBoxTo, selectedRegion]);
+    animateViewBoxTo(targetViewBox);
+  }, [
+    animateViewBoxTo,
+    targetViewBox.height,
+    targetViewBox.width,
+    targetViewBox.x,
+    targetViewBox.y,
+  ]);
 
   useEffect(() => {
     return () => cancelAnimationFrame(viewBoxAnimationRef.current);
@@ -399,6 +490,11 @@ export default function AlumniWorldMap() {
   const selectWorldSchoolPoint = (point: AlumniMapPoint) => {
     setSelectedRegionId(point.regionId);
     setSelectedAlumniId(point.contact.alumniId);
+  };
+
+  const selectHotSchool = (school: HotSchool) => {
+    setSelectedRegionId(school.region.id);
+    setSelectedAlumniId(school.firstContact.alumniId);
   };
 
   const resetWorld = () => {
@@ -426,7 +522,7 @@ export default function AlumniWorldMap() {
   };
 
   const fitSelectedRegion = () => {
-    animateViewBoxTo(getTargetViewBox(selectedRegion));
+    animateViewBoxTo(targetViewBox);
   };
 
   const handleStageClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -728,6 +824,7 @@ export default function AlumniWorldMap() {
             selectedAlumni={selectedAlumni}
             relatedContacts={selectedPoint?.contacts ?? []}
             onSelectRegion={selectRegion}
+            onSelectSchool={selectHotSchool}
             onHoverRegion={setHoveredRegionId}
             onSelectContact={setSelectedAlumniId}
             onBackToRegion={() => setSelectedAlumniId(null)}
@@ -779,6 +876,7 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
   const labelOffsetY = 55 * markerScale;
   const countFontSize = 17 * markerScale;
   const labelFontSize = 20 * markerScale;
+  const hitRadius = Math.max(ringRadius * 1.16, coreRadius + 8 * markerScale);
 
   return (
     <g
@@ -797,6 +895,7 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
         }
       }}
     >
+      <circle className="alumni-region-cluster-hit-area" cx={x} cy={y} r={hitRadius} fill="transparent" />
       <circle className="alumni-region-cluster-ring" cx={x} cy={y} r={ringRadius} fill={region.fill} stroke={region.color} />
       <circle className="alumni-region-cluster-core" cx={x} cy={y} r={coreRadius} fill={region.color} />
       <text
@@ -837,21 +936,13 @@ function AlumniPoint({
   showLabelOnVisible = false,
 }: AlumniPointProps) {
   const baseViewBoxWidth = viewBoxWidth ?? getRegionFocusViewBox(region).width;
-  const markerScale = Math.max(0.11, Math.min(0.24, baseViewBoxWidth / WORLD_VIEW_BOX.width));
-  const labelX = point.x + point.labelDx * markerScale;
-  const labelY = point.y + point.labelDy * markerScale;
-  const haloRadius = 20 * markerScale;
-  const ringRadius = 13 * markerScale;
-  const coreRadius = 7.4 * markerScale;
-  const logoSize = 18 * markerScale;
-  const hitRadius = Math.max(10 * markerScale, coreRadius + 2 * markerScale);
-  const labelFontSize = 13 * markerScale;
-  const labelStrokeWidth = 3.4 * markerScale;
-  const countFontSize = 9 * markerScale;
-  const countX = point.x + 9 * markerScale;
-  const countY = point.y - 9 * markerScale;
-  const countBadgeRadius = 5.6 * markerScale;
-  const logoFallbackFontSize = Math.min(5.2, Math.max(3.4, 24 / point.contact.universityAbbr.length)) * markerScale;
+  const logoSize = Math.max(region.id === 'hong-kong' ? 8.5 : 2.2, Math.min(34, baseViewBoxWidth * 0.034));
+  const hitSize = logoSize * 1.5;
+  const countFontSize = Math.max(1.55, logoSize * 0.24);
+  const countBadgeRadius = logoSize * 0.24;
+  const countX = point.x + logoSize * 0.42;
+  const countY = point.y - logoSize * 0.42;
+  const logoUrl = getMapSchoolLogoUrl(point.contact);
 
   return (
     <g
@@ -871,52 +962,42 @@ function AlumniPoint({
         }
       }}
     >
-      <circle className="alumni-city-pin-hit-area" cx={point.x} cy={point.y} r={hitRadius} fill="transparent" />
-      <circle className="alumni-city-pin-halo" cx={point.x} cy={point.y} r={haloRadius} fill="white" />
-      <circle className="alumni-city-pin-ring" cx={point.x} cy={point.y} r={ringRadius} fill="white" />
-      <circle className="alumni-city-pin-core" cx={point.x} cy={point.y} r={coreRadius} fill="white" />
-      <clipPath id={`logo-clip-${point.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`}>
-        <circle cx={point.x} cy={point.y} r={coreRadius * 0.92} />
-      </clipPath>
+      <rect
+        className="alumni-city-pin-hit-area"
+        x={point.x - hitSize / 2}
+        y={point.y - hitSize / 2}
+        width={hitSize}
+        height={hitSize}
+        rx={hitSize * 0.28}
+        fill="transparent"
+      />
       <image
         className="alumni-city-pin-logo"
-        href={point.contact.logoUrl}
+        href={logoUrl}
         x={point.x - logoSize / 2}
         y={point.y - logoSize / 2}
         width={logoSize}
         height={logoSize}
         preserveAspectRatio="xMidYMid meet"
-        clipPath={`url(#logo-clip-${point.id.replace(/[^a-zA-Z0-9_-]/g, '-')})`}
+        onError={(event) => {
+          const fallbackUrl = getSchoolLogoUrl(point.contact);
+          if (event.currentTarget.getAttribute('href') === fallbackUrl) return;
+          event.currentTarget.setAttribute('href', fallbackUrl);
+        }}
       />
-      <text
-        className="alumni-city-pin-logo-fallback"
-        x={point.x}
-        y={point.y + 1.5 * markerScale}
-        style={{ fontSize: `${logoFallbackFontSize}px` }}
-      >
-        {point.contact.universityAbbr}
-      </text>
       {point.contacts.length > 1 && (
         <>
           <circle className="alumni-city-pin-count-badge" cx={countX} cy={countY} r={countBadgeRadius} fill={region.color} />
           <text
             className="alumni-city-pin-count"
             x={countX}
-            y={countY + 2.8 * markerScale}
+            y={countY + countFontSize * 0.34}
             style={{ fontSize: `${countFontSize}px` }}
           >
             {point.contacts.length}
           </text>
         </>
       )}
-      <text
-        className="alumni-city-pin-label"
-        x={labelX}
-        y={labelY}
-        style={{ fontSize: `${labelFontSize}px`, strokeWidth: `${labelStrokeWidth}px` }}
-      >
-        {point.contact.universityAbbr}
-      </text>
     </g>
   );
 }
@@ -927,6 +1008,7 @@ type AlumniInfoPanelProps = {
   selectedAlumni: AlumniContact | null;
   relatedContacts: AlumniContact[];
   onSelectRegion: (region: AlumniRegion) => void;
+  onSelectSchool: (school: HotSchool) => void;
   onHoverRegion: (regionId: AlumniRegionId | null) => void;
   onSelectContact: (alumniId: string) => void;
   onBackToRegion: () => void;
@@ -939,6 +1021,7 @@ function AlumniInfoPanel({
   selectedAlumni,
   relatedContacts,
   onSelectRegion,
+  onSelectSchool,
   onHoverRegion,
   onSelectContact,
   onBackToRegion,
@@ -982,22 +1065,37 @@ function AlumniInfoPanel({
 
         <section className="alumni-info-panel alumni-hot-panel">
           <div className="alumni-panel-title-row">
-            <h4>热门城市</h4>
-            <span>按人数排序</span>
+            <h4>热门学校</h4>
+            <span>按校友人数排序</span>
           </div>
-          <div className="alumni-hot-city-grid">
-            {getHotCities(worldRegions).map((city) => (
+          <div className="alumni-hot-school-list">
+            {getHotSchools(worldRegions).map((school) => (
               <button
-                key={city.name}
+                key={school.key}
                 type="button"
-                className="alumni-hot-city"
-                style={{ '--accent': city.color } as CSSProperties}
-                onClick={() => onSelectRegion(city.region)}
-                onMouseEnter={() => onHoverRegion(city.region.id)}
+                className="alumni-hot-school"
+                style={{ '--accent': school.color } as CSSProperties}
+                onClick={() => onSelectSchool(school)}
+                onMouseEnter={() => onHoverRegion(school.region.id)}
                 onMouseLeave={() => onHoverRegion(null)}
               >
-                <strong>{city.name}</strong>
-                <span>{city.count} 人</span>
+                <span className="alumni-hot-school-logo" aria-hidden="true">
+                  <img
+                    src={getSchoolLogoUrl(school.firstContact)}
+                    alt=""
+                    loading="lazy"
+                    onError={(event) => {
+                      const fallbackUrl = school.firstContact.logoUrl;
+                      if (event.currentTarget.src.endsWith(fallbackUrl)) return;
+                      event.currentTarget.src = fallbackUrl;
+                    }}
+                  />
+                </span>
+                <span className="alumni-hot-school-copy">
+                  <strong>{school.universityAbbr}</strong>
+                  <small>{school.university} · {school.city}</small>
+                </span>
+                <span className="alumni-hot-school-count">{school.count}</span>
               </button>
             ))}
           </div>
@@ -1016,9 +1114,11 @@ function AlumniInfoPanel({
         style={{ '--accent': selectedRegion.color } as CSSProperties}
         aria-label={`${selectedAlumni.name}校友详情`}
       >
-        <button type="button" className="alumni-info-back" onClick={onBackToRegion}>
-          返回
-        </button>
+        <div className="alumni-info-nav-row">
+          <button type="button" className="alumni-info-back" onClick={onBackToRegion}>
+            ← 返回
+          </button>
+        </div>
         <AlumniDetailCard
           contact={selectedAlumni}
           relatedContacts={relatedContacts}
@@ -1035,9 +1135,11 @@ function AlumniInfoPanel({
       aria-label={`${selectedRegion.label}校友信息`}
     >
       <div className="alumni-info-region-top">
-        <button type="button" className="alumni-info-back" onClick={onBackToWorld}>
-          返回
-        </button>
+        <div className="alumni-info-nav-row">
+          <button type="button" className="alumni-info-back" onClick={onBackToWorld}>
+            ← 返回
+          </button>
+        </div>
         <PanelHeader
           eyebrow={selectedRegion.groupLabel}
           title={`${selectedRegion.label}校友`}
@@ -1064,7 +1166,7 @@ function AlumniInfoPanel({
           >
             <span className="alumni-contact-school-logo" aria-hidden="true">
               <img
-                src={SCHOOL_LOGO_SOURCES[contact.universityAbbr] ?? contact.logoUrl}
+                src={getSchoolLogoUrl(contact)}
                 alt=""
                 loading="lazy"
                 onError={(event) => {
@@ -1095,8 +1197,10 @@ type PanelHeaderProps = {
 function PanelHeader({ eyebrow, title, description }: PanelHeaderProps) {
   return (
     <div className="alumni-info-panel-head">
-      <span>{eyebrow}</span>
-      <h4>{title}</h4>
+      <div className="alumni-info-panel-heading">
+        <h4>{title}</h4>
+        <span>{eyebrow}</span>
+      </div>
       <p>{description}</p>
     </div>
   );
@@ -1110,20 +1214,26 @@ function getUniqueCountFromContacts(contacts: AlumniContact[], field: 'universit
   return getUniqueCount(contacts, field);
 }
 
-function getHotCities(worldRegions: AlumniRegion[]) {
-  const cities = new Map<string, { name: string; count: number; region: AlumniRegion; color: string; order: number }>();
+function getHotSchools(worldRegions: AlumniRegion[]): HotSchool[] {
+  const schools = new Map<string, HotSchool>();
   let nextOrder = 0;
 
   worldRegions.forEach((region) => {
     region.contacts.forEach((contact) => {
-      const current = cities.get(contact.city);
+      const key = `${contact.university}-${contact.campus}`;
+      const current = schools.get(key);
       if (current) {
         current.count += 1;
       } else {
-        cities.set(contact.city, {
-          name: contact.city,
+        schools.set(key, {
+          key,
+          university: contact.university,
+          universityAbbr: contact.universityAbbr,
+          campus: contact.campus,
+          city: contact.city,
           count: 1,
           region,
+          firstContact: contact,
           color: region.color,
           order: nextOrder,
         });
@@ -1132,7 +1242,7 @@ function getHotCities(worldRegions: AlumniRegion[]) {
     });
   });
 
-  return Array.from(cities.values())
+  return Array.from(schools.values())
     .sort((a, b) => b.count - a.count || a.order - b.order)
     .slice(0, 6);
 }
@@ -1174,7 +1284,7 @@ function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniD
       <div className="alumni-card-head">
         <div className="alumni-card-school-logo" aria-hidden="true">
           <img
-            src={SCHOOL_LOGO_SOURCES[contact.universityAbbr] ?? contact.logoUrl}
+            src={getSchoolLogoUrl(contact)}
             alt=""
             loading="lazy"
             onError={(event) => {
@@ -1226,7 +1336,7 @@ function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniD
         ) : (
           <span className="alumni-rank-pill is-muted">排名信息待补充</span>
         )}
-        <span className="alumni-contact-pill">联系请咨询指导老师</span>
+        <span className="alumni-contact-pill">点击获取联系方式</span>
       </div>
     </article>
   );
