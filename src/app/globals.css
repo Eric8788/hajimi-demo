@@ -4312,8 +4312,8 @@ p {
 .forum-welcome-board {
   position: relative;
   overflow: hidden;
-  height: 190px;
-  min-height: 190px;
+  height: 218px;
+  min-height: 218px;
   padding: 0;
   background:
     radial-gradient(circle at 18% 18%, rgba(162,155,254,0.16), transparent 32%),
@@ -4346,7 +4346,7 @@ p {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(260px, 0.82fr) minmax(320px, 1.18fr);
+  grid-template-columns: minmax(330px, 0.96fr) minmax(300px, 1.04fr);
   align-items: stretch;
   position: relative;
   isolation: isolate;
@@ -4358,8 +4358,8 @@ p {
 
 .forum-promo-dots {
   position: absolute;
-  left: 30px;
-  bottom: 16px;
+  right: 28px;
+  bottom: 18px;
   z-index: 3;
   display: inline-flex;
   gap: 7px;
@@ -4452,7 +4452,7 @@ p {
 }
 
 .forum-picture-copy {
-  padding: 26px 30px;
+  padding: 28px 34px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -4490,7 +4490,7 @@ p {
 }
 
 .forum-picture-copy strong {
-  max-width: 360px;
+  max-width: 430px;
   color: #2d3436;
   font-size: clamp(1.45rem, 2.6vw, 2.1rem);
   line-height: 1.05;
@@ -4504,7 +4504,7 @@ p {
 
 .forum-picture-copy span:last-child {
   color: #636e72;
-  max-width: 420px;
+  max-width: 460px;
   line-height: 1.5;
   font-size: 0.95rem;
   font-weight: 700;
@@ -4565,8 +4565,8 @@ p {
 }
 
 .dashboard-promo-board {
-  height: 218px;
-  min-height: 218px;
+  height: 228px;
+  min-height: 228px;
   margin-top: 24px;
   margin-bottom: 22px;
 }
@@ -4580,6 +4580,11 @@ p {
 .dashboard-promo-copy {
   padding: 22px 28px 24px;
   gap: 6px;
+}
+
+.dashboard-promo-switcher {
+  right: 28px;
+  bottom: 18px;
 }
 
 .dashboard-promo-copy strong {
