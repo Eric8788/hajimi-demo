@@ -1,5 +1,13 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.8 · 2026-05-20
+
+- Reworked the profile page editor so homepage content is edited inline on the actual profile instead of an abstract preview screen.
+- Moved public profile avatar, intro, banner, and badge editing into the hero area while keeping account and verification controls in private settings.
+- Added a no-change save shortcut so profile edit mode exits immediately without sending an update.
+- Refined the dashboard promo carousel with Hajimi verification as the first slide and clearer manual switch controls.
+- Tightened the sidebar Hajimi logo spacing.
+
 ## Hajimi Beta v0.2.0-beta.7 · 2026-05-11
 
 - Bound `Sailer 2D` in Function Hall and the landing project data to the existing Vercel deployment:

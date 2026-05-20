@@ -1,8 +1,8 @@
 # Hajimi Session Handoff
 
-*Last updated: 2026-05-11 (Asia/Shanghai)*
+*Last updated: 2026-05-20 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.7 · 2026-05-11
+**Current version:** Hajimi Beta v0.2.0-beta.8 · 2026-05-20
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.7
+- **Current version:** Hajimi Beta v0.2.0-beta.8
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -67,7 +67,7 @@ Important:
 - Invite codes are compared as exact strings.
 - The code must be in the Vercel variable `Value`, not in `Note`.
 - After changing invite codes, redeploy Production before testing registration again.
-- Hajimi verification is optional at registration but required for posting and leaderboard entry after admin approval.
+- Hajimi verification is optional at registration but required for posting after admin approval. The leaderboard still shows older unverified accounts so historical data stays visible; verified accounts just get the badge and posting gate.
 - Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider failures use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks

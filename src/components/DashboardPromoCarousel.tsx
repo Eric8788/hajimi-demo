@@ -6,7 +6,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { FORUM_PROMOS, type ForumPromo } from '@/data/forumPromos';
 import { isAdminRole } from '@/lib/roles';
 
-const ADMIN_VERIFICATION_PROMO: ForumPromo & { href: string; cta: string } = {
+type DashboardPromoBase = ForumPromo & { href: string; cta: string };
+type DashboardPromo = DashboardPromoBase & { switchLabel: string };
+
+const ADMIN_VERIFICATION_PROMO: DashboardPromoBase = {
     kicker: 'Hajimi Trust ✅',
     title: '认证审核入口',
     body: '处理同学提交的 Hajimi 认证，通过后他们就能发帖并进入 Hall of Fame。',
@@ -17,19 +20,40 @@ const ADMIN_VERIFICATION_PROMO: ForumPromo & { href: string; cta: string } = {
     cta: '进入审核',
 };
 
+const MEMBER_VERIFICATION_PROMO: DashboardPromoBase = {
+    kicker: 'Hajimi Trust ✅',
+    title: '完成 Hajimi 认证',
+    body: '认证通过后就能发布帖子、展示认证 badge，并让你的主号身份更清晰。',
+    notes: ['verified badge', 'main account', 'post access'],
+    pin: '✓',
+    accent: 'trust',
+    href: '/profile',
+    cta: '去认证',
+};
+
 const PROMO_ACTIONS: Record<string, { href: string; cta: string }> = {
     '首次发帖立得 100 积分！': { href: '/resources', cta: '去 Forum' },
     '发布项目进 Hub 领 100 积分！': { href: '/functions', cta: '去 Hub' },
 };
 
+function getSwitchLabel(promo: DashboardPromoBase) {
+    if (promo.accent === 'trust') return '认证';
+    if (promo.title.includes('Hub')) return 'Hub';
+    return 'Forum';
+}
+
 export default function DashboardPromoCarousel({ userRole }: { userRole?: string | null }) {
     const promos = useMemo(() => {
-        const basePromos = FORUM_PROMOS.map(promo => ({
+        const basePromos: DashboardPromoBase[] = FORUM_PROMOS.map(promo => ({
             ...promo,
             ...(PROMO_ACTIONS[promo.title] ?? { href: '/resources', cta: '查看详情' }),
         }));
+        const verificationPromo = isAdminRole(userRole) ? ADMIN_VERIFICATION_PROMO : MEMBER_VERIFICATION_PROMO;
 
-        return isAdminRole(userRole) ? [...basePromos, ADMIN_VERIFICATION_PROMO] : basePromos;
+        return [verificationPromo, ...basePromos].map(promo => ({
+            ...promo,
+            switchLabel: getSwitchLabel(promo),
+        }));
     }, [userRole]);
     const [promoIndex, setPromoIndex] = useState(0);
     const activePromo = promos[promoIndex % promos.length];
@@ -79,15 +103,18 @@ export default function DashboardPromoCarousel({ userRole }: { userRole?: string
                         </div>
                     </motion.div>
                 </AnimatePresence>
-                <div className="forum-promo-dots" aria-label="Dashboard promotional slides">
+                <div className="forum-promo-dots dashboard-promo-switcher" aria-label="切换 dashboard 广告">
                     {promos.map((promo, index) => (
                         <button
                             key={promo.title}
                             type="button"
                             className={index === promoIndex ? 'is-active' : ''}
                             aria-label={`Show ${promo.title}`}
+                            title={promo.title}
                             onClick={() => setPromoIndex(index)}
-                        />
+                        >
+                            {promo.switchLabel}
+                        </button>
                     ))}
                 </div>
             </div>

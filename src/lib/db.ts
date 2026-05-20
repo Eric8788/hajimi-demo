@@ -148,6 +148,7 @@ async function ensureUserProfileEnhancements() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '😊'`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
+            await sql`UPDATE users SET bio = 'New member at Hajimi High!' WHERE bio = 'New student at Hajimi High!'`;
             await ensureVerificationColumns();
         })().catch(error => {
             userProfileEnhancementsReady = null;
@@ -236,7 +237,7 @@ export async function createUser(
     await ensureUserProfileEnhancements();
     const avatarEmoji = normalizeAvatarEmoji(avatar?.emoji || undefined);
     const avatarTheme = avatar?.theme && isAvatarThemeId(avatar.theme) ? avatar.theme : pickRandomAvatarThemeId();
-    const bio = String(profile?.bio || '').trim().slice(0, 180) || 'New student at Hajimi High!';
+    const bio = String(profile?.bio || '').trim().slice(0, 180) || 'New member at Hajimi High!';
 
     // Use RETURNING id to get the ID immediately
     const { rows } = await sql`
@@ -799,7 +800,6 @@ export async function getLeaderboard(limit = 10): Promise<User[]> {
       SELECT id, username, avatar, avatar_theme, points, level, role, badge_preferences, verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM users 
-      WHERE verification_status = 'verified'
       ORDER BY points DESC 
       LIMIT ${limit}
     `;
@@ -1131,7 +1131,7 @@ export async function initDB() {
       points INTEGER DEFAULT 0,
       level INTEGER DEFAULT 1,
       role TEXT DEFAULT 'student',
-      bio TEXT DEFAULT 'New student at Hajimi High!',
+      bio TEXT DEFAULT 'New member at Hajimi High!',
       avatar TEXT DEFAULT '😊',
       avatar_emoji TEXT DEFAULT '😊',
       avatar_theme TEXT DEFAULT 'lavender',
@@ -1170,6 +1170,7 @@ export async function initDB() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '😊'`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
+    await sql`UPDATE users SET bio = 'New member at Hajimi High!' WHERE bio = 'New student at Hajimi High!'`;
     await ensureVerificationColumns();
   } catch (e) {
     console.log("Migration columns already exist or failed:", e);

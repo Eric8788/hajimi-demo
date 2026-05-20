@@ -4,7 +4,7 @@
 
 > **Every AI agent MUST read this file before starting any work session.**
 
-**Current Hajimi version:** Hajimi Beta v0.2.0-beta.7 · 2026-05-11
+**Current Hajimi version:** Hajimi Beta v0.2.0-beta.8 · 2026-05-20
 
 ---
 
@@ -92,7 +92,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
 - **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Announcement posts are visually highlighted and sorted like pinned posts at the top of the main Hallway feed. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
-- **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. Students submit name, G10-G13 grade, and optional student ID; teachers submit name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for creating posts and appearing on the leaderboard; comments, likes, bookmarks, and check-ins remain open to logged-in users.
+- **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. Students submit name, G10-G13 grade, and optional student ID; teachers submit name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for creating posts; comments, likes, bookmarks, and check-ins remain open to logged-in users. The leaderboard now shows all users so older unverified accounts stay visible, while verified accounts keep the extra badge.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
