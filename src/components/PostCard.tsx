@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
@@ -116,35 +116,32 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     // Image Modal State
     const [showImageModal, setShowImageModal] = useState(false);
 
-    useEffect(() => {
-        // Auto-load top 3 comments if they exist
-        // Using a flag to prevent double-fetching in strict mode or rapid updates
-        let isActive = true;
+    const loadComments = useCallback(async () => {
+        try {
+            const res = await fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' });
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                setComments(data);
+                setCommentsLoaded(true);
+                return data;
+            }
 
-        if (post.comment_count && post.comment_count > 0 && !commentsLoaded) {
-            fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' })
-                .then(res => res.json())
-                .then(data => {
-                    if (!isActive) return;
-                    if (Array.isArray(data)) {
-                        setComments(data);
-                        setCommentsLoaded(true);
-                    } else {
-                        console.error("Failed to load comments:", data);
-                        setComments([]);
-                        setCommentsLoaded(true);
-                    }
-                })
-                .catch(err => {
-                    if (!isActive) return;
-                    console.error("Error loading comments:", err);
-                    setComments([]);
-                    setCommentsLoaded(true);
-                });
+            console.error("Failed to load comments:", data);
+        } catch (err) {
+            console.error("Error loading comments:", err);
         }
 
-        return () => { isActive = false; };
-    }, [post.comment_count, post.id, commentsLoaded]);
+        setComments([]);
+        setCommentsLoaded(true);
+        return [];
+    }, [post.id]);
+
+    useEffect(() => {
+        // Auto-load top 3 comments if they exist
+        if (post.comment_count && post.comment_count > 0 && !commentsLoaded) {
+            void loadComments();
+        }
+    }, [post.comment_count, commentsLoaded, loadComments]);
 
     useEffect(() => {
         setDisplayTitle(post.title);
@@ -323,20 +320,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const toggleComments = async () => {
         if (!showComments) {
             setShowComments(true);
-            // Always fetch fresh comments when opening, or if not loaded
-            if (!commentsLoaded || true) { // Force refresh on open to be safe? Or just stick to no-store if not loaded.
-                // Actually, if we want to see new comments, we should re-fetch.
-                // For now, let's just respect commentsLoaded but ensure NO CACHE if we do fetch.
-            }
-
-            if (!commentsLoaded) {
-                const res = await fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' });
-                const data = await res.json();
-                if (Array.isArray(data)) {
-                    setComments(data);
-                    setCommentsLoaded(true);
-                }
-            }
+            await loadComments();
         } else {
             setShowComments(false);
         }
@@ -347,10 +331,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         if (isGuest) { onGuestAction?.(); return; }
         if (!newComment.trim()) return;
         setSendingComment(true);
+        const commentText = newComment.trim();
+        const parentCommentId = replyingTo?.id;
 
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
-            body: JSON.stringify({ action: 'comment', postId: post.id, content: newComment, parentCommentId: replyingTo?.id })
+            body: JSON.stringify({ action: 'comment', postId: post.id, content: commentText, parentCommentId })
         });
 
         if (res.ok) {
@@ -359,30 +345,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 window.setTimeout(() => setCommentXpBurst(current => current === next ? 0 : current), 800);
                 return next;
             });
-            setComments(current => [
-                ...current,
-                {
-                    id: Date.now(),
-                    post_id: post.id,
-                    author_id: currentUser.id,
-                    content: newComment,
-                    likes: 0,
-                    created_at: new Date(),
-                    author_name: currentUser.username,
-                    author_avatar: currentUser.avatar,
-                    author_avatar_theme: currentUser.avatar_theme,
-                    author_role: currentUser.role,
-                    author_is_creator: currentUser.is_creator,
-                    author_badge_preferences: currentUser.badge_preferences,
-                    author_verification_status: currentUser.verification_status,
-                    parent_comment_id: replyingTo?.id ?? null,
-                    reply_author_name: replyingTo?.author_name ?? null,
-                    reply_content: replyingTo?.content ?? null,
-                }
-            ]);
             setNewComment('');
             setReplyingTo(null);
-            if (!showComments) setShowComments(true); // Auto expand if adding new
+            setShowComments(true);
+            await loadComments();
         }
         setSendingComment(false);
     };
