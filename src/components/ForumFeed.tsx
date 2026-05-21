@@ -253,7 +253,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const openComposer = () => {
         if (requireLogin()) return;
         if (!canCreatePost) {
-            setCreateError('完成 Hajimi 认证后可以发帖；评论、点赞和浏览仍然开放。');
+            setCreateError('完成 Hajimi 认证后可以发帖、评论、点赞和收藏；未认证账号可以浏览和体验项目。');
             return;
         }
 
@@ -404,7 +404,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🔐</div>
                             <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '10px', color: '#2d3436' }}>Join the conversation!</h3>
                             <p style={{ color: '#636e72', marginBottom: '25px', lineHeight: 1.6 }}>
-                                Create a free account to post, like, comment, and save your favourite discussions.
+                                Create an account and complete Hajimi verification to post, like, comment, and save discussions.
                             </p>
                             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                                 <button
@@ -549,7 +549,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                     >
                         <Avatar value={user?.avatar} theme={user?.avatar_theme} fallback="✍️" size={48} style={{ fontSize: '1.5rem', border: '2px solid white' }} />
                         <div style={{ flex: 1, padding: '12px 20px', borderRadius: '20px', background: 'rgba(255,255,255,0.6)', color: '#636e72', fontWeight: 500 }}>
-                            {user ? canCreatePost ? `Share your thoughts, ${user.username}...` : '完成 Hajimi 认证后可以发帖' : 'Sign in to share your thoughts...'}
+                            {user ? canCreatePost ? `Share your thoughts, ${user.username}...` : '完成 Hajimi 认证后可以互动和发帖' : 'Sign in to share your thoughts...'}
                         </div>
                         <div style={{ width: '40px', height: '40px', background: '#a29bfe', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>{canCreatePost ? '✒️' : '✅'}</div>
                     </div>

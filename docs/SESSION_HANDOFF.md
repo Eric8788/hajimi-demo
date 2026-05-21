@@ -55,8 +55,7 @@ Production and Preview should have:
 
 ```env
 BLOB_READ_WRITE_TOKEN=...
-HAJIMI_STUDENT_INVITE_CODE=...
-HAJIMI_TEACHER_INVITE_CODE=...
+HAJIMI_INVITE_CODE=...
 DASHSCOPE_API_KEY=...      # optional, powers dashboard Cyber Oracle AI reading
 SILICONFLOW_API_KEY=...    # optional fallback provider for Cyber Oracle
 HAJIMI_VERIFICATION_PEPPER=... # recommended, hashes optional student IDs for Hajimi verification
@@ -65,9 +64,12 @@ HAJIMI_VERIFICATION_PEPPER=... # recommended, hashes optional student IDs for Ha
 Important:
 
 - Invite codes are compared as exact strings.
+- `HAJIMI_INVITE_CODE` is the preferred unified year-group code. Legacy `HAJIMI_STUDENT_INVITE_CODE` and `HAJIMI_TEACHER_INVITE_CODE` are still accepted as transition fallbacks but no longer decide student/teacher identity.
 - The code must be in the Vercel variable `Value`, not in `Note`.
 - After changing invite codes, redeploy Production before testing registration again.
-- Hajimi verification is optional at registration but required for posting after admin approval. The leaderboard still shows older unverified accounts so historical data stays visible; verified accounts just get the badge and posting gate.
+- Hajimi verification is optional at registration but required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, and leaderboard visibility.
+- Verification `Name` means school common/preferred name, not legal name. Public pages never show Name, student ID, or subject.
+- Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`.
 - Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider failures use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks

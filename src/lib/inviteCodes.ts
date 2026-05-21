@@ -1,37 +1,28 @@
-type InviteRole = 'student' | 'teacher';
-
 function normalizeInviteCode(code: unknown) {
     return String(code || '').trim();
 }
 
 function configuredCodes() {
+    const unifiedCode = normalizeInviteCode(process.env.HAJIMI_INVITE_CODE);
     const studentCode = normalizeInviteCode(process.env.HAJIMI_STUDENT_INVITE_CODE);
     const teacherCode = normalizeInviteCode(process.env.HAJIMI_TEACHER_INVITE_CODE);
+    const codes = [unifiedCode, studentCode, teacherCode].filter(Boolean);
 
     return {
-        studentCode,
-        teacherCode,
-        hasAnyCode: Boolean(studentCode || teacherCode),
+        codes,
+        hasAnyCode: codes.length > 0,
     };
 }
 
-export function resolveInviteRole(inviteCode: unknown): InviteRole | null {
+export function validateInviteCode(inviteCode: unknown) {
     const submittedCode = normalizeInviteCode(inviteCode);
-    const { studentCode, teacherCode, hasAnyCode } = configuredCodes();
+    const { codes, hasAnyCode } = configuredCodes();
 
     if (!hasAnyCode || !submittedCode) {
-        return null;
+        return false;
     }
 
-    if (teacherCode && submittedCode === teacherCode) {
-        return 'teacher';
-    }
-
-    if (studentCode && submittedCode === studentCode) {
-        return 'student';
-    }
-
-    return null;
+    return codes.includes(submittedCode);
 }
 
 export function isRegistrationConfigured() {

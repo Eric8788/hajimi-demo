@@ -28,7 +28,7 @@ export default async function Page() {
                 </div>
 
                 {/* Project Grid with filters */}
-                <ProjectGrid />
+                <ProjectGrid user={user} canSubmitProjects={user?.verification_status === 'verified'} />
 
             </div>
         </Shell>

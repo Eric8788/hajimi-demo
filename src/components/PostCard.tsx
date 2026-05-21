@@ -74,6 +74,7 @@ function shortPreview(text?: string | null) {
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
     const isGuest = !currentUser;
+    const canInteract = currentUser?.verification_status === 'verified';
     const canModerate = isAdminRole(currentUser?.role);
     const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
     const canEditPost = !!currentUser && post.author_id === currentUser.id;
@@ -102,6 +103,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState<Comment[]>([]);
     const [commentsLoaded, setCommentsLoaded] = useState(false);
+    const [commentCount, setCommentCount] = useState(post.comment_count || 0);
 
     const [newComment, setNewComment] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
@@ -112,6 +114,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [editTag, setEditTag] = useState(post.tag || 'general');
     const [savingEdit, setSavingEdit] = useState(false);
     const [editError, setEditError] = useState('');
+    const [interactionMessage, setInteractionMessage] = useState('');
 
     // Image Modal State
     const [showImageModal, setShowImageModal] = useState(false);
@@ -123,6 +126,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             if (Array.isArray(data)) {
                 setComments(data);
                 setCommentsLoaded(true);
+                setCommentCount(data.length);
                 return data;
             }
 
@@ -137,13 +141,6 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     }, [post.id]);
 
     useEffect(() => {
-        // Auto-load top 3 comments if they exist
-        if (post.comment_count && post.comment_count > 0 && !commentsLoaded) {
-            void loadComments();
-        }
-    }, [post.comment_count, commentsLoaded, loadComments]);
-
-    useEffect(() => {
         setDisplayTitle(post.title);
         setDisplayContent(post.content);
         setDisplayTag(post.tag || 'general');
@@ -151,7 +148,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setEditTitle(post.title);
         setEditContent(post.content);
         setEditTag(post.tag || 'general');
-    }, [post.content, post.tag, post.title, post.updated_at]);
+        setCommentCount(post.comment_count || 0);
+    }, [post.comment_count, post.content, post.tag, post.title, post.updated_at]);
 
     // Lock Body Scroll when Modal is Open
     useEffect(() => {
@@ -174,8 +172,23 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         router.push(authorId === currentUser.id ? '/profile' : `/profile/${authorId}`);
     };
 
+    const requireVerifiedInteraction = () => {
+        if (isGuest) {
+            onGuestAction?.();
+            return true;
+        }
+
+        if (!canInteract) {
+            setInteractionMessage('完成 Hajimi 认证后可以评论、点赞和收藏。');
+            window.setTimeout(() => setInteractionMessage(''), 2600);
+            return true;
+        }
+
+        return false;
+    };
+
     const handleLike = async () => {
-        if (isGuest) { onGuestAction?.(); return; }
+        if (requireVerifiedInteraction()) return;
         // Optimistic toggle
         const newLikedState = !hasLiked;
         setHasLiked(newLikedState);
@@ -196,7 +209,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const handleBookmark = async () => {
-        if (isGuest) { onGuestAction?.(); return; }
+        if (requireVerifiedInteraction()) return;
         const nextBookmarked = !isBookmarked;
         setIsBookmarked(nextBookmarked);
         if (nextBookmarked) {
@@ -217,7 +230,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const handleCommentLike = async (commentId: number) => {
-        if (isGuest) { onGuestAction?.(); return; }
+        if (requireVerifiedInteraction()) return;
         // Optimistic toggle for comment likes
         let likedNow = false;
         setComments(current => current.map(c => {
@@ -314,6 +327,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         });
         if (res.ok) {
             setComments(current => current.filter(c => c.id !== commentId));
+            setCommentCount(current => Math.max(0, current - 1));
         }
     };
 
@@ -328,7 +342,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     const submitComment = async (e: FormEvent) => {
         e.preventDefault();
-        if (isGuest) { onGuestAction?.(); return; }
+        if (requireVerifiedInteraction()) return;
         if (!newComment.trim()) return;
         setSendingComment(true);
         const commentText = newComment.trim();
@@ -596,9 +610,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             </motion.span>
                         )}
                     </AnimatePresence>
-                    💬 Comment {commentsLoaded && comments.length > 0 ? `(${comments.length})` : ''}
+                    💬 Comment {commentCount > 0 ? `(${commentsLoaded ? comments.length : commentCount})` : ''}
                 </button>
             </div>
+            {interactionMessage && (
+                <div className="forum-verification-callout post-interaction-callout" style={{ marginTop: '12px' }}>
+                    <span>{interactionMessage}</span>
+                    <button type="button" onClick={() => router.push('/profile')}>去认证</button>
+                </div>
+            )}
 
             {/* Comments Section (Always Rendered if Loaded) */}
             <AnimatePresence>
@@ -664,7 +684,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                         </AnimatePresence>
                                                         {c.has_liked ? '❤️' : '🤍'}
                                                     </motion.button>
-                                                    {!isGuest && (
+                                                    {!isGuest && canInteract && (
                                                         <button
                                                             onClick={() => {
                                                                 setReplyingTo(c);
@@ -705,6 +725,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
                             {/* Comment Input - Only visible when fully expanded or if no comments yet */}
                             {showComments && (
+                                canInteract ? (
                                 <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     {replyingTo && (
                                         <div className="comment-reply-pill">
@@ -723,6 +744,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                         Send
                                     </button>
                                 </form>
+                                ) : (
+                                    <div className="forum-verification-callout">
+                                        <span>{isGuest ? '登录后可以提交认证并参与评论。' : '完成 Hajimi 认证后可以评论和回复。'}</span>
+                                        <button type="button" onClick={() => router.push(isGuest ? '/login' : '/profile')}>{isGuest ? '登录' : '去认证'}</button>
+                                    </div>
+                                )
                             )}
                         </div>
                     </motion.div>
@@ -735,6 +762,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     >
                         <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
                             <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>No comments yet.</div>
+                            {canInteract ? (
                             <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px' }}>
                                 <input
                                     className="glass-input"
@@ -747,6 +775,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                     Send
                                 </button>
                             </form>
+                            ) : (
+                                <div className="forum-verification-callout">
+                                    <span>{isGuest ? '登录后可以提交认证并参与评论。' : '完成 Hajimi 认证后可以成为第一个评论的人。'}</span>
+                                    <button type="button" onClick={() => router.push(isGuest ? '/login' : '/profile')}>{isGuest ? '登录' : '去认证'}</button>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
                 )}

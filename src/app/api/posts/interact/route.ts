@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
+import { isVerifiedAccount } from '@/lib/verification';
 import { del } from '@vercel/blob';
 
 // POST: Handle actions (like, comment, bookmark, like_comment)
@@ -16,6 +17,10 @@ export async function POST(request: Request) {
 
         const body = await request.json();
         const { action, postId, commentId, content, parentCommentId } = body;
+        const interactionActions = new Set(['like', 'comment', 'bookmark', 'like_comment']);
+        if (interactionActions.has(action) && !isVerifiedAccount(user)) {
+            return NextResponse.json({ error: '完成 Hajimi 认证后可以互动。' }, { status: 403 });
+        }
 
         if (action === 'like') {
             if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });

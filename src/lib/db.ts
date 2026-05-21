@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { db, sql } from '@vercel/postgres';
 import type { VerificationStatus, VerificationType, VerificationDraft } from './verification';
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 
@@ -30,6 +30,9 @@ export interface User {
     created_at: string;
 }
 
+export type LeaderboardWindow = 'all' | 'week' | 'month';
+export type LeaderboardCategory = 'all' | 'community' | 'project';
+
 export interface VerificationRequest {
     id: number;
     username: string;
@@ -44,6 +47,7 @@ export interface VerificationRequest {
     verified_subject: string | null;
     student_id_last4: string | null;
     has_verified_student_id_conflict: boolean;
+    has_name_identity_conflict: boolean;
     verification_submitted_at?: string;
     verified_at?: string;
     verification_note?: string;
@@ -77,6 +81,45 @@ export interface ProjectComment {
     content: string;
     created_at: string;
 }
+
+export type ProjectSubmissionType = 'new_project' | 'new_version';
+export type ProjectSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ProjectSubmission {
+    id: number;
+    author_id: number;
+    author_name?: string;
+    submission_type: ProjectSubmissionType;
+    project_id: number | null;
+    project_title?: string | null;
+    title: string;
+    description: string;
+    emoji: string;
+    url: string | null;
+    tags: string[];
+    accent_color: string;
+    version_notes: string | null;
+    cover_url: string | null;
+    status: ProjectSubmissionStatus;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    review_note: string | null;
+    created_at: string;
+}
+
+export type ProjectSubmissionInput = {
+    author_id: number;
+    submission_type: ProjectSubmissionType;
+    project_id?: number | null;
+    title: string;
+    description: string;
+    emoji: string;
+    url?: string | null;
+    tags: string[];
+    accent_color?: string | null;
+    version_notes?: string | null;
+    cover_url?: string | null;
+};
 
 export interface Post {
     id: number;
@@ -329,8 +372,31 @@ export async function getPendingVerificationRequests(): Promise<VerificationRequ
             WHERE verified_users.student_id_hash = users.student_id_hash
               AND verified_users.verification_status = 'verified'
               AND verified_users.id != users.id
-          )
+            )
         END as has_verified_student_id_conflict
+        ,
+        CASE
+          WHEN users.verified_name IS NULL OR btrim(users.verified_name) = '' THEN false
+          WHEN users.verification_type = 'student' THEN EXISTS (
+            SELECT 1
+            FROM users possible_matches
+            WHERE possible_matches.id != users.id
+              AND possible_matches.verification_type = 'student'
+              AND possible_matches.verification_status IN ('pending', 'verified')
+              AND lower(btrim(possible_matches.verified_name)) = lower(btrim(users.verified_name))
+              AND possible_matches.verified_grade IS NOT DISTINCT FROM users.verified_grade
+          )
+          WHEN users.verification_type = 'teacher' THEN EXISTS (
+            SELECT 1
+            FROM users possible_matches
+            WHERE possible_matches.id != users.id
+              AND possible_matches.verification_type = 'teacher'
+              AND possible_matches.verification_status IN ('pending', 'verified')
+              AND lower(btrim(possible_matches.verified_name)) = lower(btrim(users.verified_name))
+              AND lower(btrim(COALESCE(possible_matches.verified_subject, ''))) = lower(btrim(COALESCE(users.verified_subject, '')))
+          )
+          ELSE false
+        END as has_name_identity_conflict
       FROM users
       WHERE users.verification_status = 'pending'
       ORDER BY users.verification_submitted_at ASC NULLS LAST, users.id ASC
@@ -368,6 +434,11 @@ export async function reviewUserVerification(targetUserId: number, reviewerId: n
       UPDATE users
       SET
         verification_status = ${status},
+        role = CASE
+          WHEN ${status} = 'verified' AND role != 'admin' AND verification_type = 'teacher' THEN 'teacher'
+          WHEN ${status} = 'verified' AND role != 'admin' AND verification_type = 'student' THEN 'student'
+          ELSE role
+        END,
         verified_at = CASE WHEN ${status} = 'verified' THEN CURRENT_TIMESTAMP ELSE NULL END,
         verification_reviewed_by = ${reviewerId},
         verification_note = ${note.trim() || null}
@@ -447,17 +518,26 @@ export async function addPoints(userId: number, amount: number) {
   `;
 }
 
+let pointAwardsTableReady: Promise<void> | null = null;
+
 async function ensurePointAwardsTable() {
-    await sql`
-      CREATE TABLE IF NOT EXISTS point_awards (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id),
-        award_key TEXT NOT NULL,
-        amount INTEGER NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, award_key)
-      );
-    `;
+    if (!pointAwardsTableReady) {
+        pointAwardsTableReady = sql`
+          CREATE TABLE IF NOT EXISTS point_awards (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            award_key TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, award_key)
+          );
+        `.then(() => undefined).catch(error => {
+            pointAwardsTableReady = null;
+            throw error;
+        });
+    }
+
+    return pointAwardsTableReady;
 }
 
 async function addAwardPointsOnce(userId: number, awardKey: string, amount: number) {
@@ -536,9 +616,43 @@ export async function doCheckIn(userId: number) {
 
 // --- Forum Helpers ---
 
+let forumEnhancementsReady: Promise<void> | null = null;
+let bookmarksTableReady: Promise<void> | null = null;
+
 async function ensureForumEnhancements() {
-    await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
-    await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
+    if (!forumEnhancementsReady) {
+        forumEnhancementsReady = (async () => {
+            await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
+            await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
+            await ensureBookmarksTable();
+        })().catch(error => {
+            forumEnhancementsReady = null;
+            throw error;
+        });
+    }
+
+    return forumEnhancementsReady;
+}
+
+async function ensureBookmarksTable() {
+    if (!bookmarksTableReady) {
+        bookmarksTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS bookmarks (
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                post_id INTEGER NOT NULL REFERENCES posts(id),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, post_id)
+              );
+            `;
+            await sql`ALTER TABLE bookmarks ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+        })().catch(error => {
+            bookmarksTableReady = null;
+            throw error;
+        });
+    }
+
+    return bookmarksTableReady;
 }
 
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
@@ -793,22 +907,136 @@ export async function toggleBookmark(userId: number, postId: number) {
     }
 }
 
-export async function getLeaderboard(limit = 10): Promise<User[]> {
+export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'all', category: LeaderboardCategory = 'all'): Promise<User[]> {
     await ensureUserProfileEnhancements();
+    await ensureForumEnhancements();
+    await ensureProjectEnhancements();
 
+    if (window === 'all' && category === 'all') {
+        const { rows } = await sql<User>`
+          SELECT id, username,
+            CASE
+              WHEN COALESCE(avatar, '') LIKE 'data:image/%' THEN COALESCE(NULLIF(avatar_emoji, ''), '👤')
+              ELSE COALESCE(NULLIF(avatar, ''), NULLIF(avatar_emoji, ''), '👤')
+            END as avatar,
+            avatar_emoji, avatar_theme, points, level, role, badge_preferences, verification_status,
+            (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
+          FROM users
+          WHERE verification_status = 'verified'
+          ORDER BY points DESC
+          LIMIT ${limit}
+        `;
+        return rows;
+    }
+
+    const sinceInterval = window === 'month' ? '30 days' : window === 'week' ? '7 days' : '36500 days';
     const { rows } = await sql<User>`
-      SELECT id, username, avatar, avatar_theme, points, level, role, badge_preferences, verification_status,
+      WITH score_events AS (
+        SELECT posts.author_id as user_id, 10 as points, 'community' as category, posts.created_at
+        FROM posts
+        UNION ALL
+        SELECT comments.author_id as user_id, 5 as points, 'community' as category, comments.created_at
+        FROM comments
+        UNION ALL
+        SELECT post_likes.user_id as user_id, 1 as points, 'community' as category, post_likes.created_at
+        FROM post_likes
+        UNION ALL
+        SELECT bookmarks.user_id as user_id, 3 as points, 'community' as category, bookmarks.created_at
+        FROM bookmarks
+        UNION ALL
+        SELECT project_likes.user_id as user_id, 5 as points, 'project' as category, project_likes.created_at
+        FROM project_likes
+        UNION ALL
+        SELECT project_comments.author_id as user_id, 2 as points, 'project' as category, project_comments.created_at
+        FROM project_comments
+        UNION ALL
+        SELECT projects.author_id as user_id, 100 as points, 'project' as category, projects.created_at
+        FROM projects
+      ),
+      ranked AS (
+        SELECT user_id, SUM(points)::int as points
+        FROM score_events
+        WHERE created_at >= NOW() - (${sinceInterval}::interval)
+          AND (${category} = 'all' OR category = ${category})
+        GROUP BY user_id
+      )
+      SELECT users.id, users.username,
+        CASE
+          WHEN COALESCE(users.avatar, '') LIKE 'data:image/%' THEN COALESCE(NULLIF(users.avatar_emoji, ''), '👤')
+          ELSE COALESCE(NULLIF(users.avatar, ''), NULLIF(users.avatar_emoji, ''), '👤')
+        END as avatar,
+        users.avatar_emoji, users.avatar_theme, ranked.points,
+        GREATEST(1, FLOOR(SQRT(ranked.points / 50.0))::int + 1) as level,
+        users.role, users.badge_preferences, users.verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
-      FROM users 
-      ORDER BY points DESC 
+      FROM ranked
+      JOIN users ON users.id = ranked.user_id
+      WHERE users.verification_status = 'verified'
+      ORDER BY ranked.points DESC, users.points DESC
       LIMIT ${limit}
     `;
+
     return rows;
 }
 
 // --- Project Functions ---
 
+let projectEnhancementsReady: Promise<void> | null = null;
+let projectSubmissionsTableReady: Promise<void> | null = null;
+
+async function ensureProjectEnhancements() {
+    if (!projectEnhancementsReady) {
+        projectEnhancementsReady = (async () => {
+            await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 0`;
+            await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0`;
+            await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS score NUMERIC DEFAULT 5`;
+        })().catch(error => {
+            projectEnhancementsReady = null;
+            throw error;
+        });
+    }
+
+    return projectEnhancementsReady;
+}
+
+async function ensureProjectSubmissionsTable() {
+    if (!projectSubmissionsTableReady) {
+        projectSubmissionsTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS project_submissions (
+                id SERIAL PRIMARY KEY,
+                author_id INTEGER NOT NULL REFERENCES users(id),
+                submission_type TEXT NOT NULL DEFAULT 'new_project',
+                project_id INTEGER REFERENCES projects(id),
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                emoji TEXT NOT NULL DEFAULT '🚀',
+                url TEXT,
+                tags JSONB DEFAULT '[]'::jsonb,
+                accent_color TEXT,
+                version_notes TEXT,
+                cover_url TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                reviewed_by INTEGER REFERENCES users(id),
+                reviewed_at TIMESTAMP WITH TIME ZONE,
+                review_note TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_submissions_status_created ON project_submissions(status, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_submissions_author_created ON project_submissions(author_id, created_at DESC)`;
+        })().catch(error => {
+            projectSubmissionsTableReady = null;
+            throw error;
+        });
+    }
+
+    return projectSubmissionsTableReady;
+}
+
 export async function getProjects(): Promise<Project[]> {
+    await ensureProjectEnhancements();
+
     const { rows } = await sql<Project>`
       SELECT projects.*, users.username as author_name,
         COALESCE(projects.rating, 0.0) as rating,
@@ -822,6 +1050,8 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 export async function getProjectsByAuthor(authorId: number): Promise<Project[]> {
+    await ensureProjectEnhancements();
+
     const { rows } = await sql<Project>`
       SELECT projects.*, users.username as author_name,
         COALESCE(projects.rating, 0.0) as rating,
@@ -837,6 +1067,8 @@ export async function getProjectsByAuthor(authorId: number): Promise<Project[]> 
 }
 
 export async function createProject(data: Omit<Project, 'id' | 'likes' | 'created_at'>) {
+    await ensureProjectEnhancements();
+
     const { rows } = await sql`
       INSERT INTO projects (author_id, title, description, emoji, url, tags, accent_color, status)
       VALUES (${data.author_id}, ${data.title}, ${data.description}, ${data.emoji}, ${data.url}, ${JSON.stringify(data.tags)}, ${data.accent_color}, ${data.status})
@@ -849,6 +1081,8 @@ export async function createProject(data: Omit<Project, 'id' | 'likes' | 'create
 }
 
 export async function rateProject(userId: number, projectId: number, score: number) {
+    await ensureProjectEnhancements();
+
     const { rows: existing } = await sql`
       SELECT score FROM project_likes WHERE user_id = ${userId} AND project_id = ${projectId}
     `;
@@ -883,6 +1117,8 @@ export async function rateProject(userId: number, projectId: number, score: numb
 }
 
 export async function addProjectComment(userId: number, projectId: number, content: string) {
+    await ensureProjectEnhancements();
+
     const { rows: existing } = await sql`SELECT id FROM project_comments WHERE project_id = ${projectId} AND author_id = ${userId}`;
     
     if (existing.length > 0) {
@@ -907,6 +1143,8 @@ export async function addProjectComment(userId: number, projectId: number, conte
 }
 
 export async function deleteProjectComment(commentId: number, userId: number) {
+    await ensureProjectEnhancements();
+
     const { rows } = await sql`
       SELECT project_id FROM project_comments WHERE id = ${commentId} AND author_id = ${userId}
     `;
@@ -942,11 +1180,17 @@ export async function deleteProjectComment(commentId: number, userId: number) {
 }
 
 export async function getProjectComments(projectId: number): Promise<ProjectComment[]> {
+    await ensureProjectEnhancements();
+
     const { rows } = await sql<ProjectComment>`
       SELECT 
         project_comments.*, 
         users.username as author_name, 
-        users.avatar as author_avatar,
+        CASE
+          WHEN COALESCE(users.avatar, '') LIKE 'data:image/%' THEN COALESCE(NULLIF(users.avatar_emoji, ''), '👤')
+          ELSE COALESCE(NULLIF(users.avatar, ''), NULLIF(users.avatar_emoji, ''), '👤')
+        END as author_avatar,
+        users.avatar_theme as author_avatar_theme,
         (SELECT score FROM project_likes WHERE project_likes.user_id = project_comments.author_id AND project_likes.project_id = ${projectId} LIMIT 1) as author_score
       FROM project_comments
       JOIN users ON project_comments.author_id = users.id
@@ -956,24 +1200,230 @@ export async function getProjectComments(projectId: number): Promise<ProjectComm
     return rows;
 }
 
-async function ensureNotificationsTable() {
-    await sql`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id SERIAL PRIMARY KEY,
-        recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        type TEXT NOT NULL,
-        post_id INTEGER,
-        comment_id INTEGER,
-        read_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
+function normalizeProjectSubmission(input: ProjectSubmissionInput) {
+    const submissionType: ProjectSubmissionType = input.submission_type === 'new_version' ? 'new_version' : 'new_project';
+    const tags = Array.isArray(input.tags)
+        ? input.tags.map(tag => String(tag || '').trim()).filter(Boolean).slice(0, 5)
+        : [];
+
+    return {
+        author_id: input.author_id,
+        submission_type: submissionType,
+        project_id: submissionType === 'new_version' && input.project_id ? Number(input.project_id) : null,
+        title: String(input.title || '').trim().slice(0, 80),
+        description: String(input.description || '').trim().slice(0, 520),
+        emoji: String(input.emoji || '🚀').trim().slice(0, 8) || '🚀',
+        url: String(input.url || '').trim().slice(0, 500) || null,
+        tags: tags.length > 0 ? tags : ['Game'],
+        accent_color: String(input.accent_color || 'rgba(162, 155, 254, 0.22)').trim().slice(0, 80) || 'rgba(162, 155, 254, 0.22)',
+        version_notes: String(input.version_notes || '').trim().slice(0, 800) || null,
+        cover_url: String(input.cover_url || '').trim().slice(0, 500) || null,
+    };
+}
+
+export async function createProjectSubmission(input: ProjectSubmissionInput) {
+    await ensureProjectEnhancements();
+    await ensureProjectSubmissionsTable();
+    const data = normalizeProjectSubmission(input);
+
+    if (!data.title || data.title.length < 2) {
+        throw new Error('Invalid project title');
+    }
+
+    if (!data.description || data.description.length < 8) {
+        throw new Error('Invalid project description');
+    }
+
+    if (data.url) {
+        try {
+            const parsed = new URL(data.url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Invalid URL');
+        } catch {
+            throw new Error('Invalid project URL');
+        }
+    }
+
+    if (data.submission_type === 'new_version' && !data.project_id) {
+        throw new Error('Missing project for version submission');
+    }
+
+    const { rows } = await sql<{ id: number }>`
+      INSERT INTO project_submissions (
+        author_id, submission_type, project_id, title, description, emoji, url, tags,
+        accent_color, version_notes, cover_url
+      )
+      VALUES (
+        ${data.author_id},
+        ${data.submission_type},
+        ${data.project_id},
+        ${data.title},
+        ${data.description},
+        ${data.emoji},
+        ${data.url},
+        ${JSON.stringify(data.tags)}::jsonb,
+        ${data.accent_color},
+        ${data.version_notes},
+        ${data.cover_url}
+      )
+      RETURNING id
     `;
 
-    await sql`
-      CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx
-      ON notifications (recipient_id, created_at DESC);
+    return rows[0].id;
+}
+
+export async function getProjectSubmissions(status: ProjectSubmissionStatus | 'all' = 'pending'): Promise<ProjectSubmission[]> {
+    await ensureProjectEnhancements();
+    await ensureProjectSubmissionsTable();
+
+    const { rows } = await sql<ProjectSubmission>`
+      SELECT project_submissions.*, users.username as author_name, projects.title as project_title
+      FROM project_submissions
+      JOIN users ON project_submissions.author_id = users.id
+      LEFT JOIN projects ON project_submissions.project_id = projects.id
+      WHERE (${status} = 'all' OR project_submissions.status = ${status})
+      ORDER BY project_submissions.created_at DESC
+      LIMIT 80
     `;
+
+    return rows;
+}
+
+export async function reviewProjectSubmission(submissionId: number, reviewerId: number, status: 'approved' | 'rejected', note = '') {
+    await ensureProjectEnhancements();
+    await ensureProjectSubmissionsTable();
+    await ensurePointAwardsTable();
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+
+        const { rows } = await client.sql<ProjectSubmission>`
+          SELECT *
+          FROM project_submissions
+          WHERE id = ${submissionId}
+            AND status = 'pending'
+          FOR UPDATE
+        `;
+        const submission = rows[0];
+        if (!submission) {
+            throw new Error('Submission not found');
+        }
+
+        if (status === 'approved') {
+            if (submission.submission_type === 'new_version' && submission.project_id) {
+                const { rowCount } = await client.sql`
+                  UPDATE projects
+                  SET
+                    title = ${submission.title},
+                    description = ${submission.description},
+                    emoji = ${submission.emoji},
+                    url = ${submission.url},
+                    tags = ${JSON.stringify(submission.tags)}::jsonb,
+                    accent_color = ${submission.accent_color},
+                    status = 'live'
+                  WHERE id = ${submission.project_id}
+                `;
+                if (rowCount === 0) {
+                    throw new Error('Target project not found');
+                }
+
+                const { rows: awardRows } = await client.sql<{ id: number }>`
+                  INSERT INTO point_awards (user_id, award_key, amount)
+                  VALUES (${submission.author_id}, ${`hub_version_bonus:${submission.id}`}, 50)
+                  ON CONFLICT (user_id, award_key) DO NOTHING
+                  RETURNING id
+                `;
+                if (awardRows[0]) {
+                    await client.sql`
+                      UPDATE users
+                      SET
+                        points = points + 50,
+                        level = GREATEST(level, FLOOR(SQRT((points + 50) / 50.0))::int + 1)
+                      WHERE id = ${submission.author_id}
+                    `;
+                }
+            } else {
+                await client.sql`
+                  INSERT INTO projects (author_id, title, description, emoji, url, tags, accent_color, status)
+                  VALUES (
+                    ${submission.author_id},
+                    ${submission.title},
+                    ${submission.description},
+                    ${submission.emoji},
+                    ${submission.url},
+                    ${JSON.stringify(submission.tags)}::jsonb,
+                    ${submission.accent_color},
+                    'live'
+                  )
+                `;
+
+                const { rows: awardRows } = await client.sql<{ id: number }>`
+                  INSERT INTO point_awards (user_id, award_key, amount)
+                  VALUES (${submission.author_id}, 'hub_project_bonus', 100)
+                  ON CONFLICT (user_id, award_key) DO NOTHING
+                  RETURNING id
+                `;
+                if (awardRows[0]) {
+                    await client.sql`
+                      UPDATE users
+                      SET
+                        points = points + 100,
+                        level = GREATEST(level, FLOOR(SQRT((points + 100) / 50.0))::int + 1)
+                      WHERE id = ${submission.author_id}
+                    `;
+                }
+            }
+        }
+
+        await client.sql`
+          UPDATE project_submissions
+          SET
+            status = ${status},
+            reviewed_by = ${reviewerId},
+            reviewed_at = CURRENT_TIMESTAMP,
+            review_note = ${note.trim() || null}
+          WHERE id = ${submissionId}
+            AND status = 'pending'
+        `;
+
+        await client.sql`COMMIT`;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+let notificationsTableReady: Promise<void> | null = null;
+
+async function ensureNotificationsTable() {
+    if (!notificationsTableReady) {
+        notificationsTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                type TEXT NOT NULL,
+                post_id INTEGER,
+                comment_id INTEGER,
+                read_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+
+            await sql`
+              CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx
+              ON notifications (recipient_id, created_at DESC);
+            `;
+        })().catch(error => {
+            notificationsTableReady = null;
+            throw error;
+        });
+    }
+
+    return notificationsTableReady;
 }
 
 async function createNotification(input: {
@@ -1221,6 +1671,7 @@ export async function initDB() {
       PRIMARY KEY (user_id, post_id)
     );
   `;
+    await ensureBookmarksTable();
 
     await sql`
     CREATE TABLE IF NOT EXISTS comment_likes (
@@ -1261,10 +1712,13 @@ export async function initDB() {
     CREATE TABLE IF NOT EXISTS project_likes (
       user_id INTEGER NOT NULL REFERENCES users(id),
       project_id INTEGER NOT NULL REFERENCES projects(id),
+      score NUMERIC DEFAULT 5,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id, project_id)
     );
   `;
+    await ensureProjectEnhancements();
+    await ensureProjectSubmissionsTable();
 
     await ensurePointAwardsTable();
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;

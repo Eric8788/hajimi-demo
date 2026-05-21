@@ -20,9 +20,9 @@ export const FORUM_PROMOS: readonly ForumPromo[] = [
     },
     {
         kicker: 'AI Club Hub 🚀',
-        title: '发布项目进 Hub 领 100 积分！',
-        body: '把你的游戏、工具或实验发布到 Hub，让大家打开体验，也让创作者徽章亮起来。',
-        notes: ['ship it', 'creator badge', '+100 XP'],
+        title: '提交项目进 Hub，审核后上线！',
+        body: '把你的游戏、工具或实验提交到 Hub，管理员审核后发布；贡献会进入项目激励体系。',
+        notes: ['submit', 'review', 'creator badge'],
         pin: '✦',
         accent: 'aqua',
     },

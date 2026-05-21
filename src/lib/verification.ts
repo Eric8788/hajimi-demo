@@ -46,20 +46,15 @@ export async function hashStudentId(studentId: string) {
         .digest('hex');
 }
 
-export async function buildVerificationDraft(role: string, payload: VerificationInput): Promise<DraftResult> {
-    const roleType: VerificationType = role === 'student' ? 'student' : 'teacher';
-    const requestedType = payload.type === 'teacher' ? 'teacher' : payload.type === 'student' ? 'student' : roleType;
-
-    if (requestedType !== roleType) {
-        return { ok: false, error: roleType === 'student' ? '学生邀请码请提交学生认证信息。' : '老师邀请码请提交老师认证信息。' };
-    }
+export async function buildVerificationDraft(payload: VerificationInput, fallbackType: VerificationType = 'student'): Promise<DraftResult> {
+    const requestedType = payload.type === 'teacher' ? 'teacher' : payload.type === 'student' ? 'student' : fallbackType;
 
     const verifiedName = normalizeText(payload.name);
     if (verifiedName.length < 2) {
-        return { ok: false, error: '请填写真实姓名，至少 2 个字符。' };
+        return { ok: false, error: '请填写 Name，至少 2 个字符。' };
     }
 
-    if (roleType === 'student') {
+    if (requestedType === 'student') {
         const grade = normalizeText(payload.grade, 4).toUpperCase();
         if (!STUDENT_GRADES.includes(grade as StudentGrade)) {
             return { ok: false, error: '学生年级请选择 G10-G13。' };

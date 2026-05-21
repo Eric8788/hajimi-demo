@@ -108,6 +108,9 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const [badgePreferences, setBadgePreferences] = useState<BadgeId[]>(normalizeBadgePreferences(user.badge_preferences));
     const [verificationStatus, setVerificationStatus] = useState(user.verification_status || 'unverified');
     const [verificationName, setVerificationName] = useState('');
+    const [verificationType, setVerificationType] = useState<'student' | 'teacher'>(
+        (user.role || '').toLowerCase() === 'teacher' ? 'teacher' : 'student',
+    );
     const [verificationGrade, setVerificationGrade] = useState('G10');
     const [verificationSubject, setVerificationSubject] = useState('');
     const [verificationStudentId, setVerificationStudentId] = useState('');
@@ -155,14 +158,13 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const recentPosts = posts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
     const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
     const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
-    const roleType = (user.role || 'student').toLowerCase() === 'teacher' ? 'teacher' : 'student';
     const verificationCopy = verificationStatus === 'verified'
-        ? '已认证，具备发帖和榜单权益。'
+        ? '已认证，具备互动、发帖、榜单和项目申请权益。'
         : verificationStatus === 'pending'
-            ? '认证正在审核中，审核通过后会自动解锁发帖和榜单。'
+            ? '认证正在审核中，审核通过后会自动解锁互动、发帖、榜单和项目申请。'
             : verificationStatus === 'rejected'
                 ? '认证未通过，可以修改信息后重新提交。'
-                : '认证通过后可以发帖并进入 Hall of Fame。';
+                : '认证通过后可以互动、发帖、进入 Hall of Fame 并提交 Hub 项目申请。';
 
     const activities = useMemo(() => {
         const items: { id: string; icon: string; title: string; meta: string; href?: string }[] = [];
@@ -350,7 +352,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: roleType,
+                    type: verificationType,
                     name: verificationName,
                     grade: verificationGrade,
                     subject: verificationSubject,
@@ -749,15 +751,32 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                     </div>
                     <div className={`profile-verification-status is-${verificationStatus}`}>
                         <strong>{verificationStatus === 'verified' ? '已认证' : verificationStatus === 'pending' ? '审核中' : verificationStatus === 'rejected' ? '需重新提交' : '未认证'}</strong>
-                        <span>真实信息仅管理员审核可见，主页不会公开。</span>
+                        <span>Name、年级/科目和学号信息仅管理员审核可见，主页不会公开。</span>
                     </div>
                     {(verificationStatus === 'unverified' || verificationStatus === 'rejected') && (
                         <div className="profile-verification-form">
                             <label className="profile-field-label">
-                                真实姓名
-                                <input value={verificationName} onChange={e => setVerificationName(e.target.value)} className="glass-input" />
+                                Name
+                                <input value={verificationName} onChange={e => setVerificationName(e.target.value)} className="glass-input" placeholder="学校常用名 / English name" />
+                                <small>不要求 legal name；用于审核和确认主号，不公开展示。</small>
                             </label>
-                            {roleType === 'student' ? (
+                            <div className="auth-verification-tabs">
+                                <button
+                                    type="button"
+                                    className={verificationType === 'student' ? 'is-active' : ''}
+                                    onClick={() => setVerificationType('student')}
+                                >
+                                    学生
+                                </button>
+                                <button
+                                    type="button"
+                                    className={verificationType === 'teacher' ? 'is-active' : ''}
+                                    onClick={() => setVerificationType('teacher')}
+                                >
+                                    老师
+                                </button>
+                            </div>
+                            {verificationType === 'student' ? (
                                 <>
                                     <label className="profile-field-label">
                                         年级

@@ -78,21 +78,23 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 ---
 
 ## 4. How to Add a New Static Game
-1. Create `ai-club-hub/projects/<new-game>/index.html`
-2. Push to `https://github.com/Eric8788/ai-club.git`
-3. Add entry to `Hajimi-Dan/src/data/projects.ts` using URL: `https://hub.ericproject.xyz/projects/<new-game>/index.html`
-4. Commit to `hajimi-demo` — Function Hall updates automatically
+1. Create or update the project build under the relevant student/project folder and static Hub path if needed.
+2. Submit a Hub project/new-version application from `/functions` with project name, author, description, tags, URL, and version notes.
+3. Eric/admin reviews it at `/admin/project-submissions`; only approved submissions are written into the live `projects` table.
+4. For emergency/manual maintenance, admins may still edit the database directly, but students should not self-publish live Hub entries.
 
 ---
 
 ## 5. Hajimi Architecture Quick Reference
 
 - **Database:** `src/lib/db.ts` — `@vercel/postgres` with raw SQL. No ORM.
-- **Auth:** Custom JWT via `jose` + `bcryptjs`. Stored in `HttpOnly` cookie `session`. No NextAuth. Registration is invite-gated: `HAJIMI_STUDENT_INVITE_CODE` creates student accounts and `HAJIMI_TEACHER_INVITE_CODE` creates teacher accounts. Invite codes are chosen by Eric/teachers and stored as Vercel environment variables; the app does not generate or display them. If neither invite code is configured, registration is closed while existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number.
+- **Auth:** Custom JWT via `jose` + `bcryptjs`. Stored in `HttpOnly` cookie `session`. No NextAuth. Registration is invite-gated with one grade-level code (`HAJIMI_INVITE_CODE`). The legacy `HAJIMI_STUDENT_INVITE_CODE` and `HAJIMI_TEACHER_INVITE_CODE` are accepted only as transition fallbacks; invite code no longer determines student/teacher identity. If no invite code is configured, registration is closed while existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number.
 - **Session helpers:** `getSession()` → extracts `userId`. `createSession()`, `logout()` in `src/lib/auth.ts`.
-- **Guest Mode:** `/resources` (The Hallway) is publicly browsable. Action interceptors show a login modal on Like/Comment/Post.
+- **Guest Mode:** `/resources` (The Hallway) is publicly browsable. `/functions` is public and Hub projects remain open to play. Action interceptors show a login/verification prompt on Like/Comment/Save/Post/Project Submit.
 - **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Announcement posts are visually highlighted and sorted like pinned posts at the top of the main Hallway feed. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
-- **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. Students submit name, G10-G13 grade, and optional student ID; teachers submit name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for creating posts; comments, likes, bookmarks, and check-ins remain open to logged-in users. The leaderboard now shows all users so older unverified accounts stay visible, while verified accounts keep the extra badge.
+- **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. The field label is `Name`, meaning school common name / English name / preferred name, not legal name. Students submit Name, G10-G13 grade, and optional student ID; teachers submit Name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for forum posts, comments, likes, bookmarks, check-ins, project ratings/comments, project submissions, and leaderboard visibility. Public UI never shows Name, student ID, or subject. Admin review shows strong conflicts for duplicate student ID hash and weak conflicts for duplicate Name + grade/subject.
+- **Hub Project Flow:** Hub projects are open to play for guests/unverified users. Verified users can submit project/new-version applications from `/functions`; admins approve/reject at `/admin/project-submissions`. Approval creates or updates live `projects` rows and preserves old project/comment data.
+- **Leaderboard:** Leaderboard only returns verified users. `/leaderboard` supports all-time, weekly, and monthly views plus all/community/project categories. All-time/all uses stored user XP; filtered weekly/monthly views are derived from existing posts, comments, likes, bookmarks, project ratings/comments, and project rows so historical data is preserved.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
@@ -107,9 +109,13 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `users` | `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `grade`, `age`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4` |
 | `posts` | `id`, `author_id`, `title`, `content`, `type`, `tag`, `attachment_url`, `likes`, `created_at` |
 | `comments` | `id`, `post_id`, `author_id`, `content`, `likes`, `created_at` |
+| `post_likes` / `comment_likes` / `bookmarks` | forum interaction rows with `created_at`; verified accounts only |
 | `checkins` | `user_id`, `checkin_date` |
+| `projects` | `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `rating`, `rating_count`, `created_at` |
+| `project_likes` / `project_comments` | Hub ratings and comments; verified accounts only |
 | `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
 | `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
+| `project_submissions` | `author_id`, `submission_type`, `project_id`, `title`, `description`, `url`, `tags`, `status`, `reviewed_by`, `reviewed_at` |
 
 ### App Routes
 | Route | Access | Description |
@@ -118,8 +124,9 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/login` | Public | JWT auth (login + register) |
 | `/dashboard` | Protected | Welcome widget, Timeline, Tarot, Rec Room |
 | `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
-| `/functions` | Public | Function Hall — project grid |
+| `/functions` | Public | Function Hall — project grid, open project play, verified project submission |
 | `/profile` | Protected | User profile editor |
+| `/admin/project-submissions` | Admin | Hub project/new-version application review |
 
 ---
 
@@ -205,7 +212,7 @@ Next risk: <what the next agent should watch out for>
 
 - **Turbopack Chinese Path Bug:** Local `npm run dev` may panic if the absolute path contains Chinese characters. Vercel cloud builds are unaffected. Workaround: run dev from a path without Chinese characters.
 - **Vercel Auth Interception:** On Preview URLs with Vercel Protection enabled, `/api/auth` may return 500/HTML. Always test auth on the Production Domain.
-- **Invite-gated registration:** Production must set `HAJIMI_STUDENT_INVITE_CODE` before new students can register. Optional: set `HAJIMI_TEACHER_INVITE_CODE` for teacher self-registration. There is no admin invite code; promote trusted users to `admin` directly in the database.
+- **Invite-gated registration:** Production should set `HAJIMI_INVITE_CODE` for the unified grade-group invite. Legacy `HAJIMI_STUDENT_INVITE_CODE` and `HAJIMI_TEACHER_INVITE_CODE` may stay temporarily as fallback accepted codes, but identity is confirmed by Hajimi verification review. There is no admin invite code; promote trusted users to `admin` directly in the database.
 - **Vercel Blob token required:** File uploads return 503 if `BLOB_READ_WRITE_TOKEN` is missing. Text-only posts still work without Blob.
 - **Blob cleanup:** Run `npm run blob:cleanup` for a dry run and `npm run blob:cleanup -- --delete` to remove forum blobs that are no longer referenced by `posts.attachment_url`.
 - **globals.css corruption (resolved):** A previous edit accidentally injected raw CSS inside a `.glass-input` rule block. Fixed in commit `1caab3a`.

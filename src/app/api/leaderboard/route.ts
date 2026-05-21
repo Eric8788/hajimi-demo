@@ -8,7 +8,11 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const requestedLimit = Number(searchParams.get('limit') || 10);
         const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 50) : 10;
-        const leaderboard = await getLeaderboard(limit);
+        const windowParam = searchParams.get('window');
+        const categoryParam = searchParams.get('category');
+        const window = windowParam === 'week' || windowParam === 'month' ? windowParam : 'all';
+        const category = categoryParam === 'community' || categoryParam === 'project' ? categoryParam : 'all';
+        const leaderboard = await getLeaderboard(limit, window, category);
         return NextResponse.json(leaderboard);
     } catch (error) {
         console.error('Leaderboard API Error:', error);

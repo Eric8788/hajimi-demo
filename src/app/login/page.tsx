@@ -162,7 +162,7 @@ export default function LoginPage() {
                                 />
                                 <span>提交 Hajimi 认证（可跳过）</span>
                             </label>
-                            <p>认证通过后可以发帖并进入 Hall of Fame；公开主页不会展示真实姓名或学号。</p>
+                            <p>认证通过后可以互动、发帖并进入 Hall of Fame；Name 指学校常用名/英文名，不会公开展示。</p>
                             {verificationEnabled && (
                                 <div className="auth-verification-fields">
                                     <div className="auth-verification-tabs">
@@ -186,7 +186,7 @@ export default function LoginPage() {
                                         value={verifiedName}
                                         onChange={(e) => setVerifiedName(e.target.value)}
                                         className="glass-input"
-                                        placeholder="真实姓名"
+                                        placeholder="Name（学校常用名 / English name）"
                                         autoComplete="name"
                                     />
                                     {verificationType === 'student' ? (
@@ -323,7 +323,7 @@ export default function LoginPage() {
                 </form>
 
                 <p style={{ textAlign: 'center', marginTop: '30px', fontSize: '0.9rem', color: '#666' }}>
-                    {isRegister ? 'Already a student?' : "New here?"}{' '}
+                    {isRegister ? 'Already a member?' : "New here?"}{' '}
                     <button
                             type="button"
                             onClick={() => {

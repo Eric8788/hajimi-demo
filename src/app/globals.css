@@ -648,6 +648,130 @@ textarea:hover,
   display: none;
 }
 
+.project-submit-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.56);
+  border: 1px solid rgba(162,155,254,0.18);
+  box-shadow: 0 16px 36px rgba(108,92,231,0.08);
+}
+
+.project-submit-panel span {
+  display: block;
+  margin-bottom: 4px;
+  color: #6c5ce7;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.project-submit-panel h3 {
+  margin: 0;
+  color: #2d3436;
+  font-size: 1.18rem;
+}
+
+.project-submit-panel p {
+  margin: 4px 0 0;
+  color: #636e72;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.project-submit-open,
+.project-submit-review {
+  flex: 0 0 auto;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.project-submit-review {
+  color: #6c5ce7;
+  border: 1px solid rgba(108,92,231,0.16);
+  background: rgba(255,255,255,0.7);
+}
+
+.project-submit-message {
+  margin: -4px 0 18px;
+}
+
+.project-submission-form {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 20px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(255,255,255,0.86);
+  box-shadow: 0 18px 42px rgba(108,92,231,0.09);
+}
+
+.project-submission-form label {
+  display: grid;
+  gap: 7px;
+  color: #2d3436;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.project-submission-form .glass-input {
+  padding: 11px 13px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.project-submission-form textarea.glass-input {
+  resize: vertical;
+}
+
+.project-submission-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.32fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.project-submission-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-submission-tags button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #636e72;
+  background: rgba(255,255,255,0.68);
+  font-size: 0.8rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.project-submission-tags button.is-active {
+  color: white;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+}
+
+.project-submission-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.project-interaction-callout {
+  align-items: flex-start;
+  border-radius: 14px;
+  padding: 9px 10px;
+  font-size: 0.8rem;
+}
+
 .project-filter-chip,
 .project-live-toggle {
   flex: 0 0 auto;
@@ -2602,6 +2726,40 @@ textarea:hover,
   background: rgba(108, 92, 231, 0.16);
 }
 
+.leaderboard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -8px 0 18px;
+}
+
+.leaderboard-controls div {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.54);
+  border: 1px solid rgba(108,92,231,0.1);
+}
+
+.leaderboard-controls button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #636e72;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.leaderboard-controls button.is-active {
+  color: white;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  box-shadow: 0 8px 18px rgba(108,92,231,0.16);
+}
+
 .leaderboard-list {
   display: flex;
   flex-direction: column;
@@ -2837,6 +2995,11 @@ textarea:hover,
   background: rgba(255,118,117,0.06);
 }
 
+.admin-verification-card.has-soft-conflict {
+  border-color: rgba(253, 203, 110, 0.36);
+  background: rgba(253, 203, 110, 0.08);
+}
+
 .admin-verification-user {
   display: flex;
   align-items: center;
@@ -2869,10 +3032,18 @@ textarea:hover,
   margin-top: 8px;
   padding: 6px 9px;
   border-radius: 999px;
-  color: #d63031;
-  background: rgba(255,118,117,0.14);
   font-size: 0.76rem;
   font-weight: 900;
+}
+
+.admin-verification-conflict.is-strong {
+  color: #d63031;
+  background: rgba(255,118,117,0.14);
+}
+
+.admin-verification-conflict.is-soft {
+  color: #9a6716;
+  background: rgba(253,203,110,0.18);
 }
 
 .admin-verification-actions {
@@ -2896,6 +3067,64 @@ textarea:hover,
   text-align: center;
   color: #8f96a3;
   font-weight: 800;
+}
+
+.project-review-card {
+  align-items: start;
+}
+
+.project-review-summary,
+.project-review-notes {
+  margin-top: 8px;
+  color: #3f4950;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  font-weight: 650;
+}
+
+.project-review-notes {
+  color: #6c5ce7;
+}
+
+.project-review-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.project-review-tags span {
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(108,92,231,0.08);
+  color: #6c5ce7;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.auth-verification-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.54);
+}
+
+.auth-verification-tabs button {
+  border: none;
+  border-radius: 12px;
+  padding: 9px 12px;
+  color: #636e72;
+  font-weight: 850;
+  background: transparent;
+  cursor: pointer;
+}
+
+.auth-verification-tabs button.is-active {
+  color: white;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  box-shadow: 0 8px 18px rgba(108,92,231,0.18);
 }
 
 .alumni-map-panel {
@@ -4312,8 +4541,8 @@ p {
 .forum-welcome-board {
   position: relative;
   overflow: hidden;
-  height: 218px;
-  min-height: 218px;
+  height: 236px;
+  min-height: 236px;
   padding: 0;
   background:
     radial-gradient(circle at 18% 18%, rgba(162,155,254,0.16), transparent 32%),
@@ -4346,7 +4575,7 @@ p {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(330px, 0.96fr) minmax(300px, 1.04fr);
+  grid-template-columns: minmax(0, 0.98fr) minmax(260px, 1.02fr);
   align-items: stretch;
   position: relative;
   isolation: isolate;
@@ -4452,7 +4681,7 @@ p {
 }
 
 .forum-picture-copy {
-  padding: 28px 34px;
+  padding: 26px 34px 30px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -4509,7 +4738,7 @@ p {
   font-size: 0.95rem;
   font-weight: 700;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -4565,8 +4794,8 @@ p {
 }
 
 .dashboard-promo-board {
-  height: 228px;
-  min-height: 228px;
+  height: 254px;
+  min-height: 254px;
   margin-top: 24px;
   margin-bottom: 22px;
 }
@@ -4574,11 +4803,11 @@ p {
 .dashboard-promo-picture {
   height: 100%;
   min-height: 0;
-  grid-template-columns: minmax(300px, 0.92fr) minmax(300px, 1.08fr);
+  grid-template-columns: minmax(0, 0.98fr) minmax(260px, 1.02fr);
 }
 
 .dashboard-promo-copy {
-  padding: 22px 28px 24px;
+  padding: 24px 28px 70px;
   gap: 6px;
 }
 
@@ -4594,7 +4823,7 @@ p {
 
 .dashboard-promo-copy > span:not(.forum-picture-kicker) {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -4739,13 +4968,13 @@ p {
 
 @media (max-width: 760px) {
   .forum-welcome-board {
-    height: 340px;
-    min-height: 340px;
+    height: 370px;
+    min-height: 370px;
   }
 
   .forum-welcome-picture {
     grid-template-columns: 1fr;
-    grid-template-rows: 178px 1fr;
+    grid-template-rows: 168px 1fr;
   }
 
   .forum-picture-scene {
@@ -4754,12 +4983,16 @@ p {
   }
 
   .dashboard-promo-board {
-    height: 390px;
-    min-height: 390px;
+    height: 430px;
+    min-height: 430px;
   }
 
   .dashboard-promo-picture {
-    grid-template-rows: 220px 1fr;
+    grid-template-rows: 178px 1fr;
+  }
+
+  .dashboard-promo-copy {
+    padding: 22px 22px 72px;
   }
 
   .dashboard-promo-switcher {

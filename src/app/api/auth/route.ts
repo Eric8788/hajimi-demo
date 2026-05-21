@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUser, createUser } from '@/lib/db';
 import { createSession } from '@/lib/auth';
-import { isRegistrationConfigured, resolveInviteRole } from '@/lib/inviteCodes';
+import { isRegistrationConfigured, validateInviteCode } from '@/lib/inviteCodes';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { buildVerificationDraft } from '@/lib/verification';
@@ -41,14 +41,13 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Registration is not open yet. Ask a teacher to configure invite codes.' }, { status: 503 });
             }
 
-            const inviteRole = resolveInviteRole(inviteCode);
-            if (!inviteRole) {
+            if (!validateInviteCode(inviteCode)) {
                 return NextResponse.json({ error: 'Invalid invite code' }, { status: 403 });
             }
 
             const shouldSubmitVerification = Boolean(body.verification?.enabled);
             const verificationResult = shouldSubmitVerification
-                ? await buildVerificationDraft(inviteRole, body.verification)
+                ? await buildVerificationDraft(body.verification)
                 : null;
 
             if (verificationResult && !verificationResult.ok) {
@@ -63,14 +62,14 @@ export async function POST(request: Request) {
             const userId = await createUser(
                 username,
                 hashedPassword,
-                inviteRole,
+                'student',
                 verificationResult?.ok ? verificationResult.draft : null,
                 avatarSelection,
                 { bio: body.bio },
             );
             // Automatically log in
             await createSession(Number(userId));
-            return NextResponse.json({ success: true, role: inviteRole });
+            return NextResponse.json({ success: true, role: 'student' });
         } else {
             // Login
             if (!user || !user.password_hash) {

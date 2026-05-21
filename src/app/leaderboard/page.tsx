@@ -16,7 +16,7 @@ export default async function Page() {
                     <div>
                         <span>AI Club Rankings</span>
                         <h1>🏆 Hall of Fame</h1>
-                        <p>总榜按当前 XP 排序，头像和名字都可以进入成员主页。</p>
+                        <p>认证用户可进入榜单；总榜看累计 XP，周榜/月榜可切换社区贡献和项目贡献。</p>
                     </div>
                 </div>
 

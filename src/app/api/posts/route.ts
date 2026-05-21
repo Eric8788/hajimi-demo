@@ -156,6 +156,10 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        if (!isVerifiedAccount(user)) {
+            return NextResponse.json({ error: '完成 Hajimi 认证后可以编辑帖子。' }, { status: 403 });
+        }
+
         const body = await request.json();
         const postId = Number(body.postId);
         const title = String(body.title || '').trim();

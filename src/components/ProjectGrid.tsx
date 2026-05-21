@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ALL_TAGS, type ProjectTag, type Project } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { User } from '@/lib/db';
 
 const TAG_COLORS: Record<string, string> = {
     Game: '#6c5ce7',
@@ -24,21 +25,61 @@ const TAG_EMOJIS: Record<string, string> = {
     Narrative: '📖', Sailing: '⛵', Classroom: '🏫'
 };
 
-export default function ProjectGrid() {
+type ProjectGridProps = {
+    user: User | null;
+    canSubmitProjects?: boolean;
+};
+
+export default function ProjectGrid({ user, canSubmitProjects = false }: ProjectGridProps) {
     const [projects, setProjects] = useState<any[]>([]);
     const [selectedTag, setSelectedTag] = useState<ProjectTag | 'all'>('all');
     const [selectedCreator, setSelectedCreator] = useState<string | 'all'>('all');
     const [sortType, setSortType] = useState<'rating' | 'name'>('rating');
     const [showLiveOnly, setShowLiveOnly] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [showSubmissionForm, setShowSubmissionForm] = useState(false);
+    const [submissionType, setSubmissionType] = useState<'new_project' | 'new_version'>('new_project');
+    const [submissionProjectId, setSubmissionProjectId] = useState('');
+    const [submissionTitle, setSubmissionTitle] = useState('');
+    const [submissionDescription, setSubmissionDescription] = useState('');
+    const [submissionEmoji, setSubmissionEmoji] = useState('🚀');
+    const [submissionUrl, setSubmissionUrl] = useState('');
+    const [submissionTags, setSubmissionTags] = useState<ProjectTag[]>(['Game']);
+    const [submissionVersionNotes, setSubmissionVersionNotes] = useState('');
+    const [submissionCoverUrl, setSubmissionCoverUrl] = useState('');
+    const [submissionMessage, setSubmissionMessage] = useState('');
+    const [submissionLoading, setSubmissionLoading] = useState(false);
+    const [projectLoadError, setProjectLoadError] = useState('');
 
     useEffect(() => {
-        fetch('/api/projects')
-            .then(res => res.json())
+        const controller = new AbortController();
+        let active = true;
+
+        setProjectLoadError('');
+        fetch('/api/projects', { signal: controller.signal })
+            .then(res => {
+                if (!res.ok) throw new Error('Projects request failed');
+                return res.json();
+            })
             .then(data => {
-                setProjects(data);
-                setLoading(false);
+                if (!active) return;
+                setProjects(Array.isArray(data) ? data : []);
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                if (!active) return;
+                console.error('Failed to load projects:', error);
+                setProjects([]);
+                setProjectLoadError('Hub 项目暂时加载失败，刷新后可以重试。');
+            })
+            .finally(() => {
+                if (active) setLoading(false);
             });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
     }, []);
 
     if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading functions...</div>;
@@ -63,14 +104,179 @@ export default function ProjectGrid() {
         }
     });
 
-    const handleRatingUpdate = (projectId: string, newRating: number, newCount: number) => {
+    const handleRatingUpdate = (projectId: number | string, newRating: number, newCount: number) => {
         setProjects(prev => prev.map(p => 
-            p.id === projectId ? { ...p, rating: newRating, rating_count: newCount } : p
+            String(p.id) === String(projectId) ? { ...p, rating: newRating, rating_count: newCount } : p
         ));
+    };
+
+    const toggleSubmissionTag = (tag: ProjectTag) => {
+        setSubmissionTags(current => {
+            if (current.includes(tag)) {
+                const next = current.filter(item => item !== tag);
+                return next.length > 0 ? next : ['Game'];
+            }
+
+            return [...current, tag].slice(0, 5);
+        });
+    };
+
+    const openSubmissionForm = () => {
+        setSubmissionMessage('');
+        if (!user) {
+            setSubmissionMessage('登录并完成 Hajimi 认证后可以提交项目或新版本申请。');
+            return;
+        }
+
+        if (!canSubmitProjects) {
+            setSubmissionMessage('完成 Hajimi 认证后可以提交项目或新版本申请。');
+            return;
+        }
+
+        setShowSubmissionForm(value => !value);
+    };
+
+    const submitProjectApplication = async (event: React.FormEvent) => {
+        event.preventDefault();
+        setSubmissionLoading(true);
+        setSubmissionMessage('');
+
+        try {
+            const res = await fetch('/api/project-submissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    submissionType,
+                    projectId: submissionProjectId,
+                    title: submissionTitle,
+                    description: submissionDescription,
+                    emoji: submissionEmoji,
+                    url: submissionUrl,
+                    tags: submissionTags,
+                    versionNotes: submissionVersionNotes,
+                    coverUrl: submissionCoverUrl,
+                    accentColor: 'rgba(162, 155, 254, 0.22)',
+                }),
+            });
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok) {
+                setSubmissionMessage(data?.error || '提交失败，请稍后再试。');
+                return;
+            }
+
+            setSubmissionMessage('已提交申请，管理员审核通过后会发布到 Hub。');
+            setShowSubmissionForm(false);
+            setSubmissionType('new_project');
+            setSubmissionProjectId('');
+            setSubmissionTitle('');
+            setSubmissionDescription('');
+            setSubmissionEmoji('🚀');
+            setSubmissionUrl('');
+            setSubmissionTags(['Game']);
+            setSubmissionVersionNotes('');
+            setSubmissionCoverUrl('');
+        } finally {
+            setSubmissionLoading(false);
+        }
     };
 
     return (
         <div>
+            <section className="project-submit-panel">
+                <div>
+                    <span>Creator Pipeline</span>
+                    <h3>提交项目 / 新版本申请</h3>
+                    <p>Hub 项目全部开放体验；发布和版本更新先提交申请，管理员审核后上线。</p>
+                </div>
+                <button type="button" className="btn btn-primary project-submit-open" onClick={openSubmissionForm}>
+                    {showSubmissionForm ? '收起申请' : '提交申请'}
+                </button>
+                {user?.role === 'admin' && (
+                    <a className="btn project-submit-review" href="/admin/project-submissions">
+                        审核申请
+                    </a>
+                )}
+            </section>
+            {submissionMessage && (
+                <div className="forum-verification-callout project-submit-message">
+                    <span>{submissionMessage}</span>
+                    {!canSubmitProjects && <button type="button" onClick={() => window.location.assign(user ? '/profile' : '/login')}>{user ? '去认证' : '登录'}</button>}
+                </div>
+            )}
+            {projectLoadError && (
+                <div className="forum-verification-callout project-submit-message">
+                    <span>{projectLoadError}</span>
+                    <button type="button" onClick={() => window.location.reload()}>刷新</button>
+                </div>
+            )}
+            <AnimatePresence>
+                {showSubmissionForm && (
+                    <motion.form
+                        className="project-submission-form"
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        onSubmit={submitProjectApplication}
+                    >
+                        <div className="auth-verification-tabs">
+                            <button type="button" className={submissionType === 'new_project' ? 'is-active' : ''} onClick={() => setSubmissionType('new_project')}>新项目</button>
+                            <button type="button" className={submissionType === 'new_version' ? 'is-active' : ''} onClick={() => setSubmissionType('new_version')}>新版本</button>
+                        </div>
+                        {submissionType === 'new_version' && (
+                            <label>
+                                要更新的项目
+                                <select value={submissionProjectId} onChange={event => setSubmissionProjectId(event.target.value)} className="glass-input" required>
+                                    <option value="">选择项目</option>
+                                    {projects.map(project => (
+                                        <option key={project.id} value={project.id}>{project.title}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
+                        <label>
+                            项目名
+                            <input value={submissionTitle} onChange={event => setSubmissionTitle(event.target.value)} className="glass-input" maxLength={80} required />
+                        </label>
+                        <label>
+                            简介
+                            <textarea value={submissionDescription} onChange={event => setSubmissionDescription(event.target.value)} className="glass-input" rows={4} maxLength={520} required />
+                        </label>
+                        <div className="project-submission-row">
+                            <label>
+                                Emoji
+                                <input value={submissionEmoji} onChange={event => setSubmissionEmoji(event.target.value)} className="glass-input" maxLength={8} />
+                            </label>
+                            <label>
+                                项目链接
+                                <input value={submissionUrl} onChange={event => setSubmissionUrl(event.target.value)} className="glass-input" placeholder="https://..." />
+                            </label>
+                        </div>
+                        <label>
+                            版本说明 / 更新说明
+                            <textarea value={submissionVersionNotes} onChange={event => setSubmissionVersionNotes(event.target.value)} className="glass-input" rows={3} maxLength={800} />
+                        </label>
+                        <label>
+                            截图/封面 URL（可选）
+                            <input value={submissionCoverUrl} onChange={event => setSubmissionCoverUrl(event.target.value)} className="glass-input" placeholder="https://..." />
+                        </label>
+                        <div className="project-submission-tags">
+                            {ALL_TAGS.map(tag => (
+                                <button key={tag} type="button" className={submissionTags.includes(tag) ? 'is-active' : ''} onClick={() => toggleSubmissionTag(tag)}>
+                                    {TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="project-submission-actions">
+                            <button type="button" className="btn" onClick={() => setShowSubmissionForm(false)}>取消</button>
+                            <button type="submit" className="btn btn-primary" disabled={submissionLoading}>
+                                {submissionLoading ? '提交中...' : '提交审核'}
+                            </button>
+                        </div>
+                    </motion.form>
+                )}
+            </AnimatePresence>
+
             {/* Filter Bar */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px', background: 'rgba(255,255,255,0.4)', padding: '20px', borderRadius: '16px' }}>
                 {/* Tag Filters */}
@@ -161,7 +367,7 @@ export default function ProjectGrid() {
                             exit={{ opacity: 0, scale: 0.9 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <ProjectCard project={project} onRatingUpdate={handleRatingUpdate} />
+                            <ProjectCard project={project} user={user} canInteract={canSubmitProjects} onRatingUpdate={handleRatingUpdate} />
                         </motion.div>
                     ))}
                 </AnimatePresence>
@@ -177,7 +383,7 @@ export default function ProjectGrid() {
     );
 }
 
-function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate?: (projectId: string, rating: number, count: number) => void }) {
+function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: any, user: User | null, canInteract: boolean, onRatingUpdate?: (projectId: number | string, rating: number, count: number) => void }) {
     const isLive = project.status === 'live';
     const [rating, setRating] = useState(Number(project.rating || project.likes || 0));
     const [ratingCount, setRatingCount] = useState(Number(project.rating_count || project.likes || 0));
@@ -188,6 +394,21 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState('');
     const [xpBurst, setXpBurst] = useState('');
+    const [interactionMessage, setInteractionMessage] = useState('');
+
+    const requireProjectInteraction = () => {
+        if (!user) {
+            setInteractionMessage('登录并完成 Hajimi 认证后可以评分和评论项目。');
+            return true;
+        }
+
+        if (!canInteract) {
+            setInteractionMessage('完成 Hajimi 认证后可以评分和评论项目。');
+            return true;
+        }
+
+        return false;
+    };
 
     const handleStarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -199,22 +420,33 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
     };
 
     const fetchComments = async () => {
-        const res = await fetch(`/api/projects/comments?projectId=${project.id}`);
-        const data = await res.json();
-        setComments(data);
-        
-        const myComment = data.find((c: any) => c.is_own_comment);
-        if (myComment) {
-            setNewComment(myComment.content);
-            setSelectedScore(myComment.author_score || 0);
+        setInteractionMessage('');
+        try {
+            const res = await fetch(`/api/projects/comments?projectId=${project.id}`);
+            if (!res.ok) throw new Error('Comments request failed');
+            const data = await res.json();
+            const nextComments = Array.isArray(data) ? data : [];
+            setComments(nextComments);
+
+            const myComment = nextComments.find((c: any) => c.is_own_comment);
+            if (myComment) {
+                setNewComment(myComment.content);
+                setSelectedScore(myComment.author_score || 0);
+            }
+        } catch (error) {
+            console.error('Failed to load project comments:', error);
+            setComments([]);
+            setInteractionMessage('项目评论暂时加载失败，稍后再试。');
         }
     };
 
     const handleComment = async (e: React.FormEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        if (requireProjectInteraction()) return;
         
-        if (selectedScore === 0 || !newComment.trim()) {
+        const tempContent = newComment.trim();
+        if (selectedScore === 0 || !tempContent) {
             return;
         }
         
@@ -236,18 +468,27 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
         setRatingCount(newCount);
         if (onRatingUpdate) onRatingUpdate(project.id, newRating, newCount);
         
-        fetch('/api/projects/like', {
+        const ratingRes = await fetch('/api/projects/like', {
             method: 'POST',
             body: JSON.stringify({ projectId: project.id, score: selectedScore })
         });
+        if (!ratingRes.ok) {
+            const data = await ratingRes.json().catch(() => null);
+            setInteractionMessage(data?.error || '提交评分失败。');
+            setRating(rating);
+            setRatingCount(ratingCount);
+            if (onRatingUpdate) onRatingUpdate(project.id, rating, ratingCount);
+            return;
+        }
         
         // Submit comment
-        const tempContent = newComment;
+        const submittedScore = selectedScore;
         setNewComment('');
         setSelectedScore(0);
         
         const res = await fetch('/api/projects/comments', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ projectId: project.id, content: tempContent })
         });
         if (res.ok) {
@@ -256,13 +497,25 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
                 window.setTimeout(() => setXpBurst(''), 900);
             }
             fetchComments();
+        } else {
+            const data = await res.json().catch(() => null);
+            setInteractionMessage(data?.error || '提交评论失败。');
+            setNewComment(tempContent);
+            setSelectedScore(submittedScore);
         }
     };
 
     const handleDeleteComment = async (commentId: number) => {
         const deletedComment = comments.find(c => c.id === commentId);
-        setComments(comments.filter(c => c.id !== commentId));
-        await fetch(`/api/projects/comments?commentId=${commentId}`, { method: 'DELETE' });
+        const previousComments = comments;
+        setComments(previousComments.filter(c => c.id !== commentId));
+        const res = await fetch(`/api/projects/comments?commentId=${commentId}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            setComments(previousComments);
+            setInteractionMessage(data?.error || '删除评论失败，请稍后再试。');
+            return;
+        }
         
         // Reset inputs if we deleted our own comment
         setNewComment('');
@@ -367,8 +620,14 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
                                         >🗑️</button>
                                     )}
                                 </div>
-                            ))}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', background: 'rgba(255,255,255,0.4)', padding: '12px', borderRadius: '12px' }}>
+	                            ))}
+                                {interactionMessage && (
+                                    <div className="forum-verification-callout project-interaction-callout">
+                                        <span>{interactionMessage}</span>
+                                        <button type="button" onClick={() => window.location.assign(user ? '/profile' : '/login')}>{user ? '去认证' : '登录'}</button>
+                                    </div>
+                                )}
+	                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', background: 'rgba(255,255,255,0.4)', padding: '12px', borderRadius: '12px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <span style={{ fontWeight: 600, color: '#2d3436' }}>Your Rating:</span>
                                     <div 
@@ -395,6 +654,7 @@ function ProjectCard({ project, onRatingUpdate }: { project: any, onRatingUpdate
                                     <input 
                                         value={newComment}
                                         onChange={e => setNewComment(e.target.value)}
+                                        maxLength={500}
                                         placeholder={selectedScore > 0 ? "Leave a comment for your rating..." : "Add a comment..."}
                                         style={{ flex: 1, padding: '6px 12px', borderRadius: '8px', border: '1px solid #dfe6e9', fontSize: '0.8rem', outline: 'none' }}
                                         onClick={e => { e.preventDefault(); e.stopPropagation(); }}

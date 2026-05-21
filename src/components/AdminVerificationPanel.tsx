@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { VerificationRequest } from '@/lib/db';
+import { formatHajimiId } from '@/lib/hajimiId';
 
 export default function AdminVerificationPanel() {
     const [requests, setRequests] = useState<VerificationRequest[]>([]);
@@ -58,21 +59,25 @@ export default function AdminVerificationPanel() {
             ) : (
                 <div className="admin-verification-list">
                     {requests.map(request => (
-                        <article key={request.id} className={`admin-verification-card${request.has_verified_student_id_conflict ? ' has-conflict' : ''}`}>
+                        <article key={request.id} className={`admin-verification-card${request.has_verified_student_id_conflict ? ' has-conflict' : ''}${request.has_name_identity_conflict ? ' has-soft-conflict' : ''}`}>
                             <div>
                                 <div className="admin-verification-user">
                                     <strong>{request.username}</strong>
-                                    <span>ID {String(request.id).padStart(4, '0')}</span>
+                                    <span>{formatHajimiId(request.id)}</span>
                                     <span>{request.role}</span>
                                 </div>
                                 <p>
-                                    {request.verification_type === 'teacher' ? '老师认证' : '学生认证'} · {request.verified_name}
+                                    {request.verification_type === 'teacher' ? '老师认证' : '学生认证'} · Name: {request.verified_name}
                                     {request.verified_grade ? ` · ${request.verified_grade}` : ''}
                                     {request.verified_subject ? ` · ${request.verified_subject}` : ''}
                                     {request.student_id_last4 ? ` · 学号后四位 ${request.student_id_last4}` : ''}
+                                    {request.verification_submitted_at ? ` · ${new Date(request.verification_submitted_at).toLocaleString('zh-CN')}` : ''}
                                 </p>
                                 {request.has_verified_student_id_conflict && (
-                                    <div className="admin-verification-conflict">已有认证账号使用相同学号，请确认主号。</div>
+                                    <div className="admin-verification-conflict is-strong">强冲突：已有认证账号使用相同学号，请确认主号。</div>
+                                )}
+                                {request.has_name_identity_conflict && (
+                                    <div className="admin-verification-conflict is-soft">可能重名/可能小号：同 Name + {request.verification_type === 'teacher' ? '科目' : '年级'} 已有申请或认证。</div>
                                 )}
                             </div>
                             <div className="admin-verification-actions">

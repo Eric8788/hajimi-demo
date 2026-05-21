@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { doCheckIn, hasCheckedInToday } from '@/lib/db';
+import { doCheckIn, getUserById, hasCheckedInToday } from '@/lib/db';
+import { isVerifiedAccount } from '@/lib/verification';
 
 export async function POST() {
     try {
@@ -10,6 +11,10 @@ export async function POST() {
         }
 
         const userId = Number(session.userId);
+        const user = await getUserById(userId);
+        if (!isVerifiedAccount(user)) {
+            return NextResponse.json({ error: '完成 Hajimi 认证后可以签到获得积分。' }, { status: 403 });
+        }
 
         if (await hasCheckedInToday(userId)) {
             return NextResponse.json({ error: 'Already checked in today' }, { status: 400 });
@@ -36,8 +41,9 @@ export async function GET() {
         if (!session) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const user = await getUserById(Number(session.userId));
         const checkedIn = await hasCheckedInToday(Number(session.userId));
-        return NextResponse.json({ checkedIn });
+        return NextResponse.json({ checkedIn, verified: isVerifiedAccount(user) });
     } catch {
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }

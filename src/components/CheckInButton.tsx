@@ -21,6 +21,8 @@ export default function CheckInButton() {
                 if (data.checkedIn) {
                     setCheckedIn(true);
                     setButtonText('Signed In');
+                } else if (data.verified === false) {
+                    setButtonText('认证后签到');
                 }
             })
             .catch(() => {
@@ -52,7 +54,8 @@ export default function CheckInButton() {
             } else {
                 const alreadyChecked = data.error === 'Already checked in today';
                 setCheckedIn(alreadyChecked);
-                setButtonText(alreadyChecked ? 'Signed In' : 'Could not sign in');
+                const needsVerification = res.status === 403;
+                setButtonText(alreadyChecked ? 'Signed In' : needsVerification ? '认证后签到' : data.error || 'Could not sign in');
             }
         } catch {
             setButtonText('Try again');

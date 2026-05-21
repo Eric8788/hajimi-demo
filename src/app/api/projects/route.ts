@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getProjects, createProject } from '@/lib/db';
+import { getProjects } from '@/lib/db';
 
 export async function GET() {
     try {
@@ -17,15 +17,11 @@ export async function POST(request: Request) {
         const session = await getSession();
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const body = await request.json();
-        const userId = Number(session.userId);
-
-        const projectId = await createProject({
-            ...body,
-            author_id: userId
-        });
-
-        return NextResponse.json({ success: true, projectId });
+        await request.json().catch(() => null);
+        return NextResponse.json(
+            { error: '项目和新版本需要通过 Hub 申请流提交，管理员审核后才会发布。' },
+            { status: 403 },
+        );
     } catch (err) {
         console.error("Create Project Error", err);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });

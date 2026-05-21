@@ -7,23 +7,62 @@ import { User } from '@/lib/db';
 import UserBadges from './UserBadges';
 
 const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
+const WINDOW_TABS = [
+    { id: 'all', label: '总榜' },
+    { id: 'week', label: '周榜' },
+    { id: 'month', label: '月榜' },
+] as const;
+const CATEGORY_TABS = [
+    { id: 'all', label: '全部' },
+    { id: 'community', label: '社区' },
+    { id: 'project', label: '项目' },
+] as const;
+type LeaderboardWindow = (typeof WINDOW_TABS)[number]['id'];
+type LeaderboardCategory = (typeof CATEGORY_TABS)[number]['id'];
 
 export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { limit?: number; showViewAll?: boolean }) {
     const router = useRouter();
     const [leaderboard, setLeaderboard] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [windowType, setWindowType] = useState<LeaderboardWindow>('all');
+    const [category, setCategory] = useState<LeaderboardCategory>('all');
 
     useEffect(() => {
-        fetch(`/api/leaderboard?limit=${limit}`)
-            .then(res => res.json())
+        const controller = new AbortController();
+        let active = true;
+        setLoading(true);
+        setError('');
+        fetch(`/api/leaderboard?limit=${limit}&window=${windowType}&category=${category}`, { signal: controller.signal })
+            .then(res => {
+                if (!res.ok) throw new Error('Leaderboard request failed');
+                return res.json();
+            })
             .then(data => {
+                if (!active) return;
                 if (Array.isArray(data)) {
                     setLeaderboard(data.slice(0, limit));
+                } else {
+                    setLeaderboard([]);
+                    setError('榜单暂时没有返回有效数据。');
                 }
             })
-            .catch(err => console.error('Failed to load leaderboard:', err))
-            .finally(() => setLoading(false));
-    }, [limit]);
+            .catch(err => {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                if (!active) return;
+                console.error('Failed to load leaderboard:', err);
+                setLeaderboard([]);
+                setError('榜单暂时加载失败，稍后再试。');
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [category, limit, windowType]);
 
     const openProfile = (userId: number) => {
         router.push(`/profile/${userId}`);
@@ -50,6 +89,24 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
                     </button>
                 )}
             </div>
+            {!showViewAll && (
+                <div className="leaderboard-controls">
+                    <div>
+                        {WINDOW_TABS.map(tab => (
+                            <button key={tab.id} type="button" className={windowType === tab.id ? 'is-active' : ''} onClick={() => setWindowType(tab.id)}>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div>
+                        {CATEGORY_TABS.map(tab => (
+                            <button key={tab.id} type="button" className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
             
             <div className="leaderboard-list">
                 {leaderboard.map((user, index) => (
@@ -87,7 +144,7 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
                 ))}
                 
                 {leaderboard.length === 0 && (
-                    <p className="leaderboard-empty">No students in the hall yet.</p>
+                    <p className="leaderboard-empty">{error || 'No students in the hall yet.'}</p>
                 )}
             </div>
         </div>

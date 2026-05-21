@@ -12,7 +12,7 @@ type DashboardPromo = DashboardPromoBase & { switchLabel: string };
 const ADMIN_VERIFICATION_PROMO: DashboardPromoBase = {
     kicker: 'Hajimi Trust ✅',
     title: '认证审核入口',
-    body: '处理同学提交的 Hajimi 认证，通过后他们就能发帖并进入 Hall of Fame。',
+    body: '处理同学提交的 Hajimi 认证，通过后他们就能互动、发帖、提交项目并进入 Hall of Fame。',
     notes: ['pending review', 'main account', 'Hall of Fame'],
     pin: '✓',
     accent: 'trust',
@@ -23,8 +23,8 @@ const ADMIN_VERIFICATION_PROMO: DashboardPromoBase = {
 const MEMBER_VERIFICATION_PROMO: DashboardPromoBase = {
     kicker: 'Hajimi Trust ✅',
     title: '完成 Hajimi 认证',
-    body: '认证通过后就能发布帖子、展示认证 badge，并让你的主号身份更清晰。',
-    notes: ['verified badge', 'main account', 'post access'],
+    body: '认证通过后就能互动、发帖、提交 Hub 项目申请，并展示认证 badge。',
+    notes: ['verified badge', 'main account', 'creator access'],
     pin: '✓',
     accent: 'trust',
     href: '/profile',
@@ -33,7 +33,7 @@ const MEMBER_VERIFICATION_PROMO: DashboardPromoBase = {
 
 const PROMO_ACTIONS: Record<string, { href: string; cta: string }> = {
     '首次发帖立得 100 积分！': { href: '/resources', cta: '去 Forum' },
-    '发布项目进 Hub 领 100 积分！': { href: '/functions', cta: '去 Hub' },
+    '提交项目进 Hub，审核后上线！': { href: '/functions', cta: '去 Hub' },
 };
 
 function getSwitchLabel(promo: DashboardPromoBase) {
