@@ -12,6 +12,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const router = useRouter();
     const pathname = usePathname();
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
@@ -55,6 +56,19 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         };
     }, [loadUnreadCount]);
 
+    const handleLogout = async () => {
+        if (isLoggingOut) return;
+
+        setIsLoggingOut(true);
+        try {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            router.replace('/login');
+            router.refresh();
+        } finally {
+            setIsLoggingOut(false);
+        }
+    };
+
     return (
         <div className="app-container">
             {/* Fixed Glass Sidebar */}
@@ -95,6 +109,17 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     {user ? (
                         <>
                             <NotificationsBell />
+                            <button
+                                type="button"
+                                className="sidebar-logout-button"
+                                onClick={handleLogout}
+                                title={isLoggingOut ? '正在退出...' : '退出登录'}
+                                aria-label="退出登录"
+                                disabled={isLoggingOut}
+                            >
+                                <span aria-hidden="true">↪</span>
+                                <span>{isLoggingOut ? '...' : '退出'}</span>
+                            </button>
                             <button
                                 type="button"
                                 className="sidebar-avatar-button"

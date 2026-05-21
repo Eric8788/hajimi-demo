@@ -343,6 +343,51 @@ textarea:hover,
   box-shadow: 0 14px 30px rgba(108,92,231,0.32);
 }
 
+.sidebar-logout-button {
+  width: 46px;
+  min-height: 44px;
+  border-radius: 16px;
+  border: 1px solid rgba(225, 112, 85, 0.16);
+  background: rgba(255, 255, 255, 0.62);
+  color: #e17055;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 5px 0;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(225, 112, 85, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.sidebar-logout-button span:first-child {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.sidebar-logout-button span:last-child {
+  font-size: 0.52rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.sidebar-logout-button:hover:not(:disabled),
+.sidebar-logout-button:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(225, 112, 85, 0.32);
+  box-shadow: 0 14px 30px rgba(225, 112, 85, 0.14);
+  outline: none;
+}
+
+.sidebar-logout-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 @keyframes gradient-bg {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
