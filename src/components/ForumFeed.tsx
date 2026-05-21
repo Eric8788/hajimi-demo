@@ -464,6 +464,9 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                                 type="button"
                                 className={index === promoIndex ? 'is-active' : ''}
                                 aria-label={`Show ${promo.title}`}
+                                title={promo.title}
+                                onMouseEnter={() => setPromoIndex(index)}
+                                onFocus={() => setPromoIndex(index)}
                                 onClick={() => setPromoIndex(index)}
                             />
                         ))}

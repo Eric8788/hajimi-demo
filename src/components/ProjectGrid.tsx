@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ALL_TAGS, type ProjectTag, type Project } from '@/data/projects';
+import { ALL_TAGS, type ProjectTag } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { User } from '@/lib/db';
 
@@ -25,10 +25,34 @@ const TAG_EMOJIS: Record<string, string> = {
     Narrative: '📖', Sailing: '⛵', Classroom: '🏫'
 };
 
+const HUB_LEADERBOARD_TABS = [
+    { id: 'today', label: '今日' },
+    { id: 'week', label: '本周' },
+    { id: 'month', label: '本月' },
+] as const;
+
+type HubLeaderboardWindow = (typeof HUB_LEADERBOARD_TABS)[number]['id'];
+
 type ProjectGridProps = {
     user: User | null;
     canSubmitProjects?: boolean;
 };
+
+function recordProjectOpen(projectId: number | string) {
+    const payload = JSON.stringify({ projectId });
+
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        if (navigator.sendBeacon('/api/projects/open', blob)) return;
+    }
+
+    void fetch('/api/projects/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+    }).catch(() => {});
+}
 
 export default function ProjectGrid({ user, canSubmitProjects = false }: ProjectGridProps) {
     const [projects, setProjects] = useState<any[]>([]);
@@ -50,6 +74,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [submissionMessage, setSubmissionMessage] = useState('');
     const [submissionLoading, setSubmissionLoading] = useState(false);
     const [projectLoadError, setProjectLoadError] = useState('');
+    const [hubLeaderboardWindow, setHubLeaderboardWindow] = useState<HubLeaderboardWindow>('today');
 
     useEffect(() => {
         const controller = new AbortController();
@@ -90,6 +115,21 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     const uniqueCreators = Array.from(new Set(projects.map(p => getDisplayName(p.author_name || p.author)))).sort();
+
+    const getHubActivity = (project: any) => {
+        if (hubLeaderboardWindow === 'month') return Number(project.open_count_month || 0);
+        if (hubLeaderboardWindow === 'week') return Number(project.open_count_week || 0);
+        return Number(project.open_count_today || 0);
+    };
+
+    const hubLeaderboard = [...projects]
+        .filter(project => project.status === 'live')
+        .sort((a, b) => {
+            const scoreA = Number(a.rating || 0) * 20 + Number(a.rating_count || 0) * 4 + getHubActivity(a) * 6;
+            const scoreB = Number(b.rating || 0) * 20 + Number(b.rating_count || 0) * 4 + getHubActivity(b) * 6;
+            return scoreB - scoreA || String(a.title).localeCompare(String(b.title));
+        })
+        .slice(0, 5);
 
     const filtered = projects.filter(p => {
         const tagMatch = selectedTag === 'all' || p.tags.includes(selectedTag);
@@ -184,19 +224,21 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     return (
         <div>
             <section className="project-submit-panel">
-                <div>
+                <div className="project-submit-copy">
                     <span>Creator Pipeline</span>
                     <h3>提交项目 / 新版本申请</h3>
                     <p>Hub 项目全部开放体验；发布和版本更新先提交申请，管理员审核后上线。</p>
                 </div>
-                <button type="button" className="btn btn-primary project-submit-open" onClick={openSubmissionForm}>
-                    {showSubmissionForm ? '收起申请' : '提交申请'}
-                </button>
-                {user?.role === 'admin' && (
-                    <a className="btn project-submit-review" href="/admin/project-submissions">
-                        审核申请
-                    </a>
-                )}
+                <div className="project-submit-actions">
+                    <button type="button" className="btn btn-primary project-submit-open" onClick={openSubmissionForm}>
+                        {showSubmissionForm ? '收起申请' : '提交申请'}
+                    </button>
+                    {user?.role === 'admin' && (
+                        <a className="btn project-submit-review" href="/admin/project-submissions">
+                            审核申请
+                        </a>
+                    )}
+                </div>
             </section>
             {submissionMessage && (
                 <div className="forum-verification-callout project-submit-message">
@@ -277,11 +319,53 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 )}
             </AnimatePresence>
 
+            <section className="hub-leaderboard-panel">
+                <div className="hub-leaderboard-head">
+                    <div>
+                        <span>Hub Rankings</span>
+                        <h3>🔥 项目热度榜</h3>
+                        <p>按星级、评分人数和进入游玩次数综合排序。</p>
+                    </div>
+                    <div className="hub-leaderboard-tabs">
+                        {HUB_LEADERBOARD_TABS.map(tab => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                className={hubLeaderboardWindow === tab.id ? 'is-active' : ''}
+                                onClick={() => setHubLeaderboardWindow(tab.id)}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="hub-leaderboard-list">
+                    {hubLeaderboard.map((project, index) => (
+                        <a
+                            key={project.id}
+                            className="hub-leaderboard-row"
+                            href={project.url || '#'}
+                            target={project.url ? '_blank' : undefined}
+                            rel={project.url ? 'noopener noreferrer' : undefined}
+                            onClick={() => recordProjectOpen(project.id)}
+                        >
+                            <strong>{index + 1}</strong>
+                            <span className="hub-leaderboard-emoji">{project.emoji}</span>
+                            <span className="hub-leaderboard-title">
+                                {project.title}
+                                <small>by {getDisplayName(project.author_name || project.author)}</small>
+                            </span>
+                            <span className="hub-leaderboard-meta">⭐ {Number(project.rating || 0).toFixed(1)} · {getHubActivity(project)} 次进入</span>
+                        </a>
+                    ))}
+                </div>
+            </section>
+
             {/* Filter Bar */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px', background: 'rgba(255,255,255,0.4)', padding: '20px', borderRadius: '16px' }}>
+            <div className="project-filter-bar">
                 {/* Tag Filters */}
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', maxWidth: '100%' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2d3436', width: '80px', flexShrink: 0 }}>Category</span>
+                <div className="project-filter-row">
+                    <span>Category</span>
                     <div className="project-filter-panel" aria-label="Project categories">
                         <button
                             onClick={() => setSelectedTag('all')}
@@ -300,9 +384,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 </div>
 
                 {/* Creator Filters */}
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center', maxWidth: '100%' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2d3436', width: '80px', flexShrink: 0 }}>Creator</span>
-                    <div className="project-filter-panel" aria-label="Project creators">
+                <div className="project-filter-row">
+                    <span>Creator</span>
+                    <div className="project-filter-panel project-creator-filter-panel" aria-label="Project creators">
                         <button
                             onClick={() => setSelectedCreator('all')}
                             className={`project-filter-chip ${selectedCreator === 'all' ? 'is-active' : ''}`}
@@ -317,20 +401,20 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                             >{creator}</button>
                         ))}
                     </div>
-                    
-                    <div style={{ flex: 1 }} />
-                    
+                </div>
+
+                <div className="project-filter-actions">
                     {/* Sort Options */}
-                    <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.6)', borderRadius: '20px', padding: '4px', gap: '4px' }}>
+                    <div className="project-sort-control" aria-label="Project sorting">
                         <button
                             onClick={() => setSortType('rating')}
-                            style={{ border: 'none', background: sortType === 'rating' ? '#fff' : 'transparent', borderRadius: '16px', padding: '6px 12px', fontSize: '0.85rem', fontWeight: 600, color: sortType === 'rating' ? '#2d3436' : '#636e72', cursor: 'pointer', boxShadow: sortType === 'rating' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                            className={sortType === 'rating' ? 'is-active' : ''}
                         >
                             ⭐ Top Rated
                         </button>
                         <button
                             onClick={() => setSortType('name')}
-                            style={{ border: 'none', background: sortType === 'name' ? '#fff' : 'transparent', borderRadius: '16px', padding: '6px 12px', fontSize: '0.85rem', fontWeight: 600, color: sortType === 'name' ? '#2d3436' : '#636e72', cursor: 'pointer', boxShadow: sortType === 'name' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                            className={sortType === 'name' ? 'is-active' : ''}
                         >
                             🔤 A-Z
                         </button>
@@ -694,7 +778,7 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
                     <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#b2bec3' }}>🔧 Coming Soon</div>
                 )}
                 {isLive && project.url ? (
-                    <a href={project.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6c5ce7', textDecoration: 'none', background: 'rgba(108, 92, 231, 0.1)', padding: '6px 14px', borderRadius: '16px', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(108, 92, 231, 0.2)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(108, 92, 231, 0.1)'}>Open →</a>
+                    <a href={project.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6c5ce7', textDecoration: 'none', background: 'rgba(108, 92, 231, 0.1)', padding: '6px 14px', borderRadius: '16px', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => recordProjectOpen(project.id)} onMouseEnter={e => e.currentTarget.style.background = 'rgba(108, 92, 231, 0.2)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(108, 92, 231, 0.1)'}>Open →</a>
                 ) : isLive && (
                     <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#636e72' }}>Open →</div>
                 )}

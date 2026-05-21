@@ -4,7 +4,7 @@
 
 > **Every AI agent MUST read this file before starting any work session.**
 
-**Current Hajimi version:** Hajimi Beta v0.2.0-beta.8 · 2026-05-20
+**Current Hajimi version:** Hajimi Beta v0.2.0-beta.9 · 2026-05-21
 
 ---
 
@@ -93,8 +93,8 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Guest Mode:** `/resources` (The Hallway) is publicly browsable. `/functions` is public and Hub projects remain open to play. Action interceptors show a login/verification prompt on Like/Comment/Save/Post/Project Submit.
 - **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Announcement posts are visually highlighted and sorted like pinned posts at the top of the main Hallway feed. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
 - **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. The field label is `Name`, meaning school common name / English name / preferred name, not legal name. Students submit Name, G10-G13 grade, and optional student ID; teachers submit Name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for forum posts, comments, likes, bookmarks, check-ins, project ratings/comments, project submissions, and leaderboard visibility. Public UI never shows Name, student ID, or subject. Admin review shows strong conflicts for duplicate student ID hash and weak conflicts for duplicate Name + grade/subject.
-- **Hub Project Flow:** Hub projects are open to play for guests/unverified users. Verified users can submit project/new-version applications from `/functions`; admins approve/reject at `/admin/project-submissions`. Approval creates or updates live `projects` rows and preserves old project/comment data.
-- **Leaderboard:** Leaderboard only returns verified users. `/leaderboard` supports all-time, weekly, and monthly views plus all/community/project categories. All-time/all uses stored user XP; filtered weekly/monthly views are derived from existing posts, comments, likes, bookmarks, project ratings/comments, and project rows so historical data is preserved.
+- **Hub Project Flow:** Hub projects are open to play for guests/unverified users. Verified users can submit project/new-version applications from `/functions`; admins approve/reject at `/admin/project-submissions`. Approval creates or updates live `projects` rows and preserves old project/comment data. Project opens are recorded in `project_opens` for Function Hall heat rankings.
+- **Leaderboard:** Leaderboard only returns verified users. `/leaderboard` focuses on XP contribution views: all-time, daily, weekly, and monthly. Function Hall has a separate Hub project heat ranking based on rating stars, rating count, and project open activity.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
@@ -113,6 +113,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `checkins` | `user_id`, `checkin_date` |
 | `projects` | `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `rating`, `rating_count`, `created_at` |
 | `project_likes` / `project_comments` | Hub ratings and comments; verified accounts only |
+| `project_opens` | `project_id`, `user_id`, `opened_at`; open/play activity for Hub rankings |
 | `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
 | `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
 | `project_submissions` | `author_id`, `submission_type`, `project_id`, `title`, `description`, `url`, `tags`, `status`, `reviewed_by`, `reviewed_at` |

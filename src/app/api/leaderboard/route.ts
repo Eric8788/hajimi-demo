@@ -10,7 +10,7 @@ export async function GET(request: Request) {
         const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 50) : 10;
         const windowParam = searchParams.get('window');
         const categoryParam = searchParams.get('category');
-        const window = windowParam === 'week' || windowParam === 'month' ? windowParam : 'all';
+        const window = windowParam === 'day' || windowParam === 'week' || windowParam === 'month' ? windowParam : 'all';
         const category = categoryParam === 'community' || categoryParam === 'project' ? categoryParam : 'all';
         const leaderboard = await getLeaderboard(limit, window, category);
         return NextResponse.json(leaderboard);

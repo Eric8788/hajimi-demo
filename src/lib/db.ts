@@ -30,7 +30,7 @@ export interface User {
     created_at: string;
 }
 
-export type LeaderboardWindow = 'all' | 'week' | 'month';
+export type LeaderboardWindow = 'all' | 'day' | 'week' | 'month';
 export type LeaderboardCategory = 'all' | 'community' | 'project';
 
 export interface VerificationRequest {
@@ -68,6 +68,11 @@ export interface Project {
     rating: number;
     rating_count: number;
     user_score?: number; // Score given by the current user, fetched dynamically
+    open_count_today?: number;
+    open_count_week?: number;
+    open_count_month?: number;
+    open_count_total?: number;
+    hub_score?: number;
     created_at: string;
 }
 
@@ -914,12 +919,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
 
     if (window === 'all' && category === 'all') {
         const { rows } = await sql<User>`
-          SELECT id, username,
-            CASE
-              WHEN COALESCE(avatar, '') LIKE 'data:image/%' THEN COALESCE(NULLIF(avatar_emoji, ''), '👤')
-              ELSE COALESCE(NULLIF(avatar, ''), NULLIF(avatar_emoji, ''), '👤')
-            END as avatar,
-            avatar_emoji, avatar_theme, points, level, role, badge_preferences, verification_status,
+          SELECT id, username, avatar, avatar_emoji, avatar_theme, points, level, role, badge_preferences, verification_status,
             (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
           FROM users
           WHERE verification_status = 'verified'
@@ -929,7 +929,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         return rows;
     }
 
-    const sinceInterval = window === 'month' ? '30 days' : window === 'week' ? '7 days' : '36500 days';
+    const sinceInterval = window === 'month' ? '30 days' : window === 'week' ? '7 days' : window === 'day' ? '1 day' : '36500 days';
     const { rows } = await sql<User>`
       WITH score_events AS (
         SELECT posts.author_id as user_id, 10 as points, 'community' as category, posts.created_at
@@ -960,12 +960,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
           AND (${category} = 'all' OR category = ${category})
         GROUP BY user_id
       )
-      SELECT users.id, users.username,
-        CASE
-          WHEN COALESCE(users.avatar, '') LIKE 'data:image/%' THEN COALESCE(NULLIF(users.avatar_emoji, ''), '👤')
-          ELSE COALESCE(NULLIF(users.avatar, ''), NULLIF(users.avatar_emoji, ''), '👤')
-        END as avatar,
-        users.avatar_emoji, users.avatar_theme, ranked.points,
+      SELECT users.id, users.username, users.avatar, users.avatar_emoji, users.avatar_theme, ranked.points,
         GREATEST(1, FLOOR(SQRT(ranked.points / 50.0))::int + 1) as level,
         users.role, users.badge_preferences, users.verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
@@ -983,6 +978,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
 
 let projectEnhancementsReady: Promise<void> | null = null;
 let projectSubmissionsTableReady: Promise<void> | null = null;
+let projectOpenEventsReady: Promise<void> | null = null;
 
 async function ensureProjectEnhancements() {
     if (!projectEnhancementsReady) {
@@ -990,6 +986,8 @@ async function ensureProjectEnhancements() {
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 0`;
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0`;
             await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS score NUMERIC DEFAULT 5`;
+            await ensureProjectOpenEventsTable();
+            await applyProjectAttributionCorrections();
         })().catch(error => {
             projectEnhancementsReady = null;
             throw error;
@@ -997,6 +995,55 @@ async function ensureProjectEnhancements() {
     }
 
     return projectEnhancementsReady;
+}
+
+async function ensureProjectOpenEventsTable() {
+    if (!projectOpenEventsReady) {
+        projectOpenEventsReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS project_opens (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                opened_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_opens_project_opened ON project_opens(project_id, opened_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_opens_opened ON project_opens(opened_at DESC)`;
+        })().catch(error => {
+            projectOpenEventsReady = null;
+            throw error;
+        });
+    }
+
+    return projectOpenEventsReady;
+}
+
+async function applyProjectAttributionCorrections() {
+    await sql`
+      UPDATE projects
+      SET author_id = users.id
+      FROM users
+      WHERE projects.title = 'Boxhead'
+        AND lower(users.username) = 'eric'
+        AND projects.author_id IS DISTINCT FROM users.id
+    `;
+    await sql`
+      UPDATE projects
+      SET author_id = users.id
+      FROM users
+      WHERE projects.title = 'Sail Dodge'
+        AND lower(users.username) = 'jessi'
+        AND projects.author_id IS DISTINCT FROM users.id
+    `;
+    await sql`
+      UPDATE projects
+      SET author_id = users.id
+      FROM users
+      WHERE projects.title = '草原梦境'
+        AND lower(users.username) = 'luna1919810'
+        AND projects.author_id IS DISTINCT FROM users.id
+    `;
 }
 
 async function ensureProjectSubmissionsTable() {
@@ -1041,9 +1088,28 @@ export async function getProjects(): Promise<Project[]> {
       SELECT projects.*, users.username as author_name,
         COALESCE(projects.rating, 0.0) as rating,
         COALESCE(projects.rating_count, 0) as rating_count,
-        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount"
+        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount",
+        COALESCE(opens.open_count_today, 0)::int as open_count_today,
+        COALESCE(opens.open_count_week, 0)::int as open_count_week,
+        COALESCE(opens.open_count_month, 0)::int as open_count_month,
+        COALESCE(opens.open_count_total, 0)::int as open_count_total,
+        ROUND((
+          COALESCE(projects.rating, 0) * 20
+          + COALESCE(projects.rating_count, 0) * 4
+          + COALESCE(opens.open_count_today, 0) * 5
+          + COALESCE(opens.open_count_week, 0)
+        )::numeric, 1) as hub_score
       FROM projects
       JOIN users ON projects.author_id = users.id
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) FILTER (WHERE opened_at >= (date_trunc('day', NOW() AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'Asia/Shanghai'))::int as open_count_today,
+          COUNT(*) FILTER (WHERE opened_at >= NOW() - INTERVAL '7 days')::int as open_count_week,
+          COUNT(*) FILTER (WHERE opened_at >= NOW() - INTERVAL '30 days')::int as open_count_month,
+          COUNT(*)::int as open_count_total
+        FROM project_opens
+        WHERE project_id = projects.id
+      ) opens ON true
       ORDER BY created_at DESC
     `;
     return rows;
@@ -1056,7 +1122,12 @@ export async function getProjectsByAuthor(authorId: number): Promise<Project[]> 
       SELECT projects.*, users.username as author_name,
         COALESCE(projects.rating, 0.0) as rating,
         COALESCE(projects.rating_count, 0) as rating_count,
-        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount"
+        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount",
+        0::int as open_count_today,
+        0::int as open_count_week,
+        0::int as open_count_month,
+        0::int as open_count_total,
+        0::numeric as hub_score
       FROM projects
       JOIN users ON projects.author_id = users.id
       WHERE projects.author_id = ${authorId}
@@ -1078,6 +1149,19 @@ export async function createProject(data: Omit<Project, 'id' | 'likes' | 'create
     await addAwardPointsOnce(data.author_id, 'hub_project_bonus', 100);
 
     return rows[0].id;
+}
+
+export async function trackProjectOpen(projectId: number, userId?: number | null) {
+    await ensureProjectEnhancements();
+
+    const { rowCount } = await sql`
+      INSERT INTO project_opens (project_id, user_id)
+      SELECT projects.id, ${userId || null}
+      FROM projects
+      WHERE projects.id = ${projectId}
+    `;
+
+    return (rowCount ?? 0) > 0;
 }
 
 export async function rateProject(userId: number, projectId: number, score: number) {
@@ -1186,10 +1270,7 @@ export async function getProjectComments(projectId: number): Promise<ProjectComm
       SELECT 
         project_comments.*, 
         users.username as author_name, 
-        CASE
-          WHEN COALESCE(users.avatar, '') LIKE 'data:image/%' THEN COALESCE(NULLIF(users.avatar_emoji, ''), '👤')
-          ELSE COALESCE(NULLIF(users.avatar, ''), NULLIF(users.avatar_emoji, ''), '👤')
-        END as author_avatar,
+        users.avatar as author_avatar,
         users.avatar_theme as author_avatar_theme,
         (SELECT score FROM project_likes WHERE project_likes.user_id = project_comments.author_id AND project_likes.project_id = ${projectId} LIMIT 1) as author_score
       FROM project_comments
@@ -1719,6 +1800,7 @@ export async function initDB() {
   `;
     await ensureProjectEnhancements();
     await ensureProjectSubmissionsTable();
+    await ensureProjectOpenEventsTable();
 
     await ensurePointAwardsTable();
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;

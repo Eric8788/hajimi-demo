@@ -71,7 +71,7 @@ export const PROJECTS: Project[] = [
     {
         id: 'boxhead',
         title: 'Boxhead',
-        author: 'Cooka',
+        author: 'AI Club',
         description: 'A 3D survival action game with local two-player controls, waves, shooting, and arena building.',
         tags: ['Game'],
         emoji: '🎮',
@@ -126,7 +126,7 @@ export const PROJECTS: Project[] = [
     {
         id: 'lucy-grass',
         title: '草原梦境',
-        author: 'Lucy / Eric',
+        author: 'LUNA1919810',
         description: 'A small interactive visual artwork for exploring atmosphere and generative art.',
         tags: ['Visual'],
         emoji: '🌿',
@@ -159,7 +159,7 @@ export const PROJECTS: Project[] = [
     {
         id: 'sail-dodge',
         title: 'Sail Dodge',
-        author: 'AI Club',
+        author: 'Jessi',
         description: 'A polished, low-poly arcade dodge game where you navigate waves and collect combos.',
         tags: ['Game', 'Sailing'],
         emoji: '🚤',

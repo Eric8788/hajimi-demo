@@ -111,6 +111,8 @@ export default function DashboardPromoCarousel({ userRole }: { userRole?: string
                             className={index === promoIndex ? 'is-active' : ''}
                             aria-label={`Show ${promo.title}`}
                             title={promo.title}
+                            onMouseEnter={() => setPromoIndex(index)}
+                            onFocus={() => setPromoIndex(index)}
                             onClick={() => setPromoIndex(index)}
                         >
                             {promo.switchLabel}

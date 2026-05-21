@@ -1,5 +1,13 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.9 · 2026-05-21
+
+- Restored uploaded/custom avatars in the Hall of Fame leaderboard.
+- Kept Hall of Fame focused on XP daily/weekly/monthly rankings and moved Hub project heat ranking into Function Hall.
+- Added project open tracking for Hub rankings, combining ratings, review count, and play activity.
+- Refined Function Hall creator filters, sort hover states, submission actions, and promo carousel hover switching.
+- Corrected Hub project attribution for Boxhead, Sail Dodge, and 草原梦境.
+
 ## Hajimi Beta v0.2.0-beta.8 · 2026-05-20
 
 - Reworked the profile page editor so homepage content is edited inline on the actual profile instead of an abstract preview screen.

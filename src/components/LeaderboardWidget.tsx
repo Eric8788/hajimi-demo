@@ -9,16 +9,11 @@ import UserBadges from './UserBadges';
 const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
 const WINDOW_TABS = [
     { id: 'all', label: '总榜' },
+    { id: 'day', label: '日榜' },
     { id: 'week', label: '周榜' },
     { id: 'month', label: '月榜' },
 ] as const;
-const CATEGORY_TABS = [
-    { id: 'all', label: '全部' },
-    { id: 'community', label: '社区' },
-    { id: 'project', label: '项目' },
-] as const;
 type LeaderboardWindow = (typeof WINDOW_TABS)[number]['id'];
-type LeaderboardCategory = (typeof CATEGORY_TABS)[number]['id'];
 
 export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { limit?: number; showViewAll?: boolean }) {
     const router = useRouter();
@@ -26,14 +21,13 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [windowType, setWindowType] = useState<LeaderboardWindow>('all');
-    const [category, setCategory] = useState<LeaderboardCategory>('all');
 
     useEffect(() => {
         const controller = new AbortController();
         let active = true;
         setLoading(true);
         setError('');
-        fetch(`/api/leaderboard?limit=${limit}&window=${windowType}&category=${category}`, { signal: controller.signal })
+        fetch(`/api/leaderboard?limit=${limit}&window=${windowType}&category=all`, { signal: controller.signal })
             .then(res => {
                 if (!res.ok) throw new Error('Leaderboard request failed');
                 return res.json();
@@ -62,7 +56,7 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
             active = false;
             controller.abort();
         };
-    }, [category, limit, windowType]);
+    }, [limit, windowType]);
 
     const openProfile = (userId: number) => {
         router.push(`/profile/${userId}`);
@@ -98,13 +92,6 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
                             </button>
                         ))}
                     </div>
-                    <div>
-                        {CATEGORY_TABS.map(tab => (
-                            <button key={tab.id} type="button" className={category === tab.id ? 'is-active' : ''} onClick={() => setCategory(tab.id)}>
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
                 </div>
             )}
             
@@ -124,7 +111,7 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
                                 onClick={() => openProfile(user.id)}
                                 aria-label={`View ${user.username}'s profile`}
                             >
-                                <Avatar value={user.avatar} theme={user.avatar_theme} size={36} />
+                                <Avatar value={user.avatar} emoji={user.avatar_emoji} theme={user.avatar_theme} size={36} />
                             </button>
                             <div className="leaderboard-copy">
                                 <div className="leaderboard-name-line">

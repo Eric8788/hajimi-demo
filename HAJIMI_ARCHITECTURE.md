@@ -3,7 +3,7 @@
 
 *This document is written for AI Coding Assistants (or new developers) to instantly understand the project's current state, architecture, and design philosophy. Do not delete this file.*
 
-**Current version:** Hajimi Beta v0.2.0-beta.8 · 2026-05-20
+**Current version:** Hajimi Beta v0.2.0-beta.9 · 2026-05-21
 
 ## 1. Project Overview
 Hajimi is a comprehensive, gamified student community and project hub built for a high school AI Club. It serves as a forum ("The Hallway"), a personalized dashboard, and a centralized hub for all student-developed games and tools ("Function Hall").
@@ -40,6 +40,7 @@ The app uses Next.js App Router (`src/app/`).
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
   - Hub projects are open to play for guests and unverified users.
   - Verified users can submit project/new-version applications; admins approve/reject at `/admin/project-submissions` before live Hub updates.
+  - Shows a Hub project heat ranking derived from star rating, rating count, and project open activity.
   - Live data comes from the `projects` table. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
 
 ## 4. Design Philosophy & CSS
@@ -57,6 +58,7 @@ Database interactions are handled via standard SQL functions.
 - **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
 - **`projects`:** `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `status`, `rating`, `rating_count`, `created_at`.
 - **`project_likes` / `project_comments`:** Hub ratings and comments, verified-only interaction data for project contribution rankings.
+- **`project_opens`:** `id`, `project_id`, `user_id`, `opened_at`; records play/open activity for Hub daily/weekly/monthly heat rankings.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
 - **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
@@ -86,7 +88,7 @@ Database interactions are handled via standard SQL functions.
    - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
    - Only `admin` can delete any post or comment; teachers and students can delete only their own posts/comments.
    - Staff roles are visually marked with badges on posts, comments, and profile pages.
-   - Hajimi verified accounts receive a compact verified badge and can create posts/interact/submit Hub applications. The leaderboard only includes verified accounts and supports total/week/month plus community/project category views.
+   - Hajimi verified accounts receive a compact verified badge and can create posts/interact/submit Hub applications. The main leaderboard only includes verified accounts and supports XP total/day/week/month views. Hub project rankings live in Function Hall and use project ratings plus open activity.
    - Admins review pending verification requests at `/admin/verifications`. Real names, subjects, and student ID metadata must stay out of public profile/forum UI.
 6. **Hashtag and beta feedback workflow:**
    - Students can create posts with custom hashtags. Suggested examples include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`.

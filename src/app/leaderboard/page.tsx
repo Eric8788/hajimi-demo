@@ -16,7 +16,7 @@ export default async function Page() {
                     <div>
                         <span>AI Club Rankings</span>
                         <h1>🏆 Hall of Fame</h1>
-                        <p>认证用户可进入榜单；总榜看累计 XP，周榜/月榜可切换社区贡献和项目贡献。</p>
+                        <p>记录大家在 Hajimi 里的活跃贡献。Hub 项目热度榜请前往 Function Hall 查看。</p>
                     </div>
                 </div>
 
