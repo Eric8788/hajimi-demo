@@ -236,7 +236,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
-        window.location.href = '/';
+        window.location.href = '/login';
     };
 
     const handleCancelProfileEdit = () => {
@@ -789,8 +789,8 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
             </div>
 
             <div className="profile-danger-actions">
-                <button onClick={handleLogout} className="btn profile-logout-button">
-                    Logout
+                <button type="button" onClick={handleLogout} className="btn profile-logout-button">
+                    退出账号 / Log out
                 </button>
                 <button type="button" onClick={handleDeleteAccount} className="profile-delete-button">
                     Delete My Account
