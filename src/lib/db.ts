@@ -993,6 +993,7 @@ async function ensureProjectEnhancements() {
         projectEnhancementsReady = (async () => {
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 0`;
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0`;
+            await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'live'`;
             await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS score NUMERIC DEFAULT 5`;
             await ensureProjectOpenEventsTable();
             await applyProjectAttributionCorrections();
@@ -1052,6 +1053,16 @@ async function applyProjectAttributionCorrections() {
       WHERE projects.title = '草原梦境'
         AND lower(users.username) = 'luna1919810'
         AND projects.author_id IS DISTINCT FROM users.id
+    `;
+    await sql`
+      UPDATE projects
+      SET url = 'https://hub.ericproject.xyz/projects/sailer-2d/index.html',
+          status = 'live'
+      WHERE projects.title = 'Sailer 2D'
+        AND (
+          projects.url IS DISTINCT FROM 'https://hub.ericproject.xyz/projects/sailer-2d/index.html'
+          OR projects.status IS DISTINCT FROM 'live'
+        )
     `;
 }
 

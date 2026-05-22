@@ -53,7 +53,7 @@ export const PROJECTS: Project[] = [
         description: 'A serious 2D sailing simulator for learning wind, sail, rudder, force, and boat movement.',
         tags: ['Game', 'Simulation', 'Sailing'],
         emoji: '⛵',
-        url: 'https://sailer-ashy.vercel.app/',
+        url: 'https://hub.ericproject.xyz/projects/sailer-2d/index.html',
         accentColor: 'rgba(116, 185, 255, 0.2)',
         status: 'live',
     },

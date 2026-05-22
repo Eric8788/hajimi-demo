@@ -1,5 +1,11 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.14 · 2026-05-22
+
+- Repointed `Sailer 2D` from the unavailable standalone Vercel app to the Static Hub URL:
+  - `https://hub.ericproject.xyz/projects/sailer-2d/index.html`
+- Added a startup correction so existing database rows for `Sailer 2D` are kept on the Hub URL without deleting comments, ratings, opens, or project metadata.
+
 ## Hajimi Beta v0.2.0-beta.13 · 2026-05-22
 
 - Split Function Hall Hub Rankings into `热度榜` and `星级榜`, each with `今日 / 本周 / 本月` windows.
@@ -40,8 +46,7 @@
 
 ## Hajimi Beta v0.2.0-beta.7 · 2026-05-11
 
-- Bound `Sailer 2D` in Function Hall and the landing project data to the existing Vercel deployment:
-  - `https://sailer-ashy.vercel.app/`
+- Bound `Sailer 2D` in Function Hall and the landing project data to the then-current standalone deployment.
 - Marked `Sailer 2D` as live and tagged it as `Game`, `Simulation`, and `Sailing`.
 
 ## Hajimi Beta v0.2.0-beta.6 · 2026-05-11
