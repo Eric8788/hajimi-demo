@@ -15,6 +15,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
     'image/gif',
 ]);
 const HASHTAG_PATTERN = /^[\p{L}\p{N}_-]{1,24}$/u;
+const MAX_TITLE_LENGTH = 80;
 
 function safeFilename(name: string) {
     const extension = name.includes('.') ? name.split('.').pop() : 'file';
@@ -32,17 +33,6 @@ function normalizeHashtag(value: FormDataEntryValue | null) {
         .replace(/^#+/, '')
         .replace(/\s+/g, '')
         .slice(0, 24) || 'general';
-}
-
-function buildPostTitle(title: string, content: string, hasFile: boolean) {
-    if (title) return title.slice(0, 80);
-
-    const compact = content.replace(/\s+/g, ' ').trim();
-    if (compact) {
-        return compact.length > 32 ? `${compact.slice(0, 32)}...` : compact;
-    }
-
-    return hasFile ? '图片动态' : '新动态';
 }
 
 export async function GET(request: Request) {
@@ -88,8 +78,8 @@ export async function POST(request: Request) {
         const file = formData.get('file') as File | null;
         const hasFile = Boolean(file && file.size > 0);
 
-        if (!content && !hasFile) {
-            return NextResponse.json({ error: '写点内容或上传一张图片就可以发布。' }, { status: 400 });
+        if (!title) {
+            return NextResponse.json({ error: '标题必填，内容可以选填。' }, { status: 400 });
         }
 
         if (tag === 'announcement' && !isStaffRole(user.role)) {
@@ -135,7 +125,7 @@ export async function POST(request: Request) {
             type = 'image';
         }
 
-        await createPost(userId, buildPostTitle(title, content, hasFile), content, type, attachmentUrl, tag);
+        await createPost(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrl, tag);
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
         console.error(err);
@@ -166,8 +156,8 @@ export async function PATCH(request: Request) {
         const content = String(body.content || '').trim();
         const tag = normalizeHashtag(body.tag || 'general');
 
-        if (!postId || !title || !content) {
-            return NextResponse.json({ error: 'Post, title, and content are required' }, { status: 400 });
+        if (!postId || !title) {
+            return NextResponse.json({ error: 'Post and title are required' }, { status: 400 });
         }
 
         if (tag === 'announcement' && !isStaffRole(user.role)) {
@@ -178,7 +168,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Hashtags can use letters, numbers, Chinese characters, underscores, or hyphens' }, { status: 400 });
         }
 
-        const updated = await updatePost(userId, postId, title, content, tag);
+        const updated = await updatePost(userId, postId, title.slice(0, MAX_TITLE_LENGTH), content, tag);
         if (!updated) {
             return NextResponse.json({ error: 'Cannot edit post' }, { status: 403 });
         }

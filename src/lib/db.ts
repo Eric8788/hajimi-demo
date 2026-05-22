@@ -155,6 +155,7 @@ export interface Post {
     comment_count?: number;
     is_bookmarked?: boolean;
     has_liked?: boolean;
+    featured_comment?: FeaturedComment | null;
 }
 
 export interface Comment {
@@ -175,6 +176,23 @@ export interface Comment {
     author_badge_preferences?: string[] | null;
     author_verification_status?: VerificationStatus | null;
     has_liked?: boolean;
+}
+
+export interface FeaturedComment {
+    id: number;
+    author_id: number;
+    content: string;
+    likes: number;
+    created_at: Date;
+    reply_author_name?: string | null;
+    reply_content?: string | null;
+    author_name?: string;
+    author_avatar?: string;
+    author_avatar_theme?: string | null;
+    author_role?: string;
+    author_is_creator?: boolean;
+    author_badge_preferences?: string[] | null;
+    author_verification_status?: VerificationStatus | null;
 }
 
 export interface Notification {
@@ -679,6 +697,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
       users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
+      featured.featured_comment,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -687,6 +706,34 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
       ELSE false END as has_liked
       FROM posts 
       JOIN users ON posts.author_id = users.id 
+      LEFT JOIN LATERAL (
+        SELECT json_build_object(
+          'id', featured_comments.id,
+          'author_id', featured_comments.author_id,
+          'content', featured_comments.content,
+          'likes', featured_comments.likes,
+          'created_at', featured_comments.created_at,
+          'reply_author_name', parent_users.username,
+          'reply_content', parent_comments.content,
+          'author_name', comment_authors.username,
+          'author_avatar', comment_authors.avatar,
+          'author_avatar_theme', comment_authors.avatar_theme,
+          'author_role', comment_authors.role,
+          'author_is_creator', (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id),
+          'author_badge_preferences', comment_authors.badge_preferences,
+          'author_verification_status', comment_authors.verification_status
+        ) as featured_comment
+        FROM comments featured_comments
+        JOIN users comment_authors ON featured_comments.author_id = comment_authors.id
+        LEFT JOIN comments parent_comments ON featured_comments.parent_comment_id = parent_comments.id
+        LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
+        WHERE featured_comments.post_id = posts.id
+        ORDER BY
+          featured_comments.likes DESC,
+          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = featured_comments.id) DESC,
+          featured_comments.created_at DESC
+        LIMIT 1
+      ) featured ON true
       WHERE 
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
@@ -754,7 +801,10 @@ export async function getComments(postId: number, userId?: number) {
       LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
       LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
       WHERE comments.post_id = ${postId}
-      ORDER BY comments.likes DESC, comments.created_at DESC
+      ORDER BY
+        comments.likes DESC,
+        (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = comments.id) DESC,
+        comments.created_at DESC
   `;
     return rows as Comment[];
 }

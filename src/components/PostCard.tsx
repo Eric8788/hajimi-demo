@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
+import PostTextComposer from './PostTextComposer';
 
 const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
 
@@ -71,6 +72,22 @@ function shortPreview(text?: string | null) {
     return compact.length > 80 ? `${compact.slice(0, 80)}...` : compact;
 }
 
+function pickFeaturedComment(comments: Comment[]) {
+    const replyCounts = comments.reduce<Record<number, number>>((counts, comment) => {
+        if (comment.parent_comment_id) {
+            counts[comment.parent_comment_id] = (counts[comment.parent_comment_id] || 0) + 1;
+        }
+        return counts;
+    }, {});
+
+    return [...comments].sort((a, b) => {
+        if (b.likes !== a.likes) return b.likes - a.likes;
+        const replyDelta = (replyCounts[b.id] || 0) - (replyCounts[a.id] || 0);
+        if (replyDelta !== 0) return replyDelta;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })[0] ?? null;
+}
+
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
     const isGuest = !currentUser;
@@ -82,6 +99,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [displayContent, setDisplayContent] = useState(post.content);
     const [displayTag, setDisplayTag] = useState(post.tag || 'general');
     const [displayUpdatedAt, setDisplayUpdatedAt] = useState<Date | string | undefined>(post.updated_at);
+    const [featuredComment, setFeaturedComment] = useState(post.featured_comment ?? null);
     const isAnnouncement = displayTag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
@@ -127,6 +145,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 setComments(data);
                 setCommentsLoaded(true);
                 setCommentCount(data.length);
+                setFeaturedComment(pickFeaturedComment(data));
                 return data;
             }
 
@@ -149,7 +168,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setEditContent(post.content);
         setEditTag(post.tag || 'general');
         setCommentCount(post.comment_count || 0);
-    }, [post.comment_count, post.content, post.tag, post.title, post.updated_at]);
+        setFeaturedComment(post.featured_comment ?? null);
+    }, [post.comment_count, post.content, post.featured_comment, post.tag, post.title, post.updated_at]);
 
     // Lock Body Scroll when Modal is Open
     useEffect(() => {
@@ -241,6 +261,16 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             }
             return c;
         }));
+        setFeaturedComment(currentFeatured => {
+            const nextComments = comments.map(c => {
+                if (c.id === commentId) {
+                    const newLikedState = !c.has_liked;
+                    return { ...c, likes: newLikedState ? c.likes + 1 : c.likes - 1, has_liked: newLikedState };
+                }
+                return c;
+            });
+            return nextComments.length > 0 ? pickFeaturedComment(nextComments) : currentFeatured;
+        });
         if (likedNow) {
             setCommentLikeBurst(commentId);
             window.setTimeout(() => setCommentLikeBurst(current => current === commentId ? null : current), 700);
@@ -282,8 +312,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     const saveEdit = async (e: FormEvent) => {
         e.preventDefault();
-        if (!editTitle.trim() || !editContent.trim()) {
-            setEditError('Title and content are required.');
+        if (!editTitle.trim()) {
+            setEditError('Title is required.');
             return;
         }
 
@@ -326,7 +356,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             body: JSON.stringify({ action: 'delete_comment', commentId })
         });
         if (res.ok) {
-            setComments(current => current.filter(c => c.id !== commentId));
+            setComments(current => {
+                const nextComments = current.filter(c => c.id !== commentId);
+                setFeaturedComment(pickFeaturedComment(nextComments));
+                return nextComments;
+            });
             setCommentCount(current => Math.max(0, current - 1));
         }
     };
@@ -369,6 +403,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     const visibleComments = showComments ? comments : comments.slice(0, 2);
     const portalTarget = typeof document === 'undefined' ? null : document.body;
+    const featuredCommentBadgeUser = featuredComment ? {
+        username: featuredComment.author_name || '',
+        role: featuredComment.author_role || 'student',
+        is_creator: featuredComment.author_is_creator,
+        badge_preferences: featuredComment.author_badge_preferences,
+        verification_status: featuredComment.author_verification_status || undefined,
+    } : null;
 
     return (
         <div
@@ -471,18 +512,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             className="glass-input"
                             value={editTitle}
                             onChange={e => setEditTitle(e.target.value)}
-                            maxLength={120}
+                            maxLength={80}
                             required
                         />
-                        <textarea
-                            className="glass-input"
-                            value={editContent}
-                            onChange={e => setEditContent(e.target.value)}
-                            rows={6}
-                            required
-                        />
+                        <PostTextComposer value={editContent} onChange={setEditContent} rows={6} />
                         <div className="post-edit-helper">
-                            <span>Links: paste https://... or use [text](https://...)</span>
+                            <span>Links: select text and enter a domain like www.baidu.com</span>
                             <input
                                 className="glass-input"
                                 value={editTag}
@@ -504,23 +539,25 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         <h3 style={{ marginBottom: '10px', fontSize: '1.2rem' }}>{displayTitle}</h3>
 
                         {/* Truncated Text */}
-                        <div style={{
-                            position: 'relative',
-                            maxHeight: expanded ? 'none' : '100px',
-                            overflow: 'hidden',
-                            lineHeight: '1.6',
-                            color: '#4a4a4a'
-                        }}>
-                            <p style={{ whiteSpace: 'pre-wrap' }}>{renderRichText(displayContent)}</p>
-                            {/* Fade Out Overlay if truncated */}
-                            {!expanded && displayContent.length > 150 && (
-                                <div style={{
-                                    position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40px',
-                                    background: 'linear-gradient(transparent, rgba(255,255,255,0.9))',
-                                    display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
-                                }} />
-                            )}
-                        </div>
+                        {displayContent.trim() && (
+                            <div style={{
+                                position: 'relative',
+                                maxHeight: expanded ? 'none' : '100px',
+                                overflow: 'hidden',
+                                lineHeight: '1.6',
+                                color: '#4a4a4a'
+                            }}>
+                                <p style={{ whiteSpace: 'pre-wrap' }}>{renderRichText(displayContent)}</p>
+                                {/* Fade Out Overlay if truncated */}
+                                {!expanded && displayContent.length > 150 && (
+                                    <div style={{
+                                        position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40px',
+                                        background: 'linear-gradient(transparent, rgba(255,255,255,0.9))',
+                                        display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+                                    }} />
+                                )}
+                            </div>
+                        )}
 
                         {/* Expand Button */}
                         {displayContent.length > 150 && (
@@ -551,6 +588,35 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 📎 Download Attachment
                             </a>
                         )}
+                    </div>
+                )}
+
+                {!isEditing && !showComments && featuredComment && featuredCommentBadgeUser && (
+                    <div className="featured-comment-preview">
+                        <div className="featured-comment-kicker">🔥 最火评论</div>
+                        <div className="featured-comment-body">
+                            <button
+                                type="button"
+                                className="avatar-link-button comment-avatar-button"
+                                onClick={() => openProfile(featuredComment.author_id)}
+                                aria-label={`View ${featuredComment.author_name || 'comment author'} profile`}
+                            >
+                                <Avatar value={featuredComment.author_avatar} theme={featuredComment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
+                            </button>
+                            <div className="featured-comment-copy">
+                                <div className="featured-comment-author">
+                                    <span>{featuredComment.author_name}</span>
+                                    <UserBadges user={featuredCommentBadgeUser} compact iconOnly />
+                                    {featuredComment.likes > 0 && <small>{featuredComment.likes} likes</small>}
+                                </div>
+                                {featuredComment.reply_author_name && (
+                                    <div className="comment-reply-context">
+                                        Replying to @{featuredComment.reply_author_name}: {shortPreview(featuredComment.reply_content)}
+                                    </div>
+                                )}
+                                <div>{renderRichText(shortPreview(featuredComment.content))}</div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

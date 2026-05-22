@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Post, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { isStaffRole } from '@/lib/roles';
 import Avatar from './Avatar';
 import { FORUM_PROMOS } from '@/data/forumPromos';
+import PostTextComposer from './PostTextComposer';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -146,6 +147,11 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [promoIndex, setPromoIndex] = useState(0);
     const activePromo = FORUM_PROMOS[promoIndex];
+    const visiblePopularTags = popularTags.filter(({ tag }) => canPostAnnouncement || tag !== 'announcement');
+    const composerTagOptions = [
+        ...visibleTagOptions,
+        ...visiblePopularTags.map(({ tag }) => ({ id: tag, label: `# ${tag}` })),
+    ].filter((option, index, options) => options.findIndex(item => item.id === option.id) === index);
 
     const requireLogin = () => {
         if (!user) {
@@ -240,6 +246,47 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         fetchPosts(sortType, 'all', tag);
     };
 
+    const handleTagRailDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0 || event.pointerType === 'touch') return;
+
+        const scroller = event.currentTarget;
+        const startX = event.clientX;
+        const startScrollLeft = scroller.scrollLeft;
+        let didDrag = false;
+
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+            const deltaX = moveEvent.clientX - startX;
+            if (Math.abs(deltaX) < 4) return;
+
+            didDrag = true;
+            scroller.dataset.draggingFilter = 'true';
+            scroller.classList.add('is-dragging');
+            scroller.scrollLeft = startScrollLeft - deltaX;
+        };
+
+        const finishDrag = () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointercancel', finishDrag);
+            scroller.classList.remove('is-dragging');
+
+            if (didDrag) {
+                window.setTimeout(() => {
+                    delete scroller.dataset.draggingFilter;
+                }, 0);
+            }
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', finishDrag, { once: true });
+        window.addEventListener('pointercancel', finishDrag, { once: true });
+    };
+
+    const blockTagClickAfterDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
+        if (event.currentTarget.dataset.draggingFilter !== 'true') return;
+        event.preventDefault();
+        event.stopPropagation();
+    };
+
     const resetComposer = () => {
         setNewTitle('');
         setNewContent('');
@@ -273,8 +320,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             setCreateError('Please wait for image optimization to finish.');
             return;
         }
-        if (!newContent.trim() && !file) {
-            setCreateError('写点内容或上传一张图片就可以发布。');
+        if (!newTitle.trim()) {
+            setCreateError('标题必填，内容可以选填。');
             return;
         }
 
@@ -475,9 +522,15 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             </div>
 
             {/* Tags Bar */}
-            {popularTags.length > 0 && (
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#636e72', fontWeight: 600 }}>🏷️</span>
+            {visiblePopularTags.length > 0 && (
+                <div className="forum-tag-filter-row">
+                    <span>🏷️</span>
+                    <div
+                        className="project-filter-panel forum-tag-rail"
+                        aria-label="Forum hashtag filters"
+                        onPointerDown={handleTagRailDragStart}
+                        onClickCapture={blockTagClickAfterDrag}
+                    >
                     <button
                         className={`forum-chip ${selectedTag === 'all' ? 'is-active' : ''}`}
                         onClick={() => handleTagFilter('all')}
@@ -488,7 +541,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer'
                         }}
                     >All</button>
-                    {popularTags.map(t => (
+                    {visiblePopularTags.map(t => (
                         <button
                             key={t.tag}
                             className={`forum-chip ${selectedTag === t.tag ? 'is-active' : ''}`}
@@ -503,6 +556,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             #{t.tag} <span style={{ opacity: 0.7 }}>({t.count})</span>
                         </button>
                     ))}
+                    </div>
                 </div>
             )}
 
@@ -571,8 +625,16 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                     <motion.form ref={composerRef} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} onSubmit={handleCreate} className="glass-panel" style={{ padding: '25px', marginBottom: '30px', background: 'rgba(255,255,255,0.8)' }}>
                         <h3 style={{ marginBottom: '20px' }}>✨ Create a New Post</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <textarea placeholder="分享一下近况、问题或资源..." value={newContent} onChange={e => setNewContent(e.target.value)} rows={5} className="glass-input" style={{ resize: 'vertical' }} />
-                            <input placeholder="标题（可选，不填会自动生成）" value={newTitle} onChange={e => setNewTitle(e.target.value)} className="glass-input" style={{ fontWeight: 'bold', fontSize: '1.02rem' }} />
+                            <input
+                                placeholder="标题（必填）"
+                                value={newTitle}
+                                onChange={e => setNewTitle(e.target.value)}
+                                className="glass-input"
+                                maxLength={80}
+                                required
+                                style={{ fontWeight: 'bold', fontSize: '1.02rem' }}
+                            />
+                            <PostTextComposer value={newContent} onChange={setNewContent} />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <label style={{ fontSize: '0.9rem', color: '#636e72', fontWeight: 700 }}>Hashtag（可选）</label>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -585,8 +647,13 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                                         style={{ flex: 1 }}
                                     />
                                 </div>
-                                <div className="project-filter-panel" style={{ display: 'flex', gap: '8px', alignItems: 'center', paddingBottom: '10px' }}>
-                                    {visibleTagOptions.map(t => (
+                                <div
+                                    className="project-filter-panel forum-tag-rail"
+                                    aria-label="Forum composer hashtag suggestions"
+                                    onPointerDown={handleTagRailDragStart}
+                                    onClickCapture={blockTagClickAfterDrag}
+                                >
+                                    {composerTagOptions.map(t => (
                                         <button key={t.id} type="button" onClick={() => setNewTag(t.id)} style={{ padding: '5px 12px', borderRadius: '15px', border: 'none', background: newTag === t.id ? '#6c5ce7' : 'rgba(0,0,0,0.05)', color: newTag === t.id ? 'white' : '#636e72', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>{t.label}</button>
                                     ))}
                                 </div>
