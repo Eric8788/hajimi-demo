@@ -3,7 +3,7 @@
 
 *This document is written for AI Coding Assistants (or new developers) to instantly understand the project's current state, architecture, and design philosophy. Do not delete this file.*
 
-**Current version:** Hajimi Beta v0.2.0-beta.14 · 2026-05-22
+**Current version:** Hajimi Beta v0.2.0-beta.15 · 2026-05-22
 
 ## 1. Project Overview
 Hajimi is a comprehensive, gamified student community and project hub built for a high school AI Club. It serves as a forum ("The Hallway"), a personalized dashboard, and a centralized hub for all student-developed games and tools ("Function Hall").
@@ -40,7 +40,7 @@ The app uses Next.js App Router (`src/app/`).
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
   - Hub projects are open to play for guests and unverified users.
   - Verified users can submit project/new-version applications; admins approve/reject at `/admin/project-submissions` before live Hub updates.
-  - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first; rating ranks cumulative stars first while still showing selected-window play stats.
+  - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window capped effective opens first, then verified unique players and rating; rating ranks cumulative stars first while still showing selected-window play stats.
   - Live data comes from the `projects` table. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
 
 ## 4. Design Philosophy & CSS

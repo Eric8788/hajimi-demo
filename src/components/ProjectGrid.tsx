@@ -155,9 +155,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         const statsA = getHubStats(a);
         const statsB = getHubStats(b);
 
-        return statsB.uniquePlayers - statsA.uniquePlayers
+        return statsB.effectiveOpens - statsA.effectiveOpens
+            || statsB.uniquePlayers - statsA.uniquePlayers
             || Number(b.rating || 0) - Number(a.rating || 0)
-            || statsB.effectiveOpens - statsA.effectiveOpens
             || Number(b.rating_count || 0) - Number(a.rating_count || 0)
             || compareTitles(a, b);
     };
@@ -187,9 +187,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         }
         : {
             title: '🔥 项目热度榜',
-            intro: '按体验人数、星级和有效进入排序。',
+            intro: '按有效进入、体验人数和星级排序。',
             tooltipTitle: '热度榜规则',
-            tooltip: '按当前时间窗的体验人数排序；同等体验人数下星级高的排前，同等星级下有效进入高的排前。体验人数只统计已认证用户，同一项目同一人同一天算 1 人；有效进入按 30 分钟 session 去重，每人每天最多计 3 次。',
+            tooltip: '按当前时间窗的有效进入排序；同等有效进入下体验人数多的排前，再相同才看星级和评分人数。体验人数只统计已认证用户，同一项目同一人同一天算 1 人；有效进入按 30 分钟 session 去重，每人每天最多计 3 次。',
         };
 
     const filtered = projects.filter(p => {

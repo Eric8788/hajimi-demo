@@ -1,5 +1,11 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.15 · 2026-05-22
+
+- Updated Function Hall `热度榜` sorting so projects with more capped effective entries rank ahead first.
+- Kept verified unique players, star rating, rating count, and title as follow-up tie breakers.
+- Updated the Hub ranking intro and tooltip to match the effective-entry-first behavior.
+
 ## Hajimi Beta v0.2.0-beta.14 · 2026-05-22
 
 - Repointed `Sailer 2D` from the unavailable standalone Vercel app to the Static Hub URL:
