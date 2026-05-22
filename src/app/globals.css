@@ -633,15 +633,29 @@ textarea:hover,
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding: 8px;
   border-radius: 24px;
   background: rgba(255,255,255,0.46);
   border: 1px solid rgba(162,155,254,0.16);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 30px rgba(108,92,231,0.06);
+  cursor: grab;
+}
+
+.project-filter-panel:active {
+  cursor: grabbing;
+}
+
+.project-filter-panel.is-dragging {
+  scroll-behavior: auto;
+  user-select: none;
 }
 
 .project-filter-panel::-webkit-scrollbar {

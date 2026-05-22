@@ -1,5 +1,9 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.12 · 2026-05-22
+
+- Restored Function Hall filter rows to single-line horizontal scrolling instead of wrapping category chips.
+
 ## Hajimi Beta v0.2.0-beta.11 · 2026-05-22
 
 - Updated Hub heat ranking fallback so projects with no experience data in the selected time window are ordered by star rating first.

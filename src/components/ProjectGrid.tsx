@@ -209,6 +209,47 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         });
     };
 
+    const handleFilterDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0 || event.pointerType === 'touch') return;
+
+        const scroller = event.currentTarget;
+        const startX = event.clientX;
+        const startScrollLeft = scroller.scrollLeft;
+        let didDrag = false;
+
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+            const deltaX = moveEvent.clientX - startX;
+            if (Math.abs(deltaX) < 4) return;
+
+            didDrag = true;
+            scroller.dataset.draggingFilter = 'true';
+            scroller.classList.add('is-dragging');
+            scroller.scrollLeft = startScrollLeft - deltaX;
+        };
+
+        const finishDrag = () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointercancel', finishDrag);
+            scroller.classList.remove('is-dragging');
+
+            if (didDrag) {
+                window.setTimeout(() => {
+                    delete scroller.dataset.draggingFilter;
+                }, 0);
+            }
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', finishDrag, { once: true });
+        window.addEventListener('pointercancel', finishDrag, { once: true });
+    };
+
+    const blockFilterClickAfterDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.currentTarget.dataset.draggingFilter !== 'true') return;
+        event.preventDefault();
+        event.stopPropagation();
+    };
+
     const openSubmissionForm = () => {
         setSubmissionMessage('');
         if (!user) {
@@ -428,7 +469,12 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 {/* Tag Filters */}
                 <div className="project-filter-row">
                     <span>Category</span>
-                    <div className="project-filter-panel" aria-label="Project categories">
+                    <div
+                        className="project-filter-panel"
+                        aria-label="Project categories"
+                        onPointerDown={handleFilterDragStart}
+                        onClickCapture={blockFilterClickAfterDrag}
+                    >
                         <button
                             onClick={() => setSelectedTag('all')}
                             className={`project-filter-chip ${selectedTag === 'all' ? 'is-active' : ''}`}
@@ -448,7 +494,12 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 {/* Creator Filters */}
                 <div className="project-filter-row">
                     <span>Creator</span>
-                    <div className="project-filter-panel project-creator-filter-panel" aria-label="Project creators">
+                    <div
+                        className="project-filter-panel project-creator-filter-panel"
+                        aria-label="Project creators"
+                        onPointerDown={handleFilterDragStart}
+                        onClickCapture={blockFilterClickAfterDrag}
+                    >
                         <button
                             onClick={() => setSelectedCreator('all')}
                             className={`project-filter-chip ${selectedCreator === 'all' ? 'is-active' : ''}`}
