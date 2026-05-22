@@ -31,7 +31,13 @@ const HUB_LEADERBOARD_TABS = [
     { id: 'month', label: '本月' },
 ] as const;
 
+const HUB_RANKING_MODES = [
+    { id: 'heat', label: '热度榜' },
+    { id: 'rating', label: '星级榜' },
+] as const;
+
 type HubLeaderboardWindow = (typeof HUB_LEADERBOARD_TABS)[number]['id'];
+type HubRankingMode = (typeof HUB_RANKING_MODES)[number]['id'];
 
 type HubLeaderboardStats = {
     uniquePlayers: number;
@@ -80,6 +86,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [submissionLoading, setSubmissionLoading] = useState(false);
     const [projectLoadError, setProjectLoadError] = useState('');
     const [hubLeaderboardWindow, setHubLeaderboardWindow] = useState<HubLeaderboardWindow>('today');
+    const [hubRankingMode, setHubRankingMode] = useState<HubRankingMode>('heat');
 
     useEffect(() => {
         const controller = new AbortController();
@@ -142,42 +149,48 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         };
     };
 
-    const getAdjustedRating = (project: any) => {
-        const rating = Number(project.rating || 0);
-        const ratingCount = Number(project.rating_count || 0);
-        if (ratingCount <= 0) return 0;
-        return ((rating * ratingCount) + 4.2 * 3) / (ratingCount + 3);
+    const compareTitles = (a: any, b: any) => String(a.title).localeCompare(String(b.title));
+
+    const compareByHeat = (a: any, b: any) => {
+        const statsA = getHubStats(a);
+        const statsB = getHubStats(b);
+
+        return statsB.uniquePlayers - statsA.uniquePlayers
+            || Number(b.rating || 0) - Number(a.rating || 0)
+            || statsB.effectiveOpens - statsA.effectiveOpens
+            || Number(b.rating_count || 0) - Number(a.rating_count || 0)
+            || compareTitles(a, b);
     };
 
-    const getHubScore = (project: any) => {
-        const { uniquePlayers, effectiveOpens } = getHubStats(project);
-        const ratingCount = Number(project.rating_count || 0);
-        const cappedOpens = uniquePlayers > 0 ? Math.min(effectiveOpens, uniquePlayers * 3) : 0;
-        return uniquePlayers * 10 + cappedOpens * 2 + getAdjustedRating(project) * 8 + ratingCount * 1.5;
-    };
+    const compareByRatingBoard = (a: any, b: any) => {
+        const statsA = getHubStats(a);
+        const statsB = getHubStats(b);
 
-    const compareByRating = (a: any, b: any) => {
         return Number(b.rating || 0) - Number(a.rating || 0)
             || Number(b.rating_count || 0) - Number(a.rating_count || 0)
-            || String(a.title).localeCompare(String(b.title));
+            || statsB.uniquePlayers - statsA.uniquePlayers
+            || statsB.effectiveOpens - statsA.effectiveOpens
+            || compareTitles(a, b);
     };
 
     const hubLeaderboard = [...projects]
         .filter(project => project.status === 'live')
-        .sort((a, b) => {
-            const statsA = getHubStats(a);
-            const statsB = getHubStats(b);
-            const hasActivityA = statsA.uniquePlayers > 0 || statsA.effectiveOpens > 0;
-            const hasActivityB = statsB.uniquePlayers > 0 || statsB.effectiveOpens > 0;
-
-            if (!hasActivityA && !hasActivityB) return compareByRating(a, b);
-            if (hasActivityA !== hasActivityB) return hasActivityB ? 1 : -1;
-
-            const scoreA = getHubScore(a);
-            const scoreB = getHubScore(b);
-            return scoreB - scoreA || compareByRating(a, b);
-        })
+        .sort(hubRankingMode === 'rating' ? compareByRatingBoard : compareByHeat)
         .slice(0, 5);
+
+    const hubRankingCopy = hubRankingMode === 'rating'
+        ? {
+            title: '⭐ 星级榜',
+            intro: '按累计星级和评分人数排序，同时展示当前窗口体验数据。',
+            tooltipTitle: '星级榜规则',
+            tooltip: '按项目累计星级排序；同等星级下评分人数多的排前，再相同才用当前时间窗的体验人数和有效进入补充排序。今日 / 本周 / 本月不重算星级。',
+        }
+        : {
+            title: '🔥 项目热度榜',
+            intro: '按体验人数、星级和有效进入排序。',
+            tooltipTitle: '热度榜规则',
+            tooltip: '按当前时间窗的体验人数排序；同等体验人数下星级高的排前，同等星级下有效进入高的排前。体验人数只统计已认证用户，同一项目同一人同一天算 1 人；有效进入按 30 分钟 session 去重，每人每天最多计 3 次。',
+        };
 
     const filtered = projects.filter(p => {
         const tagMatch = selectedTag === 'all' || p.tags.includes(selectedTag);
@@ -413,16 +426,28 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                     <div>
                         <span>Hub Rankings</span>
                         <div className="hub-leaderboard-titleline">
-                            <h3>🔥 项目热度榜</h3>
-                            <button type="button" className="hub-leaderboard-info" aria-label="查看项目热度规则">
+                            <h3>{hubRankingCopy.title}</h3>
+                            <button type="button" className="hub-leaderboard-info" aria-label={`查看${hubRankingMode === 'rating' ? '星级榜' : '热度榜'}规则`}>
                                 i
                                 <span className="hub-leaderboard-tooltip" role="tooltip">
-                                    <strong>热榜规则</strong>
-                                    以已认证用户的独立体验人数为主；同一项目同一人同一天只算 1 人。30 分钟内重复打开算 1 次有效进入，每人每天最多计 3 次；当前时间窗没有体验数据时，默认按星级排序。
+                                    <strong>{hubRankingCopy.tooltipTitle}</strong>
+                                    {hubRankingCopy.tooltip}
                                 </span>
                             </button>
                         </div>
-                        <p>按体验人数、有效进入、星级和评分人数综合排序。</p>
+                        <p>{hubRankingCopy.intro}</p>
+                        <div className="hub-leaderboard-mode-tabs" aria-label="Hub ranking mode">
+                            {HUB_RANKING_MODES.map(mode => (
+                                <button
+                                    key={mode.id}
+                                    type="button"
+                                    className={hubRankingMode === mode.id ? 'is-active' : ''}
+                                    onClick={() => setHubRankingMode(mode.id)}
+                                >
+                                    {mode.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                     <div className="hub-leaderboard-tabs">
                         {HUB_LEADERBOARD_TABS.map(tab => (

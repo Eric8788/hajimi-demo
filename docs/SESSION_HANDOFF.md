@@ -2,7 +2,7 @@
 
 *Last updated: 2026-05-20 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.12 · 2026-05-22
+**Current version:** Hajimi Beta v0.2.0-beta.13 · 2026-05-22
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.12
+- **Current version:** Hajimi Beta v0.2.0-beta.13
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -69,7 +69,7 @@ Important:
 - After changing invite codes, redeploy Production before testing registration again.
 - Hajimi verification is optional at registration but required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, and leaderboard visibility.
 - Verification `Name` means school common/preferred name, not legal name. Public pages never show Name, student ID, or subject.
-- Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows a Hub heat ranking based on verified unique players, capped effective opens, and ratings.
+- Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows Hub `热度榜` / `星级榜` views based on verified unique players, capped effective opens, and ratings.
 - Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider failures use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks

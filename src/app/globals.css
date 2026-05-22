@@ -888,6 +888,10 @@ textarea:hover,
   margin-bottom: 14px;
 }
 
+.hub-leaderboard-head > div:first-child {
+  min-width: 0;
+}
+
 .hub-leaderboard-head span {
   display: block;
   margin-bottom: 4px;
@@ -981,6 +985,44 @@ textarea:hover,
   color: #636e72;
   font-size: 0.84rem;
   font-weight: 650;
+}
+
+.hub-leaderboard-mode-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.56);
+  border: 1px solid rgba(108,92,231,0.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+}
+
+.hub-leaderboard-mode-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 13px;
+  color: #636e72;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.hub-leaderboard-mode-tabs button:hover,
+.hub-leaderboard-mode-tabs button:focus-visible {
+  transform: translateY(-1px);
+  color: #6c5ce7;
+  background: rgba(255,255,255,0.9);
+  outline: none;
+}
+
+.hub-leaderboard-mode-tabs button.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #00b894, #6c5ce7);
+  box-shadow: 0 8px 18px rgba(0,184,148,0.16);
 }
 
 .hub-leaderboard-tabs {
@@ -4694,6 +4736,12 @@ textarea:hover,
     width: fit-content;
   }
 
+  .hub-leaderboard-mode-tabs {
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
   .alumni-map-content-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4735,6 +4783,16 @@ textarea:hover,
   .project-submit-open,
   .project-submit-review {
     width: 100%;
+  }
+
+  .hub-leaderboard-tabs,
+  .hub-leaderboard-mode-tabs {
+    width: 100%;
+  }
+
+  .hub-leaderboard-tabs button,
+  .hub-leaderboard-mode-tabs button {
+    flex: 1 1 0;
   }
 
   .hub-leaderboard-list {

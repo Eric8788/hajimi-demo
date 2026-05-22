@@ -1,5 +1,12 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.13 · 2026-05-22
+
+- Split Function Hall Hub Rankings into `热度榜` and `星级榜`, each with `今日 / 本周 / 本月` windows.
+- Updated heat ranking to sort by verified unique players first, then star rating, effective opens, rating count, and title.
+- Added a rating leaderboard sorted by cumulative star rating, with windowed play stats shown alongside each project.
+- Made the ranking info tooltip change with the selected leaderboard mode.
+
 ## Hajimi Beta v0.2.0-beta.12 · 2026-05-22
 
 - Restored Function Hall filter rows to single-line horizontal scrolling instead of wrapping category chips.
