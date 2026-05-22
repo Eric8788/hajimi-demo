@@ -2,7 +2,7 @@
 
 *Last updated: 2026-05-20 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.10 · 2026-05-22
+**Current version:** Hajimi Beta v0.2.0-beta.11 · 2026-05-22
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.10
+- **Current version:** Hajimi Beta v0.2.0-beta.11
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done

@@ -1,5 +1,10 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.11 · 2026-05-22
+
+- Updated Hub heat ranking fallback so projects with no experience data in the selected time window are ordered by star rating first.
+- Clarified the Hub ranking info tooltip with the zero-experience fallback rule.
+
 ## Hajimi Beta v0.2.0-beta.10 · 2026-05-22
 
 - Changed Function Hall project heat ranking to prioritize verified unique players, with effective opens counted as capped 30-minute sessions.

@@ -156,12 +156,26 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         return uniquePlayers * 10 + cappedOpens * 2 + getAdjustedRating(project) * 8 + ratingCount * 1.5;
     };
 
+    const compareByRating = (a: any, b: any) => {
+        return Number(b.rating || 0) - Number(a.rating || 0)
+            || Number(b.rating_count || 0) - Number(a.rating_count || 0)
+            || String(a.title).localeCompare(String(b.title));
+    };
+
     const hubLeaderboard = [...projects]
         .filter(project => project.status === 'live')
         .sort((a, b) => {
+            const statsA = getHubStats(a);
+            const statsB = getHubStats(b);
+            const hasActivityA = statsA.uniquePlayers > 0 || statsA.effectiveOpens > 0;
+            const hasActivityB = statsB.uniquePlayers > 0 || statsB.effectiveOpens > 0;
+
+            if (!hasActivityA && !hasActivityB) return compareByRating(a, b);
+            if (hasActivityA !== hasActivityB) return hasActivityB ? 1 : -1;
+
             const scoreA = getHubScore(a);
             const scoreB = getHubScore(b);
-            return scoreB - scoreA || String(a.title).localeCompare(String(b.title));
+            return scoreB - scoreA || compareByRating(a, b);
         })
         .slice(0, 5);
 
@@ -363,7 +377,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                 i
                                 <span className="hub-leaderboard-tooltip" role="tooltip">
                                     <strong>热榜规则</strong>
-                                    以已认证用户的独立体验人数为主；同一项目同一人同一天只算 1 人。30 分钟内重复打开算 1 次有效进入，每人每天最多计 3 次；星级和评分人数作为质量加成。
+                                    以已认证用户的独立体验人数为主；同一项目同一人同一天只算 1 人。30 分钟内重复打开算 1 次有效进入，每人每天最多计 3 次；当前时间窗没有体验数据时，默认按星级排序。
                                 </span>
                             </button>
                         </div>
