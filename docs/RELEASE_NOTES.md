@@ -1,5 +1,11 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.10 · 2026-05-22
+
+- Changed Function Hall project heat ranking to prioritize verified unique players, with effective opens counted as capped 30-minute sessions.
+- Added an information icon beside the Hub heat ranking title; hover or focus reveals the ranking rules.
+- Updated Hub ranking cards to show players, effective opens, and star rating instead of raw open count.
+
 ## Hajimi Beta v0.2.0-beta.9 · 2026-05-21
 
 - Restored uploaded/custom avatars in the Hall of Fame leaderboard.

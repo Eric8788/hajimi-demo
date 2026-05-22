@@ -72,6 +72,14 @@ export interface Project {
     open_count_week?: number;
     open_count_month?: number;
     open_count_total?: number;
+    unique_open_count_today?: number;
+    unique_open_count_week?: number;
+    unique_open_count_month?: number;
+    unique_open_count_total?: number;
+    effective_open_count_today?: number;
+    effective_open_count_week?: number;
+    effective_open_count_month?: number;
+    effective_open_count_total?: number;
     hub_score?: number;
     created_at: string;
 }
@@ -1009,6 +1017,7 @@ async function ensureProjectOpenEventsTable() {
               );
             `;
             await sql`CREATE INDEX IF NOT EXISTS idx_project_opens_project_opened ON project_opens(project_id, opened_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_opens_project_user_opened ON project_opens(project_id, user_id, opened_at DESC)`;
             await sql`CREATE INDEX IF NOT EXISTS idx_project_opens_opened ON project_opens(opened_at DESC)`;
         })().catch(error => {
             projectOpenEventsReady = null;
@@ -1089,26 +1098,78 @@ export async function getProjects(): Promise<Project[]> {
         COALESCE(projects.rating, 0.0) as rating,
         COALESCE(projects.rating_count, 0) as rating_count,
         (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount",
-        COALESCE(opens.open_count_today, 0)::int as open_count_today,
-        COALESCE(opens.open_count_week, 0)::int as open_count_week,
-        COALESCE(opens.open_count_month, 0)::int as open_count_month,
-        COALESCE(opens.open_count_total, 0)::int as open_count_total,
+        COALESCE(opens.effective_open_count_today, 0)::int as open_count_today,
+        COALESCE(opens.effective_open_count_week, 0)::int as open_count_week,
+        COALESCE(opens.effective_open_count_month, 0)::int as open_count_month,
+        COALESCE(opens.effective_open_count_total, 0)::int as open_count_total,
+        COALESCE(opens.unique_open_count_today, 0)::int as unique_open_count_today,
+        COALESCE(opens.unique_open_count_week, 0)::int as unique_open_count_week,
+        COALESCE(opens.unique_open_count_month, 0)::int as unique_open_count_month,
+        COALESCE(opens.unique_open_count_total, 0)::int as unique_open_count_total,
+        COALESCE(opens.effective_open_count_today, 0)::int as effective_open_count_today,
+        COALESCE(opens.effective_open_count_week, 0)::int as effective_open_count_week,
+        COALESCE(opens.effective_open_count_month, 0)::int as effective_open_count_month,
+        COALESCE(opens.effective_open_count_total, 0)::int as effective_open_count_total,
         ROUND((
-          COALESCE(projects.rating, 0) * 20
-          + COALESCE(projects.rating_count, 0) * 4
-          + COALESCE(opens.open_count_today, 0) * 5
-          + COALESCE(opens.open_count_week, 0)
+          COALESCE(opens.unique_open_count_today, 0) * 10
+          + COALESCE(opens.effective_open_count_today, 0) * 2
+          + CASE
+              WHEN COALESCE(projects.rating_count, 0) > 0
+              THEN (((COALESCE(projects.rating, 0) * COALESCE(projects.rating_count, 0)) + 4.2 * 3) / (COALESCE(projects.rating_count, 0) + 3)) * 8
+              ELSE 0
+            END
+          + COALESCE(projects.rating_count, 0) * 1.5
         )::numeric, 1) as hub_score
       FROM projects
       JOIN users ON projects.author_id = users.id
       LEFT JOIN LATERAL (
+        WITH verified_opens AS (
+          SELECT
+            project_opens.user_id,
+            project_opens.opened_at,
+            (project_opens.opened_at AT TIME ZONE 'Asia/Shanghai')::date as local_day
+          FROM project_opens
+          JOIN users open_users ON open_users.id = project_opens.user_id
+          WHERE project_opens.project_id = projects.id
+            AND project_opens.user_id IS NOT NULL
+            AND open_users.verification_status = 'verified'
+        ),
+        ordered_opens AS (
+          SELECT
+            user_id,
+            opened_at,
+            local_day,
+            LAG(opened_at) OVER (PARTITION BY user_id, local_day ORDER BY opened_at) as previous_opened_at
+          FROM verified_opens
+        ),
+        session_opens AS (
+          SELECT user_id, opened_at, local_day
+          FROM ordered_opens
+          WHERE previous_opened_at IS NULL OR opened_at - previous_opened_at >= INTERVAL '30 minutes'
+        ),
+        daily_effective AS (
+          SELECT
+            user_id,
+            local_day,
+            LEAST(COUNT(*)::int, 3) as effective_sessions
+          FROM session_opens
+          GROUP BY user_id, local_day
+        ),
+        boundaries AS (
+          SELECT
+            (NOW() AT TIME ZONE 'Asia/Shanghai')::date as today,
+            ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 6) as week_start,
+            ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 29) as month_start
+        )
         SELECT
-          COUNT(*) FILTER (WHERE opened_at >= (date_trunc('day', NOW() AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'Asia/Shanghai'))::int as open_count_today,
-          COUNT(*) FILTER (WHERE opened_at >= NOW() - INTERVAL '7 days')::int as open_count_week,
-          COUNT(*) FILTER (WHERE opened_at >= NOW() - INTERVAL '30 days')::int as open_count_month,
-          COUNT(*)::int as open_count_total
-        FROM project_opens
-        WHERE project_id = projects.id
+          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens, boundaries WHERE local_day = today) as unique_open_count_today,
+          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens, boundaries WHERE local_day >= week_start) as unique_open_count_week,
+          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens, boundaries WHERE local_day >= month_start) as unique_open_count_month,
+          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens) as unique_open_count_total,
+          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective, boundaries WHERE local_day = today) as effective_open_count_today,
+          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective, boundaries WHERE local_day >= week_start) as effective_open_count_week,
+          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective, boundaries WHERE local_day >= month_start) as effective_open_count_month,
+          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective) as effective_open_count_total
       ) opens ON true
       ORDER BY created_at DESC
     `;
@@ -1127,6 +1188,14 @@ export async function getProjectsByAuthor(authorId: number): Promise<Project[]> 
         0::int as open_count_week,
         0::int as open_count_month,
         0::int as open_count_total,
+        0::int as unique_open_count_today,
+        0::int as unique_open_count_week,
+        0::int as unique_open_count_month,
+        0::int as unique_open_count_total,
+        0::int as effective_open_count_today,
+        0::int as effective_open_count_week,
+        0::int as effective_open_count_month,
+        0::int as effective_open_count_total,
         0::numeric as hub_score
       FROM projects
       JOIN users ON projects.author_id = users.id

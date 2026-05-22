@@ -33,6 +33,11 @@ const HUB_LEADERBOARD_TABS = [
 
 type HubLeaderboardWindow = (typeof HUB_LEADERBOARD_TABS)[number]['id'];
 
+type HubLeaderboardStats = {
+    uniquePlayers: number;
+    effectiveOpens: number;
+};
+
 type ProjectGridProps = {
     user: User | null;
     canSubmitProjects?: boolean;
@@ -116,17 +121,46 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
     const uniqueCreators = Array.from(new Set(projects.map(p => getDisplayName(p.author_name || p.author)))).sort();
 
-    const getHubActivity = (project: any) => {
-        if (hubLeaderboardWindow === 'month') return Number(project.open_count_month || 0);
-        if (hubLeaderboardWindow === 'week') return Number(project.open_count_week || 0);
-        return Number(project.open_count_today || 0);
+    const getHubStats = (project: any): HubLeaderboardStats => {
+        if (hubLeaderboardWindow === 'month') {
+            return {
+                uniquePlayers: Number(project.unique_open_count_month || 0),
+                effectiveOpens: Number(project.effective_open_count_month ?? project.open_count_month ?? 0),
+            };
+        }
+
+        if (hubLeaderboardWindow === 'week') {
+            return {
+                uniquePlayers: Number(project.unique_open_count_week || 0),
+                effectiveOpens: Number(project.effective_open_count_week ?? project.open_count_week ?? 0),
+            };
+        }
+
+        return {
+            uniquePlayers: Number(project.unique_open_count_today || 0),
+            effectiveOpens: Number(project.effective_open_count_today ?? project.open_count_today ?? 0),
+        };
+    };
+
+    const getAdjustedRating = (project: any) => {
+        const rating = Number(project.rating || 0);
+        const ratingCount = Number(project.rating_count || 0);
+        if (ratingCount <= 0) return 0;
+        return ((rating * ratingCount) + 4.2 * 3) / (ratingCount + 3);
+    };
+
+    const getHubScore = (project: any) => {
+        const { uniquePlayers, effectiveOpens } = getHubStats(project);
+        const ratingCount = Number(project.rating_count || 0);
+        const cappedOpens = uniquePlayers > 0 ? Math.min(effectiveOpens, uniquePlayers * 3) : 0;
+        return uniquePlayers * 10 + cappedOpens * 2 + getAdjustedRating(project) * 8 + ratingCount * 1.5;
     };
 
     const hubLeaderboard = [...projects]
         .filter(project => project.status === 'live')
         .sort((a, b) => {
-            const scoreA = Number(a.rating || 0) * 20 + Number(a.rating_count || 0) * 4 + getHubActivity(a) * 6;
-            const scoreB = Number(b.rating || 0) * 20 + Number(b.rating_count || 0) * 4 + getHubActivity(b) * 6;
+            const scoreA = getHubScore(a);
+            const scoreB = getHubScore(b);
             return scoreB - scoreA || String(a.title).localeCompare(String(b.title));
         })
         .slice(0, 5);
@@ -323,8 +357,17 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 <div className="hub-leaderboard-head">
                     <div>
                         <span>Hub Rankings</span>
-                        <h3>🔥 项目热度榜</h3>
-                        <p>按星级、评分人数和进入游玩次数综合排序。</p>
+                        <div className="hub-leaderboard-titleline">
+                            <h3>🔥 项目热度榜</h3>
+                            <button type="button" className="hub-leaderboard-info" aria-label="查看项目热度规则">
+                                i
+                                <span className="hub-leaderboard-tooltip" role="tooltip">
+                                    <strong>热榜规则</strong>
+                                    以已认证用户的独立体验人数为主；同一项目同一人同一天只算 1 人。30 分钟内重复打开算 1 次有效进入，每人每天最多计 3 次；星级和评分人数作为质量加成。
+                                </span>
+                            </button>
+                        </div>
+                        <p>按体验人数、有效进入、星级和评分人数综合排序。</p>
                     </div>
                     <div className="hub-leaderboard-tabs">
                         {HUB_LEADERBOARD_TABS.map(tab => (
@@ -340,24 +383,29 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                     </div>
                 </div>
                 <div className="hub-leaderboard-list">
-                    {hubLeaderboard.map((project, index) => (
-                        <a
-                            key={project.id}
-                            className="hub-leaderboard-row"
-                            href={project.url || '#'}
-                            target={project.url ? '_blank' : undefined}
-                            rel={project.url ? 'noopener noreferrer' : undefined}
-                            onClick={() => recordProjectOpen(project.id)}
-                        >
-                            <strong>{index + 1}</strong>
-                            <span className="hub-leaderboard-emoji">{project.emoji}</span>
-                            <span className="hub-leaderboard-title">
-                                {project.title}
-                                <small>by {getDisplayName(project.author_name || project.author)}</small>
-                            </span>
-                            <span className="hub-leaderboard-meta">⭐ {Number(project.rating || 0).toFixed(1)} · {getHubActivity(project)} 次进入</span>
-                        </a>
-                    ))}
+                    {hubLeaderboard.map((project, index) => {
+                        const stats = getHubStats(project);
+                        return (
+                            <a
+                                key={project.id}
+                                className="hub-leaderboard-row"
+                                href={project.url || '#'}
+                                target={project.url ? '_blank' : undefined}
+                                rel={project.url ? 'noopener noreferrer' : undefined}
+                                onClick={() => recordProjectOpen(project.id)}
+                            >
+                                <strong>{index + 1}</strong>
+                                <span className="hub-leaderboard-emoji">{project.emoji}</span>
+                                <span className="hub-leaderboard-title">
+                                    {project.title}
+                                    <small>by {getDisplayName(project.author_name || project.author)}</small>
+                                </span>
+                                <span className="hub-leaderboard-meta">
+                                    {stats.uniquePlayers} 人体验 · {stats.effectiveOpens} 次有效进入 · ⭐ {Number(project.rating || 0).toFixed(1)}
+                                </span>
+                            </a>
+                        );
+                    })}
                 </div>
             </section>
 
