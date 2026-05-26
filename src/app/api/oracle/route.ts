@@ -4,7 +4,9 @@ import { getSession } from '@/lib/auth';
 
 const SILICONFLOW_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const DASHSCOPE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-const API_TIMEOUT_MS = 24000;
+const ZENMUX_URL = 'https://zenmux.ai/api/v1/chat/completions';
+const PROVIDER_TIMEOUT_MS = 16000;
+const ORACLE_TOTAL_TIMEOUT_MS = 26000;
 const DAILY_ORACLE_LIMIT = 3;
 
 type OracleCard = {
@@ -14,39 +16,79 @@ type OracleCard = {
 };
 
 type OracleProviderConfig = {
+    provider: 'custom' | 'dashscope' | 'siliconflow' | 'zenmux' | 'tokendance';
     apiKey: string;
     apiUrl: string;
     model: string;
 };
 
-function getOracleConfig(): OracleProviderConfig | null {
-    const customKey = process.env.HAJIMI_ORACLE_API_KEY?.trim();
-    const customUrl = process.env.HAJIMI_ORACLE_API_URL?.trim();
-    const customModel = process.env.HAJIMI_ORACLE_MODEL?.trim();
+function env(name: string) {
+    return process.env[name]?.trim() || '';
+}
+
+function getTokendanceUrl() {
+    const baseUrl = env('TOKENDANCE_BASE_URL');
+    if (!baseUrl) return '';
+    return `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+}
+
+function getOracleConfigs(): OracleProviderConfig[] {
+    const configs: OracleProviderConfig[] = [];
+    const customKey = env('HAJIMI_ORACLE_API_KEY');
+    const customUrl = env('HAJIMI_ORACLE_API_URL');
+    const customModel = env('HAJIMI_ORACLE_MODEL');
 
     if (customKey && customUrl && customModel) {
-        return { apiKey: customKey, apiUrl: customUrl, model: customModel };
+        configs.push({
+            provider: 'custom',
+            apiKey: customKey,
+            apiUrl: customUrl,
+            model: customModel,
+        });
     }
 
-    const dashscopeKey = process.env.DASHSCOPE_API_KEY?.trim();
+    const zenmuxKey = env('ZENMUX_API_KEY');
+    if (zenmuxKey) {
+        configs.push({
+            provider: 'zenmux',
+            apiKey: zenmuxKey,
+            apiUrl: ZENMUX_URL,
+            model: env('HAJIMI_ORACLE_ZENMUX_MODEL') || 'deepseek/deepseek-v3.2',
+        });
+    }
+
+    const dashscopeKey = env('DASHSCOPE_API_KEY');
     if (dashscopeKey) {
-        return {
+        configs.push({
+            provider: 'dashscope',
             apiKey: dashscopeKey,
             apiUrl: DASHSCOPE_URL,
-            model: customModel || 'qwen-plus',
-        };
+            model: env('HAJIMI_ORACLE_DASHSCOPE_MODEL') || 'qwen-max',
+        });
     }
 
-    const siliconflowKey = process.env.SILICONFLOW_API_KEY?.trim();
+    const siliconflowKey = env('SILICONFLOW_API_KEY');
     if (siliconflowKey) {
-        return {
+        configs.push({
+            provider: 'siliconflow',
             apiKey: siliconflowKey,
             apiUrl: SILICONFLOW_URL,
-            model: customModel || 'Qwen/Qwen2.5-7B-Instruct',
-        };
+            model: env('HAJIMI_ORACLE_SILICONFLOW_MODEL') || 'deepseek-ai/DeepSeek-V3',
+        });
     }
 
-    return null;
+    const tokendanceKey = env('TOKENDANCE_API_KEY');
+    const tokendanceUrl = getTokendanceUrl();
+    if (tokendanceKey && tokendanceUrl) {
+        configs.push({
+            provider: 'tokendance',
+            apiKey: tokendanceKey,
+            apiUrl: tokendanceUrl,
+            model: env('HAJIMI_ORACLE_TOKENDANCE_MODEL') || 'deepseek-v3.2',
+        });
+    }
+
+    return configs;
 }
 
 function isOracleCard(value: unknown): value is OracleCard {
@@ -80,6 +122,45 @@ function buildFallbackReading(cards: OracleCard[]) {
         `现在的 ${present.name} 把焦点拉回当下：先分清楚你是在追求真实目标，还是在回应别人的期待。今天最重要的不是一次性解决全部，而是把一个模糊压力拆成可命名、可行动的小块。`,
         `未来的 ${future.name} 提醒你，能量会从一个很小的动作里回来。选一件 20 分钟内能完成的事，写下结果，或者找一个可信的人讲清楚你的下一步。不要等状态完美，先让自己重新进入流动。`,
     ].join('\n\n');
+}
+
+async function requestOracleReading(config: OracleProviderConfig, system: string, userPrompt: string, timeoutMs: number) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch(config.apiUrl, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${config.apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: config.model,
+                temperature: 0.86,
+                max_tokens: 1100,
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: `抽到的牌如下：\n${userPrompt}\n请给出本次 Oracle Insight：先读出三张牌之间的张力，再给一个今天可以尝试的小行动。` },
+                ],
+            }),
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`${config.provider} ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (typeof content !== 'string' || !content.trim()) {
+            throw new Error(`${config.provider} returned an empty oracle reading`);
+        }
+
+        return sanitizeReading(content);
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 async function ensureOracleReadingsTable() {
@@ -149,8 +230,8 @@ export async function POST(request: Request) {
             remaining: remainingBeforeReading - 1,
             limit: DAILY_ORACLE_LIMIT,
         };
-        const config = getOracleConfig();
-        if (!config) {
+        const configs = getOracleConfigs();
+        if (configs.length === 0) {
             await recordOracleReading(userId, cards);
             return NextResponse.json({
                 reading: fallbackReading,
@@ -161,8 +242,9 @@ export async function POST(request: Request) {
         const system = [
             '你是 Hajimi 的 Cyber Oracle。请用中文为高中 AI Club 学生生成一段有深度、温暖、有创意的塔罗解读。',
             '这只是反思和灵感，不要使用宿命论、恐吓、医疗、法律、投资等严肃建议。',
-            '输出 260-420 个中文字符，不要 Markdown，不要机械分点，不要复述英文卡牌释义。',
+            '输出 420-680 个中文字符，不要 Markdown，不要机械分点，不要复述英文卡牌释义。',
             '必须把三张牌串成一个清晰故事：过去的惯性/卡点，现在的真实课题，未来一两天可执行的微行动。',
+            '不要只给安慰和漂亮话；要指出一个真实矛盾、一个容易忽略的心理机制，以及一个可验证的小实验。',
             '可以结合高中学生常见场景：学习、社交、创作、社团项目、焦虑、拖延和自我期待。',
             '语气要像一个懂学习、创作、社交和成长的 AI 朋友，具体、有画面，但不要装神秘。',
         ].join('\n');
@@ -170,63 +252,33 @@ export async function POST(request: Request) {
             .map(card => `${card.position}: ${card.name} (${card.meaning})`)
             .join('\n');
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+        const oracleStartedAt = Date.now();
 
-        let response: Response;
-        try {
-            response = await fetch(config.apiUrl, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${config.apiKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: config.model,
-                    temperature: 0.88,
-                    max_tokens: 720,
-                    messages: [
-                        { role: 'system', content: system },
-                        { role: 'user', content: `抽到的牌如下：\n${userPrompt}\n请给出本次 Oracle Insight：先读出三张牌之间的张力，再给一个今天可以尝试的小行动。` },
-                    ],
-                }),
-                signal: controller.signal,
-            });
-        } catch (error) {
-            console.error('[oracle] provider request failed, using fallback', error);
-            await recordOracleReading(userId, cards);
-            return NextResponse.json({
-                reading: fallbackReading,
-                ...responsePayloadMeta,
-            });
-        } finally {
-            clearTimeout(timeoutId);
-        }
+        for (const config of configs) {
+            const remainingBudget = ORACLE_TOTAL_TIMEOUT_MS - (Date.now() - oracleStartedAt);
+            if (remainingBudget < 2500) break;
 
-        if (!response.ok) {
-            const detail = await response.text();
-            console.error('[oracle] provider error', response.status, detail.slice(0, 500));
-            await recordOracleReading(userId, cards);
-            return NextResponse.json({
-                reading: fallbackReading,
-                ...responsePayloadMeta,
-            });
-        }
+            try {
+                const reading = await requestOracleReading(
+                    config,
+                    system,
+                    userPrompt,
+                    Math.min(PROVIDER_TIMEOUT_MS, remainingBudget),
+                );
+                await recordOracleReading(userId, cards);
 
-        const data = await response.json();
-        const content = data?.choices?.[0]?.message?.content;
-        if (typeof content !== 'string' || !content.trim()) {
-            await recordOracleReading(userId, cards);
-            return NextResponse.json({
-                reading: fallbackReading,
-                ...responsePayloadMeta,
-            });
+                return NextResponse.json({
+                    reading,
+                    ...responsePayloadMeta,
+                });
+            } catch (error) {
+                console.error(`[oracle] ${config.provider} request failed, trying next provider`, error);
+            }
         }
 
         await recordOracleReading(userId, cards);
-
         return NextResponse.json({
-            reading: sanitizeReading(content),
+            reading: fallbackReading,
             ...responsePayloadMeta,
         });
     } catch (error) {

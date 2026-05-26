@@ -44,6 +44,20 @@ type HubLeaderboardStats = {
     effectiveOpens: number;
 };
 
+type SpotlightKind = 'submit' | 'cpaper' | 'ocean';
+
+type HubSpotlightCopy = {
+    kind: SpotlightKind;
+    label: string;
+    status: string;
+    titleBefore: string;
+    titleAccent: string;
+    titleAfter: string;
+    text: string;
+    meta: string[];
+    ctaLabel: string;
+};
+
 type ProjectGridProps = {
     user: User | null;
     canSubmitProjects?: boolean;
@@ -63,6 +77,49 @@ function recordProjectOpen(projectId: number | string) {
         body: payload,
         keepalive: true,
     }).catch(() => {});
+}
+
+function getSpotlightKind(project: any): SpotlightKind | null {
+    const fingerprint = `${project.title || ''} ${project.url || ''}`.toLowerCase();
+
+    if (fingerprint.includes('c-paper') || fingerprint.includes('cpaper') || fingerprint.includes('yiming.us/c-paper')) {
+        return 'cpaper';
+    }
+
+    if (fingerprint.includes('the ocean explorer') || fingerprint.includes('regatta-info.top')) {
+        return 'ocean';
+    }
+
+    return null;
+}
+
+function getSpotlightOrder(project: any) {
+    const kind = getSpotlightKind(project);
+    if (kind === 'cpaper') return 0;
+    if (kind === 'ocean') return 1;
+    return 99;
+}
+
+function getProjectTagline(project: any) {
+    const explicitTagline = String(project.tagline || project.summary || '').trim();
+    if (explicitTagline) return explicitTagline.slice(0, 96);
+
+    const description = String(project.description || '').replace(/\s+/g, ' ').trim();
+    if (!description) return '打开体验项目，然后把真实反馈留给创作者。';
+
+    const firstSentence = description.split(/(?<=[。！？.!?])\s*/)[0]?.trim();
+    const tagline = firstSentence && firstSentence.length <= 88 ? firstSentence : description.slice(0, 88);
+    return tagline.replace(/[，,；;：:]\s*$/, '');
+}
+
+function getPrimaryProjectTag(project: any) {
+    return Array.isArray(project.tags) && project.tags.length > 0 ? project.tags[0] : 'Project';
+}
+
+function isValidCoverUrl(url: unknown) {
+    if (typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    return /^https?:\/\//i.test(trimmed);
 }
 
 export default function ProjectGrid({ user, canSubmitProjects = false }: ProjectGridProps) {
@@ -87,6 +144,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [projectLoadError, setProjectLoadError] = useState('');
     const [hubLeaderboardWindow, setHubLeaderboardWindow] = useState<HubLeaderboardWindow>('today');
     const [hubRankingMode, setHubRankingMode] = useState<HubRankingMode>('heat');
+    const [spotlightIndex, setSpotlightIndex] = useState(0);
+    const [spotlightPaused, setSpotlightPaused] = useState(false);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -119,6 +178,24 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         };
     }, []);
 
+    useEffect(() => {
+        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 1;
+        if (spotlightCount > 0 && spotlightIndex >= spotlightCount) {
+            setSpotlightIndex(0);
+        }
+    }, [projects, spotlightIndex]);
+
+    useEffect(() => {
+        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 1;
+        if (spotlightPaused || spotlightCount <= 1) return;
+
+        const timer = window.setInterval(() => {
+            setSpotlightIndex(current => (current + 1) % spotlightCount);
+        }, 6500);
+
+        return () => window.clearInterval(timer);
+    }, [projects, spotlightPaused]);
+
     if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading functions...</div>;
 
     const getDisplayName = (name: string) => {
@@ -126,7 +203,71 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         return name.toLowerCase() === 'eric' ? 'AI Club' : name;
     };
 
+    const getSpotlightCopy = (project: any): HubSpotlightCopy | null => {
+        const kind = getSpotlightKind(project);
+        const authorName = getDisplayName(project.author_name || project.author);
+
+        if (kind === 'cpaper') {
+            return {
+                kind,
+                label: 'Playtest',
+                status: `${project.title} · by ${authorName} · CIE 试卷下载器`,
+                titleBefore: '试一次从',
+                titleAccent: '科目代码',
+                titleAfter: '到批量下载的完整流程',
+                text: '建议用真实 CIE 复习任务测试：是否能快速找到年份、季节和 Paper 类型；Question Paper 与 Mark Scheme 是否容易配对；下载历史和收藏是否真的省时间。',
+                meta: ['科目代码', '考试季节', 'Paper 类型', '批量下载'],
+                ctaLabel: '立即体验',
+            };
+        }
+
+        if (kind === 'ocean') {
+            return {
+                kind,
+                label: 'New Project',
+                status: `${project.title} · by ${authorName} · 远航帆船社区`,
+                titleBefore: '',
+                titleAccent: project.title || 'THE OCEAN EXPLORER',
+                titleAfter: ' 远航帆船社区',
+                text: '面向帆船赛事和训练的信息社区，用来查看赛事排名、赛事轨迹、个人水手排名和龙骨船队排名，把分散的赛事资料收束到同一个入口。',
+                meta: ['Sailing', '赛事排名', '轨迹 / 排名', `⭐ ${Number(project.rating || 0).toFixed(1)} · ${Number(project.rating_count || 0)} 条反馈`],
+                ctaLabel: '立即体验',
+            };
+        }
+
+        return null;
+    };
+
     const uniqueCreators = Array.from(new Set(projects.map(p => getDisplayName(p.author_name || p.author)))).sort();
+
+    const spotlightProjects = [...projects]
+        .filter(project => project.status === 'live' && getSpotlightKind(project))
+        .sort((a, b) => getSpotlightOrder(a) - getSpotlightOrder(b) || String(a.title).localeCompare(String(b.title)));
+    const spotlightSlides = [
+        {
+            key: 'creator-pipeline',
+            project: null,
+            copy: {
+                kind: 'submit' as const,
+                label: 'Creator Pipeline',
+                status: '项目 / 新版本申请',
+                titleBefore: '提交',
+                titleAccent: '项目申请',
+                titleAfter: '，审核后上线',
+                text: 'Hub 项目开放体验；新项目和新版本先提交申请，管理员审核后发布。',
+                meta: ['新项目', '新版本', '审核上线'],
+                ctaLabel: showSubmissionForm ? '收起申请' : '提交申请',
+            },
+        },
+        ...spotlightProjects
+            .map(project => ({
+                key: String(project.id),
+                project,
+                copy: getSpotlightCopy(project),
+            }))
+            .filter((item): item is { key: string; project: any; copy: HubSpotlightCopy } => Boolean(item.copy)),
+    ];
+    const activeSpotlightIndex = Math.min(spotlightIndex, spotlightSlides.length - 1);
 
     const getHubStats = (project: any): HubLeaderboardStats => {
         if (hubLeaderboardWindow === 'month') {
@@ -150,14 +291,16 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     const compareTitles = (a: any, b: any) => String(a.title).localeCompare(String(b.title));
+    const getProjectCommentCount = (project: any) => Number(project.commentCount ?? project.comment_count ?? 0);
 
     const compareByHeat = (a: any, b: any) => {
         const statsA = getHubStats(a);
         const statsB = getHubStats(b);
 
-        return statsB.effectiveOpens - statsA.effectiveOpens
-            || statsB.uniquePlayers - statsA.uniquePlayers
+        return statsB.uniquePlayers - statsA.uniquePlayers
             || Number(b.rating || 0) - Number(a.rating || 0)
+            || getProjectCommentCount(b) - getProjectCommentCount(a)
+            || statsB.effectiveOpens - statsA.effectiveOpens
             || Number(b.rating_count || 0) - Number(a.rating_count || 0)
             || compareTitles(a, b);
     };
@@ -167,6 +310,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         const statsB = getHubStats(b);
 
         return Number(b.rating || 0) - Number(a.rating || 0)
+            || getProjectCommentCount(b) - getProjectCommentCount(a)
             || Number(b.rating_count || 0) - Number(a.rating_count || 0)
             || statsB.uniquePlayers - statsA.uniquePlayers
             || statsB.effectiveOpens - statsA.effectiveOpens
@@ -183,13 +327,13 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             title: '⭐ 星级榜',
             intro: '按累计星级和评分人数排序，同时展示当前窗口体验数据。',
             tooltipTitle: '星级榜规则',
-            tooltip: '按项目累计星级排序；同等星级下评分人数多的排前，再相同才用当前时间窗的体验人数和有效进入补充排序。今日 / 本周 / 本月不重算星级。',
+            tooltip: '先看星级，同星级看评论数，再看评分人数；日/周/月只切换体验数据。',
         }
         : {
             title: '🔥 项目热度榜',
-            intro: '按有效进入、体验人数和星级排序。',
+            intro: '按体验人数、星级和有效进入排序。',
             tooltipTitle: '热度榜规则',
-            tooltip: '按当前时间窗的有效进入排序；同等有效进入下体验人数多的排前，再相同才看星级和评分人数。体验人数只统计已认证用户，同一项目同一人同一天算 1 人；有效进入按 30 分钟 session 去重，每人每天最多计 3 次。',
+            tooltip: '先看体验人数，同人数看星级和评论数，再看有效进入。每人每天最多 3 次有效进入。',
         };
 
     const filtered = projects.filter(p => {
@@ -199,7 +343,10 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         return tagMatch && creatorMatch && liveMatch;
     }).sort((a, b) => {
         if (sortType === 'rating') {
-            return (b.rating || 0) - (a.rating || 0) || a.title.localeCompare(b.title);
+            return Number(b.rating || 0) - Number(a.rating || 0)
+                || getProjectCommentCount(b) - getProjectCommentCount(a)
+                || Number(b.rating_count || 0) - Number(a.rating_count || 0)
+                || a.title.localeCompare(b.title);
         } else {
             return a.title.localeCompare(b.title);
         }
@@ -325,23 +472,6 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
     return (
         <div>
-            <section className="project-submit-panel">
-                <div className="project-submit-copy">
-                    <span>Creator Pipeline</span>
-                    <h3>提交项目 / 新版本申请</h3>
-                    <p>Hub 项目全部开放体验；发布和版本更新先提交申请，管理员审核后上线。</p>
-                </div>
-                <div className="project-submit-actions">
-                    <button type="button" className="btn btn-primary project-submit-open" onClick={openSubmissionForm}>
-                        {showSubmissionForm ? '收起申请' : '提交申请'}
-                    </button>
-                    {user?.role === 'admin' && (
-                        <a className="btn project-submit-review" href="/admin/project-submissions">
-                            审核申请
-                        </a>
-                    )}
-                </div>
-            </section>
             {submissionMessage && (
                 <div className="forum-verification-callout project-submit-message">
                     <span>{submissionMessage}</span>
@@ -421,73 +551,195 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 )}
             </AnimatePresence>
 
-            <section className="hub-leaderboard-panel">
-                <div className="hub-leaderboard-head">
-                    <div>
-                        <span>Hub Rankings</span>
-                        <div className="hub-leaderboard-titleline">
-                            <h3>{hubRankingCopy.title}</h3>
-                            <button type="button" className="hub-leaderboard-info" aria-label={`查看${hubRankingMode === 'rating' ? '星级榜' : '热度榜'}规则`}>
-                                i
-                                <span className="hub-leaderboard-tooltip" role="tooltip">
-                                    <strong>{hubRankingCopy.tooltipTitle}</strong>
-                                    {hubRankingCopy.tooltip}
-                                </span>
-                            </button>
-                        </div>
-                        <p>{hubRankingCopy.intro}</p>
-                        <div className="hub-leaderboard-mode-tabs" aria-label="Hub ranking mode">
-                            {HUB_RANKING_MODES.map(mode => (
-                                <button
-                                    key={mode.id}
-                                    type="button"
-                                    className={hubRankingMode === mode.id ? 'is-active' : ''}
-                                    onClick={() => setHubRankingMode(mode.id)}
-                                >
-                                    {mode.label}
+            <div className="hub-updates-stack">
+                {spotlightSlides.length > 0 && (
+                    <section
+                        className="hub-spotlight-panel"
+                        aria-label="Hub 新项目宣传栏"
+                        onMouseEnter={() => setSpotlightPaused(true)}
+                        onMouseLeave={() => setSpotlightPaused(false)}
+                        onFocusCapture={() => setSpotlightPaused(true)}
+                        onBlurCapture={() => setSpotlightPaused(false)}
+                    >
+                        <article className="hub-spotlight-frame" aria-live="polite">
+                            {spotlightSlides.map((item, index) => {
+                                const { copy, project } = item;
+                                const isActive = index === activeSpotlightIndex;
+
+                                return (
+                                    <section
+                                        key={item.key}
+                                        className={`hub-spotlight-slide ${isActive ? 'is-active' : ''}`}
+                                        aria-hidden={!isActive}
+                                    >
+                                        <div className="hub-spotlight-copy">
+                                            <div className="hub-spotlight-topline">
+                                                <div className="hub-spotlight-label-row">
+                                                    <span className="hub-spotlight-label">{copy.label}</span>
+                                                    <span className="hub-spotlight-status">{copy.status}</span>
+                                                </div>
+                                                <div className="hub-spotlight-actions">
+                                                    {copy.kind === 'submit' ? (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                className="hub-spotlight-cta"
+                                                                tabIndex={isActive ? undefined : -1}
+                                                                onClick={openSubmissionForm}
+                                                            >
+                                                                {copy.ctaLabel}
+                                                            </button>
+                                                            {user?.role === 'admin' && (
+                                                                <a
+                                                                    className="hub-spotlight-secondary"
+                                                                    href="/admin/project-submissions"
+                                                                    tabIndex={isActive ? undefined : -1}
+                                                                >
+                                                                    审核
+                                                                </a>
+                                                            )}
+                                                        </>
+                                                    ) : project?.url && (
+                                                        <a
+                                                            className="hub-spotlight-cta"
+                                                            href={project.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            tabIndex={isActive ? undefined : -1}
+                                                            onClick={() => recordProjectOpen(project.id)}
+                                                        >
+                                                            {copy.ctaLabel}
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <h2 className="hub-spotlight-title">
+                                                {copy.titleBefore}<span>{copy.titleAccent}</span>{copy.titleAfter}
+                                            </h2>
+                                            <p className="hub-spotlight-text">{copy.text}</p>
+                                            <div className="hub-spotlight-meta">
+                                                {copy.meta.slice(0, 3).map(item => (
+                                                    <span key={item}>{item}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <HubSpotlightVisual kind={copy.kind} project={project} />
+                                    </section>
+                                );
+                            })}
+
+                            {spotlightSlides.length > 1 && (
+                                <div className="hub-spotlight-controls" aria-label="项目宣传切换">
+                                    <button
+                                        type="button"
+                                        className="hub-spotlight-arrow"
+                                        aria-label="上一条项目宣传"
+                                        onClick={() => setSpotlightIndex(current => (current - 1 + spotlightSlides.length) % spotlightSlides.length)}
+                                    >
+                                        ‹
+                                    </button>
+                                    <div className="hub-spotlight-dots" role="tablist" aria-label="Hub spotlight slides">
+                                        {spotlightSlides.map((item, index) => {
+                                            const { copy } = item;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    type="button"
+                                                    className={`hub-spotlight-dot ${index === activeSpotlightIndex ? 'is-active' : ''}`}
+                                                    aria-label={`查看 ${copy.ctaLabel} 宣传`}
+                                                    aria-selected={index === activeSpotlightIndex}
+                                                    role="tab"
+                                                    onMouseEnter={() => setSpotlightIndex(index)}
+                                                    onFocus={() => setSpotlightIndex(index)}
+                                                    onClick={() => setSpotlightIndex(index)}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="hub-spotlight-arrow"
+                                        aria-label="下一条项目宣传"
+                                        onClick={() => setSpotlightIndex(current => (current + 1) % spotlightSlides.length)}
+                                    >
+                                        ›
+                                    </button>
+                                </div>
+                            )}
+                        </article>
+                    </section>
+                )}
+
+                <section className="hub-leaderboard-panel">
+                    <div className="hub-leaderboard-head">
+                        <div className="hub-leaderboard-heading">
+                            <span>Hub Rankings</span>
+                            <div className="hub-leaderboard-titleline">
+                                <h3>{hubRankingCopy.title}</h3>
+                                <button type="button" className="hub-leaderboard-info" aria-label={`查看${hubRankingMode === 'rating' ? '星级榜' : '热度榜'}规则`}>
+                                    i
+                                    <span className="hub-leaderboard-tooltip" role="tooltip">
+                                        <strong>{hubRankingCopy.tooltipTitle}</strong>
+                                        {hubRankingCopy.tooltip}
+                                    </span>
                                 </button>
-                            ))}
+                            </div>
+                        </div>
+                        <div className="hub-leaderboard-controls">
+                            <div className="hub-leaderboard-mode-tabs" aria-label="Hub ranking mode">
+                                {HUB_RANKING_MODES.map(mode => (
+                                    <button
+                                        key={mode.id}
+                                        type="button"
+                                        className={hubRankingMode === mode.id ? 'is-active' : ''}
+                                        onClick={() => setHubRankingMode(mode.id)}
+                                    >
+                                        {mode.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="hub-leaderboard-tabs">
+                                {HUB_LEADERBOARD_TABS.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        className={hubLeaderboardWindow === tab.id ? 'is-active' : ''}
+                                        onClick={() => setHubLeaderboardWindow(tab.id)}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                    <div className="hub-leaderboard-tabs">
-                        {HUB_LEADERBOARD_TABS.map(tab => (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                className={hubLeaderboardWindow === tab.id ? 'is-active' : ''}
-                                onClick={() => setHubLeaderboardWindow(tab.id)}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
+                    <div className="hub-leaderboard-list">
+                        {hubLeaderboard.map((project, index) => {
+                            const stats = getHubStats(project);
+                            return (
+                                <a
+                                    key={project.id}
+                                    className="hub-leaderboard-row"
+                                    href={project.url || '#'}
+                                    target={project.url ? '_blank' : undefined}
+                                    rel={project.url ? 'noopener noreferrer' : undefined}
+                                    onClick={() => recordProjectOpen(project.id)}
+                                >
+                                    <strong>{index + 1}</strong>
+                                    <span className="hub-leaderboard-emoji">{project.emoji}</span>
+                                    <span className="hub-leaderboard-title">
+                                        {project.title}
+                                        <small>by {getDisplayName(project.author_name || project.author)}</small>
+                                    </span>
+                                    <span className="hub-leaderboard-meta">
+                                        {stats.uniquePlayers} 人体验 · {stats.effectiveOpens} 次有效进入 · ⭐ {Number(project.rating || 0).toFixed(1)} · 💬 {getProjectCommentCount(project)}
+                                    </span>
+                                </a>
+                            );
+                        })}
                     </div>
-                </div>
-                <div className="hub-leaderboard-list">
-                    {hubLeaderboard.map((project, index) => {
-                        const stats = getHubStats(project);
-                        return (
-                            <a
-                                key={project.id}
-                                className="hub-leaderboard-row"
-                                href={project.url || '#'}
-                                target={project.url ? '_blank' : undefined}
-                                rel={project.url ? 'noopener noreferrer' : undefined}
-                                onClick={() => recordProjectOpen(project.id)}
-                            >
-                                <strong>{index + 1}</strong>
-                                <span className="hub-leaderboard-emoji">{project.emoji}</span>
-                                <span className="hub-leaderboard-title">
-                                    {project.title}
-                                    <small>by {getDisplayName(project.author_name || project.author)}</small>
-                                </span>
-                                <span className="hub-leaderboard-meta">
-                                    {stats.uniquePlayers} 人体验 · {stats.effectiveOpens} 次有效进入 · ⭐ {Number(project.rating || 0).toFixed(1)}
-                                </span>
-                            </a>
-                        );
-                    })}
-                </div>
-            </section>
+                </section>
+            </div>
 
             {/* Filter Bar */}
             <div className="project-filter-bar">
@@ -605,18 +857,143 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     );
 }
 
+function HubSpotlightVisual({ kind, project }: { kind: SpotlightKind, project: any }) {
+    if (kind === 'submit') {
+        return (
+            <div className="hub-spotlight-visual hub-submit-visual" aria-hidden="true">
+                <div className="hub-submit-step">
+                    <strong>01</strong>
+                    <span>填写信息</span>
+                </div>
+                <div className="hub-submit-step">
+                    <strong>02</strong>
+                    <span>提交审核</span>
+                </div>
+                <div className="hub-submit-step">
+                    <strong>03</strong>
+                    <span>上线展示</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (kind === 'ocean') {
+        return (
+            <div className="hub-spotlight-visual" aria-hidden="true">
+                <div className="hub-ocean-poster">
+                    <span className="hub-ocean-bridge" />
+                    <span className="hub-ocean-sail">⛵</span>
+                    <span className="hub-ocean-sail">⛵</span>
+                    <span className="hub-ocean-sail">⛵</span>
+                    <div className="hub-ocean-poster-content">
+                        <div className="hub-ocean-brand">{project.emoji || '⛵'} THE OCEAN EXPLORER</div>
+                        <div className="hub-ocean-title">
+                            <strong>远航帆船社区</strong>
+                            <span>赛事 · 排名 · 训练资料</span>
+                        </div>
+                        <div className="hub-ocean-stats">
+                            <div>
+                                <strong>Race</strong>
+                                <span>赛事排名</span>
+                            </div>
+                            <div>
+                                <strong>Track</strong>
+                                <span>赛事轨迹</span>
+                            </div>
+                            <div>
+                                <strong>Rank</strong>
+                                <span>水手榜单</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="hub-spotlight-visual" aria-hidden="true">
+            <div className="hub-paper-workspace">
+                <div className="hub-paper-stack">
+                    <div className="hub-paper-page" />
+                    <div className="hub-paper-page" />
+                    <div className="hub-paper-page">
+                        <h3>May Jun</h3>
+                        <span />
+                        <span />
+                        <span />
+                        <p>2024 paper set</p>
+                    </div>
+                </div>
+                <div className="hub-paper-panel">
+                    <div className="hub-paper-toolbar">
+                        <span />
+                        <span />
+                        <span />
+                        <strong>playtest queue</strong>
+                    </div>
+                    <div className="hub-paper-insight">
+                        <strong>测试任务</strong>
+                        <div>
+                            <span><b>QP</b><small>paper</small></span>
+                            <span><b>MS</b><small>scheme</small></span>
+                            <span><b>ZIP</b><small>batch</small></span>
+                        </div>
+                    </div>
+                    <div className="hub-paper-feedback">
+                        <strong>反馈重点</strong>
+                        <p>搜索、配对预览、下载路径、收藏科目是否符合真实复习习惯。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: any, user: User | null, canInteract: boolean, onRatingUpdate?: (projectId: number | string, rating: number, count: number) => void }) {
     const isLive = project.status === 'live';
     const [rating, setRating] = useState(Number(project.rating || project.likes || 0));
     const [ratingCount, setRatingCount] = useState(Number(project.rating_count || project.likes || 0));
     const [hoverScore, setHoverScore] = useState(0);
     const [selectedScore, setSelectedScore] = useState(0);
-    
-    const [showComments, setShowComments] = useState(false);
+    const [isFlipped, setIsFlipped] = useState(false);
+    const [hasLoadedComments, setHasLoadedComments] = useState(false);
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState('');
     const [xpBurst, setXpBurst] = useState('');
     const [interactionMessage, setInteractionMessage] = useState('');
+    const displayAuthor = project.author_name
+        ? (project.author_name.toLowerCase() === 'eric' ? 'AI Club' : project.author_name)
+        : (project.author?.toLowerCase() === 'eric' ? 'AI Club' : project.author);
+    const commentCount = project.commentCount || comments.length || 0;
+    const tagline = getProjectTagline(project);
+    const primaryTag = getPrimaryProjectTag(project);
+    const coverUrl = isValidCoverUrl(project.cover_url || project.coverUrl) ? String(project.cover_url || project.coverUrl).trim() : '';
+    const coverAccent = TAG_COLORS[primaryTag] || project.accent_color || project.accentColor || '#6c5ce7';
+
+    const openBack = () => {
+        setIsFlipped(true);
+        if (!hasLoadedComments) {
+            fetchComments();
+        }
+    };
+
+    const closeBack = () => {
+        setIsFlipped(false);
+        setInteractionMessage('');
+        setHoverScore(0);
+    };
+
+    const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        if (isFlipped) {
+            closeBack();
+        } else {
+            openBack();
+        }
+    };
 
     const requireProjectInteraction = () => {
         if (!user) {
@@ -632,12 +1009,24 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
         return false;
     };
 
-    const handleStarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
+    const getScoreFromPointer = (element: HTMLDivElement, clientX: number) => {
+        const rect = element.getBoundingClientRect();
+        const x = clientX - rect.left;
         const width = rect.width;
         const percentage = Math.max(0, Math.min(1, x / width));
-        const score = Math.ceil(percentage * 10) / 2; // 0.5 increments
+        return Math.ceil(percentage * 10) / 2; // 0.5 increments
+    };
+
+    const handleStarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        setHoverScore(getScoreFromPointer(e.currentTarget, e.clientX));
+    };
+
+    const handleStarClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (requireProjectInteraction()) return;
+        const score = getScoreFromPointer(event.currentTarget, event.clientX);
+        setSelectedScore(score);
         setHoverScore(score);
     };
 
@@ -649,6 +1038,7 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
             const data = await res.json();
             const nextComments = Array.isArray(data) ? data : [];
             setComments(nextComments);
+            setHasLoadedComments(true);
 
             const myComment = nextComments.find((c: any) => c.is_own_comment);
             if (myComment) {
@@ -658,6 +1048,7 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
         } catch (error) {
             console.error('Failed to load project comments:', error);
             setComments([]);
+            setHasLoadedComments(false);
             setInteractionMessage('项目评论暂时加载失败，稍后再试。');
         }
     };
@@ -754,177 +1145,207 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
 
     return (
         <div
-            className="glass-panel"
-            style={{
-                padding: '28px', height: '100%', display: 'flex', flexDirection: 'column',
-                gap: '12px', cursor: isLive ? 'pointer' : 'default',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                background: project.accent_color || project.accentColor,
-                opacity: isLive ? 1 : 0.75,
-                position: 'relative', overflow: 'hidden'
-            }}
-            onMouseEnter={e => { if (isLive) { (e.currentTarget as HTMLElement).style.transform = 'translateY(-5px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 16px 40px rgba(0,0,0,0.12)'; }}}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+            className={`project-card-shell ${isFlipped ? 'is-flipped' : ''} ${isLive ? 'is-live' : 'is-soon'}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`${project.title} 项目详情与评分`}
+            aria-pressed={isFlipped}
+            onClick={openBack}
+            onKeyDown={handleCardKeyDown}
+            style={{ '--project-accent-bg': project.accent_color || project.accentColor || 'rgba(255,255,255,0.58)' } as CSSProperties}
         >
-            {/* Emoji */}
-            <div style={{ fontSize: '2.8rem', lineHeight: 1 }}>{project.emoji}</div>
-
-            {/* Title + Author */}
-            <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2d3436', marginBottom: '2px' }}>{project.title}</h3>
-                <span style={{ fontSize: '0.8rem', color: '#636e72', fontWeight: 500 }}>
-                    by {project.author_name ? (project.author_name.toLowerCase() === 'eric' ? 'AI Club' : project.author_name) : (project.author?.toLowerCase() === 'eric' ? 'AI Club' : project.author)}
-                </span>
-            </div>
-
-            {/* Description */}
-            <p style={{ fontSize: '0.88rem', color: '#4a4a4a', lineHeight: 1.6, flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{project.description}</p>
-
-            {/* Interaction Bar */}
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', margin: '8px 0', minHeight: '24px' }}>
-                <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowComments(!showComments); if (!showComments) fetchComments(); }}
-                    style={{ 
-                        background: 'rgba(243, 156, 18, 0.1)', border: 'none', cursor: 'pointer', 
-                        display: 'flex', alignItems: 'center', gap: '8px',
-                        color: '#636e72', fontSize: '0.9rem', fontWeight: 600,
-                        padding: '6px 12px', borderRadius: '16px', transition: 'background 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(243, 156, 18, 0.2)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(243, 156, 18, 0.1)'}
-                >
-                    <AnimatePresence>
-                        {xpBurst && (
-                            <motion.span
-                                key={xpBurst}
-                                className="project-xp-burst"
-                                initial={{ opacity: 0, y: 8, scale: 0.72 }}
-                                animate={{ opacity: 1, y: -12, scale: 1 }}
-                                exit={{ opacity: 0, y: -24, scale: 0.66 }}
-                                transition={{ duration: 0.45 }}
-                            >
-                                {xpBurst}
-                            </motion.span>
+            <div className="project-card-inner">
+                <article className="project-card-face project-card-front glass-panel" aria-hidden={isFlipped} inert={isFlipped ? true : undefined}>
+                    <div className="project-card-cover" style={{ '--project-cover-accent': coverAccent } as CSSProperties}>
+                        {coverUrl ? (
+                            <img className="project-card-cover-image" src={coverUrl} alt="" loading="lazy" />
+                        ) : (
+                            <div className="project-card-cover-fallback" aria-hidden="true">
+                                <span className="project-card-cover-emoji">{project.emoji}</span>
+                                <span className="project-card-cover-kicker">{TAG_EMOJIS[primaryTag] ? `${TAG_EMOJIS[primaryTag]} ${primaryTag}` : primaryTag}</span>
+                                <strong>Student Project</strong>
+                            </div>
                         )}
-                    </AnimatePresence>
-                    <span style={{ color: '#f39c12', fontSize: '1.05rem', transform: 'translateY(-1px)' }}>⭐</span>
-                    {rating.toFixed(1)}
-                    <span style={{ marginLeft: '4px' }}>💬 {project.commentCount || comments.length || 0}</span>
-                </button>
-            </div>
-
-            {/* Comments & Review Section */}
-            <AnimatePresence>
-                {showComments && (
-                    <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: 'hidden', fontSize: '0.85rem' }}
-                        onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+                        <div className="project-card-cover-shine" aria-hidden="true" />
+                    </div>
+                    <div className="project-card-title-row">
+                        <div className="project-card-title-block">
+                            <h3>{project.title}</h3>
+                            <span>by {displayAuthor}</span>
+                        </div>
+                        <div className="project-card-emoji">{project.emoji}</div>
+                    </div>
+                    <p className="project-card-tagline">{tagline}</p>
+                    <button
+                        type="button"
+                        className="project-card-rating-pill"
+                        tabIndex={isFlipped ? -1 : undefined}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openBack();
+                        }}
+                        title="查看评分和评论"
                     >
-                        <div style={{ padding: '10px 0', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
-                            {comments.map(c => (
-                                <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <span style={{ fontWeight: 700 }}>
-                                            {c.author_name} 
-                                            {c.author_score > 0 && <span style={{ color: '#f39c12', fontSize: '0.8rem', marginLeft: '4px' }}>⭐ {c.author_score}</span>}
-                                            : 
-                                        </span>
-                                        <span style={{ marginLeft: '4px' }}>{c.content}</span>
+                        <AnimatePresence>
+                            {xpBurst && (
+                                <motion.span
+                                    key={xpBurst}
+                                    className="project-xp-burst"
+                                    initial={{ opacity: 0, y: 8, scale: 0.72 }}
+                                    animate={{ opacity: 1, y: -12, scale: 1 }}
+                                    exit={{ opacity: 0, y: -24, scale: 0.66 }}
+                                    transition={{ duration: 0.45 }}
+                                >
+                                    {xpBurst}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
+                        <span>⭐</span>
+                        {rating.toFixed(1)}
+                        <span>💬 {commentCount}</span>
+                    </button>
+                    <div className="project-card-tags">
+                        {project.tags.map((tag: string) => (
+                            <span key={tag} style={{
+                                background: `${TAG_COLORS[tag] || '#dfe6e9'}33`,
+                                color: TAG_COLORS[tag] || '#636e72'
+                            } as CSSProperties}>{TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}</span>
+                        ))}
+                    </div>
+                    <div className="project-card-footer">
+                        {isLive ? (
+                            <div className="project-card-live">
+                                <span />
+                                Live
+                            </div>
+                        ) : (
+                            <div className="project-card-soon">🔧 Coming Soon</div>
+                        )}
+                        {isLive && project.url ? (
+                            <a
+                                href={project.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="project-card-open"
+                                tabIndex={isFlipped ? -1 : undefined}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    recordProjectOpen(project.id);
+                                }}
+                            >
+                                Open →
+                            </a>
+                        ) : isLive && (
+                            <div className="project-card-open is-disabled">Open →</div>
+                        )}
+                    </div>
+                    <div className="project-card-decoration">{project.emoji}</div>
+                </article>
+
+                <article className="project-card-face project-card-back glass-panel" aria-hidden={!isFlipped} inert={!isFlipped ? true : undefined} onClick={event => event.stopPropagation()}>
+                    <div className="project-card-back-head">
+                        <div>
+                            <span>{project.emoji} Project Review</span>
+                            <h3>{project.title}</h3>
+                            <small>by {displayAuthor}</small>
+                        </div>
+                        <button type="button" className="project-card-back-button" tabIndex={isFlipped ? undefined : -1} onClick={closeBack}>Back</button>
+                    </div>
+
+                    <div className="project-card-back-scroll">
+                        <p className="project-card-back-description">{project.description}</p>
+                        <div className="project-card-back-meta">
+                            <span>⭐ {rating.toFixed(1)}</span>
+                            <span>{ratingCount} ratings</span>
+                            <span>{commentCount} comments</span>
+                        </div>
+                        <div className="project-card-tags">
+                            {project.tags.map((tag: string) => (
+                                <span key={tag} style={{
+                                    background: `${TAG_COLORS[tag] || '#dfe6e9'}33`,
+                                    color: TAG_COLORS[tag] || '#636e72'
+                                } as CSSProperties}>{TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}</span>
+                            ))}
+                        </div>
+                        <div className="project-card-comments">
+                            {comments.length > 0 ? comments.map(c => (
+                                <div key={c.id} className="project-card-comment">
+                                    <div>
+                                        <strong>
+                                            {c.author_name}
+                                            {c.author_score > 0 && <span>⭐ {c.author_score}</span>}
+                                        </strong>
+                                        <p>{c.content}</p>
                                     </div>
                                     {c.is_own_comment && (
-                                        <button 
+                                        <button
+                                            type="button"
+                                            tabIndex={isFlipped ? undefined : -1}
                                             onClick={() => handleDeleteComment(c.id)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#b2bec3', padding: '0 4px' }}
                                             title="Delete comment"
                                         >🗑️</button>
                                     )}
                                 </div>
-	                            ))}
-                                {interactionMessage && (
-                                    <div className="forum-verification-callout project-interaction-callout">
-                                        <span>{interactionMessage}</span>
-                                        <button type="button" onClick={() => window.location.assign(user ? '/profile' : '/login')}>{user ? '去认证' : '登录'}</button>
-                                    </div>
-                                )}
-	                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', background: 'rgba(255,255,255,0.4)', padding: '12px', borderRadius: '12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontWeight: 600, color: '#2d3436' }}>Your Rating:</span>
-                                    <div 
-                                        onMouseMove={handleStarMouseMove}
-                                        onMouseLeave={() => setHoverScore(0)}
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedScore(hoverScore); }}
-                                        style={{ position: 'relative', cursor: 'pointer', fontSize: '1.2rem', display: 'inline-block', lineHeight: 1, letterSpacing: '2px', paddingBottom: '2px' }}
-                                        title={hoverScore > 0 ? `Rate ${hoverScore} stars` : "Select a rating"}
-                                    >
-                                        <div style={{ color: '#dfe6e9' }}>★★★★★</div>
-                                        <div style={{ 
-                                            color: '#f39c12', position: 'absolute', top: 0, left: 0, 
-                                            overflow: 'hidden', width: `${((hoverScore > 0 ? hoverScore : selectedScore) / 5) * 100}%`,
-                                            whiteSpace: 'nowrap'
-                                        }}>
-                                            ★★★★★
-                                        </div>
-                                    </div>
-                                    <span style={{ fontSize: '0.85rem', color: '#f39c12', fontWeight: 700 }}>
-                                        {hoverScore > 0 ? hoverScore : selectedScore > 0 ? selectedScore : ''}
-                                    </span>
-                                </div>
-                                <form onSubmit={handleComment} style={{ display: 'flex', gap: '6px' }}>
-                                    <input 
-                                        value={newComment}
-                                        onChange={e => setNewComment(e.target.value)}
-                                        maxLength={500}
-                                        placeholder={selectedScore > 0 ? "Leave a comment for your rating..." : "Add a comment..."}
-                                        style={{ flex: 1, padding: '6px 12px', borderRadius: '8px', border: '1px solid #dfe6e9', fontSize: '0.8rem', outline: 'none' }}
-                                        onClick={e => { e.preventDefault(); e.stopPropagation(); }}
-                                    />
-                                    <button 
-                                        type="submit" 
-                                        className="btn btn-primary" 
-                                        style={{ padding: '6px 14px', height: 'auto', fontSize: '0.8rem', opacity: (selectedScore === 0 || !newComment.trim()) ? 0.5 : 1, cursor: (selectedScore === 0 || !newComment.trim()) ? 'not-allowed' : 'pointer' }} 
-                                        onClick={e => e.stopPropagation()}
-                                        disabled={selectedScore === 0 || !newComment.trim()}
-                                    >Post</button>
-                                </form>
-                            </div>
+                            )) : (
+                                <div className="project-card-empty-comments">还没有评论，翻到这里的你可以当第一个。</div>
+                            )}
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Tags */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {project.tags.map((tag: string) => (
-                    <span key={tag} style={{
-                        padding: '2px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700,
-                        background: `${TAG_COLORS[tag] || '#dfe6e9'}33`, color: TAG_COLORS[tag] || '#636e72'
-                    }}>{TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}</span>
-                ))}
-            </div>
-
-            {/* Status Badge */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                {isLive ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: '#27ae60' }}>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2ed573', display: 'inline-block', boxShadow: '0 0 6px #2ed573' }} />
-                        Live
+                        {interactionMessage && (
+                            <div className="forum-verification-callout project-interaction-callout">
+                                <span>{interactionMessage}</span>
+                                <button
+                                    type="button"
+                                    tabIndex={isFlipped ? undefined : -1}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        window.location.assign(user ? '/profile' : '/login');
+                                    }}
+                                >
+                                    {user ? '去认证' : '登录'}
+                                </button>
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#b2bec3' }}>🔧 Coming Soon</div>
-                )}
-                {isLive && project.url ? (
-                    <a href={project.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6c5ce7', textDecoration: 'none', background: 'rgba(108, 92, 231, 0.1)', padding: '6px 14px', borderRadius: '16px', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => recordProjectOpen(project.id)} onMouseEnter={e => e.currentTarget.style.background = 'rgba(108, 92, 231, 0.2)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(108, 92, 231, 0.1)'}>Open →</a>
-                ) : isLive && (
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#636e72' }}>Open →</div>
-                )}
-            </div>
 
-            {/* Decoration emoji in background */}
-            <div style={{ position: 'absolute', right: '-10px', bottom: '-15px', fontSize: '5rem', opacity: 0.07, pointerEvents: 'none' }}>
-                {project.emoji}
+                    <form className="project-card-rating-form" onSubmit={handleComment}>
+                        <div className="project-card-star-row">
+                            <span>Your Rating</span>
+                            <div
+                                className="project-card-stars"
+                                tabIndex={isFlipped ? 0 : -1}
+                                onMouseMove={handleStarMouseMove}
+                                onMouseLeave={() => setHoverScore(0)}
+                                onClick={handleStarClick}
+                                title={hoverScore > 0 ? `Rate ${hoverScore} stars` : 'Select a rating'}
+                            >
+                                <div>★★★★★</div>
+                                <div style={{ width: `${((hoverScore > 0 ? hoverScore : selectedScore) / 5) * 100}%` }}>
+                                    ★★★★★
+                                </div>
+                            </div>
+                            <strong>{hoverScore > 0 ? hoverScore : selectedScore > 0 ? selectedScore : ''}</strong>
+                        </div>
+                        <div className="project-card-comment-form">
+                            <input
+                                value={newComment}
+                                onChange={e => setNewComment(e.target.value)}
+                                maxLength={500}
+                                tabIndex={isFlipped ? undefined : -1}
+                                placeholder={selectedScore > 0 ? 'Leave a comment...' : 'Pick stars first...'}
+                                onClick={event => event.stopPropagation()}
+                            />
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                tabIndex={isFlipped ? undefined : -1}
+                                disabled={selectedScore === 0 || !newComment.trim()}
+                            >
+                                Post
+                            </button>
+                        </div>
+                    </form>
+                </article>
             </div>
         </div>
     );

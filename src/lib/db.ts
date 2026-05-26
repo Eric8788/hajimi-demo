@@ -67,6 +67,7 @@ export interface Project {
     likes: number; // Keeping for backward compatibility temporarily if needed
     rating: number;
     rating_count: number;
+    cover_url?: string | null;
     user_score?: number; // Score given by the current user, fetched dynamically
     open_count_today?: number;
     open_count_week?: number;
@@ -1044,6 +1045,7 @@ async function ensureProjectEnhancements() {
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 0`;
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0`;
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'live'`;
+            await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS cover_url TEXT`;
             await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS score NUMERIC DEFAULT 5`;
             await ensureProjectOpenEventsTable();
             await applyProjectAttributionCorrections();
@@ -1531,6 +1533,7 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
                     url = ${submission.url},
                     tags = ${JSON.stringify(submission.tags)}::jsonb,
                     accent_color = ${submission.accent_color},
+                    cover_url = COALESCE(NULLIF(${submission.cover_url}, ''), cover_url),
                     status = 'live'
                   WHERE id = ${submission.project_id}
                 `;
@@ -1555,7 +1558,7 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
                 }
             } else {
                 await client.sql`
-                  INSERT INTO projects (author_id, title, description, emoji, url, tags, accent_color, status)
+                  INSERT INTO projects (author_id, title, description, emoji, url, tags, accent_color, cover_url, status)
                   VALUES (
                     ${submission.author_id},
                     ${submission.title},
@@ -1564,6 +1567,7 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
                     ${submission.url},
                     ${JSON.stringify(submission.tags)}::jsonb,
                     ${submission.accent_color},
+                    ${submission.cover_url},
                     'live'
                   )
                 `;

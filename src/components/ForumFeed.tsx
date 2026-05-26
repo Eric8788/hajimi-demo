@@ -161,6 +161,14 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         return false;
     };
 
+    const showPreviousPromo = () => {
+        setPromoIndex(current => (current - 1 + FORUM_PROMOS.length) % FORUM_PROMOS.length);
+    };
+
+    const showNextPromo = () => {
+        setPromoIndex(current => (current + 1) % FORUM_PROMOS.length);
+    };
+
     // Fetch popular tags on mount
     useEffect(() => {
         const tagCounts: Record<string, number> = {};
@@ -504,19 +512,39 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             </div>
                         </motion.div>
                     </AnimatePresence>
-                    <div className="forum-promo-dots" aria-label="Hallway promotional slides">
-                        {FORUM_PROMOS.map((promo, index) => (
-                            <button
-                                key={promo.title}
-                                type="button"
-                                className={index === promoIndex ? 'is-active' : ''}
-                                aria-label={`Show ${promo.title}`}
-                                title={promo.title}
-                                onMouseEnter={() => setPromoIndex(index)}
-                                onFocus={() => setPromoIndex(index)}
-                                onClick={() => setPromoIndex(index)}
-                            />
-                        ))}
+                    <div className="forum-promo-controls" aria-label="Hallway promotional slides">
+                        <button
+                            type="button"
+                            className="forum-promo-arrow"
+                            aria-label="上一条 Hallway 公告"
+                            onClick={showPreviousPromo}
+                        >
+                            ‹
+                        </button>
+                        <div className="forum-promo-dots" role="tablist" aria-label="Hallway promotional dots">
+                            {FORUM_PROMOS.map((promo, index) => (
+                                <button
+                                    key={promo.title}
+                                    type="button"
+                                    className={index === promoIndex ? 'is-active' : ''}
+                                    aria-label={`Show ${promo.title}`}
+                                    title={promo.title}
+                                    aria-selected={index === promoIndex}
+                                    role="tab"
+                                    onMouseEnter={() => setPromoIndex(index)}
+                                    onFocus={() => setPromoIndex(index)}
+                                    onClick={() => setPromoIndex(index)}
+                                />
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            className="forum-promo-arrow"
+                            aria-label="下一条 Hallway 公告"
+                            onClick={showNextPromo}
+                        >
+                            ›
+                        </button>
                     </div>
                 </div>
             </div>

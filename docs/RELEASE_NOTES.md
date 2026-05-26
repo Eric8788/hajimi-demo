@@ -1,5 +1,11 @@
 # Hajimi Release Notes
 
+## Hajimi Beta v0.2.0-beta.16 · 2026-05-22
+
+- Updated Dashboard Cyber Oracle to use AI Tabletop-aligned OpenAI-compatible providers through server-side environment variables.
+- Added ZenMux and optional Tokendance provider support while keeping DashScope, SiliconFlow, and the custom Oracle endpoint override.
+- Upgraded default Oracle models for deeper Chinese reflection and kept the local fallback if no provider succeeds.
+
 ## Hajimi Beta v0.2.0-beta.15 · 2026-05-22
 
 - Updated Function Hall `热度榜` sorting so projects with more capped effective entries rank ahead first.

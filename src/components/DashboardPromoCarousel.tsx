@@ -7,7 +7,7 @@ import { FORUM_PROMOS, type ForumPromo } from '@/data/forumPromos';
 import { isAdminRole } from '@/lib/roles';
 
 type DashboardPromoBase = ForumPromo & { href: string; cta: string };
-type DashboardPromo = DashboardPromoBase & { switchLabel: string };
+type DashboardPromo = DashboardPromoBase;
 
 const ADMIN_VERIFICATION_PROMO: DashboardPromoBase = {
     kicker: 'Hajimi Trust ✅',
@@ -36,12 +36,6 @@ const PROMO_ACTIONS: Record<string, { href: string; cta: string }> = {
     '提交项目进 Hub，审核后上线！': { href: '/functions', cta: '去 Hub' },
 };
 
-function getSwitchLabel(promo: DashboardPromoBase) {
-    if (promo.accent === 'trust') return '认证';
-    if (promo.title.includes('Hub')) return 'Hub';
-    return 'Forum';
-}
-
 export default function DashboardPromoCarousel({ userRole }: { userRole?: string | null }) {
     const promos = useMemo(() => {
         const basePromos: DashboardPromoBase[] = FORUM_PROMOS.map(promo => ({
@@ -50,13 +44,18 @@ export default function DashboardPromoCarousel({ userRole }: { userRole?: string
         }));
         const verificationPromo = isAdminRole(userRole) ? ADMIN_VERIFICATION_PROMO : MEMBER_VERIFICATION_PROMO;
 
-        return [verificationPromo, ...basePromos].map(promo => ({
-            ...promo,
-            switchLabel: getSwitchLabel(promo),
-        }));
+        return [verificationPromo, ...basePromos];
     }, [userRole]);
     const [promoIndex, setPromoIndex] = useState(0);
     const activePromo = promos[promoIndex % promos.length];
+
+    const showPreviousPromo = () => {
+        setPromoIndex(current => (current - 1 + promos.length) % promos.length);
+    };
+
+    const showNextPromo = () => {
+        setPromoIndex(current => (current + 1) % promos.length);
+    };
 
     useEffect(() => {
         const intervalId = window.setInterval(() => {
@@ -103,21 +102,39 @@ export default function DashboardPromoCarousel({ userRole }: { userRole?: string
                         </div>
                     </motion.div>
                 </AnimatePresence>
-                <div className="forum-promo-dots dashboard-promo-switcher" aria-label="切换 dashboard 广告">
-                    {promos.map((promo, index) => (
-                        <button
-                            key={promo.title}
-                            type="button"
-                            className={index === promoIndex ? 'is-active' : ''}
-                            aria-label={`Show ${promo.title}`}
-                            title={promo.title}
-                            onMouseEnter={() => setPromoIndex(index)}
-                            onFocus={() => setPromoIndex(index)}
-                            onClick={() => setPromoIndex(index)}
-                        >
-                            {promo.switchLabel}
-                        </button>
-                    ))}
+                <div className="forum-promo-controls dashboard-promo-switcher" aria-label="切换 dashboard 广告">
+                    <button
+                        type="button"
+                        className="forum-promo-arrow"
+                        aria-label="上一条 Dashboard 广告"
+                        onClick={showPreviousPromo}
+                    >
+                        ‹
+                    </button>
+                    <div className="forum-promo-dots" role="tablist" aria-label="Dashboard promotional dots">
+                        {promos.map((promo, index) => (
+                            <button
+                                key={promo.title}
+                                type="button"
+                                className={index === promoIndex ? 'is-active' : ''}
+                                aria-label={`Show ${promo.title}`}
+                                title={promo.title}
+                                aria-selected={index === promoIndex}
+                                role="tab"
+                                onMouseEnter={() => setPromoIndex(index)}
+                                onFocus={() => setPromoIndex(index)}
+                                onClick={() => setPromoIndex(index)}
+                            />
+                        ))}
+                    </div>
+                    <button
+                        type="button"
+                        className="forum-promo-arrow"
+                        aria-label="下一条 Dashboard 广告"
+                        onClick={showNextPromo}
+                    >
+                        ›
+                    </button>
                 </div>
             </div>
         </div>

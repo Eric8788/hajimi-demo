@@ -490,8 +490,8 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         }
     };
 
-    const renderAvatarEditor = () => (
-        <section className="profile-avatar-settings profile-inline-editor" ref={avatarSettingsRef}>
+    const renderAvatarEditor = (placement: 'hero' | 'panel' = 'panel') => (
+        <section className={`profile-avatar-settings profile-inline-editor${placement === 'hero' ? ' is-hero-avatar-editor' : ''}`} ref={avatarSettingsRef}>
             <div className="profile-section-heading">
                 <h3>头像</h3>
                 <p>上传裁剪图片，或继续使用 emoji 头像。</p>
@@ -590,7 +590,11 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 </div>
             )}
             <div className="profile-hero-content">
-                {canEditAvatar ? (
+                {isEditing && !readOnly ? (
+                    <div className="profile-hero-avatar-editor-shell">
+                        {renderAvatarEditor('hero')}
+                    </div>
+                ) : canEditAvatar ? (
                     <button type="button" className="profile-hero-avatar profile-hero-avatar-button" onClick={openAvatarEditor} aria-label="编辑头像">
                         {avatarContent}
                         <span className="profile-hero-avatar-hint">Edit</span>
@@ -647,7 +651,6 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
             </div>
             {isEditing && !readOnly && (
                 <div className="profile-hero-edit-dock">
-                    {renderAvatarEditor()}
                     {renderBadgeEditor()}
                 </div>
             )}

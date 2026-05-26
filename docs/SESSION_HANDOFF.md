@@ -1,8 +1,8 @@
 # Hajimi Session Handoff
 
-*Last updated: 2026-05-20 (Asia/Shanghai)*
+*Last updated: 2026-05-22 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.15 · 2026-05-22
+**Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
@@ -13,7 +13,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
-- **Current version:** Hajimi Beta v0.2.0-beta.15
+- **Current version:** Hajimi Beta v0.2.0-beta.16
 - **Latest stable branch:** `main`
 
 ## 2. What Is Already Done
@@ -58,6 +58,9 @@ BLOB_READ_WRITE_TOKEN=...
 HAJIMI_INVITE_CODE=...
 DASHSCOPE_API_KEY=...      # optional, powers dashboard Cyber Oracle AI reading
 SILICONFLOW_API_KEY=...    # optional fallback provider for Cyber Oracle
+ZENMUX_API_KEY=...         # optional, AI Tabletop-aligned Oracle provider
+TOKENDANCE_API_KEY=...     # optional, requires TOKENDANCE_BASE_URL
+TOKENDANCE_BASE_URL=...    # optional Tokendance OpenAI-compatible base URL
 HAJIMI_VERIFICATION_PEPPER=... # recommended, hashes optional student IDs for Hajimi verification
 ```
 
@@ -70,7 +73,7 @@ Important:
 - Hajimi verification is optional at registration but required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, and leaderboard visibility.
 - Verification `Name` means school common/preferred name, not legal name. Public pages never show Name, student ID, or subject.
 - Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows Hub `热度榜` / `星级榜` views based on capped effective opens, verified unique players, and ratings.
-- Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider failures use a server fallback and still count once a reading is returned.
+- Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider order is custom `HAJIMI_ORACLE_API_*`, then ZenMux, DashScope, SiliconFlow, and optional Tokendance; provider failures try the next configured provider, then use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks
 

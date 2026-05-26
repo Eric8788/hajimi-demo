@@ -3,7 +3,7 @@
 
 *This document is written for AI Coding Assistants (or new developers) to instantly understand the project's current state, architecture, and design philosophy. Do not delete this file.*
 
-**Current version:** Hajimi Beta v0.2.0-beta.15 · 2026-05-22
+**Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
 ## 1. Project Overview
 Hajimi is a comprehensive, gamified student community and project hub built for a high school AI Club. It serves as a forum ("The Hallway"), a personalized dashboard, and a centralized hub for all student-developed games and tools ("Function Hall").
@@ -26,7 +26,7 @@ The app uses Next.js App Router (`src/app/`).
   - **Welcome Widget:** Daily insight and Check-in button.
   - **Beta Test Mission:** Quick entry points for trying Function Hall and opening the pinned feedback announcement.
   - **Timeline Dancer:** Static daily schedule visualization.
-  - **Cyber Oracle (`<TarotGame />`):** A Tarot reflection widget backed by `/api/oracle`, with deeper Chinese interpretation and a 3-successful-readings-per-user-per-day limit.
+  - **Cyber Oracle (`<TarotGame />`):** A Tarot reflection widget backed by `/api/oracle`, with AI Tabletop-aligned provider routing, deeper Chinese interpretation, and a 3-successful-readings-per-user-per-day limit.
   - **Rec Room:** Displays the absolute latest posts directly from the database.
 - `/resources` **(The Hallway - Hybrid Access):** 
   - The main forum. **Guest Mode is enabled.**
@@ -40,7 +40,7 @@ The app uses Next.js App Router (`src/app/`).
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
   - Hub projects are open to play for guests and unverified users.
   - Verified users can submit project/new-version applications; admins approve/reject at `/admin/project-submissions` before live Hub updates.
-  - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window capped effective opens first, then verified unique players and rating; rating ranks cumulative stars first while still showing selected-window play stats.
+  - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first, then rating and capped effective opens; rating ranks cumulative stars first while still showing selected-window play stats.
   - Live data comes from the `projects` table. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
 
 ## 4. Design Philosophy & CSS
@@ -56,7 +56,7 @@ Database interactions are handled via standard SQL functions.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
 - **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
-- **`projects`:** `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `status`, `rating`, `rating_count`, `created_at`.
+- **`projects`:** `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `cover_url`, `status`, `rating`, `rating_count`, `created_at`.
 - **`project_likes` / `project_comments`:** Hub ratings and comments, verified-only interaction data for project contribution rankings.
 - **`project_opens`:** `id`, `project_id`, `user_id`, `opened_at`; raw play/open log. Hub rankings derive verified unique players and capped effective opens from this table.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
