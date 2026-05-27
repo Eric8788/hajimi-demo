@@ -21,6 +21,7 @@ import {
 const WORLD_VIEW_BOX = { x: 0, y: 230, width: 905, height: 340 };
 const MAP_PAN_BOUNDS = { x: 0, y: 210, width: 920, height: 405 };
 const VIEWBOX_ANIMATION_MS = 460;
+const REGION_POINT_SELECT_DELAY_MS = VIEWBOX_ANIMATION_MS + 180;
 // mapPoint values are hand-calibrated in the same SVG coordinate space as the
 // base map. Lat/lng stay in the data for geography, but drawing uses mapPoint.
 const MIN_ZOOM_VIEW_BOX = { width: 28, height: 18 };
@@ -246,7 +247,7 @@ function zoomViewBoxAt(
 
 function isMapInteractiveTarget(target: EventTarget | null) {
   const element = target instanceof Element ? target : null;
-  return Boolean(element?.closest('.alumni-city-pin, .alumni-map-zoom-controls, button, a, input'));
+  return Boolean(element?.closest('.alumni-region-cluster, .alumni-region-hit-area, .alumni-city-pin, .alumni-map-zoom-controls, button, a, input'));
 }
 
 function buildWorldRegions() {
@@ -386,11 +387,14 @@ export default function AlumniWorldMap() {
   const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
   const [animatedViewBox, setAnimatedViewBox] = useState<MapViewBox>(WORLD_VIEW_BOX);
   const [isDraggingMap, setIsDraggingMap] = useState(false);
+  const [canSelectRegionPoints, setCanSelectRegionPoints] = useState(true);
   const animatedViewBoxRef = useRef<MapViewBox>(WORLD_VIEW_BOX);
   const viewBoxAnimationRef = useRef(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const mapDragRef = useRef<MapDragState | null>(null);
   const suppressNextClickRef = useRef(false);
+  const suppressSchoolSelectUntilRef = useRef(0);
+  const clearRegionSelectionTimerRef = useRef<number | null>(null);
 
   const selectedRegion = useMemo(
     () => worldRegions.find((region) => region.id === selectedRegionId) ?? null,
@@ -479,12 +483,27 @@ export default function AlumniWorldMap() {
   ]);
 
   useEffect(() => {
-    return () => cancelAnimationFrame(viewBoxAnimationRef.current);
+    return () => {
+      cancelAnimationFrame(viewBoxAnimationRef.current);
+      if (clearRegionSelectionTimerRef.current !== null) {
+        window.clearTimeout(clearRegionSelectionTimerRef.current);
+      }
+    };
   }, []);
 
   const selectRegion = (region: AlumniRegion) => {
+    if (clearRegionSelectionTimerRef.current !== null) {
+      window.clearTimeout(clearRegionSelectionTimerRef.current);
+    }
+    setCanSelectRegionPoints(false);
+    suppressSchoolSelectUntilRef.current = performance.now() + REGION_POINT_SELECT_DELAY_MS;
     setSelectedRegionId(region.id);
     setSelectedAlumniId(null);
+    clearRegionSelectionTimerRef.current = window.setTimeout(() => {
+      setSelectedAlumniId(null);
+      setCanSelectRegionPoints(true);
+      clearRegionSelectionTimerRef.current = null;
+    }, REGION_POINT_SELECT_DELAY_MS);
   };
 
   const selectWorldSchoolPoint = (point: AlumniMapPoint) => {
@@ -547,6 +566,24 @@ export default function AlumniWorldMap() {
     }
 
     resetWorld();
+  };
+
+  const shouldSuppressSchoolPointEvent = (target: EventTarget | null) => {
+    if (performance.now() >= suppressSchoolSelectUntilRef.current) return false;
+    const element = target instanceof Element ? target : null;
+    return Boolean(element?.closest('.alumni-city-pin'));
+  };
+
+  const handleStageClickCapture = (event: MouseEvent<HTMLDivElement>) => {
+    if (!shouldSuppressSchoolPointEvent(event.target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleStagePointerUpCapture = (event: PointerEvent<HTMLDivElement>) => {
+    if (!shouldSuppressSchoolPointEvent(event.target)) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const handleMapSvgClick = (event: MouseEvent<SVGSVGElement>) => {
@@ -699,9 +736,11 @@ export default function AlumniWorldMap() {
               ref={stageRef}
               className={`alumni-map-stage${availableRegionClass}${regionClass}${hoveredClass}${exploringClass}${worldDotsClass}${draggingClass}`}
               onClick={handleStageClick}
+              onClickCapture={handleStageClickCapture}
               onPointerDown={handleStagePointerDown}
               onPointerMove={handleStagePointerMoveWithinMap}
               onPointerUp={finishMapDrag}
+              onPointerUpCapture={handleStagePointerUpCapture}
               onPointerCancel={finishMapDrag}
               onPointerLeave={(event) => {
                 finishMapDrag(event);
@@ -771,6 +810,7 @@ export default function AlumniWorldMap() {
                             region={region}
                             isSelected={point.contacts.some((contact) => contact.alumniId === selectedAlumniId)}
                             onSelect={() => selectWorldSchoolPoint(point)}
+                            selectionEnabled
                             viewBoxWidth={animatedViewBox.width}
                             showLabelOnVisible
                           />
@@ -780,14 +820,19 @@ export default function AlumniWorldMap() {
                   </>
                 )}
                 {selectedRegion && (
-                  <g>
+                  <g className={canSelectRegionPoints ? '' : 'is-region-transitioning'}>
                     {currentPoints.map((point) => (
                       <AlumniPoint
                         key={point.id}
                         point={point}
                         region={selectedRegion}
                         isSelected={point.contacts.some((contact) => contact.alumniId === selectedAlumniId)}
-                        onSelect={() => setSelectedAlumniId(point.contact.alumniId)}
+                        selectionEnabled={canSelectRegionPoints}
+                        onSelect={() => {
+                          if (!canSelectRegionPoints) return;
+                          if (performance.now() < suppressSchoolSelectUntilRef.current) return;
+                          setSelectedAlumniId(point.contact.alumniId);
+                        }}
                       />
                     ))}
                   </g>
@@ -885,7 +930,18 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
       role="button"
       tabIndex={0}
       aria-label={`${region.label}，${region.contacts.length} 位校友`}
-      onClick={onSelect}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      onPointerUp={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       onMouseEnter={() => onHover(region.id)}
       onMouseLeave={() => onHover(null)}
       onKeyDown={(event) => {
@@ -923,6 +979,7 @@ type AlumniPointProps = {
   region: AlumniRegion;
   isSelected: boolean;
   onSelect: () => void;
+  selectionEnabled?: boolean;
   viewBoxWidth?: number;
   showLabelOnVisible?: boolean;
 };
@@ -932,9 +989,11 @@ function AlumniPoint({
   region,
   isSelected,
   onSelect,
+  selectionEnabled = true,
   viewBoxWidth,
   showLabelOnVisible = false,
 }: AlumniPointProps) {
+  const pointerStartedOnPinRef = useRef(false);
   const baseViewBoxWidth = viewBoxWidth ?? getRegionFocusViewBox(region).width;
   const logoSize = Math.max(region.id === 'hong-kong' ? 8.5 : 2.2, Math.min(34, baseViewBoxWidth * 0.034));
   const hitSize = logoSize * 1.5;
@@ -950,8 +1009,17 @@ function AlumniPoint({
       role="button"
       tabIndex={0}
       aria-label={`${point.contact.name}，${point.contact.university}`}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        pointerStartedOnPinRef.current = selectionEnabled;
+      }}
+      onPointerCancel={() => {
+        pointerStartedOnPinRef.current = false;
+      }}
       onClick={(event) => {
         event.stopPropagation();
+        if (!pointerStartedOnPinRef.current) return;
+        pointerStartedOnPinRef.current = false;
         onSelect();
       }}
       onKeyDown={(event) => {

@@ -212,9 +212,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 kind,
                 label: 'Playtest',
                 status: `${project.title} · by ${authorName} · CIE 试卷下载器`,
-                titleBefore: '试一次从',
+                titleBefore: 'C-Paper：从',
                 titleAccent: '科目代码',
-                titleAfter: '到批量下载的完整流程',
+                titleAfter: '到批量下载',
                 text: '建议用真实 CIE 复习任务测试：是否能快速找到年份、季节和 Paper 类型；Question Paper 与 Mark Scheme 是否容易配对；下载历史和收藏是否真的省时间。',
                 meta: ['科目代码', '考试季节', 'Paper 类型', '批量下载'],
                 ctaLabel: '立即体验',
@@ -1163,7 +1163,6 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
                             <div className="project-card-cover-fallback" aria-hidden="true">
                                 <span className="project-card-cover-emoji">{project.emoji}</span>
                                 <span className="project-card-cover-kicker">{TAG_EMOJIS[primaryTag] ? `${TAG_EMOJIS[primaryTag]} ${primaryTag}` : primaryTag}</span>
-                                <strong>Student Project</strong>
                             </div>
                         )}
                         <div className="project-card-cover-shine" aria-hidden="true" />

@@ -774,19 +774,21 @@ textarea:hover,
 }
 
 .project-card-emoji {
-  flex: 0 0 auto;
-  font-size: 2.2rem;
-  line-height: 1;
+  display: none;
 }
 
 .project-card-title-block h3,
 .project-card-back-head h3 {
+  display: -webkit-box;
   margin: 0;
+  overflow: hidden;
   color: #2d3436;
   font-size: 1.1rem;
   font-weight: 850;
   line-height: 1.16;
   letter-spacing: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .project-card-title-block span,
@@ -1538,13 +1540,17 @@ textarea:hover,
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   gap: 8px;
   padding-right: 0;
+  overflow: hidden;
 }
 
 .hub-spotlight-label {
   display: inline-flex;
+  flex: 0 0 auto;
   min-height: 25px;
   align-items: center;
   border-radius: 999px;
@@ -1558,6 +1564,7 @@ textarea:hover,
 }
 
 .hub-spotlight-status {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   color: #66716e;
@@ -5225,9 +5232,22 @@ textarea:hover,
   transition: opacity 0.2s ease;
 }
 
+.alumni-world-school-points .alumni-city-pin,
+.alumni-world-school-points .alumni-city-pin * {
+  pointer-events: none;
+}
+
 .show-world-school-dots .alumni-world-school-points {
   opacity: 1;
   pointer-events: auto;
+}
+
+.show-world-school-dots .alumni-world-school-points .alumni-city-pin {
+  pointer-events: auto;
+}
+
+.show-world-school-dots .alumni-world-school-points .alumni-city-pin-hit-area {
+  pointer-events: all;
 }
 
 .alumni-region-hit-area {
@@ -5358,6 +5378,10 @@ textarea:hover,
   pointer-events: auto;
   cursor: pointer;
   outline: none;
+}
+
+.is-region-transitioning .alumni-city-pin {
+  pointer-events: none;
 }
 
 .alumni-region-cluster-hit-area {
@@ -6234,13 +6258,13 @@ textarea:hover,
   }
 
   .hub-spotlight-frame {
-    height: 220px;
-    min-height: 220px;
+    height: 196px;
+    min-height: 196px;
   }
 
   .hub-spotlight-slide {
     grid-template-columns: minmax(0, 1fr);
-    padding: 16px 16px 58px;
+    padding: 14px 14px 52px;
   }
 
   .hub-spotlight-controls {
@@ -6250,21 +6274,46 @@ textarea:hover,
   }
 
   .hub-spotlight-label-row {
+    flex: 1 1 auto;
+    width: auto;
     padding-right: 0;
   }
 
   .hub-spotlight-copy {
     padding-right: 0;
+    justify-content: flex-start;
   }
 
   .hub-spotlight-topline {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    flex-direction: row;
+    gap: 10px;
+    margin-bottom: 8px;
   }
 
   .hub-spotlight-visual {
     display: none;
+  }
+
+  .hub-spotlight-label {
+    min-height: 23px;
+    padding: 4px 9px;
+    font-size: 0.62rem;
+  }
+
+  .hub-spotlight-status {
+    display: none;
+  }
+
+  .hub-spotlight-actions {
+    flex: 0 0 auto;
+  }
+
+  .hub-spotlight-cta,
+  .hub-spotlight-secondary {
+    min-height: 29px;
+    padding: 6px 10px;
+    font-size: 0.68rem;
   }
 
   .hub-spotlight-title {
@@ -6272,15 +6321,26 @@ textarea:hover,
     display: -webkit-box;
     overflow: hidden;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
+    font-size: 1.12rem;
   }
 
   .hub-spotlight-text {
-    -webkit-line-clamp: 3;
+    margin-top: 7px;
+    font-size: 0.72rem;
+    line-height: 1.38;
+    -webkit-line-clamp: 2;
   }
 
   .hub-spotlight-meta {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    margin-top: 8px;
+  }
+
+  .hub-spotlight-meta span {
+    min-height: 22px;
+    padding: 3px 7px;
+    font-size: 0.6rem;
   }
 
   .project-filter-bar {
@@ -6315,9 +6375,43 @@ textarea:hover,
     max-width: 100%;
   }
 
+  .hub-leaderboard-controls {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .hub-leaderboard-tabs,
+  .hub-leaderboard-mode-tabs {
+    gap: 5px;
+    padding: 4px;
+  }
+
   .hub-leaderboard-tabs button,
   .hub-leaderboard-mode-tabs button {
     flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+  }
+
+  .hub-leaderboard-info {
+    position: relative;
+  }
+
+  .hub-leaderboard-tooltip {
+    left: auto;
+    right: 0;
+    width: min(238px, calc(100vw - 112px));
+    max-width: calc(100vw - 112px);
+    transform: translate(58px, -4px);
+  }
+
+  .hub-leaderboard-info:hover .hub-leaderboard-tooltip,
+  .hub-leaderboard-info:focus-visible .hub-leaderboard-tooltip {
+    transform: translate(58px, 0);
   }
 
   .hub-leaderboard-list {
@@ -6344,10 +6438,8 @@ textarea:hover,
   }
 
   .project-card-tagline {
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    white-space: nowrap;
+    display: block;
   }
 
   .project-card-comment-form {
@@ -6987,13 +7079,13 @@ p {
 
 @media (max-width: 760px) {
   .forum-welcome-board {
-    height: 370px;
-    min-height: 370px;
+    height: 350px;
+    min-height: 350px;
   }
 
   .forum-welcome-picture {
     grid-template-columns: 1fr;
-    grid-template-rows: 168px 1fr;
+    grid-template-rows: 132px minmax(0, 1fr);
   }
 
   .forum-picture-scene {
@@ -7017,6 +7109,26 @@ p {
   .dashboard-promo-switcher {
     top: 14px;
     right: 14px;
+  }
+
+  .forum-picture-copy {
+    padding: 18px 20px 26px;
+    gap: 6px;
+  }
+
+  .forum-picture-kicker {
+    padding: 5px 10px;
+    font-size: 0.66rem;
+  }
+
+  .forum-picture-copy strong {
+    font-size: 1.28rem;
+    line-height: 1.08;
+  }
+
+  .forum-picture-copy span:last-child {
+    font-size: 0.82rem;
+    line-height: 1.45;
   }
 }
 
