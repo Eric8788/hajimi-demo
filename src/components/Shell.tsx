@@ -26,7 +26,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
             return;
         }
 
-        const res = await fetch('/api/notifications', { cache: 'no-store' });
+        const res = await fetch('/api/notifications?mode=count', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         setUnreadCount(Number(data.unreadCount || 0));

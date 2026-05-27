@@ -211,6 +211,22 @@ export interface Notification {
     post_title?: string;
 }
 
+export interface AdminReviewTask {
+    id: string;
+    kind: 'verification' | 'project_submission';
+    title: string;
+    description: string;
+    href: string;
+    created_at: Date | string | null;
+}
+
+export interface AdminReviewSummary {
+    totalCount: number;
+    verificationCount: number;
+    projectSubmissionCount: number;
+    tasks: AdminReviewTask[];
+}
+
 // --- User Helpers ---
 
 let userProfileEnhancementsReady: Promise<void> | null = null;
@@ -1499,6 +1515,110 @@ export async function getProjectSubmissions(status: ProjectSubmissionStatus | 'a
     `;
 
     return rows;
+}
+
+export async function getAdminReviewSummary(): Promise<AdminReviewSummary> {
+    await ensureUserProfileEnhancements();
+    await ensureProjectSubmissionsTable();
+
+    const [
+        verificationCountResult,
+        projectSubmissionCountResult,
+        verificationTasksResult,
+        projectSubmissionTasksResult,
+    ] = await Promise.all([
+        sql<{ count: number }>`
+          SELECT COUNT(*)::int as count
+          FROM users
+          WHERE verification_status = 'pending'
+        `,
+        sql<{ count: number }>`
+          SELECT COUNT(*)::int as count
+          FROM project_submissions
+          WHERE status = 'pending'
+        `,
+        sql<{
+            id: number;
+            username: string;
+            verification_type: VerificationType | null;
+            verified_name: string | null;
+            verified_grade: string | null;
+            verified_subject: string | null;
+            verification_submitted_at: Date | null;
+        }>`
+          SELECT id, username, verification_type, verified_name, verified_grade, verified_subject, verification_submitted_at
+          FROM users
+          WHERE verification_status = 'pending'
+          ORDER BY verification_submitted_at ASC NULLS LAST, id ASC
+          LIMIT 5
+        `,
+        sql<{
+            id: number;
+            author_name: string;
+            submission_type: ProjectSubmissionType;
+            title: string;
+            project_title: string | null;
+            created_at: Date;
+        }>`
+          SELECT
+            project_submissions.id,
+            users.username as author_name,
+            project_submissions.submission_type,
+            project_submissions.title,
+            projects.title as project_title,
+            project_submissions.created_at
+          FROM project_submissions
+          JOIN users ON project_submissions.author_id = users.id
+          LEFT JOIN projects ON project_submissions.project_id = projects.id
+          WHERE project_submissions.status = 'pending'
+          ORDER BY project_submissions.created_at DESC
+          LIMIT 5
+        `,
+    ]);
+
+    const verificationCount = verificationCountResult.rows[0]?.count ?? 0;
+    const projectSubmissionCount = projectSubmissionCountResult.rows[0]?.count ?? 0;
+
+    const verificationTasks: AdminReviewTask[] = verificationTasksResult.rows.map((request) => {
+        const identity = request.verified_name || request.username;
+        const detail = request.verification_type === 'teacher'
+            ? `Teacher · ${request.verified_subject || 'subject not set'}`
+            : `${request.verified_grade || 'grade not set'} · ${request.username}`;
+
+        return {
+            id: `verification-${request.id}`,
+            kind: 'verification',
+            title: `${identity} 的认证申请`,
+            description: detail,
+            href: '/admin/verifications',
+            created_at: request.verification_submitted_at,
+        };
+    });
+
+    const projectSubmissionTasks: AdminReviewTask[] = projectSubmissionTasksResult.rows.map((submission) => {
+        const typeLabel = submission.submission_type === 'new_version' ? '新版本申请' : '新项目申请';
+        const target = submission.project_title ? ` · 更新 ${submission.project_title}` : '';
+
+        return {
+            id: `project-${submission.id}`,
+            kind: 'project_submission',
+            title: `${submission.title} · ${typeLabel}`,
+            description: `${submission.author_name}${target}`,
+            href: '/admin/project-submissions',
+            created_at: submission.created_at,
+        };
+    });
+
+    const tasks = [...verificationTasks, ...projectSubmissionTasks]
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+        .slice(0, 8);
+
+    return {
+        totalCount: verificationCount + projectSubmissionCount,
+        verificationCount,
+        projectSubmissionCount,
+        tasks,
+    };
 }
 
 export async function reviewProjectSubmission(submissionId: number, reviewerId: number, status: 'approved' | 'rejected', note = '') {

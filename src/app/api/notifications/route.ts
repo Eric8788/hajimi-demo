@@ -1,21 +1,36 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getNotifications, getUnreadNotificationCount, markNotificationsRead } from '@/lib/db';
+import { getAdminReviewSummary, getNotifications, getUnreadNotificationCount, getUserById, markNotificationsRead } from '@/lib/db';
+import { isAdminRole } from '@/lib/roles';
 
-export async function GET() {
+export async function GET(request: Request) {
     const session = await getSession();
     if (!session) {
         return NextResponse.json({ notifications: [], unreadCount: 0 });
     }
 
     try {
+        const { searchParams } = new URL(request.url);
+        const countOnly = searchParams.get('mode') === 'count';
         const userId = Number(session.userId);
-        const [notifications, unreadCount] = await Promise.all([
+
+        if (countOnly) {
+            const unreadCount = await getUnreadNotificationCount(userId);
+            return NextResponse.json({ unreadCount }, {
+                headers: {
+                    'Cache-Control': 'no-store, max-age=0, must-revalidate',
+                },
+            });
+        }
+
+        const [user, notifications, unreadCount] = await Promise.all([
+            getUserById(userId),
             getNotifications(userId),
             getUnreadNotificationCount(userId),
         ]);
+        const reviewSummary = user && isAdminRole(user.role) ? await getAdminReviewSummary() : null;
 
-        return NextResponse.json({ notifications, unreadCount }, {
+        return NextResponse.json({ notifications, unreadCount, reviewSummary }, {
             headers: {
                 'Cache-Control': 'no-store, max-age=0, must-revalidate',
             },

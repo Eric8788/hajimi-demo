@@ -1,9 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Notification } from '@/lib/db';
+import type { AdminReviewSummary, AdminReviewTask, Notification } from '@/lib/db';
 import Avatar from './Avatar';
+
+type NotificationTab = 'review' | 'activity' | 'all';
 
 function notificationText(notification: Notification) {
     const actor = notification.actor_name || 'Someone';
@@ -20,10 +23,27 @@ function notificationText(notification: Notification) {
     return `${actor} liked your comment`;
 }
 
+function reviewTaskIcon(task: AdminReviewTask) {
+    return task.kind === 'verification' ? '✅' : '🚀';
+}
+
+function formatNotificationTime(value: Date | string | null | undefined) {
+    if (!value) return '';
+    return new Date(value).toLocaleString();
+}
+
 export default function NotificationsBell() {
+    const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [reviewSummary, setReviewSummary] = useState<AdminReviewSummary | null>(null);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<NotificationTab>('activity');
+
+    const reviewCount = reviewSummary?.totalCount ?? 0;
+    const displayCount = unreadCount + reviewCount;
+    const hasReviewTasks = reviewCount > 0;
+    const visibleTabs = useMemo<NotificationTab[]>(() => (reviewSummary ? ['review', 'activity', 'all'] : ['activity']), [reviewSummary]);
 
     const loadNotifications = useCallback(async () => {
         const res = await fetch('/api/notifications', { cache: 'no-store' });
@@ -31,8 +51,18 @@ export default function NotificationsBell() {
 
         const data = await res.json();
         const nextUnreadCount = Number(data.unreadCount || 0);
+        const nextReviewSummary = data.reviewSummary && typeof data.reviewSummary === 'object'
+            ? data.reviewSummary as AdminReviewSummary
+            : null;
+
         setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
         setUnreadCount(nextUnreadCount);
+        setReviewSummary(nextReviewSummary);
+        setActiveTab(current => {
+            if (!nextReviewSummary && current !== 'activity') return 'activity';
+            if (nextReviewSummary?.totalCount && current === 'activity' && nextUnreadCount === 0) return 'review';
+            return current;
+        });
         window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: nextUnreadCount } }));
     }, []);
 
@@ -50,27 +80,116 @@ export default function NotificationsBell() {
         };
     }, [loadNotifications]);
 
+    const markActivityRead = async () => {
+        if (unreadCount <= 0) return;
+        setUnreadCount(0);
+        setNotifications(current => current.map(item => ({ ...item, read_at: item.read_at || new Date() })));
+        window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: 0 } }));
+        await fetch('/api/notifications', { method: 'PATCH' });
+    };
+
     const toggleOpen = async () => {
         const nextOpen = !isOpen;
         setIsOpen(nextOpen);
 
-        if (nextOpen && unreadCount > 0) {
-            setUnreadCount(0);
-            setNotifications(current => current.map(item => ({ ...item, read_at: item.read_at || new Date() })));
-            window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: 0 } }));
-            await fetch('/api/notifications', { method: 'PATCH' });
+        if (nextOpen) {
+            setActiveTab(hasReviewTasks ? 'review' : 'activity');
+            await markActivityRead();
         }
+    };
+
+    const goTo = (href: string) => {
+        setIsOpen(false);
+        router.push(href);
+    };
+
+    const renderReviewTasks = () => {
+        if (!reviewSummary || reviewSummary.totalCount === 0) {
+            return (
+                <div className="notification-empty">
+                    暂时没有新的审核。认证和项目申请会出现在这里。
+                </div>
+            );
+        }
+
+        return (
+            <>
+                <div className="notification-review-summary">
+                    <button type="button" onClick={() => goTo('/admin/verifications')}>
+                        <strong>{reviewSummary.verificationCount}</strong>
+                        <span>认证审核</span>
+                    </button>
+                    <button type="button" onClick={() => goTo('/admin/project-submissions')}>
+                        <strong>{reviewSummary.projectSubmissionCount}</strong>
+                        <span>项目申请</span>
+                    </button>
+                </div>
+                <div className="notification-list">
+                    {reviewSummary.tasks.map(task => (
+                        <button
+                            type="button"
+                            key={task.id}
+                            className="notification-review-row"
+                            onClick={() => goTo(task.href)}
+                        >
+                            <span className="notification-review-icon">{reviewTaskIcon(task)}</span>
+                            <span className="notification-copy">
+                                <span className="notification-message">{task.title}</span>
+                                <span className="notification-time">
+                                    {task.description} {task.created_at ? `· ${formatNotificationTime(task.created_at)}` : ''}
+                                </span>
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </>
+        );
+    };
+
+    const renderActivityNotifications = () => {
+        if (notifications.length === 0) {
+            return (
+                <div className="notification-empty">
+                    Likes, saves and comment likes will show up here.
+                </div>
+            );
+        }
+
+        return (
+            <div className="notification-list">
+                {notifications.map(notification => (
+                    <div
+                        key={notification.id}
+                        className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
+                    >
+                        <Avatar value={notification.actor_avatar} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
+                        <div className="notification-copy">
+                            <div
+                                className="notification-message"
+                                style={{ fontWeight: notification.read_at ? 600 : 800 }}
+                                title={notificationText(notification)}
+                            >
+                                {notificationText(notification)}
+                            </div>
+                            <div suppressHydrationWarning className="notification-time">
+                                {formatNotificationTime(notification.created_at)}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
     };
 
     return (
         <div style={{ position: 'relative', marginBottom: '14px' }}>
             <motion.button
                 type="button"
-                className={`notification-trigger ${unreadCount > 0 ? 'has-unread' : ''}`}
+                className={`notification-trigger ${displayCount > 0 ? 'has-unread' : ''}`}
                 onClick={toggleOpen}
                 whileHover={{ y: -2, scale: 1.05 }}
                 whileTap={{ scale: 0.88 }}
-                animate={unreadCount > 0 ? { rotate: [0, -8, 8, -5, 0] } : { rotate: 0 }}
+                animate={displayCount > 0 ? { rotate: [0, -8, 8, -5, 0] } : { rotate: 0 }}
                 transition={{ duration: 0.45 }}
                 title="Notifications"
                 style={{
@@ -78,19 +197,19 @@ export default function NotificationsBell() {
                     height: '42px',
                     borderRadius: '50%',
                     border: '1px solid rgba(255,255,255,0.8)',
-                    background: unreadCount > 0 ? 'linear-gradient(135deg, #fd79a8, #a29bfe)' : 'rgba(255,255,255,0.42)',
-                    color: unreadCount > 0 ? 'white' : '#6c5ce7',
+                    background: displayCount > 0 ? 'linear-gradient(135deg, #fd79a8, #a29bfe)' : 'rgba(255,255,255,0.42)',
+                    color: displayCount > 0 ? 'white' : '#6c5ce7',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '1.15rem',
                     cursor: 'pointer',
-                    boxShadow: unreadCount > 0 ? '0 8px 18px rgba(253, 121, 168, 0.24)' : 'none',
+                    boxShadow: displayCount > 0 ? '0 8px 18px rgba(253, 121, 168, 0.24)' : 'none',
                     position: 'relative',
                 }}
             >
                 🔔
-                {unreadCount > 0 && (
+                {displayCount > 0 && (
                     <span
                         style={{
                             position: 'absolute',
@@ -109,7 +228,7 @@ export default function NotificationsBell() {
                             border: '2px solid white',
                         }}
                     >
-                        {unreadCount > 9 ? '9+' : unreadCount}
+                        {displayCount > 9 ? '9+' : displayCount}
                     </span>
                 )}
             </motion.button>
@@ -122,45 +241,41 @@ export default function NotificationsBell() {
                         animate={{ opacity: 1, x: 0, scale: 1 }}
                         exit={{ opacity: 0, x: -8, scale: 0.96 }}
                     >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '10px' }}>
-                            <strong style={{ color: '#2d3436' }}>Notifications</strong>
+                        <div className="notification-head">
+                            <div>
+                                <strong>通知中心</strong>
+                                {reviewSummary && (
+                                    <span>{reviewCount > 0 ? `${reviewCount} 个审核待办` : '审核已清空'}</span>
+                                )}
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => setIsOpen(false)}
-                                style={{ border: 'none', background: 'transparent', color: '#b2bec3', cursor: 'pointer', fontSize: '1rem' }}
+                                aria-label="Close notifications"
                             >
                                 ×
                             </button>
                         </div>
 
-                        {notifications.length === 0 ? (
-                            <div style={{ color: '#636e72', fontSize: '0.86rem', lineHeight: 1.5, padding: '12px 4px' }}>
-                                Likes and saves on your posts will show up here.
-                            </div>
-                        ) : (
-                            <div className="notification-list">
-                                {notifications.map(notification => (
-                                    <div
-                                        key={notification.id}
-                                        className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
-                                    >
-                                        <Avatar value={notification.actor_avatar} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
-                                        <div className="notification-copy">
-                                            <div
-                                                className="notification-message"
-                                                style={{ fontWeight: notification.read_at ? 600 : 800 }}
-                                                title={notificationText(notification)}
-                                            >
-                                                {notificationText(notification)}
-                                            </div>
-                                            <div suppressHydrationWarning className="notification-time">
-                                                {new Date(notification.created_at).toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                        {visibleTabs.length > 1 && (
+                            <div className="notification-tabs" role="tablist" aria-label="通知分类">
+                                <button type="button" className={activeTab === 'review' ? 'is-active' : ''} onClick={() => setActiveTab('review')}>
+                                    审核 {reviewCount > 0 ? reviewCount : ''}
+                                </button>
+                                <button type="button" className={activeTab === 'activity' ? 'is-active' : ''} onClick={() => setActiveTab('activity')}>
+                                    互动 {notifications.length > 0 ? notifications.length : ''}
+                                </button>
+                                <button type="button" className={activeTab === 'all' ? 'is-active' : ''} onClick={() => setActiveTab('all')}>
+                                    全部
+                                </button>
                             </div>
                         )}
+
+                        <div className="notification-drawer-body">
+                            {(activeTab === 'review' || activeTab === 'all') && renderReviewTasks()}
+                            {activeTab === 'all' && reviewSummary && <div className="notification-section-divider">互动通知</div>}
+                            {(activeTab === 'activity' || activeTab === 'all') && renderActivityNotifications()}
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
