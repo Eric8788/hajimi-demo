@@ -5357,9 +5357,14 @@ textarea:hover,
 
 .admin-danger-section button {
   margin-top: 12px;
+  margin-right: 8px;
   color: white;
   background: linear-gradient(135deg, #d63031, #fd79a8);
   box-shadow: 0 10px 22px rgba(214,48,49,0.17);
+}
+
+.admin-danger-section button.is-delete {
+  background: linear-gradient(135deg, #2d3436, #d63031);
 }
 
 @media (max-width: 1120px) {

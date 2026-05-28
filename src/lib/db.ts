@@ -730,25 +730,87 @@ export async function updateUserAuth(id: number, updates: { username?: string; p
 }
 
 export async function deleteUser(id: number) {
-    // Manual cleanup since ON DELETE CASCADE might not be set for all
-    await sql`DELETE FROM notifications WHERE recipient_id = ${id} OR actor_id = ${id}`;
-    await sql`DELETE FROM comment_likes WHERE user_id = ${id}`;
-    await sql`DELETE FROM post_likes WHERE user_id = ${id}`;
-    await sql`DELETE FROM bookmarks WHERE user_id = ${id}`;
-    await sql`DELETE FROM comments WHERE author_id = ${id}`;
-    
-    // For posts, we also need to delete associated comments and likes
-    const { rows: postRows } = await sql`SELECT id FROM posts WHERE author_id = ${id}`;
-    for (const post of postRows) {
-        await sql`DELETE FROM comments WHERE post_id = ${post.id}`;
-        await sql`DELETE FROM post_likes WHERE post_id = ${post.id}`;
-        await sql`DELETE FROM bookmarks WHERE post_id = ${post.id}`;
+    await ensureUserProfileEnhancements();
+    await ensureAdminAuditTable();
+    await ensurePointAwardsTable();
+    await ensureProjectEnhancements();
+    await ensureProjectSubmissionsTable();
+    await ensureProjectOpenEventsTable();
+    await ensureNotificationsTable();
+
+    const client = await db.connect();
+
+    try {
+        await client.sql`BEGIN`;
+
+        // Clear self-references and optional admin audit links first.
+        await client.sql`UPDATE users SET verification_reviewed_by = NULL WHERE verification_reviewed_by = ${id}`;
+        await client.sql`UPDATE users SET disabled_by = NULL WHERE disabled_by = ${id}`;
+        await client.sql`UPDATE admin_audit_events SET actor_id = NULL WHERE actor_id = ${id}`;
+        await client.sql`UPDATE admin_audit_events SET target_user_id = NULL WHERE target_user_id = ${id}`;
+        await client.sql`UPDATE project_submissions SET reviewed_by = NULL WHERE reviewed_by = ${id}`;
+
+        await client.sql`DELETE FROM notifications WHERE recipient_id = ${id} OR actor_id = ${id}`;
+
+        // Forum cleanup: remove interactions on both the user's content and their own interactions.
+        await client.sql`
+          DELETE FROM comment_likes
+          WHERE user_id = ${id}
+             OR comment_id IN (
+               SELECT comments.id
+               FROM comments
+               LEFT JOIN posts ON posts.id = comments.post_id
+               WHERE comments.author_id = ${id}
+                  OR posts.author_id = ${id}
+             )
+        `;
+        await client.sql`
+          DELETE FROM comments
+          WHERE author_id = ${id}
+             OR post_id IN (SELECT posts.id FROM posts WHERE posts.author_id = ${id})
+        `;
+        await client.sql`
+          DELETE FROM post_likes
+          WHERE user_id = ${id}
+             OR post_id IN (SELECT posts.id FROM posts WHERE posts.author_id = ${id})
+        `;
+        await client.sql`
+          DELETE FROM bookmarks
+          WHERE user_id = ${id}
+             OR post_id IN (SELECT posts.id FROM posts WHERE posts.author_id = ${id})
+        `;
+        await client.sql`DELETE FROM posts WHERE author_id = ${id}`;
+
+        // Hub cleanup: test accounts may have project ratings/comments/submissions/projects.
+        await client.sql`
+          DELETE FROM project_comments
+          WHERE author_id = ${id}
+             OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
+        `;
+        await client.sql`
+          DELETE FROM project_likes
+          WHERE user_id = ${id}
+             OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
+        `;
+        await client.sql`
+          DELETE FROM project_opens
+          WHERE user_id = ${id}
+             OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
+        `;
+        await client.sql`DELETE FROM project_submissions WHERE author_id = ${id}`;
+        await client.sql`DELETE FROM projects WHERE author_id = ${id}`;
+
+        await client.sql`DELETE FROM point_awards WHERE user_id = ${id}`;
+        await client.sql`DELETE FROM checkins WHERE user_id = ${id}`;
+        await client.sql`DELETE FROM users WHERE id = ${id}`;
+
+        await client.sql`COMMIT`;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
     }
-    await sql`DELETE FROM posts WHERE author_id = ${id}`;
-    await sql`DELETE FROM checkins WHERE user_id = ${id}`;
-    
-    // Finally delete user
-    await sql`DELETE FROM users WHERE id = ${id}`;
 }
 
 export async function isUserSessionActive(userId: number) {

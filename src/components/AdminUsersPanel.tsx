@@ -201,6 +201,40 @@ export default function AdminUsersPanel() {
         }
     };
 
+    const deleteAccount = async () => {
+        if (!detail) return;
+        const confirmUsername = window.prompt(`永久删除 ${detail.username}？\n\n这会删除该账号、测试发帖、评论、项目互动和项目申请，不能撤销。\n请输入完整用户名确认。`) || '';
+        if (confirmUsername !== detail.username) {
+            setMessage('删除已取消：用户名确认不一致。');
+            return;
+        }
+
+        setSaving(true);
+        setMessage('');
+        try {
+            const res = await fetch(`/api/admin/users/${detail.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirmUsername }),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setMessage(data?.error || '删除失败，请稍后再试。');
+                return;
+            }
+
+            setDetail(null);
+            setSelectedId(null);
+            setMessage(`${confirmUsername} 已删除。`);
+            await loadUsers();
+        } catch (error) {
+            console.error('Failed to delete admin user:', error);
+            setMessage('删除请求失败，请稍后再试。');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="admin-users-shell">
             <section className="admin-users-list-panel">
@@ -382,12 +416,15 @@ export default function AdminUsersPanel() {
 
                         <section className="admin-user-section admin-danger-section">
                             <h3>危险区</h3>
-                            <p>这里执行“停用账号/恢复账号”，不会硬删除学生内容和历史记录。</p>
+                            <p>优先使用停用账号保留记录；如果是测试账号，可以输入完整用户名后永久删除。</p>
                             {detail.account_status === 'disabled' ? (
                                 <button type="button" onClick={() => changeAccountStatus('enable')} disabled={saving}>恢复账号</button>
                             ) : (
                                 <button type="button" onClick={() => changeAccountStatus('disable')} disabled={saving}>停用账号</button>
                             )}
+                            <button type="button" className="is-delete" onClick={deleteAccount} disabled={saving || detail.role === 'admin'}>
+                                永久删除测试账号
+                            </button>
                         </section>
                     </>
                 )}

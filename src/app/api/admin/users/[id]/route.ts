@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getAdminUserDetail, getUserById, updateAdminUserIdentity } from '@/lib/db';
+import { deleteUser, getAdminUserDetail, getUserById, updateAdminUserIdentity } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 
 type RouteContext = {
@@ -85,5 +85,40 @@ export async function PATCH(request: Request, context: RouteContext) {
 
         console.error('PATCH /api/admin/users/[id] error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+    try {
+        const admin = await requireAdmin();
+        if (admin.error) return admin.error;
+
+        const { id } = await context.params;
+        const userId = Number(id);
+        if (!Number.isInteger(userId) || userId <= 0) {
+            return NextResponse.json({ error: 'Invalid user' }, { status: 400 });
+        }
+
+        if (admin.user.id === userId) {
+            return NextResponse.json({ error: '不能删除当前管理员自己的账号。' }, { status: 409 });
+        }
+
+        const target = await getAdminUserDetail(userId);
+        if (!target) return NextResponse.json({ error: '用户不存在。' }, { status: 404 });
+        if (target.role === 'admin') {
+            return NextResponse.json({ error: '不能在这里删除管理员账号。' }, { status: 409 });
+        }
+
+        const body = await request.json().catch(() => ({}));
+        const confirmUsername = String(body.confirmUsername || '').trim();
+        if (confirmUsername !== target.username) {
+            return NextResponse.json({ error: '请输入完全一致的用户名确认删除。' }, { status: 400 });
+        }
+
+        await deleteUser(userId);
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('DELETE /api/admin/users/[id] error:', error);
+        return NextResponse.json({ error: '删除失败，请稍后再试。' }, { status: 500 });
     }
 }
