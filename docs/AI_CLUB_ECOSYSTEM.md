@@ -106,7 +106,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 ### DB Schema
 | Table | Key Columns |
 |---|---|
-| `users` | `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `grade`, `age`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4` |
+| `users` | `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `grade`, `age`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason` |
 | `posts` | `id`, `author_id`, `title`, `content`, `type`, `tag`, `attachment_url`, `likes`, `created_at` |
 | `comments` | `id`, `post_id`, `author_id`, `content`, `likes`, `created_at` |
 | `post_likes` / `comment_likes` / `bookmarks` | forum interaction rows with `created_at`; verified accounts only |
@@ -117,6 +117,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
 | `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
 | `project_submissions` | `author_id`, `submission_type`, `project_id`, `title`, `description`, `url`, `tags`, `status`, `reviewed_by`, `reviewed_at` |
+| `admin_audit_events` | `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at` |
 
 ### App Routes
 | Route | Access | Description |
@@ -127,6 +128,8 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
 | `/functions` | Public | Function Hall — project grid, open project play, verified project submission |
 | `/profile` | Protected | User profile editor |
+| `/admin` | Admin | Admin console with review summary and recent history |
+| `/admin/users` | Admin | Member management, admin-only identity detail maintenance, account disable/restore |
 | `/admin/project-submissions` | Admin | Hub project/new-version application review |
 
 ---

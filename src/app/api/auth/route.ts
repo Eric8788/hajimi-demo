@@ -75,6 +75,9 @@ export async function POST(request: Request) {
             if (!user || !user.password_hash) {
                 return NextResponse.json({ error: 'User not found' }, { status: 404 });
             }
+            if (user.account_status === 'disabled') {
+                return NextResponse.json({ error: '该账号已被管理员停用，请联系 AI Club 管理员。' }, { status: 403 });
+            }
             const isValid = await bcrypt.compare(password, user.password_hash);
             if (!isValid) {
                 return NextResponse.json({ error: 'Invalid password' }, { status: 401 });

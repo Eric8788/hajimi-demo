@@ -52,7 +52,7 @@ The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not 
 
 ## 5. Database Schema (`src/lib/db.ts`)
 Database interactions are handled via standard SQL functions.
-- **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`.
+- **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason`.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
 - **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
@@ -61,6 +61,7 @@ Database interactions are handled via standard SQL functions.
 - **`project_opens`:** `id`, `project_id`, `user_id`, `opened_at`; raw play/open log. Hub rankings derive verified unique players and capped effective opens from this table.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
 - **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
+- **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
 
 *Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through the unified `HAJIMI_INVITE_CODE`; legacy `HAJIMI_STUDENT_INVITE_CODE` and `HAJIMI_TEACHER_INVITE_CODE` remain transition fallbacks only. Invite codes are set in Vercel environment variables and shared manually. If no invite code is configured, registration is closed but existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification uses optional registration/profile forms and admin review. The `Name` field is school common/preferred name, not legal name. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
@@ -90,6 +91,7 @@ Database interactions are handled via standard SQL functions.
    - Staff roles are visually marked with badges on posts, comments, and profile pages.
    - Hajimi verified accounts receive a compact verified badge and can create posts/interact/submit Hub applications. The main leaderboard only includes verified accounts and supports XP total/day/week/month views. Hub project rankings live in Function Hall and use verified unique players, capped effective opens, and project ratings across heat/rating modes.
    - Admins review pending verification requests at `/admin/verifications`. Real names, subjects, and student ID metadata must stay out of public profile/forum UI.
+   - Admins can access `/admin` and `/admin/users` to view review history, maintain member verification details, and disable/restore accounts. Sensitive identity fields are shown only in admin-only detail views. Full student IDs are never stored or displayed; updating a student ID means entering a new value server-side, hashing it, and retaining only the hash plus last four characters.
 6. **Hashtag and beta feedback workflow:**
    - Students can create posts with custom hashtags. Suggested examples include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`.
    - Beta feedback should be left as comments under the pinned announcement post, not as a separate feedback module.

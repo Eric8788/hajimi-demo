@@ -32,7 +32,7 @@ const MEMBER_VERIFICATION_PROMO: DashboardPromoBase = {
 };
 
 const PROMO_ACTIONS: Record<string, { href: string; cta: string }> = {
-    '首次发帖立得 100 积分！': { href: '/resources', cta: '去 Forum' },
+    'Hajimi XP 怎么获得？': { href: '/resources', cta: '去 Forum' },
     '提交项目进 Hub，审核后上线！': { href: '/functions', cta: '去 Hub' },
 };
 
@@ -44,7 +44,7 @@ export default function DashboardPromoCarousel({ userRole }: { userRole?: string
         }));
         const verificationPromo = isAdminRole(userRole) ? ADMIN_VERIFICATION_PROMO : MEMBER_VERIFICATION_PROMO;
 
-        return [verificationPromo, ...basePromos];
+        return [basePromos[0], verificationPromo, ...basePromos.slice(1)];
     }, [userRole]);
     const [promoIndex, setPromoIndex] = useState(0);
     const activePromo = promos[promoIndex % promos.length];

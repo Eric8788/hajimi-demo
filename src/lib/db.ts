@@ -1,6 +1,7 @@
 import { db, sql } from '@vercel/postgres';
-import type { VerificationStatus, VerificationType, VerificationDraft } from './verification';
+import { hashStudentId, STUDENT_GRADES, type VerificationStatus, type VerificationType, type VerificationDraft } from './verification';
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
+import { normalizeUsernameInput, validateUsername } from './accountValidation';
 
 // --- Interfaces ---
 
@@ -27,11 +28,68 @@ export interface User {
     last_checkin_at?: string;
     daily_likes_count: number;
     last_like_at?: string;
+    account_status?: AccountStatus;
+    disabled_at?: string | null;
+    disabled_by?: number | null;
+    disabled_reason?: string | null;
     created_at: string;
 }
 
 export type LeaderboardWindow = 'all' | 'day' | 'week' | 'month';
 export type LeaderboardCategory = 'all' | 'community' | 'project';
+export type AccountStatus = 'active' | 'disabled';
+
+export interface AdminAuditEvent {
+    id: number;
+    actor_id: number | null;
+    actor_name?: string | null;
+    target_user_id: number | null;
+    target_username?: string | null;
+    target_type: 'verification' | 'project_submission' | 'user';
+    target_id: number | null;
+    event_type: string;
+    summary: string;
+    details: Record<string, unknown> | null;
+    created_at: Date | string;
+}
+
+export interface AdminUserSummary {
+    id: number;
+    username: string;
+    points: number;
+    level: number;
+    role: string;
+    avatar?: string | null;
+    avatar_emoji?: string | null;
+    avatar_theme?: string | null;
+    verification_status?: VerificationStatus;
+    verification_type?: VerificationType | null;
+    account_status: AccountStatus;
+    disabled_at?: string | null;
+    created_at: string;
+    is_creator?: boolean;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+    bio?: string | null;
+    profile_image?: string | null;
+    grade?: string | null;
+    age?: number | null;
+    ethnicity?: string | null;
+    verified_name: string | null;
+    verified_grade: string | null;
+    verified_subject: string | null;
+    student_id_last4: string | null;
+    verification_submitted_at?: string | null;
+    verified_at?: string | null;
+    verification_reviewed_by?: number | null;
+    verification_reviewer_name?: string | null;
+    verification_note?: string | null;
+    disabled_by?: number | null;
+    disabled_by_name?: string | null;
+    disabled_reason?: string | null;
+    recent_audit_events: AdminAuditEvent[];
+}
 
 export interface VerificationRequest {
     id: number;
@@ -229,6 +287,24 @@ export interface AdminReviewSummary {
 
 // --- User Helpers ---
 
+function normalizeAccountStatus(value?: string | null): AccountStatus {
+    return value === 'disabled' ? 'disabled' : 'active';
+}
+
+function normalizeAuditDetails(value: unknown): Record<string, unknown> | null {
+    if (!value) return null;
+    if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+
+    try {
+        const parsed = JSON.parse(String(value));
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? parsed as Record<string, unknown>
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 let userProfileEnhancementsReady: Promise<void> | null = null;
 
 async function ensureUserProfileEnhancements() {
@@ -241,6 +317,7 @@ async function ensureUserProfileEnhancements() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
             await sql`UPDATE users SET bio = 'New member at Hajimi High!' WHERE bio = 'New student at Hajimi High!'`;
             await ensureVerificationColumns();
+            await ensureAdminAccountEnhancements();
         })().catch(error => {
             userProfileEnhancementsReady = null;
             throw error;
@@ -268,6 +345,92 @@ async function ensureVerificationColumns() {
     await sql`CREATE INDEX IF NOT EXISTS idx_users_student_id_hash ON users(student_id_hash) WHERE student_id_hash IS NOT NULL`;
 }
 
+let adminAccountEnhancementsReady: Promise<void> | null = null;
+
+async function ensureAdminAccountEnhancements() {
+    if (!adminAccountEnhancementsReady) {
+        adminAccountEnhancementsReady = (async () => {
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT DEFAULT 'active'`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMP WITH TIME ZONE`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_by INTEGER`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_reason TEXT`;
+            await sql`UPDATE users SET account_status = 'active' WHERE account_status IS NULL`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status)`;
+        })().catch(error => {
+            adminAccountEnhancementsReady = null;
+            throw error;
+        });
+    }
+
+    return adminAccountEnhancementsReady;
+}
+
+let adminAuditTableReady: Promise<void> | null = null;
+
+async function ensureAdminAuditTable() {
+    if (!adminAuditTableReady) {
+        adminAuditTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS admin_audit_events (
+                id SERIAL PRIMARY KEY,
+                actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                target_type TEXT NOT NULL,
+                target_id INTEGER,
+                event_type TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                details JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`
+              CREATE INDEX IF NOT EXISTS idx_admin_audit_created
+              ON admin_audit_events(created_at DESC);
+            `;
+            await sql`
+              CREATE INDEX IF NOT EXISTS idx_admin_audit_target_user
+              ON admin_audit_events(target_user_id, created_at DESC);
+            `;
+            await sql`
+              CREATE INDEX IF NOT EXISTS idx_admin_audit_target_type
+              ON admin_audit_events(target_type, created_at DESC);
+            `;
+        })().catch(error => {
+            adminAuditTableReady = null;
+            throw error;
+        });
+    }
+
+    return adminAuditTableReady;
+}
+
+async function createAdminAuditEvent(input: {
+    actorId: number | null;
+    targetUserId?: number | null;
+    targetType: AdminAuditEvent['target_type'];
+    targetId?: number | null;
+    eventType: string;
+    summary: string;
+    details?: Record<string, unknown> | null;
+}) {
+    await ensureAdminAuditTable();
+
+    await sql`
+      INSERT INTO admin_audit_events (
+        actor_id, target_user_id, target_type, target_id, event_type, summary, details
+      )
+      VALUES (
+        ${input.actorId},
+        ${input.targetUserId ?? null},
+        ${input.targetType},
+        ${input.targetId ?? null},
+        ${input.eventType},
+        ${input.summary.trim().slice(0, 280) || input.eventType},
+        ${JSON.stringify(input.details || {})}::jsonb
+      )
+    `;
+}
+
 export async function getUser(username: string) {
     await ensureUserProfileEnhancements();
 
@@ -275,7 +438,9 @@ export async function getUser(username: string) {
       SELECT
         id, username, password_hash, points, level, role, bio, avatar, avatar_emoji, avatar_theme, profile_image,
         grade, age, ethnicity, badge_preferences, verification_status, verification_type,
-        streak_count, last_checkin_at, daily_likes_count, last_like_at, created_at
+        streak_count, last_checkin_at, daily_likes_count, last_like_at,
+        COALESCE(account_status, 'active') as account_status,
+        disabled_at, disabled_by, disabled_reason, created_at
       FROM users
       WHERE username = ${username}
       LIMIT 1
@@ -308,6 +473,10 @@ export async function getUserById(id: number): Promise<User | null> {
         users.last_checkin_at,
         users.daily_likes_count,
         users.last_like_at,
+        COALESCE(users.account_status, 'active') as account_status,
+        users.disabled_at,
+        users.disabled_by,
+        users.disabled_reason,
         users.created_at,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM users 
@@ -342,13 +511,14 @@ export async function createUser(
       avatar_emoji,
       avatar_theme,
       verification_status,
-      verification_type,
-      verified_name,
-      verified_grade,
-      verified_subject,
-      student_id_hash,
-      student_id_last4,
-      verification_submitted_at
+        verification_type,
+        verified_name,
+        verified_grade,
+        verified_subject,
+        student_id_hash,
+        student_id_last4,
+        verification_submitted_at,
+        account_status
     )
     VALUES (
       ${username},
@@ -366,7 +536,8 @@ export async function createUser(
       ${verification?.verified_subject ?? null},
       ${verification?.student_id_hash ?? null},
       ${verification?.student_id_last4 ?? null},
-      ${verification ? new Date().toISOString() : null}
+      ${verification ? new Date().toISOString() : null},
+      'active'
     )
     RETURNING id
   `;
@@ -455,6 +626,7 @@ export async function getPendingVerificationRequests(): Promise<VerificationRequ
 
 export async function reviewUserVerification(targetUserId: number, reviewerId: number, status: 'verified' | 'rejected', note = '') {
     await ensureUserProfileEnhancements();
+    await ensureAdminAuditTable();
 
     if (status === 'verified') {
         const { rows: conflictRows } = await sql<{ has_conflict: boolean }>`
@@ -478,7 +650,7 @@ export async function reviewUserVerification(targetUserId: number, reviewerId: n
         }
     }
 
-    await sql`
+    const { rows } = await sql<{ username: string; verification_type: VerificationType | null; verified_name: string | null; verified_grade: string | null; verified_subject: string | null }>`
       UPDATE users
       SET
         verification_status = ${status},
@@ -492,7 +664,32 @@ export async function reviewUserVerification(targetUserId: number, reviewerId: n
         verification_note = ${note.trim() || null}
       WHERE id = ${targetUserId}
         AND verification_status = 'pending'
+      RETURNING username, verification_type, verified_name, verified_grade, verified_subject
     `;
+
+    const reviewedUser = rows[0];
+    if (reviewedUser) {
+        const statusLabel = status === 'verified' ? '通过' : '拒绝';
+        const identity = reviewedUser.verified_name || reviewedUser.username;
+        const meta = reviewedUser.verification_type === 'teacher'
+            ? reviewedUser.verified_subject
+            : reviewedUser.verified_grade;
+
+        await createAdminAuditEvent({
+            actorId: reviewerId,
+            targetUserId,
+            targetType: 'verification',
+            targetId: targetUserId,
+            eventType: `verification_${status}`,
+            summary: `${identity} 的认证已${statusLabel}`,
+            details: {
+                username: reviewedUser.username,
+                verification_type: reviewedUser.verification_type,
+                identity_meta: meta,
+                note: note.trim() || null,
+            },
+        });
+    }
 }
 
 export async function updateUserProfile(id: number, updates: { bio?: string; avatar?: string; avatar_emoji?: string; avatar_theme?: string; profile_image?: string; badge_preferences?: string[] }) {
@@ -552,6 +749,467 @@ export async function deleteUser(id: number) {
     
     // Finally delete user
     await sql`DELETE FROM users WHERE id = ${id}`;
+}
+
+export async function isUserSessionActive(userId: number) {
+    await ensureUserProfileEnhancements();
+
+    const { rows } = await sql<{ account_status: string | null }>`
+      SELECT COALESCE(account_status, 'active') as account_status
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+
+    return rows[0]?.account_status !== 'disabled';
+}
+
+export async function getAdminAuditHistory(
+    type: 'all' | 'verification' | 'project' | 'user' = 'all',
+    limit = 20,
+): Promise<AdminAuditEvent[]> {
+    await ensureUserProfileEnhancements();
+    await ensureProjectSubmissionsTable();
+    await ensureAdminAuditTable();
+
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 80);
+
+    const { rows } = await sql<AdminAuditEvent>`
+      SELECT
+        admin_audit_events.*,
+        actors.username as actor_name,
+        targets.username as target_username
+      FROM admin_audit_events
+      LEFT JOIN users actors ON actors.id = admin_audit_events.actor_id
+      LEFT JOIN users targets ON targets.id = admin_audit_events.target_user_id
+      WHERE (
+        ${type} = 'all'
+        OR (${type} = 'project' AND admin_audit_events.target_type = 'project_submission')
+        OR (${type} = 'verification' AND admin_audit_events.target_type = 'verification')
+        OR (${type} = 'user' AND admin_audit_events.target_type = 'user')
+      )
+      ORDER BY admin_audit_events.created_at DESC
+      LIMIT ${safeLimit}
+    `;
+
+    const auditRows = rows.map(row => ({
+        ...row,
+        details: normalizeAuditDetails(row.details),
+    }));
+
+    if (type === 'user') return auditRows;
+
+    const legacyEvents: AdminAuditEvent[] = [];
+
+    if (type === 'all' || type === 'verification') {
+        const { rows: verificationRows } = await sql<{
+            id: number;
+            username: string;
+            verification_status: VerificationStatus;
+            verification_type: VerificationType | null;
+            verified_name: string | null;
+            verified_grade: string | null;
+            verified_subject: string | null;
+            verification_reviewed_by: number | null;
+            verification_reviewer_name: string | null;
+            verification_note: string | null;
+            reviewed_at: Date | string | null;
+        }>`
+          SELECT
+            users.id,
+            users.username,
+            users.verification_status,
+            users.verification_type,
+            users.verified_name,
+            users.verified_grade,
+            users.verified_subject,
+            users.verification_reviewed_by,
+            reviewers.username as verification_reviewer_name,
+            users.verification_note,
+            COALESCE(users.verified_at, users.verification_submitted_at) as reviewed_at
+          FROM users
+          LEFT JOIN users reviewers ON reviewers.id = users.verification_reviewed_by
+          WHERE users.verification_status IN ('verified', 'rejected')
+            AND NOT EXISTS (
+              SELECT 1
+              FROM admin_audit_events existing_events
+              WHERE existing_events.target_type = 'verification'
+                AND existing_events.target_id = users.id
+            )
+          ORDER BY reviewed_at DESC NULLS LAST
+          LIMIT ${safeLimit}
+        `;
+
+        verificationRows.forEach((row, index) => {
+            const statusLabel = row.verification_status === 'verified' ? '已通过' : '已拒绝';
+            const identity = row.verified_name || row.username;
+            legacyEvents.push({
+                id: -100000 - index,
+                actor_id: row.verification_reviewed_by,
+                actor_name: row.verification_reviewer_name,
+                target_user_id: row.id,
+                target_username: row.username,
+                target_type: 'verification',
+                target_id: row.id,
+                event_type: `legacy_verification_${row.verification_status}`,
+                summary: `${identity} 的认证${statusLabel}`,
+                details: {
+                    legacy: true,
+                    verification_type: row.verification_type,
+                    identity_meta: row.verification_type === 'teacher' ? row.verified_subject : row.verified_grade,
+                    note: row.verification_note,
+                },
+                created_at: row.reviewed_at || new Date(0).toISOString(),
+            });
+        });
+    }
+
+    if (type === 'all' || type === 'project') {
+        const { rows: projectRows } = await sql<{
+            id: number;
+            author_id: number;
+            author_name: string;
+            reviewed_by: number | null;
+            reviewer_name: string | null;
+            status: ProjectSubmissionStatus;
+            submission_type: ProjectSubmissionType;
+            title: string;
+            review_note: string | null;
+            reviewed_at: Date | string | null;
+        }>`
+          SELECT
+            project_submissions.id,
+            project_submissions.author_id,
+            authors.username as author_name,
+            project_submissions.reviewed_by,
+            reviewers.username as reviewer_name,
+            project_submissions.status,
+            project_submissions.submission_type,
+            project_submissions.title,
+            project_submissions.review_note,
+            project_submissions.reviewed_at
+          FROM project_submissions
+          JOIN users authors ON authors.id = project_submissions.author_id
+          LEFT JOIN users reviewers ON reviewers.id = project_submissions.reviewed_by
+          WHERE project_submissions.status IN ('approved', 'rejected')
+            AND NOT EXISTS (
+              SELECT 1
+              FROM admin_audit_events existing_events
+              WHERE existing_events.target_type = 'project_submission'
+                AND existing_events.target_id = project_submissions.id
+            )
+          ORDER BY project_submissions.reviewed_at DESC NULLS LAST
+          LIMIT ${safeLimit}
+        `;
+
+        projectRows.forEach((row, index) => {
+            legacyEvents.push({
+                id: -200000 - index,
+                actor_id: row.reviewed_by,
+                actor_name: row.reviewer_name,
+                target_user_id: row.author_id,
+                target_username: row.author_name,
+                target_type: 'project_submission',
+                target_id: row.id,
+                event_type: `legacy_project_submission_${row.status}`,
+                summary: `${row.title} 项目申请已${row.status === 'approved' ? '通过' : '拒绝'}`,
+                details: {
+                    legacy: true,
+                    submission_type: row.submission_type,
+                    note: row.review_note,
+                },
+                created_at: row.reviewed_at || new Date(0).toISOString(),
+            });
+        });
+    }
+
+    return [...auditRows, ...legacyEvents]
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+        .slice(0, safeLimit);
+}
+
+export async function getAdminUsers(options: {
+    query?: string;
+    verification?: VerificationStatus | 'all';
+    accountStatus?: AccountStatus | 'all';
+    limit?: number;
+} = {}): Promise<AdminUserSummary[]> {
+    await ensureUserProfileEnhancements();
+
+    const query = String(options.query || '').trim().toLowerCase().slice(0, 60);
+    const verification = options.verification === 'pending'
+        || options.verification === 'verified'
+        || options.verification === 'rejected'
+        || options.verification === 'unverified'
+        ? options.verification
+        : 'all';
+    const accountStatus = options.accountStatus === 'disabled' || options.accountStatus === 'active'
+        ? options.accountStatus
+        : 'all';
+    const safeLimit = Math.min(Math.max(Number(options.limit) || 80, 1), 120);
+
+    const { rows } = await sql<AdminUserSummary>`
+      SELECT
+        users.id,
+        users.username,
+        users.points,
+        users.level,
+        users.role,
+        users.avatar,
+        users.avatar_emoji,
+        users.avatar_theme,
+        users.verification_status,
+        users.verification_type,
+        COALESCE(users.account_status, 'active') as account_status,
+        users.disabled_at,
+        users.created_at,
+        (SELECT COUNT(*) > 0 FROM projects WHERE projects.author_id = users.id) as is_creator
+      FROM users
+      WHERE (
+        ${query} = ''
+        OR lower(users.username) LIKE ${`%${query}%`}
+        OR CAST(users.id AS TEXT) = ${query}
+        OR lower(COALESCE(users.verified_name, '')) LIKE ${`%${query}%`}
+      )
+        AND (${verification} = 'all' OR users.verification_status = ${verification})
+        AND (${accountStatus} = 'all' OR COALESCE(users.account_status, 'active') = ${accountStatus})
+      ORDER BY
+        CASE WHEN COALESCE(users.account_status, 'active') = 'disabled' THEN 1 ELSE 0 END,
+        users.created_at DESC
+      LIMIT ${safeLimit}
+    `;
+
+    return rows.map(row => ({
+        ...row,
+        account_status: normalizeAccountStatus(row.account_status),
+    }));
+}
+
+export async function getAdminUserDetail(userId: number): Promise<AdminUserDetail | null> {
+    await ensureUserProfileEnhancements();
+    await ensureAdminAuditTable();
+
+    const { rows } = await sql<Omit<AdminUserDetail, 'recent_audit_events'>>`
+      SELECT
+        users.id,
+        users.username,
+        users.points,
+        users.level,
+        users.role,
+        users.bio,
+        users.avatar,
+        users.avatar_emoji,
+        users.avatar_theme,
+        users.profile_image,
+        users.grade,
+        users.age,
+        users.ethnicity,
+        users.verification_status,
+        users.verification_type,
+        users.verified_name,
+        users.verified_grade,
+        users.verified_subject,
+        users.student_id_last4,
+        users.verification_submitted_at,
+        users.verified_at,
+        users.verification_reviewed_by,
+        reviewers.username as verification_reviewer_name,
+        users.verification_note,
+        COALESCE(users.account_status, 'active') as account_status,
+        users.disabled_at,
+        users.disabled_by,
+        disablers.username as disabled_by_name,
+        users.disabled_reason,
+        users.created_at,
+        (SELECT COUNT(*) > 0 FROM projects WHERE projects.author_id = users.id) as is_creator
+      FROM users
+      LEFT JOIN users reviewers ON reviewers.id = users.verification_reviewed_by
+      LEFT JOIN users disablers ON disablers.id = users.disabled_by
+      WHERE users.id = ${userId}
+      LIMIT 1
+    `;
+
+    const user = rows[0];
+    if (!user) return null;
+
+    const { rows: auditRows } = await sql<AdminAuditEvent>`
+      SELECT
+        admin_audit_events.*,
+        actors.username as actor_name,
+        targets.username as target_username
+      FROM admin_audit_events
+      LEFT JOIN users actors ON actors.id = admin_audit_events.actor_id
+      LEFT JOIN users targets ON targets.id = admin_audit_events.target_user_id
+      WHERE admin_audit_events.target_user_id = ${userId}
+      ORDER BY admin_audit_events.created_at DESC
+      LIMIT 12
+    `;
+
+    return {
+        ...user,
+        account_status: normalizeAccountStatus(user.account_status),
+        recent_audit_events: auditRows.map(row => ({
+            ...row,
+            details: normalizeAuditDetails(row.details),
+        })),
+    };
+}
+
+export async function updateAdminUserIdentity(adminId: number, targetUserId: number, input: {
+    username?: unknown;
+    verification_status?: unknown;
+    verification_type?: unknown;
+    verified_name?: unknown;
+    verified_grade?: unknown;
+    verified_subject?: unknown;
+    student_id?: unknown;
+    verification_note?: unknown;
+}) {
+    await ensureUserProfileEnhancements();
+    await ensureAdminAuditTable();
+
+    const existing = await getAdminUserDetail(targetUserId);
+    if (!existing) throw new Error('User not found');
+
+    const username = normalizeUsernameInput(input.username || existing.username);
+    if (!validateUsername(username)) throw new Error('Invalid username');
+
+    if (username !== existing.username) {
+        const { rows } = await sql<{ id: number }>`
+          SELECT id
+          FROM users
+          WHERE lower(username) = lower(${username})
+            AND id != ${targetUserId}
+          LIMIT 1
+        `;
+        if (rows[0]) throw new Error('Username already taken');
+    }
+
+    const verificationStatus = input.verification_status === 'pending'
+        || input.verification_status === 'verified'
+        || input.verification_status === 'rejected'
+        || input.verification_status === 'unverified'
+        ? input.verification_status
+        : existing.verification_status || 'unverified';
+
+    const verificationType = input.verification_type === 'teacher' ? 'teacher' : input.verification_type === 'student' ? 'student' : existing.verification_type || 'student';
+    const verifiedName = String(input.verified_name ?? existing.verified_name ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || null;
+    const verifiedGradeInput = String(input.verified_grade ?? existing.verified_grade ?? '').trim().toUpperCase();
+    const verifiedGrade = verificationType === 'student' && STUDENT_GRADES.includes(verifiedGradeInput as (typeof STUDENT_GRADES)[number])
+        ? verifiedGradeInput
+        : verificationType === 'student'
+            ? 'G10'
+            : null;
+    const verifiedSubject = verificationType === 'teacher'
+        ? String(input.verified_subject ?? existing.verified_subject ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || null
+        : null;
+    const note = String(input.verification_note ?? existing.verification_note ?? '').trim().slice(0, 240) || null;
+    const rawStudentId = String(input.student_id || '').replace(/[\s-]+/g, '').trim().toUpperCase();
+
+    if (verificationType === 'teacher' && !verifiedSubject) throw new Error('Missing subject');
+    if (verificationType === 'student' && !verifiedName) throw new Error('Missing name');
+    if (rawStudentId && !/^[A-Z0-9]{4,32}$/.test(rawStudentId)) throw new Error('Invalid student ID');
+
+    const nextStudentHash = rawStudentId ? await hashStudentId(rawStudentId) : null;
+    const nextStudentLast4 = rawStudentId ? rawStudentId.slice(-4) : existing.student_id_last4;
+
+    if (nextStudentHash) {
+        const { rows } = await sql<{ id: number }>`
+          SELECT id
+          FROM users
+          WHERE student_id_hash = ${nextStudentHash}
+            AND id != ${targetUserId}
+            AND verification_status = 'verified'
+          LIMIT 1
+        `;
+        if (rows[0]) throw new Error('Student ID already verified');
+    }
+
+    await sql`
+      UPDATE users
+      SET
+        username = ${username},
+        verification_status = ${verificationStatus},
+        verification_type = ${verificationType},
+        verified_name = ${verifiedName},
+        verified_grade = ${verifiedGrade},
+        verified_subject = ${verifiedSubject},
+        student_id_hash = CASE WHEN ${Boolean(rawStudentId)} THEN ${nextStudentHash} ELSE student_id_hash END,
+        student_id_last4 = ${nextStudentLast4},
+        verified_at = CASE
+          WHEN ${verificationStatus} = 'verified' THEN COALESCE(verified_at, CURRENT_TIMESTAMP)
+          ELSE verified_at
+        END,
+        verification_reviewed_by = ${adminId},
+        verification_note = ${note}
+      WHERE id = ${targetUserId}
+    `;
+
+    await createAdminAuditEvent({
+        actorId: adminId,
+        targetUserId,
+        targetType: 'user',
+        targetId: targetUserId,
+        eventType: 'user_identity_updated',
+        summary: `${username} 的认证资料已维护`,
+        details: {
+            previous_username: existing.username,
+            verification_status: verificationStatus,
+            verification_type: verificationType,
+            student_id_updated: Boolean(rawStudentId),
+            note,
+        },
+    });
+}
+
+export async function setAdminUserAccountStatus(adminId: number, targetUserId: number, status: AccountStatus, reason = '') {
+    await ensureUserProfileEnhancements();
+    await ensureAdminAuditTable();
+
+    if (adminId === targetUserId && status === 'disabled') {
+        throw new Error('Cannot disable yourself');
+    }
+
+    const target = await getAdminUserDetail(targetUserId);
+    if (!target) throw new Error('User not found');
+
+    if (target.role === 'admin' && status === 'disabled') {
+        const { rows } = await sql<{ count: number }>`
+          SELECT COUNT(*)::int as count
+          FROM users
+          WHERE role = 'admin'
+            AND id != ${targetUserId}
+            AND COALESCE(account_status, 'active') = 'active'
+        `;
+        if ((rows[0]?.count ?? 0) <= 0) {
+            throw new Error('Cannot disable last admin');
+        }
+    }
+
+    const cleanReason = reason.trim().slice(0, 240) || (status === 'disabled' ? '管理员停用账号' : '管理员恢复账号');
+
+    await sql`
+      UPDATE users
+      SET
+        account_status = ${status},
+        disabled_at = CASE WHEN ${status} = 'disabled' THEN CURRENT_TIMESTAMP ELSE NULL END,
+        disabled_by = CASE WHEN ${status} = 'disabled' THEN ${adminId} ELSE NULL END,
+        disabled_reason = CASE WHEN ${status} = 'disabled' THEN ${cleanReason} ELSE NULL END
+      WHERE id = ${targetUserId}
+    `;
+
+    await createAdminAuditEvent({
+        actorId: adminId,
+        targetUserId,
+        targetType: 'user',
+        targetId: targetUserId,
+        eventType: status === 'disabled' ? 'user_disabled' : 'user_enabled',
+        summary: `${target.username} 已${status === 'disabled' ? '停用' : '恢复'}`,
+        details: {
+            reason: cleanReason,
+            previous_status: target.account_status,
+        },
+    });
 }
 
 export async function addPoints(userId: number, amount: number) {
@@ -840,7 +1498,7 @@ export async function createPost(authorId: number, title: string, content: strin
     const isFirstPost = (postCountRows[0]?.post_count ?? 0) === 1;
 
     if (isFirstPost) {
-        await addAwardPointsOnce(authorId, 'first_post_bonus', 100);
+        await addAwardPointsOnce(authorId, 'first_post_bonus', 50);
     } else {
         await addPoints(authorId, 10);
     }
@@ -1625,6 +2283,7 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
     await ensureProjectEnhancements();
     await ensureProjectSubmissionsTable();
     await ensurePointAwardsTable();
+    await ensureAdminAuditTable();
 
     const client = await db.connect();
     try {
@@ -1719,6 +2378,26 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
             review_note = ${note.trim() || null}
           WHERE id = ${submissionId}
             AND status = 'pending'
+        `;
+
+        await client.sql`
+          INSERT INTO admin_audit_events (
+            actor_id, target_user_id, target_type, target_id, event_type, summary, details
+          )
+          VALUES (
+            ${reviewerId},
+            ${submission.author_id},
+            'project_submission',
+            ${submissionId},
+            ${`project_submission_${status}`},
+            ${`${submission.title} 项目申请已${status === 'approved' ? '通过' : '拒绝'}`},
+            ${JSON.stringify({
+                submission_type: submission.submission_type,
+                project_id: submission.project_id,
+                title: submission.title,
+                note: note.trim() || null,
+            })}::jsonb
+          )
         `;
 
         await client.sql`COMMIT`;
@@ -1939,6 +2618,10 @@ export async function initDB() {
       last_checkin_at TIMESTAMP WITH TIME ZONE,
       daily_likes_count INTEGER DEFAULT 0,
       last_like_at TIMESTAMP WITH TIME ZONE,
+      account_status TEXT DEFAULT 'active',
+      disabled_at TIMESTAMP WITH TIME ZONE,
+      disabled_by INTEGER,
+      disabled_reason TEXT,
       badge_preferences JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
@@ -1957,6 +2640,7 @@ export async function initDB() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
     await sql`UPDATE users SET bio = 'New member at Hajimi High!' WHERE bio = 'New student at Hajimi High!'`;
     await ensureVerificationColumns();
+    await ensureAdminAccountEnhancements();
   } catch (e) {
     console.log("Migration columns already exist or failed:", e);
   }
@@ -2060,6 +2744,7 @@ export async function initDB() {
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;
     await ensureVerificationColumns();
     await ensureNotificationsTable();
+    await ensureAdminAuditTable();
 
     // Seeding logic (optional, but keep for now if needed)
     // In a real app, we'd run a separate seed script.

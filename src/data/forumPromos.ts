@@ -11,10 +11,10 @@ export type ForumPromo = {
 
 export const FORUM_PROMOS: readonly ForumPromo[] = [
     {
-        kicker: 'AI Club Hallway 🎉',
-        title: '首次发帖立得 100 积分！',
-        body: '发帖、获赞、被收藏都能涨分，快来成为社区大佬吧！',
-        notes: ['announcement', 'project drop', 'feedback'],
+        kicker: 'Hajimi XP 🏆',
+        title: 'Hajimi XP 怎么获得？',
+        body: '认证后可通过签到、发帖、评论、点赞收藏和 Hub 项目反馈获得 XP。首帖 +50，项目审核上线 +100。',
+        notes: ['签到 +10/+15/+25', '首帖 +50', '项目上线 +100'],
         pin: '★',
         accent: 'purple',
     },

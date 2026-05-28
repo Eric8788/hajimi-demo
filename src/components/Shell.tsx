@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import NotificationsBell from './NotificationsBell';
 import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 import Avatar from './Avatar';
+import { isAdminRole } from '@/lib/roles';
 
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
@@ -19,6 +20,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         { icon: '🚀', path: '/functions', label: 'Hub' },
         { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '🏆', path: '/leaderboard', label: 'Rank' },
+        ...(isAdminRole(user?.role) ? [{ icon: '🛡️', path: '/admin', label: 'Admin' }] : []),
     ];
     const loadUnreadCount = useCallback(async () => {
         if (!user) {

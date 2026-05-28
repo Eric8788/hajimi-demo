@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { AdminReviewSummary, AdminReviewTask, Notification } from '@/lib/db';
+import type { AdminAuditEvent, AdminReviewSummary, AdminReviewTask, Notification } from '@/lib/db';
 import Avatar from './Avatar';
 
 type NotificationTab = 'review' | 'activity' | 'all';
@@ -36,6 +36,7 @@ export default function NotificationsBell() {
     const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [reviewSummary, setReviewSummary] = useState<AdminReviewSummary | null>(null);
+    const [reviewHistory, setReviewHistory] = useState<AdminAuditEvent[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<NotificationTab>('activity');
@@ -43,7 +44,10 @@ export default function NotificationsBell() {
     const reviewCount = reviewSummary?.totalCount ?? 0;
     const displayCount = unreadCount + reviewCount;
     const hasReviewTasks = reviewCount > 0;
-    const visibleTabs = useMemo<NotificationTab[]>(() => (reviewSummary ? ['review', 'activity', 'all'] : ['activity']), [reviewSummary]);
+    const visibleTabs = useMemo<NotificationTab[]>(
+        () => (reviewSummary || reviewHistory.length > 0 ? ['review', 'activity', 'all'] : ['activity']),
+        [reviewHistory.length, reviewSummary],
+    );
 
     const loadNotifications = useCallback(async () => {
         const res = await fetch('/api/notifications', { cache: 'no-store' });
@@ -58,8 +62,10 @@ export default function NotificationsBell() {
         setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
         setUnreadCount(nextUnreadCount);
         setReviewSummary(nextReviewSummary);
+        setReviewHistory(Array.isArray(data.reviewHistory) ? data.reviewHistory : []);
         setActiveTab(current => {
-            if (!nextReviewSummary && current !== 'activity') return 'activity';
+            const hasReviewSurface = Boolean(nextReviewSummary) || (Array.isArray(data.reviewHistory) && data.reviewHistory.length > 0);
+            if (!hasReviewSurface && current !== 'activity') return 'activity';
             if (nextReviewSummary?.totalCount && current === 'activity' && nextUnreadCount === 0) return 'review';
             return current;
         });
@@ -93,7 +99,7 @@ export default function NotificationsBell() {
         setIsOpen(nextOpen);
 
         if (nextOpen) {
-            setActiveTab(hasReviewTasks ? 'review' : 'activity');
+            setActiveTab(hasReviewTasks || reviewHistory.length > 0 ? 'review' : 'activity');
             await markActivityRead();
         }
     };
@@ -104,7 +110,7 @@ export default function NotificationsBell() {
     };
 
     const renderReviewTasks = () => {
-        if (!reviewSummary || reviewSummary.totalCount === 0) {
+        if (!reviewSummary && reviewHistory.length === 0) {
             return (
                 <div className="notification-empty">
                     暂时没有新的审核。认证和项目申请会出现在这里。
@@ -114,34 +120,67 @@ export default function NotificationsBell() {
 
         return (
             <>
-                <div className="notification-review-summary">
-                    <button type="button" onClick={() => goTo('/admin/verifications')}>
-                        <strong>{reviewSummary.verificationCount}</strong>
-                        <span>认证审核</span>
-                    </button>
-                    <button type="button" onClick={() => goTo('/admin/project-submissions')}>
-                        <strong>{reviewSummary.projectSubmissionCount}</strong>
-                        <span>项目申请</span>
-                    </button>
-                </div>
-                <div className="notification-list">
-                    {reviewSummary.tasks.map(task => (
-                        <button
-                            type="button"
-                            key={task.id}
-                            className="notification-review-row"
-                            onClick={() => goTo(task.href)}
-                        >
-                            <span className="notification-review-icon">{reviewTaskIcon(task)}</span>
-                            <span className="notification-copy">
-                                <span className="notification-message">{task.title}</span>
-                                <span className="notification-time">
-                                    {task.description} {task.created_at ? `· ${formatNotificationTime(task.created_at)}` : ''}
-                                </span>
-                            </span>
-                        </button>
-                    ))}
-                </div>
+                {reviewSummary && (
+                    <>
+                        <div className="notification-review-summary">
+                            <button type="button" onClick={() => goTo('/admin/verifications')}>
+                                <strong>{reviewSummary.verificationCount}</strong>
+                                <span>认证审核</span>
+                            </button>
+                            <button type="button" onClick={() => goTo('/admin/project-submissions')}>
+                                <strong>{reviewSummary.projectSubmissionCount}</strong>
+                                <span>项目申请</span>
+                            </button>
+                        </div>
+                        {reviewSummary.tasks.length === 0 ? (
+                            <div className="notification-empty">
+                                暂时没有新的审核。下面会保留最近处理记录。
+                            </div>
+                        ) : (
+                            <div className="notification-list">
+                                {reviewSummary.tasks.map(task => (
+                                    <button
+                                        type="button"
+                                        key={task.id}
+                                        className="notification-review-row"
+                                        onClick={() => goTo(task.href)}
+                                    >
+                                        <span className="notification-review-icon">{reviewTaskIcon(task)}</span>
+                                        <span className="notification-copy">
+                                            <span className="notification-message">{task.title}</span>
+                                            <span className="notification-time">
+                                                {task.description} {task.created_at ? `· ${formatNotificationTime(task.created_at)}` : ''}
+                                            </span>
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+                {reviewHistory.length > 0 && (
+                    <>
+                        <div className="notification-section-divider">最近审核记录</div>
+                        <div className="notification-list">
+                            {reviewHistory.map(event => (
+                                <button
+                                    type="button"
+                                    key={`${event.id}-${event.event_type}`}
+                                    className="notification-review-row"
+                                    onClick={() => goTo('/admin')}
+                                >
+                                    <span className="notification-review-icon">{event.target_type === 'project_submission' ? '🚀' : event.target_type === 'user' ? '🛡️' : '✅'}</span>
+                                    <span className="notification-copy">
+                                        <span className="notification-message">{event.summary}</span>
+                                        <span className="notification-time">
+                                            {event.actor_name ? `by ${event.actor_name}` : 'legacy record'} · {formatNotificationTime(event.created_at)}
+                                        </span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </>
         );
     };

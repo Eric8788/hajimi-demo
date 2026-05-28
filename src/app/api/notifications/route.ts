@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getAdminReviewSummary, getNotifications, getUnreadNotificationCount, getUserById, markNotificationsRead } from '@/lib/db';
+import { getAdminAuditHistory, getAdminReviewSummary, getNotifications, getUnreadNotificationCount, getUserById, markNotificationsRead } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 
 export async function GET(request: Request) {
@@ -28,9 +28,15 @@ export async function GET(request: Request) {
             getNotifications(userId),
             getUnreadNotificationCount(userId),
         ]);
-        const reviewSummary = user && isAdminRole(user.role) ? await getAdminReviewSummary() : null;
+        const isAdmin = user && isAdminRole(user.role);
+        const [reviewSummary, reviewHistory] = isAdmin
+            ? await Promise.all([
+                getAdminReviewSummary(),
+                getAdminAuditHistory('all', 8),
+            ])
+            : [null, []];
 
-        return NextResponse.json({ notifications, unreadCount, reviewSummary }, {
+        return NextResponse.json({ notifications, unreadCount, reviewSummary, reviewHistory }, {
             headers: {
                 'Cache-Control': 'no-store, max-age=0, must-revalidate',
             },
