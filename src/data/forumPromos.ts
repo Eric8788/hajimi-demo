@@ -13,8 +13,8 @@ export const FORUM_PROMOS: readonly ForumPromo[] = [
     {
         kicker: 'Hajimi XP 🏆',
         title: 'Hajimi XP 怎么获得？',
-        body: '认证后可通过签到、发帖、评论、点赞收藏和 Hub 项目反馈获得 XP。首帖 +50，项目审核上线 +100。',
-        notes: ['签到 +10/+15/+25', '首帖 +50', '项目上线 +100'],
+        body: '认证后可通过签到、发帖、评论、点赞收藏和 Hub 项目反馈获得 XP。首帖 +100，项目审核上线 +100。',
+        notes: ['签到 +10/+15/+25', '首帖 +100', '项目上线 +100'],
         pin: '★',
         accent: 'purple',
     },

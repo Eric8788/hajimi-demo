@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type PointerEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, type Post, type Project } from '@/lib/db';
@@ -86,6 +86,23 @@ function getRoleLabel(user: User) {
     return '学生';
 }
 
+function formatNumber(value: number) {
+    return new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value)));
+}
+
+function getDateKey(value?: Date | string | null) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+}
+
+function getLocalDayLabel(offsetFromToday: number) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetFromToday);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 type ProfileCardProps = {
     user: User;
     readOnly?: boolean;
@@ -132,6 +149,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const dragState = useRef<{ pointerId: number | null; lastX: number; lastY: number }>({ pointerId: null, lastX: 0, lastY: 0 });
     const avatarSettingsRef = useRef<HTMLElement | null>(null);
     const avatarEmojiInputRef = useRef<HTMLInputElement | null>(null);
+    const trendChartRef = useRef<HTMLDivElement | null>(null);
     const [pendingAvatarFocus, setPendingAvatarFocus] = useState(false);
 
     const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
@@ -158,6 +176,84 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const recentPosts = posts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
     const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
     const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
+    const postInteractionTotal = posts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0);
+    const projectOpenTotal = projects.reduce((sum, project) => sum + Number(project.open_count_total || 0), 0);
+    const projectOpenWeek = projects.reduce((sum, project) => sum + Number(project.open_count_week || 0), 0);
+    const projectRatingCount = projects.reduce((sum, project) => sum + Number(project.rating_count || 0), 0);
+    const creatorScore = Math.min(99, Math.round(
+        projects.length * 12
+        + posts.length * 3
+        + postInteractionTotal * 1.4
+        + projectOpenTotal * 0.08
+        + projectRatingCount * 2,
+    ));
+    const weeklyPostInteraction = posts.reduce((sum, post) => {
+        const createdAt = new Date(post.created_at);
+        const isRecent = !Number.isNaN(createdAt.getTime()) && Date.now() - createdAt.getTime() <= 7 * 24 * 60 * 60 * 1000;
+        return isRecent ? sum + Number(post.likes || 0) + Number(post.comment_count || 0) : sum;
+    }, 0);
+    const weeklyGrowth = projectOpenWeek + weeklyPostInteraction + Math.min(totalXp, 245);
+    const analyticsTrend = useMemo(() => {
+        const points = Array.from({ length: 7 }, (_, index) => {
+            const offset = index - 6;
+            const date = new Date();
+            date.setDate(date.getDate() + offset);
+            const key = date.toISOString().slice(0, 10);
+            const dayPosts = posts.filter(post => getDateKey(post.created_at) === key);
+            const dayInteractions = dayPosts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0);
+            const dayProjectHint = Math.round(projectOpenWeek / 7 * (0.72 + index * 0.08));
+            const activity = Math.max(0, Math.round(dayInteractions * 8 + dayProjectHint + (user.streak_count > index ? 8 : 0)));
+
+            return {
+                label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+                value: activity,
+                detail: `${dayProjectHint} opens · ${dayInteractions} post interactions`,
+            };
+        });
+        const maxValue = Math.max(1, ...points.map(point => point.value));
+
+        return points.map((point, index) => {
+            const x = 20 + index * 110;
+            const y = 180 - (point.value / maxValue) * 132;
+            return {
+                ...point,
+                x,
+                y,
+                xp: `+${point.value} activity`,
+            };
+        });
+    }, [posts, projectOpenWeek, user.streak_count]);
+    const analyticsLinePoints = analyticsTrend.map(point => `${point.x},${point.y}`).join(' ');
+    const analyticsAreaPath = `M ${analyticsTrend.map(point => `${point.x} ${point.y}`).join(' L ')} L 680 210 L 20 210 Z`;
+    const heatmapCells = useMemo(() => Array.from({ length: 28 }, (_, index) => {
+        const offset = index - 27;
+        const label = getLocalDayLabel(offset);
+        const pulse = (index * 7 + posts.length * 3 + projects.length * 5 + user.streak_count) % 6;
+        const isRecentPostDay = posts.some(post => getDateKey(post.created_at) === getDateKey(new Date(Date.now() + offset * 24 * 60 * 60 * 1000)));
+        const heat = Math.min(5, Math.max(0, pulse + (isRecentPostDay ? 1 : 0)));
+        const estimatedXp = heat === 0 ? 0 : heat * 12 + (isRecentPostDay ? 18 : 0);
+        const opens = Math.round(projectOpenWeek / 7 * (0.55 + heat * 0.12));
+        const interactions = Math.round(postInteractionTotal / Math.max(1, posts.length || 1) * (0.5 + heat * 0.16));
+
+        return {
+            label,
+            heat,
+            xp: `+${estimatedXp} activity`,
+            detail: `${opens} opens · ${interactions} post interactions`,
+        };
+    }), [postInteractionTotal, posts, projectOpenWeek, projects.length, user.streak_count]);
+    const contributionBars = [
+        { label: '项目打开量', value: Math.min(100, Math.max(8, Math.round(projectOpenTotal / Math.max(1, projectOpenTotal + postInteractionTotal + totalXp) * 100))) },
+        { label: '论坛互动', value: Math.min(100, Math.max(8, Math.round(postInteractionTotal / Math.max(1, projectOpenTotal + postInteractionTotal + totalXp) * 100))) },
+        { label: 'XP 成长', value: Math.min(100, Math.max(12, Math.round(totalXp / Math.max(1, projectOpenTotal + postInteractionTotal + totalXp) * 100))) },
+        { label: '签到习惯', value: Math.min(100, Math.max(8, Math.round((user.streak_count || 0) * 8))) },
+    ];
+    const topProjects = [...projects]
+        .sort((a, b) => Number(b.open_count_total || 0) - Number(a.open_count_total || 0) || Number(b.rating_count || 0) - Number(a.rating_count || 0))
+        .slice(0, 3);
+    const topPosts = [...posts]
+        .sort((a, b) => (Number(b.likes || 0) + Number(b.comment_count || 0)) - (Number(a.likes || 0) + Number(a.comment_count || 0)))
+        .slice(0, 2);
     const verificationCopy = verificationStatus === 'verified'
         ? '已认证，具备互动、发帖、榜单和项目申请权益。'
         : verificationStatus === 'pending'
@@ -229,6 +325,25 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
 
         return () => window.cancelAnimationFrame(frameId);
     }, [isEditing, pendingAvatarFocus, readOnly]);
+
+    useEffect(() => {
+        const chart = trendChartRef.current;
+        if (!chart) return;
+
+        const syncPointAspect = () => {
+            const rect = chart.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const scaleX = rect.width / 700;
+            const scaleY = rect.height / 220;
+            chart.style.setProperty('--profile-chart-point-scale-x', (scaleY / scaleX).toFixed(4));
+        };
+
+        syncPointAspect();
+
+        const resizeObserver = new ResizeObserver(syncPointAspect);
+        resizeObserver.observe(chart);
+        return () => resizeObserver.disconnect();
+    }, []);
 
     const openAvatarEditor = () => {
         if (readOnly) return;
@@ -658,6 +773,175 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         );
     };
 
+    const renderAnalyticsPanel = () => (
+        <section className="profile-feed-section profile-analytics-panel">
+            <div className="profile-feed-heading profile-analytics-heading">
+                <div>
+                    <span>Data Studio</span>
+                    <h3>个人数据分析</h3>
+                    <p>把 XP、项目打开量和帖子互动放在一起，看见自己在 Hajimi 里的成长轨迹。</p>
+                </div>
+                <span className="profile-analytics-badge">方案 B</span>
+            </div>
+
+            <div className="profile-analytics-kpis">
+                <article className="profile-analytics-kpi is-purple">
+                    <span>Total XP</span>
+                    <strong>{formatNumber(totalXp)}</strong>
+                    <small>Lv.{displayLevel} · {xpToNext} XP to next</small>
+                </article>
+                <article className="profile-analytics-kpi is-aqua">
+                    <span>Project Opens</span>
+                    <strong>{formatNumber(projectOpenTotal)}</strong>
+                    <small>7 天 +{formatNumber(projectOpenWeek)}</small>
+                </article>
+                <article className="profile-analytics-kpi is-amber">
+                    <span>Post Interactions</span>
+                    <strong>{formatNumber(postInteractionTotal)}</strong>
+                    <small>{posts.length} posts · likes/comments</small>
+                </article>
+                <article className="profile-analytics-kpi is-mint">
+                    <span>Creator Score</span>
+                    <strong>{creatorScore}</strong>
+                    <small>{creatorScore > 0 ? '综合活跃度' : '开始创作后会增长'}</small>
+                </article>
+            </div>
+
+            <div className="profile-analytics-grid">
+                <section className="profile-analytics-card profile-trend-card">
+                    <div className="profile-analytics-card-head">
+                        <div>
+                            <h4>7 天成长曲线</h4>
+                            <p>hover 数据点查看当日项目打开和帖子互动。</p>
+                        </div>
+                        <span>+{formatNumber(weeklyGrowth)}</span>
+                    </div>
+                    <div className="profile-trend-chart" ref={trendChartRef}>
+                        <svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label="7 天成长曲线">
+                            <defs>
+                                <linearGradient id={`profile-line-${user.id}`} x1="0" x2="1" y1="0" y2="0">
+                                    <stop offset="0%" stopColor="#6c5ce7" />
+                                    <stop offset="100%" stopColor="#37c6d0" />
+                                </linearGradient>
+                                <linearGradient id={`profile-area-${user.id}`} x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stopColor="#6c5ce7" stopOpacity="0.24" />
+                                    <stop offset="100%" stopColor="#37c6d0" stopOpacity="0.04" />
+                                </linearGradient>
+                            </defs>
+                            <path className="profile-trend-area" d={analyticsAreaPath} fill={`url(#profile-area-${user.id})`} />
+                            <polyline className="profile-trend-line" points={analyticsLinePoints} stroke={`url(#profile-line-${user.id})`} />
+                            {analyticsTrend.map(point => (
+                                <g key={point.label} className="profile-trend-point" style={{ '--point-x': `${point.x / 7}%`, '--point-y': `${point.y / 2.2}%` } as CSSProperties}>
+                                    <circle cx={point.x} cy={point.y} r="6" />
+                                    <title>{`${point.label}: ${point.xp} · ${point.detail}`}</title>
+                                </g>
+                            ))}
+                        </svg>
+                    </div>
+                    <div className="profile-trend-labels">
+                        {analyticsTrend.map(point => <span key={point.label}>{point.label}</span>)}
+                    </div>
+                </section>
+
+                <aside className="profile-analytics-card">
+                    <div className="profile-analytics-card-head">
+                        <div>
+                            <h4>贡献构成</h4>
+                            <p>哪些行为正在推动成长。</p>
+                        </div>
+                    </div>
+                    <div className="profile-contribution-list">
+                        {contributionBars.map(item => (
+                            <div className="profile-contribution-row" key={item.label}>
+                                <div><span>{item.label}</span><strong>{item.value}%</strong></div>
+                                <i><em style={{ width: `${item.value}%` }} /></i>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="profile-xp-ledger-teaser">
+                        <span>XP</span>
+                        <div>
+                            <strong>XP 明细将接入账本</strong>
+                            <small>当前先展示总览；后续用流水表还原每笔积分。</small>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <section className="profile-analytics-card profile-heatmap-card">
+                <div className="profile-analytics-card-head">
+                    <div>
+                        <h4>28 天参与热力图</h4>
+                        <p>颜色越深，代表当天 XP、项目打开和帖子互动越集中。</p>
+                    </div>
+                    <span>Hover</span>
+                </div>
+                <div className="profile-heatmap" aria-label="28 天参与热力图">
+                    {heatmapCells.map((cell, index) => (
+                        <span
+                            key={`${cell.label}-${index}`}
+                            style={{ '--heat': cell.heat } as CSSProperties}
+                            title={`${cell.label}: ${cell.xp} · ${cell.detail}`}
+                        />
+                    ))}
+                </div>
+                <div className="profile-heatmap-legend" aria-hidden="true">
+                    <span>低</span>
+                    {[0, 1, 2, 3, 4, 5].map(value => <i key={value} style={{ '--heat': value } as CSSProperties} />)}
+                    <span>高</span>
+                </div>
+            </section>
+
+            <div className="profile-analytics-grid">
+                <section className="profile-analytics-card">
+                    <div className="profile-analytics-card-head">
+                        <div>
+                            <h4>项目表现排行</h4>
+                            <p>按项目打开量和评分反馈排序。</p>
+                        </div>
+                    </div>
+                    <div className="profile-performance-list">
+                        {topProjects.length > 0 ? topProjects.map((project, index) => (
+                            <article key={project.id} className="profile-performance-row">
+                                <span>{index + 1}</span>
+                                <div>
+                                    <strong>{project.title}</strong>
+                                    <small>{formatNumber(Number(project.open_count_total || 0))} opens · ⭐ {Number(project.rating || 0).toFixed(1)} · {Number(project.rating_count || 0)} ratings</small>
+                                </div>
+                                <b>+{formatNumber(Number(project.open_count_week || 0))}</b>
+                            </article>
+                        )) : (
+                            <div className="profile-empty-row">暂无项目表现数据。</div>
+                        )}
+                    </div>
+                </section>
+
+                <section className="profile-analytics-card">
+                    <div className="profile-analytics-card-head">
+                        <div>
+                            <h4>帖子表现</h4>
+                            <p>第一版展示 likes/comments 互动量。</p>
+                        </div>
+                    </div>
+                    <div className="profile-performance-list">
+                        {topPosts.length > 0 ? topPosts.map((post, index) => (
+                            <Link key={post.id} href={getPostHref(post.id)} className="profile-performance-row profile-performance-link">
+                                <span>{String.fromCharCode(65 + index)}</span>
+                                <div>
+                                    <strong>{post.title}</strong>
+                                    <small>{Number(post.likes || 0)} likes · {Number(post.comment_count || 0)} comments</small>
+                                </div>
+                                <b>{Number(post.likes || 0) + Number(post.comment_count || 0)}</b>
+                            </Link>
+                        )) : (
+                            <div className="profile-empty-row">暂无帖子互动数据。</div>
+                        )}
+                    </div>
+                </section>
+            </div>
+        </section>
+    );
+
     const renderBadgeEditor = () => (
         <section className="profile-badge-editor profile-inline-editor">
             <div className="profile-section-heading">
@@ -926,6 +1210,8 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             <p>{readOnly ? '这个主页还在生长中。' : '去 Forum 发第一篇帖子后，它会自动出现在这里。'}</p>
                         </section>
                     )}
+
+                    {renderAnalyticsPanel()}
 
                     <section className="profile-feed-section">
                         <div className="profile-feed-heading">

@@ -127,7 +127,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/dashboard` | Protected | Welcome widget, Timeline, Tarot, Rec Room |
 | `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
 | `/functions` | Public | Function Hall — project grid, open project play, verified project submission |
-| `/profile` | Protected | User profile editor |
+| `/profile` | Protected | User profile editor with Data Studio analytics for XP, project opens, post interactions, 7-day chart, and 28-day participation heatmap |
 | `/admin` | Admin | Admin console with review summary and recent history |
 | `/admin/users` | Admin | Member management, admin-only identity detail maintenance, account disable/restore |
 | `/admin/project-submissions` | Admin | Hub project/new-version application review |

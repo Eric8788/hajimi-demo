@@ -42,6 +42,9 @@ The app uses Next.js App Router (`src/app/`).
   - Verified users can submit project/new-version applications; admins approve/reject at `/admin/project-submissions` before live Hub updates.
   - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first, then rating and capped effective opens; rating ranks cumulative stars first while still showing selected-window play stats.
   - Live data comes from the `projects` table. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
+- `/profile` **(Protected):**
+  - Shows the public profile editor plus a Data Studio card after the featured content, combining XP total, project opens, post interactions, a 7-day chart, and a 28-day participation heatmap.
+  - First verified forum post awards `+100 XP`; later posts continue to use normal post XP.
 
 ## 4. Design Philosophy & CSS
 The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not use flat colors or generic UI components.** 
