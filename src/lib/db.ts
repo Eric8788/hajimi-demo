@@ -2250,8 +2250,35 @@ export async function createProjectSubmission(input: ProjectSubmissionInput) {
         }
     }
 
+    if (data.cover_url) {
+        try {
+            const parsed = new URL(data.cover_url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Invalid URL');
+        } catch {
+            throw new Error('Invalid project cover URL');
+        }
+    }
+
     if (data.submission_type === 'new_version' && !data.project_id) {
         throw new Error('Missing project for version submission');
+    }
+
+    if (data.submission_type === 'new_version' && data.project_id) {
+        const { rows } = await sql<{ author_id: number }>`
+          SELECT author_id
+          FROM projects
+          WHERE id = ${data.project_id}
+          LIMIT 1
+        `;
+        const targetProject = rows[0];
+
+        if (!targetProject) {
+            throw new Error('Target project not found');
+        }
+
+        if (Number(targetProject.author_id) !== Number(data.author_id)) {
+            throw new Error('Project version forbidden');
+        }
     }
 
     const { rows } = await sql<{ id: number }>`

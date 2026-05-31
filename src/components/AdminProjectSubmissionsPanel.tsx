@@ -109,6 +109,12 @@ export default function AdminProjectSubmissionsPanel() {
                                 </p>
                                 <div className="project-review-summary">{submission.description}</div>
                                 {submission.version_notes && <div className="project-review-notes">版本说明：{submission.version_notes}</div>}
+                                {submission.cover_url && (
+                                    <a className="project-review-cover-link" href={submission.cover_url} target="_blank" rel="noopener noreferrer">
+                                        <img src={submission.cover_url} alt="" loading="lazy" />
+                                        <span>查看提交的封面截图</span>
+                                    </a>
+                                )}
                                 <div className="project-review-tags">
                                     {submission.tags.map(tag => <span key={tag}>{tag}</span>)}
                                 </div>

@@ -73,8 +73,17 @@ export async function POST(request: Request) {
         if (error?.message === 'Invalid project URL') {
             return NextResponse.json({ error: '项目链接必须是 http 或 https 地址。' }, { status: 400 });
         }
+        if (error?.message === 'Invalid project cover URL') {
+            return NextResponse.json({ error: '封面 URL 必须是 http 或 https 地址。' }, { status: 400 });
+        }
         if (error?.message === 'Missing project for version submission') {
             return NextResponse.json({ error: '请选择要更新的项目。' }, { status: 400 });
+        }
+        if (error?.message === 'Target project not found') {
+            return NextResponse.json({ error: '要更新的项目不存在。' }, { status: 400 });
+        }
+        if (error?.message === 'Project version forbidden') {
+            return NextResponse.json({ error: '只能为自己发布的项目提交新版本。' }, { status: 403 });
         }
 
         console.error('Project Submissions POST Error:', error);

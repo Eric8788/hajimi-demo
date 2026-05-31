@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { ALL_TAGS, type ProjectTag } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { User } from '@/lib/db';
+import ProjectCoverStudio from './ProjectCoverStudio';
 
 const TAG_COLORS: Record<string, string> = {
     Game: '#6c5ce7',
@@ -61,6 +62,11 @@ type HubSpotlightCopy = {
 type ProjectGridProps = {
     user: User | null;
     canSubmitProjects?: boolean;
+};
+
+type SubmissionDraft = {
+    type: 'new_project' | 'new_version';
+    project?: any;
 };
 
 function recordProjectOpen(projectId: number | string) {
@@ -146,6 +152,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [hubRankingMode, setHubRankingMode] = useState<HubRankingMode>('heat');
     const [spotlightIndex, setSpotlightIndex] = useState(0);
     const [spotlightPaused, setSpotlightPaused] = useState(false);
+    const currentUserId = user ? Number(user.id) : null;
 
     useEffect(() => {
         const controller = new AbortController();
@@ -369,6 +376,55 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         });
     };
 
+    const resetSubmissionDraft = (type: 'new_project' | 'new_version' = 'new_project') => {
+        setSubmissionType(type);
+        setSubmissionProjectId('');
+        setSubmissionTitle('');
+        setSubmissionDescription('');
+        setSubmissionEmoji('🚀');
+        setSubmissionUrl('');
+        setSubmissionTags(['Game']);
+        setSubmissionVersionNotes('');
+        setSubmissionCoverUrl('');
+    };
+
+    const openSubmissionDraft = (draft: SubmissionDraft = { type: 'new_project' }) => {
+        setSubmissionMessage('');
+        if (!user) {
+            setSubmissionMessage('登录并完成 Hajimi 认证后可以提交项目或新版本申请。');
+            return;
+        }
+
+        if (!canSubmitProjects) {
+            setSubmissionMessage('完成 Hajimi 认证后可以提交项目或新版本申请。');
+            return;
+        }
+
+        if (draft.type === 'new_version' && draft.project) {
+            const projectTags = Array.isArray(draft.project.tags)
+                ? draft.project.tags.filter((tag: string) => ALL_TAGS.includes(tag as ProjectTag)).slice(0, 5)
+                : [];
+
+            setSubmissionType('new_version');
+            setSubmissionProjectId(String(draft.project.id));
+            setSubmissionTitle(String(draft.project.title || ''));
+            setSubmissionDescription(String(draft.project.description || ''));
+            setSubmissionEmoji(String(draft.project.emoji || '🚀'));
+            setSubmissionUrl(String(draft.project.url || ''));
+            setSubmissionTags(projectTags.length > 0 ? projectTags as ProjectTag[] : ['Game']);
+            setSubmissionVersionNotes('更新项目介绍、链接或封面截图。');
+            setSubmissionCoverUrl(String(draft.project.cover_url || draft.project.coverUrl || ''));
+            setSubmissionMessage('已载入当前项目信息，修改后会作为新版本提交给管理员审核。');
+        } else {
+            resetSubmissionDraft('new_project');
+        }
+
+        setShowSubmissionForm(true);
+        window.requestAnimationFrame(() => {
+            document.querySelector('.project-submission-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    };
+
     const handleFilterDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
         if (event.button !== 0 || event.pointerType === 'touch') return;
 
@@ -411,18 +467,12 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     const openSubmissionForm = () => {
-        setSubmissionMessage('');
-        if (!user) {
-            setSubmissionMessage('登录并完成 Hajimi 认证后可以提交项目或新版本申请。');
+        if (showSubmissionForm) {
+            setShowSubmissionForm(false);
             return;
         }
 
-        if (!canSubmitProjects) {
-            setSubmissionMessage('完成 Hajimi 认证后可以提交项目或新版本申请。');
-            return;
-        }
-
-        setShowSubmissionForm(value => !value);
+        openSubmissionDraft({ type: 'new_project' });
     };
 
     const submitProjectApplication = async (event: React.FormEvent) => {
@@ -456,15 +506,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
             setSubmissionMessage('已提交申请，管理员审核通过后会发布到 Hub。');
             setShowSubmissionForm(false);
-            setSubmissionType('new_project');
-            setSubmissionProjectId('');
-            setSubmissionTitle('');
-            setSubmissionDescription('');
-            setSubmissionEmoji('🚀');
-            setSubmissionUrl('');
-            setSubmissionTags(['Game']);
-            setSubmissionVersionNotes('');
-            setSubmissionCoverUrl('');
+            resetSubmissionDraft('new_project');
         } finally {
             setSubmissionLoading(false);
         }
@@ -494,7 +536,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                         onSubmit={submitProjectApplication}
                     >
                         <div className="auth-verification-tabs">
-                            <button type="button" className={submissionType === 'new_project' ? 'is-active' : ''} onClick={() => setSubmissionType('new_project')}>新项目</button>
+                            <button type="button" className={submissionType === 'new_project' ? 'is-active' : ''} onClick={() => resetSubmissionDraft('new_project')}>新项目</button>
                             <button type="button" className={submissionType === 'new_version' ? 'is-active' : ''} onClick={() => setSubmissionType('new_version')}>新版本</button>
                         </div>
                         {submissionType === 'new_version' && (
@@ -502,10 +544,11 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                 要更新的项目
                                 <select value={submissionProjectId} onChange={event => setSubmissionProjectId(event.target.value)} className="glass-input" required>
                                     <option value="">选择项目</option>
-                                    {projects.map(project => (
+                                    {projects.filter(project => currentUserId !== null && Number(project.author_id) === currentUserId).map(project => (
                                         <option key={project.id} value={project.id}>{project.title}</option>
                                     ))}
                                 </select>
+                                <span className="project-submission-help">只能为自己已经发布的项目提交新版本，审核通过后才会更新线上卡片。</span>
                             </label>
                         )}
                         <label>
@@ -530,10 +573,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                             版本说明 / 更新说明
                             <textarea value={submissionVersionNotes} onChange={event => setSubmissionVersionNotes(event.target.value)} className="glass-input" rows={3} maxLength={800} />
                         </label>
-                        <label>
-                            截图/封面 URL（可选）
-                            <input value={submissionCoverUrl} onChange={event => setSubmissionCoverUrl(event.target.value)} className="glass-input" placeholder="https://..." />
-                        </label>
+                        <ProjectCoverStudio value={submissionCoverUrl} onChange={setSubmissionCoverUrl} />
                         <div className="project-submission-tags">
                             {ALL_TAGS.map(tag => (
                                 <button key={tag} type="button" className={submissionTags.includes(tag) ? 'is-active' : ''} onClick={() => toggleSubmissionTag(tag)}>
@@ -841,7 +881,14 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                             exit={{ opacity: 0, scale: 0.9 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <ProjectCard project={project} user={user} canInteract={canSubmitProjects} onRatingUpdate={handleRatingUpdate} />
+                            <ProjectCard
+                                project={project}
+                                user={user}
+                                canInteract={canSubmitProjects}
+                                canEdit={currentUserId !== null && Number(project.author_id) === currentUserId}
+                                onEditProject={() => openSubmissionDraft({ type: 'new_version', project })}
+                                onRatingUpdate={handleRatingUpdate}
+                            />
                         </motion.div>
                     ))}
                 </AnimatePresence>
@@ -950,7 +997,21 @@ function HubSpotlightVisual({ kind, project }: { kind: SpotlightKind, project: a
     );
 }
 
-function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: any, user: User | null, canInteract: boolean, onRatingUpdate?: (projectId: number | string, rating: number, count: number) => void }) {
+function ProjectCard({
+    project,
+    user,
+    canInteract,
+    canEdit,
+    onEditProject,
+    onRatingUpdate,
+}: {
+    project: any,
+    user: User | null,
+    canInteract: boolean,
+    canEdit: boolean,
+    onEditProject: () => void,
+    onRatingUpdate?: (projectId: number | string, rating: number, count: number) => void,
+}) {
     const isLive = project.status === 'live';
     const [rating, setRating] = useState(Number(project.rating || project.likes || 0));
     const [ratingCount, setRatingCount] = useState(Number(project.rating_count || project.likes || 0));
@@ -1222,21 +1283,53 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
                             <div className="project-card-soon">🔧 Coming Soon</div>
                         )}
                         {isLive && project.url ? (
-                            <a
-                                href={project.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="project-card-open"
-                                tabIndex={isFlipped ? -1 : undefined}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    recordProjectOpen(project.id);
-                                }}
-                            >
-                                Open →
-                            </a>
+                            <div className="project-card-footer-actions">
+                                {canEdit && (
+                                    <button
+                                        type="button"
+                                        className="project-card-edit"
+                                        tabIndex={isFlipped ? -1 : undefined}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            onEditProject();
+                                        }}
+                                    >
+                                        编辑
+                                    </button>
+                                )}
+                                <a
+                                    href={project.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="project-card-open"
+                                    tabIndex={isFlipped ? -1 : undefined}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        recordProjectOpen(project.id);
+                                    }}
+                                >
+                                    Open →
+                                </a>
+                            </div>
                         ) : isLive && (
-                            <div className="project-card-open is-disabled">Open →</div>
+                            <div className="project-card-footer-actions">
+                                {canEdit && (
+                                    <button
+                                        type="button"
+                                        className="project-card-edit"
+                                        tabIndex={isFlipped ? -1 : undefined}
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            onEditProject();
+                                        }}
+                                    >
+                                        编辑
+                                    </button>
+                                )}
+                                <div className="project-card-open is-disabled">Open →</div>
+                            </div>
                         )}
                     </div>
                     <div className="project-card-decoration">{project.emoji}</div>
@@ -1259,6 +1352,20 @@ function ProjectCard({ project, user, canInteract, onRatingUpdate }: { project: 
                             <span>{ratingCount} ratings</span>
                             <span>{commentCount} comments</span>
                         </div>
+                        {canEdit && (
+                            <button
+                                type="button"
+                                className="project-card-owner-edit"
+                                tabIndex={isFlipped ? undefined : -1}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    onEditProject();
+                                }}
+                            >
+                                修改项目信息 / 提交新版本审核
+                            </button>
+                        )}
                         <div className="project-card-tags">
                             {project.tags.map((tag: string) => (
                                 <span key={tag} style={{

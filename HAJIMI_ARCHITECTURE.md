@@ -12,7 +12,7 @@ Hajimi is a comprehensive, gamified student community and project hub built for 
 - **Framework:** Next.js (App Router, Server & Client Components)
 - **Language:** TypeScript
 - **Database:** Vercel Postgres (Neon) using raw SQL queries (`@vercel/postgres`). *No Prisma/ORM is used.*
-- **File Storage:** Vercel Blob (`@vercel/blob`) for public forum images. Requires `BLOB_READ_WRITE_TOKEN` in production.
+- **File Storage:** Vercel Blob (`@vercel/blob`) for public forum images and Function Hall project cover screenshots. Requires `BLOB_READ_WRITE_TOKEN` in production.
 - **Authentication:** Custom JWT-based session auth using `jose` and `bcryptjs`. *NextAuth/Auth.js is NOT used.*
 - **Styling:** Vanilla CSS (`src/app/globals.css`) emphasizing **Glassmorphism**. *Tailwind CSS is configured but minimally used in favor of custom glass classes.*
 - **Animations:** `framer-motion` (used for layout transitions, tab highlights, and grid filtering).
@@ -40,6 +40,8 @@ The app uses Next.js App Router (`src/app/`).
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
   - Hub projects are open to play for guests and unverified users.
   - Verified users can submit project/new-version applications; admins approve/reject at `/admin/project-submissions` before live Hub updates.
+  - The project application form supports pasted/uploaded cover screenshots, client-side 16:9 crop adjustment, and Blob-backed cover URL storage.
+  - Published project owners can start an edit from their own project card; edits are submitted as `new_version` applications and are not applied until admin approval.
   - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first, then rating and capped effective opens; rating ranks cumulative stars first while still showing selected-window play stats.
   - Live data comes from the `projects` table. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
 - `/profile` **(Protected):**
@@ -81,12 +83,13 @@ Database interactions are handled via standard SQL functions.
 3. **Adding new APIs:**
    - Put them in `src/app/api/.../route.ts`. 
    - Parse session cookies securely using `getSession()`.
-4. **Handling forum attachments:**
+4. **Handling forum and project cover attachments:**
    - Use Vercel Blob for uploads; do not write to `public/uploads` or any local filesystem path.
    - Store only the public Blob URL in `posts.attachment_url`.
    - Accept only JPEG/PNG/WebP/GIF images, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user.
    - The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
    - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
+   - Function Hall project covers upload through `POST /api/project-submissions/cover`; the browser crops screenshots to 16:9 WebP before upload, and the resulting URL is stored on `project_submissions.cover_url` for review/approval.
 5. **Forum moderation:**
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
    - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
