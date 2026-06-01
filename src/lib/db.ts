@@ -1819,6 +1819,58 @@ async function ensureProjectOpenEventsTable() {
 
 async function applyProjectAttributionCorrections() {
     await sql`
+      WITH teacher AS (
+        SELECT id
+        FROM users
+        WHERE lower(username) = lower('jinyuhong@vma.edu.cn')
+        LIMIT 1
+      )
+      INSERT INTO projects (
+        author_id, title, description, emoji, url, tags, accent_color, cover_url, status
+      )
+      SELECT
+        teacher.id,
+        'Vocab Runner · Sprint Lab',
+        'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.',
+        '🏃',
+        'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html',
+        '["Tool","Classroom"]'::jsonb,
+        'rgba(14, 165, 233, 0.18)',
+        'https://hajimi.ericproject.xyz/projects/vocab-runner-game/cover.svg',
+        'live'
+      FROM teacher
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM projects
+        WHERE title = 'Vocab Runner · Sprint Lab'
+      )
+    `;
+    await sql`
+      UPDATE projects
+      SET
+        author_id = users.id,
+        description = 'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.',
+        emoji = '🏃',
+        url = 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html',
+        tags = '["Tool","Classroom"]'::jsonb,
+        accent_color = 'rgba(14, 165, 233, 0.18)',
+        cover_url = 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/cover.svg',
+        status = 'live'
+      FROM users
+      WHERE projects.title = 'Vocab Runner · Sprint Lab'
+        AND lower(users.username) = lower('jinyuhong@vma.edu.cn')
+        AND (
+          projects.author_id IS DISTINCT FROM users.id
+          OR projects.description IS DISTINCT FROM 'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.'
+          OR projects.emoji IS DISTINCT FROM '🏃'
+          OR projects.url IS DISTINCT FROM 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html'
+          OR projects.tags IS DISTINCT FROM '["Tool","Classroom"]'::jsonb
+          OR projects.accent_color IS DISTINCT FROM 'rgba(14, 165, 233, 0.18)'
+          OR projects.cover_url IS DISTINCT FROM 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/cover.svg'
+          OR projects.status IS DISTINCT FROM 'live'
+        )
+    `;
+    await sql`
       UPDATE projects
       SET author_id = users.id
       FROM users

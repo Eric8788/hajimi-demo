@@ -1,0 +1,185 @@
+@import url("./styles.css?v=8");
+
+:root {
+  --ink: #24322f;
+  --ink-2: #3f514c;
+  --muted: #6c7d76;
+  --panel: #fffdf4;
+  --panel-2: #eef7e5;
+  --cream: #fff8de;
+  --line: #c7d8b7;
+  --cyan: #4aa9b0;
+  --cyan-dark: #24747b;
+  --coral: #e56f4f;
+  --coral-dark: #a84835;
+  --grass: #68a75f;
+  --grass-dark: #397447;
+  --gold: #f2c84b;
+  --navy: #2d4b49;
+  --red: #b94a3a;
+  --green: #2f7d5c;
+  --shadow: 0 18px 40px rgba(55, 78, 58, 0.16);
+}
+
+body {
+  background:
+    linear-gradient(180deg, rgba(226, 245, 231, 0.92), rgba(255, 250, 226, 0.96) 55%, #f0dfb4),
+    repeating-linear-gradient(90deg, rgba(55, 116, 71, 0.08) 0 2px, transparent 2px 52px);
+}
+
+.stadium-bg {
+  background:
+    radial-gradient(circle at 12% 24%, rgba(242, 200, 75, 0.28), transparent 110px),
+    linear-gradient(120deg, transparent 0 53%, rgba(104, 167, 95, 0.2) 53% 57%, transparent 57%),
+    repeating-linear-gradient(0deg, transparent 0 48px, rgba(45, 75, 73, 0.08) 48px 50px);
+}
+
+h1 {
+  color: #315d44;
+  text-shadow: 3px 4px 0 rgba(255, 255, 255, 0.85);
+}
+
+.eyebrow {
+  color: #9b5332;
+}
+
+.scoreboard div {
+  border-color: #315d44;
+  color: #fafff5;
+  background:
+    linear-gradient(135deg, rgba(242, 200, 75, 0.42), transparent 52%),
+    #315d44;
+}
+
+.scoreboard small {
+  color: #d7ead7;
+}
+
+.levels-panel,
+.question-card,
+.play-panel {
+  border-color: rgba(49, 93, 68, 0.2);
+}
+
+.levels-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), transparent),
+    #fffdf4;
+}
+
+.level-card {
+  border-color: #c7d8b7;
+  background:
+    linear-gradient(90deg, rgba(104, 167, 95, 0.2), transparent 72%),
+    #fffaf0;
+}
+
+.level-card::before {
+  background: #68a75f;
+}
+
+.level-card.active {
+  border-color: #397447;
+  background:
+    linear-gradient(90deg, rgba(104, 167, 95, 0.32), rgba(255, 255, 255, 0.62)),
+    #eef8e9;
+}
+
+.level-card.active::before {
+  background: #e56f4f;
+}
+
+.arcade-stage {
+  background:
+    linear-gradient(180deg, rgba(235, 249, 229, 0.9), transparent 62%),
+    #fffdf4;
+}
+
+.hud div {
+  border-color: rgba(49, 93, 68, 0.2);
+  background: #fffaf0;
+}
+
+.hud div:first-child {
+  color: #fffdf4;
+  background:
+    linear-gradient(135deg, rgba(229, 111, 79, 0.48), transparent 56%),
+    #315d44;
+}
+
+.track {
+  border-color: #315d44;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68) 0 22%, transparent 22%),
+    linear-gradient(180deg, #9ed28b 0 34%, #cf704c 34% 100%);
+}
+
+.track::before {
+  background:
+    linear-gradient(90deg, rgba(49, 93, 68, 0.18) 0 12px, transparent 12px 84px),
+    linear-gradient(180deg, transparent 0 34px, rgba(49, 93, 68, 0.2) 34px 38px, transparent 38px);
+}
+
+.clouds {
+  background:
+    radial-gradient(circle at 46px 23px, rgba(255, 255, 255, 0.94) 0 16px, transparent 17px),
+    radial-gradient(circle at 78px 18px, rgba(255, 255, 255, 0.9) 0 17px, transparent 18px),
+    radial-gradient(circle at 108px 26px, rgba(255, 255, 255, 0.9) 0 13px, transparent 14px);
+}
+
+.runner-body {
+  stroke: #315d44;
+}
+
+.runner-arm,
+.runner-leg {
+  stroke: #f2c84b;
+}
+
+.obstacle {
+  border-color: #a84835;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 8px, transparent 8px 16px),
+    linear-gradient(180deg, #e56f4f, #a84835);
+}
+
+.question-card {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.78), transparent 58%),
+    #fff8de;
+}
+
+.mode-chip {
+  border-color: rgba(57, 116, 71, 0.22);
+  color: #244f31;
+  background: #ddf2d6;
+}
+
+#questionText {
+  color: #315d44;
+}
+
+.choice-button,
+.spelling-row input,
+.secondary-button,
+.ghost-button {
+  background: #fffdf7;
+}
+
+.choice-button:hover,
+.choice-button:focus-visible {
+  border-color: #397447;
+  background: #eef8e9;
+}
+
+.primary-button {
+  background: #397447;
+  box-shadow: 0 6px 0 #244f31;
+}
+
+.celebration-card {
+  border-color: #f2c84b;
+  background:
+    repeating-linear-gradient(135deg, rgba(104, 167, 95, 0.13) 0 12px, transparent 12px 24px),
+    linear-gradient(180deg, #fffdf8, #fff0c7);
+}

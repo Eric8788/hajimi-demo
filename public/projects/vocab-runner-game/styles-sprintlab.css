@@ -1,0 +1,240 @@
+@import url("./styles.css?v=8");
+
+:root {
+  --ink: #17221f;
+  --ink-2: #2c3935;
+  --muted: #61726e;
+  --panel: #f4f8f2;
+  --panel-2: #e8f1ef;
+  --cream: #f8f3e4;
+  --line: #b9cbc5;
+  --cyan: #31aeb4;
+  --cyan-dark: #176f76;
+  --coral: #df6547;
+  --coral-dark: #9a3c2f;
+  --grass: #4f9867;
+  --grass-dark: #2e694b;
+  --gold: #e8bd3f;
+  --navy: #203530;
+  --red: #b74638;
+  --green: #287858;
+  --shadow: 0 20px 46px rgba(24, 40, 36, 0.2);
+}
+
+body {
+  background:
+    linear-gradient(180deg, rgba(220, 235, 229, 0.98), rgba(244, 248, 242, 0.98) 58%, #e2d6bd),
+    repeating-linear-gradient(90deg, rgba(23, 34, 31, 0.06) 0 1px, transparent 1px 36px);
+}
+
+.stadium-bg {
+  background:
+    linear-gradient(160deg, transparent 0 48%, rgba(49, 174, 180, 0.16) 48% 50%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 30px, rgba(23, 34, 31, 0.07) 30px 31px),
+    repeating-linear-gradient(90deg, transparent 0 56px, rgba(223, 101, 71, 0.08) 56px 58px);
+}
+
+.shell {
+  width: min(1260px, calc(100% - 28px));
+}
+
+.topbar {
+  grid-template-columns: minmax(0, 1fr) 420px;
+}
+
+h1 {
+  color: #203530;
+  text-shadow: 2px 3px 0 rgba(255, 255, 255, 0.8);
+}
+
+.eyebrow {
+  color: #176f76;
+}
+
+.scoreboard div {
+  border-color: #203530;
+  color: #f5fbf7;
+  background:
+    linear-gradient(90deg, rgba(49, 174, 180, 0.3), transparent 58%),
+    #203530;
+}
+
+.scoreboard small {
+  color: #bdd7d2;
+}
+
+.game-layout {
+  grid-template-columns: 330px minmax(0, 1fr);
+}
+
+.levels-panel,
+.play-panel,
+.question-card {
+  border-color: rgba(32, 53, 48, 0.2);
+  background: rgba(244, 248, 242, 0.95);
+}
+
+.levels-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent),
+    #edf5ef;
+}
+
+.level-card {
+  min-height: 68px;
+  border-color: #b9cbc5;
+  background:
+    linear-gradient(90deg, rgba(49, 174, 180, 0.16), transparent 60%),
+    #f8f3e4;
+}
+
+.level-card::before {
+  width: 8px;
+  background: #31aeb4;
+}
+
+.level-card.active {
+  border-color: #176f76;
+  background:
+    linear-gradient(90deg, rgba(49, 174, 180, 0.28), rgba(255, 255, 255, 0.5)),
+    #edf9f8;
+}
+
+.level-card.active::before {
+  background: #df6547;
+}
+
+.level-card.locked::before {
+  background: #83918c;
+}
+
+.arcade-stage {
+  background:
+    linear-gradient(180deg, rgba(49, 174, 180, 0.1), transparent 60%),
+    #f4f8f2;
+}
+
+.hud {
+  grid-template-columns: 1.6fr repeat(3, minmax(92px, 0.5fr));
+}
+
+.hud div {
+  border-color: rgba(32, 53, 48, 0.18);
+  background: #f8f3e4;
+}
+
+.hud div:first-child {
+  background:
+    linear-gradient(120deg, rgba(49, 174, 180, 0.38), transparent 58%),
+    #203530;
+}
+
+.track {
+  height: 226px;
+  border-color: #203530;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.46) 0 20%, transparent 20%),
+    linear-gradient(180deg, #83bf7b 0 34%, #bd5c45 34% 100%);
+}
+
+.track::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(32, 53, 48, 0.18) 0 10px, transparent 10px 72px),
+    linear-gradient(180deg, transparent 0 34px, rgba(32, 53, 48, 0.2) 34px 38px, transparent 38px);
+}
+
+.clouds {
+  height: 40px;
+  background:
+    linear-gradient(90deg, transparent 0 30px, rgba(255, 255, 255, 0.78) 30px 94px, transparent 94px),
+    linear-gradient(90deg, transparent 0 142px, rgba(255, 255, 255, 0.56) 142px 188px, transparent 188px);
+}
+
+.ground-lines {
+  inset: 104px 0 0;
+}
+
+.runner-body {
+  stroke: #203530;
+}
+
+.dino-body,
+.dino-head,
+.dino-tail {
+  fill: #203530;
+}
+
+.dino-eye {
+  fill: #f8f3e4;
+}
+
+.dino-arm,
+.dino-leg {
+  stroke: #203530;
+}
+
+.runner-arm,
+.runner-leg {
+  stroke: #e8bd3f;
+}
+
+.obstacle {
+  border-color: #9a3c2f;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.14) 0 10px, transparent 10px 18px),
+    linear-gradient(180deg, #df6547, #9a3c2f);
+}
+
+.question-card {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.72), transparent 56%),
+    #f8f3e4;
+}
+
+.mode-chip {
+  border-color: rgba(23, 111, 118, 0.22);
+  color: #154f52;
+  background: #d6f2ef;
+}
+
+#questionText {
+  color: #203530;
+}
+
+.choice-button,
+.spelling-row input,
+.secondary-button,
+.ghost-button {
+  border-color: #b9cbc5;
+  background: #fbf8ee;
+}
+
+.choice-button:hover,
+.choice-button:focus-visible {
+  border-color: #176f76;
+  background: #e8f7f5;
+}
+
+.primary-button {
+  background: #176f76;
+  box-shadow: 0 6px 0 #0e4c52;
+}
+
+.celebration-modal {
+  background:
+    linear-gradient(135deg, rgba(23, 34, 31, 0.72), rgba(49, 174, 180, 0.42));
+}
+
+.celebration-card {
+  border-color: #31aeb4;
+  background:
+    repeating-linear-gradient(90deg, rgba(49, 174, 180, 0.12) 0 12px, transparent 12px 24px),
+    linear-gradient(180deg, #f5fbf7, #f5e7c8);
+}
+
+@media (max-width: 900px) {
+  .topbar,
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+}

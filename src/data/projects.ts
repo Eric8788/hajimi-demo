@@ -80,6 +80,17 @@ export const PROJECTS: Project[] = [
         status: 'live',
     },
     {
+        id: 'vocab-runner-game',
+        title: 'Vocab Runner · Sprint Lab',
+        author: 'jinyuhong@vma.edu.cn',
+        description: 'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.',
+        tags: ['Tool', 'Classroom'],
+        emoji: '🏃',
+        url: 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html',
+        accentColor: 'rgba(14, 165, 233, 0.18)',
+        status: 'live',
+    },
+    {
         id: 'boxhead',
         title: 'Boxhead',
         author: 'AI Club',

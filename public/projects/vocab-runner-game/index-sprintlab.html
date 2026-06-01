@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vocab Runner · Sprint Lab</title>
+    <link rel="stylesheet" href="./styles-sprintlab.css?v=9" />
+  </head>
+  <body>
+    <div class="stadium-bg" aria-hidden="true"></div>
+    <main class="shell">
+      <section class="topbar" aria-label="Game status">
+        <div>
+          <p class="eyebrow">Version C · Sprint Lab</p>
+          <h1>Vocab Runner</h1>
+        </div>
+        <div class="scoreboard">
+          <div>
+            <span id="totalDistance">0m</span>
+            <small>Total Distance</small>
+          </div>
+          <div>
+            <span id="bestUnit">Unit 1</span>
+            <small>Current Level</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="game-layout">
+        <aside class="levels-panel" aria-label="Unit levels">
+          <div class="panel-heading">
+            <h2>Levels</h2>
+            <button class="ghost-button" id="resetButton" type="button">Reset</button>
+          </div>
+          <div class="level-list" id="levelList"></div>
+        </aside>
+
+        <section class="play-panel" aria-live="polite">
+          <div class="arcade-stage">
+            <div class="hud">
+              <div>
+                <span id="unitName">Unit 1</span>
+                <strong id="challengeStatus">Ready</strong>
+              </div>
+              <div>
+                <span>Question Time</span>
+                <strong id="timer">45s</strong>
+              </div>
+              <div>
+                <span>Combo</span>
+                <strong id="combo">x0</strong>
+              </div>
+              <div>
+                <span>Lives</span>
+                <strong id="lives">♥ ♥ ♥</strong>
+              </div>
+            </div>
+
+            <div class="track">
+              <div class="clouds" aria-hidden="true"></div>
+              <div class="ground-lines" aria-hidden="true"></div>
+              <div class="runner" id="runner" aria-hidden="true">
+                <svg viewBox="0 0 120 120" role="img">
+                  <title>Runner dinosaur</title>
+                  <path class="dino-tail" d="M30 55 L9 43 L28 66 Z" />
+                  <path class="dino-body" d="M29 46 H69 C82 46 91 56 91 68 H49 C38 68 29 60 29 46 Z" />
+                  <path class="dino-head" d="M65 21 H98 V32 H108 V51 H88 V61 H68 V46 H59 V33 H65 Z" />
+                  <circle class="dino-eye" cx="91" cy="30" r="3" />
+                  <path class="dino-arm" d="M72 52 H84" />
+                  <path class="dino-leg dino-leg-back" d="M50 67 V88 H38" />
+                  <path class="dino-leg dino-leg-front" d="M76 67 V88 H90" />
+                </svg>
+              </div>
+              <div class="obstacle" id="obstacle" aria-hidden="true">
+                <span id="obstacleWord">Jump!</span>
+              </div>
+            </div>
+            <div class="progress-row">
+              <span id="questionCount">Question 1 / 8</span>
+              <span id="accuracy">Accuracy 0%</span>
+            </div>
+          </div>
+
+          <article class="question-card">
+            <div class="mode-chip" id="modeChip">Meaning Sprint</div>
+            <h2 id="questionText">Loading...</h2>
+            <p class="example" id="exampleText"></p>
+            <div class="answer-area" id="answerArea"></div>
+            <div class="feedback" id="feedback"></div>
+          </article>
+
+          <div class="actions">
+            <button class="primary-button" id="startButton" type="button">Start Run</button>
+            <button class="secondary-button" id="skipButton" type="button" disabled>Dodge</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="celebration-modal" id="celebrationModal" hidden>
+      <div class="celebration-card" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
+        <div class="burst" aria-hidden="true"></div>
+        <p class="eyebrow">All Units Complete</p>
+        <h2 id="celebrationTitle">Vocabulary Champion</h2>
+        <p>You cleared every unit. Take a victory lap, then replay any level for review.</p>
+        <div class="finish-options">
+          <button class="primary-button" id="celebrateReplay" type="button">Replay Unit 1</button>
+          <button class="secondary-button" id="celebrateClose" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./game-data.js?v=10"></script>
+    <script src="./app.js?v=10"></script>
+  </body>
+</html>
