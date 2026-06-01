@@ -46,7 +46,7 @@ export default async function DashboardPage() {
 
   return (
     <Shell user={user}>
-      <section className="main-view">
+      <section className="main-view dashboard-page">
 
         {/* Welcome Banner */}
         <div className="glass-card full-width dashboard-welcome-card">
@@ -72,7 +72,7 @@ export default async function DashboardPage() {
         <div className="dashboard-grid">
 
           {/* Leaderboard Widget */}
-          <LeaderboardWidget limit={5} />
+          <LeaderboardWidget limit={5} defaultWindow="week" subtitle="本周 Top 5" />
 
           {/* Oracle Widget */}
           <div className="glass-card full-width" style={{ padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(255, 255, 255, 0.65)' }}>

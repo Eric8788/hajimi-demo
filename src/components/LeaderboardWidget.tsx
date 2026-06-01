@@ -15,12 +15,22 @@ const WINDOW_TABS = [
 ] as const;
 type LeaderboardWindow = (typeof WINDOW_TABS)[number]['id'];
 
-export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { limit?: number; showViewAll?: boolean }) {
+export default function LeaderboardWidget({
+    limit = 10,
+    showViewAll = true,
+    defaultWindow = 'all',
+    subtitle,
+}: {
+    limit?: number;
+    showViewAll?: boolean;
+    defaultWindow?: LeaderboardWindow;
+    subtitle?: string;
+}) {
     const router = useRouter();
     const [leaderboard, setLeaderboard] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [windowType, setWindowType] = useState<LeaderboardWindow>('all');
+    const [windowType, setWindowType] = useState<LeaderboardWindow>(defaultWindow);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -75,7 +85,7 @@ export default function LeaderboardWidget({ limit = 10, showViewAll = true }: { 
             <div className="leaderboard-head">
                 <button type="button" className="leaderboard-title-button" onClick={() => router.push('/leaderboard')}>
                     <h3>🏆 Hall of Fame</h3>
-                    <span>Top {limit} Members</span>
+                    <span>{subtitle || `Top ${limit} Members`}</span>
                 </button>
                 {showViewAll && (
                     <button type="button" className="leaderboard-view-all" onClick={() => router.push('/leaderboard')}>

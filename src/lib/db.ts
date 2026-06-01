@@ -62,7 +62,9 @@ export interface ProfileAnalytics {
     creatorScore: number;
     weeklyGrowth: number;
     trend7Days: ProfileAnalyticsDay[];
+    todayHours: ProfileAnalyticsDay[];
     heatmap28Days: ProfileAnalyticsDay[];
+    heatmapMonthDays: ProfileAnalyticsDay[];
     contributionBreakdown: Array<{ label: string; value: number }>;
 }
 
@@ -279,6 +281,7 @@ export interface FeaturedComment {
     author_is_creator?: boolean;
     author_badge_preferences?: string[] | null;
     author_verification_status?: VerificationStatus | null;
+    has_liked?: boolean;
 }
 
 export interface Notification {
@@ -1549,7 +1552,10 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
           'author_role', comment_authors.role,
           'author_is_creator', (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id),
           'author_badge_preferences', comment_authors.badge_preferences,
-          'author_verification_status', comment_authors.verification_status
+          'author_verification_status', comment_authors.verification_status,
+          'has_liked', CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
+            EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = featured_comments.id)
+          ELSE false END
         ) as featured_comment
         FROM comments featured_comments
         JOIN users comment_authors ON featured_comments.author_id = comment_authors.id
@@ -2319,7 +2325,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
     const rawXp = Number(userRows[0]?.points || 0);
     const userRole = userRows[0]?.role || '';
 
-    const { rows: eventRows } = await sql<{ local_day: string; category: LeaderboardCategory; points: number }>`
+    const { rows: eventRows } = await sql<{ local_day: string; local_hour: number; category: LeaderboardCategory; points: number }>`
       WITH first_posts AS (
         SELECT
           posts.id,
@@ -2420,15 +2426,16 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
       )
       SELECT
         (created_at AT TIME ZONE 'Asia/Shanghai')::date::text as local_day,
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Shanghai')::int as local_hour,
         category,
         SUM(points)::int as points
       FROM score_events
       WHERE user_id = ${userId}
-      GROUP BY local_day, category
+      GROUP BY local_day, local_hour, category
       ORDER BY local_day ASC
     `;
 
-    const { rows: projectOpenRows } = await sql<{ local_day: string; opens: number }>`
+    const { rows: projectOpenRows } = await sql<{ local_day: string; local_hour: number; opens: number }>`
       WITH verified_opens AS (
         SELECT
           project_opens.user_id,
@@ -2450,25 +2457,29 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
         FROM verified_opens
       ),
       session_opens AS (
-        SELECT user_id, local_day
+        SELECT user_id, local_day, opened_at
         FROM ordered_opens
         WHERE previous_opened_at IS NULL OR opened_at - previous_opened_at >= INTERVAL '30 minutes'
       ),
-      daily_effective AS (
+      ranked_sessions AS (
         SELECT
           user_id,
           local_day,
-          LEAST(COUNT(*)::int, 3) as effective_sessions
+          opened_at,
+          ROW_NUMBER() OVER (PARTITION BY user_id, local_day ORDER BY opened_at ASC) as session_rank
         FROM session_opens
-        GROUP BY user_id, local_day
       )
-      SELECT local_day::text, COALESCE(SUM(effective_sessions), 0)::int as opens
-      FROM daily_effective
-      GROUP BY local_day
+      SELECT
+        local_day::text,
+        EXTRACT(HOUR FROM opened_at AT TIME ZONE 'Asia/Shanghai')::int as local_hour,
+        COUNT(*)::int as opens
+      FROM ranked_sessions
+      WHERE session_rank <= 3
+      GROUP BY local_day, local_hour
       ORDER BY local_day ASC
     `;
 
-    const { rows: interactionRows } = await sql<{ local_day: string; interactions: number }>`
+    const { rows: interactionRows } = await sql<{ local_day: string; local_hour: number; interactions: number }>`
       WITH post_interactions AS (
         SELECT post_likes.created_at
         FROM post_likes
@@ -2482,9 +2493,10 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
       )
       SELECT
         (created_at AT TIME ZONE 'Asia/Shanghai')::date::text as local_day,
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Shanghai')::int as local_hour,
         COUNT(*)::int as interactions
       FROM post_interactions
-      GROUP BY local_day
+      GROUP BY local_day, local_hour
       ORDER BY local_day ASC
     `;
 
@@ -2495,14 +2507,26 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
     `;
 
     const xpByDay = new Map<string, number>();
+    const xpByHour = new Map<string, number>();
     const categoryTotals = new Map<string, number>();
     eventRows.forEach(row => {
         xpByDay.set(row.local_day, (xpByDay.get(row.local_day) || 0) + Number(row.points || 0));
+        xpByHour.set(`${row.local_day}:${row.local_hour}`, (xpByHour.get(`${row.local_day}:${row.local_hour}`) || 0) + Number(row.points || 0));
         categoryTotals.set(row.category, (categoryTotals.get(row.category) || 0) + Number(row.points || 0));
     });
 
-    const opensByDay = new Map(projectOpenRows.map(row => [row.local_day, Number(row.opens || 0)]));
-    const interactionsByDay = new Map(interactionRows.map(row => [row.local_day, Number(row.interactions || 0)]));
+    const opensByDay = new Map<string, number>();
+    const opensByHour = new Map<string, number>();
+    projectOpenRows.forEach(row => {
+        opensByDay.set(row.local_day, (opensByDay.get(row.local_day) || 0) + Number(row.opens || 0));
+        opensByHour.set(`${row.local_day}:${row.local_hour}`, (opensByHour.get(`${row.local_day}:${row.local_hour}`) || 0) + Number(row.opens || 0));
+    });
+    const interactionsByDay = new Map<string, number>();
+    const interactionsByHour = new Map<string, number>();
+    interactionRows.forEach(row => {
+        interactionsByDay.set(row.local_day, (interactionsByDay.get(row.local_day) || 0) + Number(row.interactions || 0));
+        interactionsByHour.set(`${row.local_day}:${row.local_hour}`, (interactionsByHour.get(`${row.local_day}:${row.local_hour}`) || 0) + Number(row.interactions || 0));
+    });
     const visibleXp = applyVisibleXpDisplayCap(rawXp, userRole);
     const projectOpenTotal = projectOpenRows.reduce((sum, row) => sum + Number(row.opens || 0), 0);
     const postInteractionTotal = interactionRows.reduce((sum, row) => sum + Number(row.interactions || 0), 0);
@@ -2511,8 +2535,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
         return opensByDay.get(key) || 0;
     }).reduce((sum, opens) => sum + opens, 0);
 
-    const buildDay = (offset: number, mode: 'weekday' | 'date'): ProfileAnalyticsDay => {
-        const key = getShanghaiDateKeyFromOffset(offset);
+    const buildDayFromKey = (key: string, mode: 'weekday' | 'date'): ProfileAnalyticsDay => {
         const xp = normalizeDailyActivityXp(xpByDay.get(key) || 0, userRole);
         const projectOpens = opensByDay.get(key) || 0;
         const postInteractions = interactionsByDay.get(key) || 0;
@@ -2525,9 +2548,52 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
             value: xp + projectOpens + postInteractions,
         };
     };
+    const buildDay = (offset: number, mode: 'weekday' | 'date'): ProfileAnalyticsDay => {
+        const key = getShanghaiDateKeyFromOffset(offset);
+        return buildDayFromKey(key, mode);
+    };
 
     const trend7Days = Array.from({ length: 7 }, (_, index) => buildDay(index - 6, 'weekday'));
     const heatmap28Days = Array.from({ length: 28 }, (_, index) => buildDay(index - 27, 'date'));
+    const todayKey = getShanghaiDateKey(new Date());
+    const rawTodayHourlyXp = Array.from({ length: 24 }, (_, hour) => xpByHour.get(`${todayKey}:${hour}`) || 0);
+    const rawTodayXp = rawTodayHourlyXp.reduce((sum, xp) => sum + xp, 0);
+    const cappedTodayXp = normalizeDailyActivityXp(rawTodayXp, userRole);
+    const hourlyXpFloors = rawTodayHourlyXp.map(xp => rawTodayXp > 0 ? Math.floor((xp / rawTodayXp) * cappedTodayXp) : 0);
+    let hourlyXpRemainder = cappedTodayXp - hourlyXpFloors.reduce((sum, xp) => sum + xp, 0);
+    rawTodayHourlyXp
+        .map((xp, hour) => ({
+            hour,
+            fraction: rawTodayXp > 0 ? ((xp / rawTodayXp) * cappedTodayXp) % 1 : 0,
+        }))
+        .sort((a, b) => b.fraction - a.fraction)
+        .forEach(item => {
+            if (hourlyXpRemainder <= 0) return;
+            hourlyXpFloors[item.hour] += 1;
+            hourlyXpRemainder -= 1;
+        });
+    const todayHours = Array.from({ length: 24 }, (_, hour) => {
+        const hourKey = `${todayKey}:${hour}`;
+        const xp = hourlyXpFloors[hour] || 0;
+        const projectOpens = opensByHour.get(hourKey) || 0;
+        const postInteractions = interactionsByHour.get(hourKey) || 0;
+        const label = `${String(hour).padStart(2, '0')}:00`;
+        return {
+            key: `${todayKey}T${String(hour).padStart(2, '0')}`,
+            label,
+            xp,
+            projectOpens,
+            postInteractions,
+            value: xp + projectOpens + postInteractions,
+        };
+    });
+    const [currentYear, currentMonth] = getShanghaiDateKey(new Date()).split('-').map(Number);
+    const monthDayCount = new Date(currentYear, currentMonth, 0).getDate();
+    const heatmapMonthDays = Array.from({ length: monthDayCount }, (_, index) => {
+        const day = String(index + 1).padStart(2, '0');
+        const month = String(currentMonth).padStart(2, '0');
+        return buildDayFromKey(`${currentYear}-${month}-${day}`, 'date');
+    });
     const weeklyGrowth = trend7Days.reduce((sum, day) => sum + day.value, 0);
     const levelProgress = getLevelProgress(visibleXp);
     const postCount = Number(countRows[0]?.post_count || 0);
@@ -2541,7 +2607,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
     ));
     const contributionBase = Math.max(1, visibleXp + projectOpenTotal + postInteractionTotal);
     const contributionBreakdown = [
-        { label: '可见 XP', value: Math.min(100, Math.max(8, Math.round(visibleXp / contributionBase * 100))) },
+        { label: 'XP', value: Math.min(100, Math.max(8, Math.round(visibleXp / contributionBase * 100))) },
         { label: '项目打开量', value: Math.min(100, Math.max(8, Math.round(projectOpenTotal / contributionBase * 100))) },
         { label: '帖子互动', value: Math.min(100, Math.max(8, Math.round(postInteractionTotal / contributionBase * 100))) },
         { label: '项目创作', value: Math.min(100, Math.max(8, Math.round((categoryTotals.get('project') || 0) / Math.max(1, visibleXp) * 100))) },
@@ -2559,7 +2625,9 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
         creatorScore,
         weeklyGrowth,
         trend7Days,
+        todayHours,
         heatmap28Days,
+        heatmapMonthDays,
         contributionBreakdown,
     };
 }

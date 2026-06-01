@@ -72,6 +72,22 @@ function shortPreview(text?: string | null) {
     return compact.length > 80 ? `${compact.slice(0, 80)}...` : compact;
 }
 
+function formatPostDate(value: Date | string) {
+    return new Intl.DateTimeFormat('zh-CN', {
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(value));
+}
+
+function formatExactTime(value: Date | string, action: '发帖' | '回复') {
+    const time = new Intl.DateTimeFormat('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).format(new Date(value));
+    return `${time} ${action}`;
+}
+
 function pickFeaturedComment(comments: Comment[]) {
     const replyCounts = comments.reduce<Record<number, number>>((counts, comment) => {
         if (comment.parent_comment_id) {
@@ -207,6 +223,34 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         return false;
     };
 
+    const makeReplyTarget = (comment: Comment | NonNullable<Post['featured_comment']>): Comment => ({
+        id: comment.id,
+        post_id: post.id,
+        author_id: comment.author_id,
+        content: comment.content,
+        likes: comment.likes,
+        created_at: comment.created_at,
+        reply_author_name: comment.reply_author_name,
+        reply_content: comment.reply_content,
+        author_name: comment.author_name,
+        author_avatar: comment.author_avatar,
+        author_avatar_theme: comment.author_avatar_theme,
+        author_role: comment.author_role,
+        author_is_creator: comment.author_is_creator,
+        author_badge_preferences: comment.author_badge_preferences,
+        author_verification_status: comment.author_verification_status,
+        has_liked: comment.has_liked,
+    });
+
+    const startReplyToComment = async (comment: Comment | NonNullable<Post['featured_comment']>) => {
+        if (requireVerifiedInteraction()) return;
+        setReplyingTo(makeReplyTarget(comment));
+        setShowComments(true);
+        if (!commentsLoaded) {
+            await loadComments();
+        }
+    };
+
     const handleLike = async () => {
         if (requireVerifiedInteraction()) return;
         // Optimistic toggle
@@ -251,27 +295,28 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     const handleCommentLike = async (commentId: number) => {
         if (requireVerifiedInteraction()) return;
-        // Optimistic toggle for comment likes
-        let likedNow = false;
-        setComments(current => current.map(c => {
-            if (c.id === commentId) {
-                const newLikedState = !c.has_liked;
-                likedNow = newLikedState;
-                return { ...c, likes: newLikedState ? c.likes + 1 : c.likes - 1, has_liked: newLikedState };
-            }
-            return c;
-        }));
-        setFeaturedComment(currentFeatured => {
-            const nextComments = comments.map(c => {
-                if (c.id === commentId) {
-                    const newLikedState = !c.has_liked;
-                    return { ...c, likes: newLikedState ? c.likes + 1 : c.likes - 1, has_liked: newLikedState };
-                }
-                return c;
+        const sourceComment = comments.find(c => c.id === commentId);
+        const sourceFeatured = featuredComment?.id === commentId ? featuredComment : null;
+        const nextLikedState = !(sourceComment?.has_liked ?? sourceFeatured?.has_liked ?? false);
+        const updateLikes = (currentLikes: number) => Math.max(0, currentLikes + (nextLikedState ? 1 : -1));
+
+        if (sourceComment) {
+            const nextComments = comments.map(c => (
+                c.id === commentId
+                    ? { ...c, likes: updateLikes(c.likes), has_liked: nextLikedState }
+                    : c
+            ));
+            setComments(nextComments);
+            setFeaturedComment(pickFeaturedComment(nextComments));
+        } else if (sourceFeatured) {
+            setFeaturedComment({
+                ...sourceFeatured,
+                likes: updateLikes(sourceFeatured.likes),
+                has_liked: nextLikedState,
             });
-            return nextComments.length > 0 ? pickFeaturedComment(nextComments) : currentFeatured;
-        });
-        if (likedNow) {
+        }
+
+        if (nextLikedState) {
             setCommentLikeBurst(commentId);
             window.setTimeout(() => setCommentLikeBurst(current => current === commentId ? null : current), 700);
         }
@@ -436,8 +481,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         <span style={{ fontWeight: 700, color: '#2d3436' }}>{post.author_name}</span>
                         <UserBadges user={authorBadgeUser} compact iconOnly />
                     </div>
-                    <div suppressHydrationWarning style={{ fontSize: '0.8rem', opacity: 0.6 }}>
-                        {new Date(post.created_at).toLocaleDateString()}
+                    <div suppressHydrationWarning className="post-time-hover" style={{ fontSize: '0.8rem', opacity: 0.6 }}>
+                        <span>{formatPostDate(post.created_at)}</span>
+                        <span className="inline-exact-time-chip post-exact-time-chip">{formatExactTime(post.created_at, '发帖')}</span>
                         {displayUpdatedAt && <span> · edited</span>}
                     </div>
                 </div>
@@ -607,7 +653,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 <div className="featured-comment-author">
                                     <span>{featuredComment.author_name}</span>
                                     <UserBadges user={featuredCommentBadgeUser} compact iconOnly />
-                                    {featuredComment.likes > 0 && <small>{featuredComment.likes} likes</small>}
+                                    <small suppressHydrationWarning className="inline-exact-time-chip featured-comment-time-chip">
+                                        {formatExactTime(featuredComment.created_at, '回复')}
+                                    </small>
                                 </div>
                                 {featuredComment.reply_author_name && (
                                     <div className="comment-reply-context">
@@ -615,6 +663,39 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                     </div>
                                 )}
                                 <div>{renderRichText(shortPreview(featuredComment.content))}</div>
+                                <div className="featured-comment-actions">
+                                    <motion.button
+                                        type="button"
+                                        onClick={() => handleCommentLike(featuredComment.id)}
+                                        className={`featured-comment-action reaction-button ${featuredComment.has_liked ? 'is-liked' : ''}`}
+                                        whileTap={{ scale: 0.86 }}
+                                        animate={commentLikeBurst === featuredComment.id ? { scale: [1, 1.16, 1] } : { scale: 1 }}
+                                        transition={{ duration: 0.25 }}
+                                    >
+                                        <AnimatePresence>
+                                            {commentLikeBurst === featuredComment.id && (
+                                                <motion.span
+                                                    key={featuredComment.id}
+                                                    className="reaction-burst"
+                                                    initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                                    animate={{ opacity: 1, y: -8, scale: 1 }}
+                                                    exit={{ opacity: 0, y: -18, scale: 0.6 }}
+                                                    transition={{ duration: 0.42 }}
+                                                >
+                                                    liked
+                                                </motion.span>
+                                            )}
+                                        </AnimatePresence>
+                                        {featuredComment.has_liked ? '❤️' : '🤍'} {featuredComment.likes}
+                                    </motion.button>
+                                    <button
+                                        type="button"
+                                        className="featured-comment-action"
+                                        onClick={() => startReplyToComment(featuredComment)}
+                                    >
+                                        Reply
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -699,7 +780,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             {/* Comments List... */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: showComments ? '300px' : 'none', overflowY: showComments ? 'auto' : 'visible' }}>
                                 {visibleComments.map(c => (
-                                    <div key={c.id} style={{ display: 'flex', gap: '10px' }} title={`Commented on ${new Date(c.created_at).toLocaleString()}`}>
+                                    <div key={c.id} className="comment-row-time-hover" style={{ display: 'flex', gap: '10px' }}>
                                         <button
                                             type="button"
                                             className="avatar-link-button comment-avatar-button"
@@ -723,6 +804,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                         compact
                                                         iconOnly
                                                     />
+                                                    <span suppressHydrationWarning className="inline-exact-time-chip comment-exact-time-chip">
+                                                        {formatExactTime(c.created_at, '回复')}
+                                                    </span>
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                                     {c.likes > 0 && <span>{c.likes} likes</span>}
@@ -752,10 +836,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                     </motion.button>
                                                     {!isGuest && canInteract && (
                                                         <button
-                                                            onClick={() => {
-                                                                setReplyingTo(c);
-                                                                setShowComments(true);
-                                                            }}
+                                                            onClick={() => startReplyToComment(c)}
                                                             style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6c5ce7', fontSize: '0.8rem', fontWeight: 700 }}
                                                             title={`Reply to ${c.author_name}`}
                                                         >Reply</button>

@@ -90,19 +90,6 @@ function formatNumber(value: number) {
     return new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value)));
 }
 
-function getDateKey(value?: Date | string | null) {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toISOString().slice(0, 10);
-}
-
-function getLocalDayLabel(offsetFromToday: number) {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetFromToday);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 type ProfileCardProps = {
     user: User;
     readOnly?: boolean;
@@ -110,6 +97,93 @@ type ProfileCardProps = {
     projects?: Project[];
     analytics?: ProfileAnalytics;
 };
+
+type AnalyticsRange = 'today' | 'week' | 'month' | 'custom';
+
+function getShanghaiTodayKey() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+    const year = parts.find(part => part.type === 'year')?.value || '1970';
+    const month = parts.find(part => part.type === 'month')?.value || '01';
+    const day = parts.find(part => part.type === 'day')?.value || '01';
+    return `${year}-${month}-${day}`;
+}
+
+function shiftDateKey(key: string, offset: number) {
+    const [year, month, day] = key.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + offset);
+    return date.toISOString().slice(0, 10);
+}
+
+function formatAnalyticsDateLabel(key: string, mode: 'weekday' | 'date' = 'date') {
+    const [year, month, day] = key.split('-').map(Number);
+    if (!year || !month || !day) return key;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (mode === 'weekday') {
+        return date.toLocaleDateString('en-US', { weekday: 'short' });
+    }
+    return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+}
+
+function getMonthStartKey(key: string) {
+    return `${key.slice(0, 7)}-01`;
+}
+
+function getMonthEndKey(key: string) {
+    const [year, month] = key.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month, 0));
+    return date.toISOString().slice(0, 10);
+}
+
+function getDateKeysBetween(startKey: string, endKey: string, maxDays = 62) {
+    if (!startKey || !endKey || startKey > endKey) return [];
+    const keys: string[] = [];
+    let cursor = startKey;
+
+    while (cursor <= endKey && keys.length < maxDays) {
+        keys.push(cursor);
+        cursor = shiftDateKey(cursor, 1);
+    }
+
+    return keys;
+}
+
+function getPiePoint(center: number, radius: number, angle: number) {
+    const radians = (angle - 90) * Math.PI / 180;
+    return {
+        x: center + radius * Math.cos(radians),
+        y: center + radius * Math.sin(radians),
+    };
+}
+
+function getPieSlicePath(startAngle: number, endAngle: number, radius = 76, center = 90) {
+    const safeEndAngle = Math.min(endAngle, startAngle + 359.99);
+    const outerStart = getPiePoint(center, radius, startAngle);
+    const outerEnd = getPiePoint(center, radius, safeEndAngle);
+    const largeArcFlag = safeEndAngle - startAngle > 180 ? 1 : 0;
+
+    return [
+        `M ${center} ${center}`,
+        `L ${outerStart.x.toFixed(3)} ${outerStart.y.toFixed(3)}`,
+        `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${outerEnd.x.toFixed(3)} ${outerEnd.y.toFixed(3)}`,
+        'Z',
+    ].join(' ');
+}
+
+function getPieSliceOffset(startAngle: number, endAngle: number, distance = 8) {
+    const midAngle = startAngle + (endAngle - startAngle) / 2;
+    const radians = (midAngle - 90) * Math.PI / 180;
+
+    return {
+        x: Math.cos(radians) * distance,
+        y: Math.sin(radians) * distance,
+    };
+}
 
 export default function ProfilePage({ user, readOnly = false, posts = [], projects = [], analytics }: ProfileCardProps) {
     const router = useRouter();
@@ -154,8 +228,15 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const trendHoverLineRef = useRef<HTMLSpanElement | null>(null);
     const trendTooltipRef = useRef<HTMLDivElement | null>(null);
     const heatmapTooltipRef = useRef<HTMLDivElement | null>(null);
+    const contributionTooltipRef = useRef<HTMLDivElement | null>(null);
     const trendFrameRef = useRef<number | null>(null);
     const heatmapFrameRef = useRef<number | null>(null);
+    const contributionFrameRef = useRef<number | null>(null);
+    const [analyticsMode, setAnalyticsMode] = useState<'overview' | 'detail'>('overview');
+    const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('week');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const [activeContributionIndex, setActiveContributionIndex] = useState<number | null>(null);
     const [pendingAvatarFocus, setPendingAvatarFocus] = useState(false);
 
     const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
@@ -184,7 +265,6 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
     const postInteractionTotal = Number(analytics?.postInteractionTotal ?? posts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0));
     const projectOpenTotal = Number(analytics?.projectOpenTotal ?? projects.reduce((sum, project) => sum + Number(project.open_count_total || 0), 0));
-    const projectOpenWeek = Number(analytics?.projectOpenWeek ?? projects.reduce((sum, project) => sum + Number(project.open_count_week || 0), 0));
     const projectRatingCount = projects.reduce((sum, project) => sum + Number(project.rating_count || 0), 0);
     const creatorScore = Number(analytics?.creatorScore ?? Math.min(99, Math.round(
         projects.length * 12
@@ -193,55 +273,170 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         + projectOpenTotal * 0.08
         + projectRatingCount * 2,
     )));
-    const weeklyGrowth = Number(analytics?.weeklyGrowth ?? projectOpenWeek);
+    const sourceAnalyticsDays = useMemo(() => {
+        const days = [
+            ...(analytics?.heatmap28Days || []),
+            ...(analytics?.heatmapMonthDays || []),
+            ...(analytics?.trend7Days || []),
+        ];
+        const dayMap = new Map<string, ProfileAnalyticsDay>();
+        days.forEach(day => dayMap.set(day.key, day));
+        return dayMap;
+    }, [analytics?.heatmap28Days, analytics?.heatmapMonthDays, analytics?.trend7Days]);
+    const todayKey = getShanghaiTodayKey();
+    const monthStartKey = getMonthStartKey(todayKey);
+    const monthEndKey = getMonthEndKey(todayKey);
+    const monthRangeEndKey = todayKey < monthEndKey ? todayKey : monthEndKey;
+    const availableDateKeys = useMemo(() => {
+        const keys = Array.from(sourceAnalyticsDays.keys()).filter(key => key <= todayKey).sort();
+        return keys.length > 0 ? keys : getDateKeysBetween(monthStartKey, monthRangeEndKey);
+    }, [monthRangeEndKey, monthStartKey, sourceAnalyticsDays, todayKey]);
+    const minAvailableDateKey = availableDateKeys[0] || monthStartKey;
+    const maxAvailableDateKey = availableDateKeys[availableDateKeys.length - 1] || todayKey;
+    const defaultCustomStartDate = customStartDate || availableDateKeys[0] || monthStartKey;
+    const defaultCustomEndDate = customEndDate || availableDateKeys[availableDateKeys.length - 1] || todayKey;
+    const rangeKeys = useMemo(() => {
+        if (analyticsRange === 'today') return [todayKey];
+        if (analyticsRange === 'week') return getDateKeysBetween(shiftDateKey(todayKey, -6), todayKey, 7);
+        if (analyticsRange === 'custom') return getDateKeysBetween(defaultCustomStartDate, defaultCustomEndDate, 62);
+        return getDateKeysBetween(monthStartKey, monthRangeEndKey, 31);
+    }, [analyticsRange, defaultCustomEndDate, defaultCustomStartDate, monthRangeEndKey, monthStartKey, todayKey]);
+    const selectedRangeDays = useMemo(() => rangeKeys.map(key => {
+        const day = sourceAnalyticsDays.get(key);
+        return day || {
+            key,
+            label: formatAnalyticsDateLabel(key),
+            xp: 0,
+            projectOpens: 0,
+            postInteractions: 0,
+            value: 0,
+        };
+    }), [rangeKeys, sourceAnalyticsDays]);
+    const selectedTrendPoints = analyticsRange === 'today' && (analytics?.todayHours || []).length > 0
+        ? analytics?.todayHours || []
+        : selectedRangeDays;
+    const rangeLabel = analyticsRange === 'today'
+        ? '今天'
+        : analyticsRange === 'week'
+            ? '本周'
+            : analyticsRange === 'month'
+                ? '本月'
+                : `${formatAnalyticsDateLabel(defaultCustomStartDate)} - ${formatAnalyticsDateLabel(defaultCustomEndDate)}`;
+    const rangeXp = selectedRangeDays.reduce((sum, day) => sum + Number(day.xp || 0), 0);
+    const rangeProjectOpens = selectedRangeDays.reduce((sum, day) => sum + Number(day.projectOpens || 0), 0);
+    const rangePostInteractions = selectedRangeDays.reduce((sum, day) => sum + Number(day.postInteractions || 0), 0);
+    const rangeActivity = selectedRangeDays.reduce((sum, day) => sum + Number(day.value || 0), 0);
+    const monthlyOverviewDays = useMemo(() => getDateKeysBetween(monthStartKey, monthEndKey, 31).map(key => {
+        const day = sourceAnalyticsDays.get(key);
+        return day || {
+            key,
+            label: formatAnalyticsDateLabel(key),
+            xp: 0,
+            projectOpens: 0,
+            postInteractions: 0,
+            value: 0,
+        };
+    }), [monthEndKey, monthStartKey, sourceAnalyticsDays]);
+    const overviewHeatmapCells = useMemo(() => {
+        const maxValue = Math.max(1, ...monthlyOverviewDays.map(day => Number(day.value || 0)));
+        return monthlyOverviewDays.map(day => ({
+            ...day,
+            label: formatAnalyticsDateLabel(day.key),
+            heat: Math.min(5, Math.ceil((Number(day.value || 0) / maxValue) * 5)),
+            detail: `活跃 ${formatNumber(Number(day.value || 0))} · XP ${formatNumber(Number(day.xp || 0))} · 项目打开 ${formatNumber(Number(day.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(day.postInteractions || 0))}`,
+        }));
+    }, [monthlyOverviewDays]);
     const analyticsTrend = useMemo(() => {
-        const points = (analytics?.trend7Days || []).length > 0
-            ? analytics?.trend7Days || []
-            : Array.from({ length: 7 }, (_, index) => ({
-                key: String(index),
-                label: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index],
+        const points = selectedTrendPoints.length > 0
+            ? selectedTrendPoints
+            : [{
+                key: todayKey,
+                label: formatAnalyticsDateLabel(todayKey),
                 xp: 0,
                 projectOpens: 0,
                 postInteractions: 0,
                 value: 0,
-            }));
+            }];
         const maxValue = Math.max(1, ...points.map(point => Number(point.value || 0)));
+        const span = Math.max(1, points.length - 1);
 
         return points.map((point, index) => {
-            const x = 20 + index * 110;
+            const x = points.length === 1 ? 350 : 20 + (index / span) * 660;
             const y = maxValue > 0 ? 180 - (Number(point.value || 0) / maxValue) * 132 : 170;
+            const label = analyticsRange === 'today'
+                ? point.label
+                : points.length <= 7
+                    ? formatAnalyticsDateLabel(point.key, 'weekday')
+                    : formatAnalyticsDateLabel(point.key);
             return {
                 ...point,
+                label,
                 x,
                 y,
                 activityLabel: `${formatNumber(Number(point.value || 0))} 活跃`,
-                detail: `活跃 ${formatNumber(Number(point.value || 0))} · 项目打开 ${formatNumber(Number(point.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(point.postInteractions || 0))}`,
+                detail: `活跃 ${formatNumber(Number(point.value || 0))} · XP ${formatNumber(Number(point.xp || 0))} · 项目打开 ${formatNumber(Number(point.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(point.postInteractions || 0))}`,
             };
         });
-    }, [analytics?.trend7Days]);
+    }, [analyticsRange, selectedTrendPoints, todayKey]);
     const analyticsLinePoints = analyticsTrend.map(point => `${point.x},${point.y}`).join(' ');
     const analyticsAreaPath = `M ${analyticsTrend.map(point => `${point.x} ${point.y}`).join(' L ')} L 680 210 L 20 210 Z`;
-    const heatmapCells = useMemo(() => {
-        const days = (analytics?.heatmap28Days || []).length > 0 ? analytics?.heatmap28Days || [] : [];
-        const maxValue = Math.max(1, ...days.map(day => Number(day.value || 0)));
-        return days.map(day => ({
-            ...day,
-            heat: Math.min(5, Math.ceil((Number(day.value || 0) / maxValue) * 5)),
-            detail: `活跃 ${formatNumber(Number(day.value || 0))} · 项目打开 ${formatNumber(Number(day.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(day.postInteractions || 0))}`,
-        }));
-    }, [analytics?.heatmap28Days]);
-    const contributionBars = analytics?.contributionBreakdown || [
-        { label: '项目打开量', value: Math.min(100, Math.max(8, Math.round(projectOpenTotal / Math.max(1, projectOpenTotal + postInteractionTotal + totalXp) * 100))) },
-        { label: '帖子互动', value: Math.min(100, Math.max(8, Math.round(postInteractionTotal / Math.max(1, projectOpenTotal + postInteractionTotal + totalXp) * 100))) },
-        { label: '可见 XP', value: Math.min(100, Math.max(12, Math.round(totalXp / Math.max(1, projectOpenTotal + postInteractionTotal + totalXp) * 100))) },
-        { label: '项目创作', value: Math.min(100, Math.max(8, Math.round(projects.length * 12))) },
+    const contributionBars = [
+        { label: 'XP', value: rangeXp },
+        { label: '项目打开量', value: rangeProjectOpens },
+        { label: '帖子互动', value: rangePostInteractions },
+    ].filter(item => Number(item.value || 0) > 0);
+    const hasContributionData = contributionBars.length > 0;
+    const safeContributionBars = contributionBars.length > 0 ? contributionBars : [
+        { label: '暂无数据', value: 1 },
     ];
+    const contributionColors = ['#6c5ce7', '#37c6d0', '#ffb84d', '#4fd6a7', '#ff6f91'];
+    const contributionTotal = Math.max(1, safeContributionBars.reduce((sum, item) => sum + Math.max(0, Number(item.value || 0)), 0));
+    let contributionCursor = 0;
+    const contributionSegments = safeContributionBars.map((item, index) => {
+        const value = Math.max(0, Number(item.value || 0));
+        const degrees = value / contributionTotal * 360;
+        const start = contributionCursor;
+        const end = contributionCursor + degrees;
+        const offset = getPieSliceOffset(start, end);
+        const segment = {
+            ...item,
+            color: contributionColors[index % contributionColors.length],
+            percent: hasContributionData ? Math.round(value / contributionTotal * 100) : 0,
+            displayValue: hasContributionData ? value : 0,
+            start,
+            end,
+            path: getPieSlicePath(start, end),
+            offsetX: offset.x,
+            offsetY: offset.y,
+        };
+        contributionCursor += degrees;
+        return segment;
+    });
+    const topContribution = contributionSegments.reduce((top, item) => (item.value > top.value ? item : top), contributionSegments[0] || {
+        label: '暂无',
+        value: 0,
+        displayValue: 0,
+        color: '#6c5ce7',
+        percent: 0,
+        start: 0,
+        end: 360,
+        path: getPieSlicePath(0, 360),
+        offsetX: 0,
+        offsetY: 0,
+    });
+    const activeMonthDays = overviewHeatmapCells.filter(cell => Number(cell.value || 0) > 0).length;
     const topProjects = [...projects]
         .sort((a, b) => Number(b.open_count_total || 0) - Number(a.open_count_total || 0) || Number(b.rating_count || 0) - Number(a.rating_count || 0))
         .slice(0, 3);
     const topPosts = [...posts]
         .sort((a, b) => (Number(b.likes || 0) + Number(b.comment_count || 0)) - (Number(a.likes || 0) + Number(a.comment_count || 0)))
         .slice(0, 2);
+    const rangeOptions: Array<{ value: AnalyticsRange; label: string }> = [
+        { value: 'today', label: '今天' },
+        { value: 'week', label: '本周' },
+        { value: 'month', label: '本月' },
+        { value: 'custom', label: '自定义' },
+    ];
     const verificationCopy = verificationStatus === 'verified'
         ? '已认证，具备互动、发帖、榜单和项目申请权益。'
         : verificationStatus === 'pending'
@@ -314,34 +509,16 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         return () => window.cancelAnimationFrame(frameId);
     }, [isEditing, pendingAvatarFocus, readOnly]);
 
-    useEffect(() => {
-        const chart = trendChartRef.current;
-        if (!chart) return;
-
-        const syncPointAspect = () => {
-            const rect = chart.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-            const scaleX = rect.width / 700;
-            const scaleY = rect.height / 220;
-            chart.style.setProperty('--profile-chart-point-scale-x', (scaleY / scaleX).toFixed(4));
-        };
-
-        syncPointAspect();
-
-        const resizeObserver = new ResizeObserver(syncPointAspect);
-        resizeObserver.observe(chart);
-        return () => resizeObserver.disconnect();
-    }, []);
-
     useEffect(() => () => {
         if (trendFrameRef.current) window.cancelAnimationFrame(trendFrameRef.current);
         if (heatmapFrameRef.current) window.cancelAnimationFrame(heatmapFrameRef.current);
+        if (contributionFrameRef.current) window.cancelAnimationFrame(contributionFrameRef.current);
     }, []);
 
     const positionTooltip = (
         tooltip: HTMLDivElement | null,
         frameRef: MutableRefObject<number | null>,
-        event: PointerEvent<HTMLElement>,
+        event: PointerEvent<Element>,
         content: string,
     ) => {
         if (!tooltip) return;
@@ -392,6 +569,20 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
 
     const handleHeatmapPointerMove = (event: PointerEvent<HTMLElement>, cell: ProfileAnalyticsDay & { detail: string }) => {
         positionTooltip(heatmapTooltipRef.current, heatmapFrameRef, event, `${cell.label}: ${cell.detail}`);
+    };
+
+    const showContributionTooltip = (event: PointerEvent<Element>, segment: typeof contributionSegments[number]) => {
+        positionTooltip(
+            contributionTooltipRef.current,
+            contributionFrameRef,
+            event,
+            `${segment.label} · ${segment.percent}% · 指标值 ${formatNumber(Number(segment.displayValue || 0))}`,
+        );
+    };
+
+    const hideContributionTooltip = () => {
+        setActiveContributionIndex(null);
+        hideTooltip(contributionTooltipRef.current, contributionFrameRef);
     };
 
     const openAvatarEditor = () => {
@@ -826,192 +1017,370 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         <section className="profile-feed-section profile-analytics-panel">
             <div className="profile-feed-heading profile-analytics-heading">
                 <div>
-                    <span>Data Studio</span>
-                    <h3>个人数据分析</h3>
-                    <p>XP 使用榜单同口径；趋势只展示最近真实活跃，不再把维护或发布操作渲染成夸张涨幅。</p>
+                    <span>{analyticsMode === 'overview' ? '成长报告' : '贡献工作台'}</span>
+                    <h3>{analyticsMode === 'overview' ? '个人数据分析' : '详细分析'}</h3>
+                    <p>{analyticsMode === 'overview'
+                        ? '汇总本月 XP、活跃天数、签到和近期高光。'
+                        : '按时间范围查看 XP、项目打开、帖子互动和贡献来源。'}</p>
                 </div>
-                <span className="profile-analytics-live">真实数据</span>
-            </div>
-
-            <div className="profile-analytics-kpis">
-                <article className="profile-analytics-kpi is-purple">
-                    <span>Total XP</span>
-                    <strong>{formatNumber(totalXp)}</strong>
-                    <small>Lv.{displayLevel} · 榜单同口径</small>
-                </article>
-                <article className="profile-analytics-kpi is-aqua">
-                    <span>Project Opens</span>
-                    <strong>{formatNumber(projectOpenTotal)}</strong>
-                    <small>7 天 +{formatNumber(projectOpenWeek)}</small>
-                </article>
-                <article className="profile-analytics-kpi is-amber">
-                    <span>Post Interactions</span>
-                    <strong>{formatNumber(postInteractionTotal)}</strong>
-                    <small>{posts.length} posts · likes/comments</small>
-                </article>
-                <article className="profile-analytics-kpi is-mint">
-                    <span>Creator Score</span>
-                    <strong>{creatorScore}</strong>
-                    <small>{creatorScore > 0 ? '综合活跃度' : '开始创作后会增长'}</small>
-                </article>
-            </div>
-
-            <div className="profile-analytics-grid">
-                <section className="profile-analytics-card profile-trend-card">
-                    <div className="profile-analytics-card-head">
-                        <div>
-                            <h4>7 天成长曲线</h4>
-                            <p>移动鼠标会吸附最近日期，查看当天打开和互动。</p>
-                        </div>
-                        <span>7天活跃 {formatNumber(weeklyGrowth)}</span>
-                    </div>
-                    <div
-                        className="profile-trend-chart"
-                        ref={trendChartRef}
-                        onPointerMove={handleTrendPointerMove}
-                        onPointerLeave={handleTrendPointerLeave}
+                <div className="profile-analytics-mode-tabs" aria-label="个人数据分析模式">
+                    <button
+                        type="button"
+                        className={analyticsMode === 'overview' ? 'is-active' : ''}
+                        onClick={() => setAnalyticsMode('overview')}
                     >
-                        <svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label="7 天成长曲线">
-                            <defs>
-                                <linearGradient id={`profile-line-${user.id}`} x1="0" x2="1" y1="0" y2="0">
-                                    <stop offset="0%" stopColor="#6c5ce7" />
-                                    <stop offset="100%" stopColor="#37c6d0" />
-                                </linearGradient>
-                                <linearGradient id={`profile-area-${user.id}`} x1="0" x2="0" y1="0" y2="1">
-                                    <stop offset="0%" stopColor="#6c5ce7" stopOpacity="0.24" />
-                                    <stop offset="100%" stopColor="#37c6d0" stopOpacity="0.04" />
-                                </linearGradient>
-                            </defs>
-                            <path className="profile-trend-area" d={analyticsAreaPath} fill={`url(#profile-area-${user.id})`} />
-                            <polyline className="profile-trend-line" points={analyticsLinePoints} stroke={`url(#profile-line-${user.id})`} />
-                        </svg>
-                        {analyticsTrend.map((point, index) => (
-                            <span
-                                key={`${point.label}-${point.key}`}
-                                className="profile-trend-dot"
-                                data-trend-index={index}
-                                style={{ left: `${(point.x / 700) * 100}%`, top: `${(point.y / 220) * 100}%` } as CSSProperties}
-                                aria-hidden="true"
-                            />
-                        ))}
-                        <span className="profile-trend-hover-line" ref={trendHoverLineRef} aria-hidden="true" />
-                        {analyticsTrend.every(point => Number(point.value || 0) === 0) && (
-                            <div className="profile-chart-empty">暂无足够真实数据</div>
-                        )}
-                        <div className="profile-floating-tooltip" ref={trendTooltipRef} aria-hidden="true" />
-                    </div>
-                    <div className="profile-trend-labels">
-                        {analyticsTrend.map(point => <span key={point.label}>{point.label}</span>)}
-                    </div>
-                </section>
+                        概览
+                    </button>
+                    <button
+                        type="button"
+                        className={analyticsMode === 'detail' ? 'is-active' : ''}
+                        onClick={() => setAnalyticsMode('detail')}
+                    >
+                        详细分析
+                    </button>
+                </div>
+            </div>
 
-                <aside className="profile-analytics-card">
-                    <div className="profile-analytics-card-head">
-                        <div>
-                            <h4>贡献构成</h4>
-                            <p>哪些行为正在推动成长。</p>
-                        </div>
-                    </div>
-                    <div className="profile-contribution-list">
-                        {contributionBars.map(item => (
-                            <div className="profile-contribution-row" key={item.label}>
-                                <div><span>{item.label}</span><strong>{item.value}%</strong></div>
-                                <i><em style={{ width: `${item.value}%` }} /></i>
+            {analyticsMode === 'overview' ? (
+                <>
+                    <div className="profile-analytics-overview-grid">
+                        <section className="profile-analytics-card profile-growth-summary">
+                            <div className="profile-growth-avatar" aria-hidden="true">{avatarEmoji || '🐱'}</div>
+                            <div>
+                                <span className="profile-analytics-badge">本月报告</span>
+                                <h4>{user.username} 的成长概览</h4>
+                                <p>本月有 {activeMonthDays} 天留下记录，主要来源是 {topContribution.label}。</p>
+                                <button type="button" className="profile-analytics-primary-action" onClick={() => setAnalyticsMode('detail')}>
+                                    查看详细分析
+                                </button>
                             </div>
-                        ))}
-                    </div>
-                    <div className="profile-analytics-note">
-                        <span>XP</span>
-                        <div>
-                            <strong>积分以已结算总分为准</strong>
-                            <small>趋势图只做活跃观察，避免和排行榜积分混在一起。</small>
-                        </div>
-                    </div>
-                </aside>
-            </div>
+                        </section>
 
-            <section className="profile-analytics-card profile-heatmap-card">
-                <div className="profile-analytics-card-head">
-                    <div>
-                        <h4>28 天参与热力图</h4>
-                        <p>颜色越深，代表当天打开、互动和轻量贡献更集中。</p>
-                    </div>
-                    <span>28 days</span>
-                </div>
-                <div className="profile-heatmap-shell">
-                    <div className="profile-heatmap" aria-label="28 天参与热力图">
-                        {heatmapCells.map((cell, index) => (
-                            <span
-                                key={`${cell.label}-${index}`}
-                                style={{ '--heat': cell.heat } as CSSProperties}
-                                role="button"
-                                tabIndex={0}
-                                aria-label={`${cell.label}: ${cell.detail}`}
-                                onPointerMove={event => handleHeatmapPointerMove(event, cell)}
-                                onPointerEnter={event => handleHeatmapPointerMove(event, cell)}
-                                onPointerLeave={() => hideTooltip(heatmapTooltipRef.current, heatmapFrameRef)}
-                            />
-                        ))}
-                    </div>
-                    {heatmapCells.every(cell => Number(cell.value || 0) === 0) && (
-                        <div className="profile-heatmap-empty">暂无 28 天活跃记录</div>
-                    )}
-                    <div className="profile-floating-tooltip" ref={heatmapTooltipRef} aria-hidden="true" />
-                </div>
-                <div className="profile-heatmap-legend" aria-hidden="true">
-                    <span>低</span>
-                    {[0, 1, 2, 3, 4, 5].map(value => <i key={value} style={{ '--heat': value } as CSSProperties} />)}
-                    <span>高</span>
-                </div>
-            </section>
-
-            <div className="profile-analytics-grid">
-                <section className="profile-analytics-card">
-                    <div className="profile-analytics-card-head">
-                        <div>
-                            <h4>项目表现排行</h4>
-                            <p>按项目打开量和评分反馈排序。</p>
-                        </div>
-                    </div>
-                    <div className="profile-performance-list">
-                        {topProjects.length > 0 ? topProjects.map((project, index) => (
-                            <article key={project.id} className="profile-performance-row">
-                                <span>{index + 1}</span>
+                        <section className="profile-analytics-card profile-growth-highlights">
+                            <div className="profile-analytics-card-head">
                                 <div>
-                                    <strong>{project.title}</strong>
-                                    <small>{formatNumber(Number(project.open_count_total || 0))} opens · ⭐ {Number(project.rating || 0).toFixed(1)} · {Number(project.rating_count || 0)} ratings</small>
+                                    <h4>本月高光</h4>
+                                    <p>最近的关键成长记录。</p>
                                 </div>
-                                <b>+{formatNumber(Number(project.open_count_week || 0))}</b>
-                            </article>
-                        )) : (
-                            <div className="profile-empty-row">暂无项目表现数据。</div>
+                            </div>
+                            <div className="profile-growth-highlight-list">
+                                <article><strong>{formatNumber(totalXp)}</strong><span>总 XP</span></article>
+                                <article><strong>{activeMonthDays}</strong><span>活跃天数</span></article>
+                                <article><strong>{user.streak_count || 0}</strong><span>连续签到</span></article>
+                            </div>
+                            <div className="profile-heatmap profile-heatmap-compact" aria-label="当月活跃方格">
+                                {overviewHeatmapCells.map((cell, index) => (
+                                    <span
+                                        key={`${cell.key}-overview-${index}`}
+                                        style={{ '--heat': cell.heat } as CSSProperties}
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`${cell.label}: ${cell.detail}`}
+                                        onPointerMove={event => handleHeatmapPointerMove(event, cell)}
+                                        onPointerEnter={event => handleHeatmapPointerMove(event, cell)}
+                                        onPointerLeave={() => hideTooltip(heatmapTooltipRef.current, heatmapFrameRef)}
+                                    />
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+
+                    <div className="profile-analytics-quick-links">
+                        <button type="button" onClick={() => setAnalyticsMode('detail')}>
+                            <strong>查看时间范围</strong>
+                            <span>按今天、本周、本月或自定义日期查看变化。</span>
+                        </button>
+                        <button type="button" onClick={() => setAnalyticsMode('detail')}>
+                            <strong>查看来源构成</strong>
+                            <span>用饼图查看所选时间范围里的主要贡献来源。</span>
+                        </button>
+                        <button type="button" onClick={() => setAnalyticsMode('detail')}>
+                            <strong>查看内容表现</strong>
+                            <span>聚合项目打开、评分反馈和帖子互动表现。</span>
+                        </button>
+                    </div>
+                    <div className="profile-floating-tooltip profile-overview-tooltip" ref={heatmapTooltipRef} aria-hidden="true" />
+                </>
+            ) : (
+                <>
+                    <div className="profile-analytics-range-bar">
+                        <div className="profile-analytics-range-tabs" aria-label="分析时间范围">
+                            {rangeOptions.map(option => (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    className={analyticsRange === option.value ? 'is-active' : ''}
+                                    onClick={() => setAnalyticsRange(option.value)}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                        {analyticsRange === 'custom' && (
+                            <div className="profile-analytics-date-inputs">
+                                <input
+                                    type="date"
+                                    value={defaultCustomStartDate}
+                                    min={minAvailableDateKey}
+                                    max={defaultCustomEndDate || todayKey}
+                                    onChange={event => setCustomStartDate(event.target.value)}
+                                    className="glass-input"
+                                    aria-label="起始日期"
+                                />
+                                <span>至</span>
+                                <input
+                                    type="date"
+                                    value={defaultCustomEndDate}
+                                    min={defaultCustomStartDate}
+                                    max={maxAvailableDateKey}
+                                    onChange={event => setCustomEndDate(event.target.value)}
+                                    className="glass-input"
+                                    aria-label="结束日期"
+                                />
+                            </div>
                         )}
                     </div>
-                </section>
 
-                <section className="profile-analytics-card">
-                    <div className="profile-analytics-card-head">
-                        <div>
-                            <h4>帖子表现</h4>
-                            <p>第一版展示 likes/comments 互动量。</p>
-                        </div>
+                    <div className="profile-analytics-kpis">
+                        <article className="profile-analytics-kpi is-purple">
+                            <span>{rangeLabel} XP</span>
+                            <strong>{formatNumber(rangeXp)}</strong>
+                            <small>总 XP {formatNumber(totalXp)} · Lv.{displayLevel}</small>
+                        </article>
+                        <article className="profile-analytics-kpi is-aqua">
+                            <span>{rangeLabel}项目打开</span>
+                            <strong>{formatNumber(rangeProjectOpens)}</strong>
+                            <small>累计 {formatNumber(projectOpenTotal)} 次</small>
+                        </article>
+                        <article className="profile-analytics-kpi is-amber">
+                            <span>{rangeLabel}帖子互动</span>
+                            <strong>{formatNumber(rangePostInteractions)}</strong>
+                            <small>累计 {formatNumber(postInteractionTotal)} 次</small>
+                        </article>
+                        <article className="profile-analytics-kpi is-mint">
+                            <span>{rangeLabel}活跃</span>
+                            <strong>{formatNumber(rangeActivity)}</strong>
+                            <small>{creatorScore > 0 ? `创作者状态 ${creatorScore}%` : '开始创作后会增长'}</small>
+                        </article>
                     </div>
-                    <div className="profile-performance-list">
-                        {topPosts.length > 0 ? topPosts.map((post, index) => (
-                            <Link key={post.id} href={getPostHref(post.id)} className="profile-performance-row profile-performance-link">
-                                <span>{String.fromCharCode(65 + index)}</span>
+
+                    <div className="profile-analytics-grid">
+                        <section className="profile-analytics-card profile-trend-card">
+                            <div className="profile-analytics-card-head">
                                 <div>
-                                    <strong>{post.title}</strong>
-                                    <small>{Number(post.likes || 0)} likes · {Number(post.comment_count || 0)} comments</small>
+                                    <h4>{rangeLabel}活跃趋势</h4>
+                                    <p>移动鼠标查看当天 XP、项目打开和帖子互动。</p>
                                 </div>
-                                <b>{Number(post.likes || 0) + Number(post.comment_count || 0)}</b>
-                            </Link>
-                        )) : (
-                            <div className="profile-empty-row">暂无帖子互动数据。</div>
-                        )}
+                                <span>{formatNumber(rangeActivity)} 活跃</span>
+                            </div>
+                            <div
+                                className="profile-trend-chart"
+                                ref={trendChartRef}
+                                onPointerMove={handleTrendPointerMove}
+                                onPointerLeave={handleTrendPointerLeave}
+                            >
+                                <svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label={`${rangeLabel}活跃趋势`}>
+                                    <defs>
+                                        <linearGradient id={`profile-line-${user.id}`} x1="0" x2="1" y1="0" y2="0">
+                                            <stop offset="0%" stopColor="#6c5ce7" />
+                                            <stop offset="100%" stopColor="#37c6d0" />
+                                        </linearGradient>
+                                        <linearGradient id={`profile-area-${user.id}`} x1="0" x2="0" y1="0" y2="1">
+                                            <stop offset="0%" stopColor="#6c5ce7" stopOpacity="0.24" />
+                                            <stop offset="100%" stopColor="#37c6d0" stopOpacity="0.04" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path className="profile-trend-area" d={analyticsAreaPath} fill={`url(#profile-area-${user.id})`} />
+                                    <polyline className="profile-trend-line" points={analyticsLinePoints} stroke={`url(#profile-line-${user.id})`} />
+                                </svg>
+                                {analyticsTrend.map((point, index) => (
+                                    <span
+                                        key={`${point.key}-${index}`}
+                                        className="profile-trend-dot"
+                                        data-trend-index={index}
+                                        style={{ left: `${(point.x / 700) * 100}%`, top: `${(point.y / 220) * 100}%` } as CSSProperties}
+                                        aria-hidden="true"
+                                    />
+                                ))}
+                                <span className="profile-trend-hover-line" ref={trendHoverLineRef} aria-hidden="true" />
+                                {analyticsTrend.every(point => Number(point.value || 0) === 0) && (
+                                    <div className="profile-chart-empty">暂无足够真实数据</div>
+                                )}
+                                <div className="profile-floating-tooltip" ref={trendTooltipRef} aria-hidden="true" />
+                            </div>
+                            <div
+                                className="profile-trend-labels"
+                                style={{ '--trend-label-count': analyticsTrend.length } as CSSProperties}
+                            >
+                                {analyticsTrend.map(point => <span key={`${point.key}-label`}>{point.label}</span>)}
+                            </div>
+                        </section>
+
+                        <aside className="profile-analytics-card">
+                            <div className="profile-analytics-card-head">
+                                <div>
+                                    <h4>贡献构成</h4>
+                                    <p>查看所选时间范围里的来源比例。</p>
+                                </div>
+                            </div>
+                            <div className="profile-contribution-summary">
+                                <span>主要来源</span>
+                                <strong>{topContribution.label}</strong>
+                                <small>{topContribution.percent}% · {formatNumber(Number(topContribution.displayValue || 0))} 指标值</small>
+                            </div>
+                            <div className="profile-contribution-pie-wrap">
+                                <div
+                                    className="profile-contribution-pie"
+                                    onPointerLeave={hideContributionTooltip}
+                                    aria-label="贡献构成饼图"
+                                >
+                                    <svg viewBox="0 0 180 180" role="img" aria-label="贡献构成">
+                                        <circle className="profile-contribution-pie-base" cx="90" cy="90" r="76" />
+                                        {contributionSegments.map((segment, index) => {
+                                            const isActive = activeContributionIndex === index;
+
+                                            return (
+                                                <path
+                                                    key={segment.label}
+                                                    className={`profile-contribution-slice${isActive ? ' is-active' : ''}`}
+                                                    d={segment.path}
+                                                    fill={segment.color}
+                                                    style={{
+                                                        '--slice-x': `${isActive ? segment.offsetX : 0}px`,
+                                                        '--slice-y': `${isActive ? segment.offsetY : 0}px`,
+                                                    } as CSSProperties}
+                                                    tabIndex={0}
+                                                    role="button"
+                                                    aria-label={`${segment.label} ${segment.percent}%`}
+                                                    onPointerEnter={event => {
+                                                        setActiveContributionIndex(index);
+                                                        showContributionTooltip(event, segment);
+                                                    }}
+                                                    onPointerMove={event => {
+                                                        setActiveContributionIndex(index);
+                                                        showContributionTooltip(event, segment);
+                                                    }}
+                                                    onPointerLeave={hideContributionTooltip}
+                                                    onFocus={() => setActiveContributionIndex(index)}
+                                                    onBlur={hideContributionTooltip}
+                                                />
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
+                                <div className="profile-contribution-legend">
+                                    {contributionSegments.map((segment, index) => (
+                                        <button
+                                            key={segment.label}
+                                            type="button"
+                                            className={activeContributionIndex === index ? 'is-active' : ''}
+                                            onPointerMove={event => {
+                                                setActiveContributionIndex(index);
+                                                showContributionTooltip(event, segment);
+                                            }}
+                                            onPointerEnter={event => {
+                                                setActiveContributionIndex(index);
+                                                showContributionTooltip(event, segment);
+                                            }}
+                                            onPointerLeave={hideContributionTooltip}
+                                            onFocus={() => setActiveContributionIndex(index)}
+                                            onBlur={hideContributionTooltip}
+                                        >
+                                            <i style={{ background: segment.color }} />
+                                            <span>{segment.label}</span>
+                                            <b>{segment.percent}%</b>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="profile-floating-tooltip" ref={contributionTooltipRef} aria-hidden="true" />
+                            </div>
+                        </aside>
                     </div>
-                </section>
-            </div>
+
+                    <section className="profile-analytics-card profile-heatmap-card">
+                        <div className="profile-analytics-card-head">
+                            <div>
+                                <h4>本月活跃方格</h4>
+                                <p>颜色越深，代表当天活跃越集中。</p>
+                            </div>
+                            <span>{overviewHeatmapCells.length} 天</span>
+                        </div>
+                        <div className="profile-heatmap-shell">
+                            <div className="profile-heatmap profile-heatmap-detail" aria-label="本月活跃方格">
+                                {overviewHeatmapCells.map((cell, index) => (
+                                    <span
+                                        key={`${cell.key}-detail-${index}`}
+                                        style={{ '--heat': cell.heat } as CSSProperties}
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`${cell.label}: ${cell.detail}`}
+                                        onPointerMove={event => handleHeatmapPointerMove(event, cell)}
+                                        onPointerEnter={event => handleHeatmapPointerMove(event, cell)}
+                                        onPointerLeave={() => hideTooltip(heatmapTooltipRef.current, heatmapFrameRef)}
+                                    />
+                                ))}
+                            </div>
+                            {overviewHeatmapCells.every(cell => Number(cell.value || 0) === 0) && (
+                                <div className="profile-heatmap-empty">本月暂无活跃记录</div>
+                            )}
+                            <div className="profile-floating-tooltip" ref={heatmapTooltipRef} aria-hidden="true" />
+                        </div>
+                        <div className="profile-heatmap-legend" aria-hidden="true">
+                            <span>低</span>
+                            {[0, 1, 2, 3, 4, 5].map(value => <i key={value} style={{ '--heat': value } as CSSProperties} />)}
+                            <span>高</span>
+                        </div>
+                    </section>
+
+                    <div className="profile-analytics-grid">
+                        <section className="profile-analytics-card">
+                            <div className="profile-analytics-card-head">
+                                <div>
+                                    <h4>项目表现排行</h4>
+                                    <p>按项目打开量和评分反馈排序。</p>
+                                </div>
+                            </div>
+                            <div className="profile-performance-list">
+                                {topProjects.length > 0 ? topProjects.map((project, index) => (
+                                    <article key={project.id} className="profile-performance-row">
+                                        <span>{index + 1}</span>
+                                        <div>
+                                            <strong>{project.title}</strong>
+                                            <small>{formatNumber(Number(project.open_count_total || 0))} opens · ⭐ {Number(project.rating || 0).toFixed(1)} · {Number(project.rating_count || 0)} ratings</small>
+                                        </div>
+                                        <b>+{formatNumber(Number(project.open_count_week || 0))}</b>
+                                    </article>
+                                )) : (
+                                    <div className="profile-empty-row">暂无项目表现数据。</div>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="profile-analytics-card">
+                            <div className="profile-analytics-card-head">
+                                <div>
+                                    <h4>帖子表现</h4>
+                                    <p>展示点赞和评论带来的真实互动。</p>
+                                </div>
+                            </div>
+                            <div className="profile-performance-list">
+                                {topPosts.length > 0 ? topPosts.map((post, index) => (
+                                    <Link key={post.id} href={getPostHref(post.id)} className="profile-performance-row profile-performance-link">
+                                        <span>{String.fromCharCode(65 + index)}</span>
+                                        <div>
+                                            <strong>{post.title}</strong>
+                                            <small>{Number(post.likes || 0)} likes · {Number(post.comment_count || 0)} comments</small>
+                                        </div>
+                                        <b>{Number(post.likes || 0) + Number(post.comment_count || 0)}</b>
+                                    </Link>
+                                )) : (
+                                    <div className="profile-empty-row">暂无帖子互动数据。</div>
+                                )}
+                            </div>
+                        </section>
+                    </div>
+                </>
+            )}
         </section>
     );
 
@@ -1284,7 +1653,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         </section>
                     )}
 
-                    {renderAnalyticsPanel()}
+                    {!readOnly && analytics && renderAnalyticsPanel()}
 
                     <section className="profile-feed-section">
                         <div className="profile-feed-heading">
