@@ -313,6 +313,14 @@ export interface AdminReviewSummary {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ADMIN_VISIBLE_XP_CAP = 680;
+
+function applyVisibleXpDisplayCap(points: number, role?: string | null) {
+    const safePoints = Math.max(0, Math.round(points));
+    return String(role || '').toLowerCase() === 'admin'
+        ? Math.min(safePoints, ADMIN_VISIBLE_XP_CAP)
+        : safePoints;
+}
 
 function getVisibleLevel(points: number) {
     return Math.max(1, Math.floor(Math.sqrt(Math.max(0, points) / 50.0)) + 1);
@@ -1858,14 +1866,17 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
           AND (${category} = 'all' OR category = ${category})
         GROUP BY user_id
       )
-      SELECT users.id, users.username, users.avatar, users.avatar_emoji, users.avatar_theme, ranked.points,
-        GREATEST(1, FLOOR(SQRT(ranked.points / 50.0))::int + 1) as level,
+      SELECT users.id, users.username, users.avatar, users.avatar_emoji, users.avatar_theme,
+        CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE ranked.points END as points,
+        GREATEST(1, FLOOR(SQRT((CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE ranked.points END) / 50.0))::int + 1) as level,
         users.role, users.badge_preferences, users.verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM ranked
       JOIN users ON users.id = ranked.user_id
       WHERE users.verification_status = 'verified'
-      ORDER BY ranked.points DESC, users.points DESC
+      ORDER BY
+        CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE ranked.points END DESC,
+        users.points DESC
       LIMIT ${limit}
     `;
 
@@ -2227,13 +2238,14 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
     await ensureProjectOpenEventsTable();
     await ensurePointAwardsTable();
 
-    const { rows: userRows } = await sql<{ points: number }>`
-      SELECT points
+    const { rows: userRows } = await sql<{ points: number; role: string }>`
+      SELECT points, role
       FROM users
       WHERE id = ${userId}
       LIMIT 1
     `;
     const rawXp = Number(userRows[0]?.points || 0);
+    const userRole = userRows[0]?.role || '';
 
     const { rows: eventRows } = await sql<{ local_day: string; category: LeaderboardCategory; points: number }>`
       WITH first_posts AS (
@@ -2384,7 +2396,8 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
 
     const opensByDay = new Map(projectOpenRows.map(row => [row.local_day, Number(row.opens || 0)]));
     const interactionsByDay = new Map(interactionRows.map(row => [row.local_day, Number(row.interactions || 0)]));
-    const visibleXp = eventRows.reduce((sum, row) => sum + Number(row.points || 0), 0);
+    const uncappedVisibleXp = eventRows.reduce((sum, row) => sum + Number(row.points || 0), 0);
+    const visibleXp = applyVisibleXpDisplayCap(uncappedVisibleXp, userRole);
     const projectOpenTotal = projectOpenRows.reduce((sum, row) => sum + Number(row.opens || 0), 0);
     const postInteractionTotal = interactionRows.reduce((sum, row) => sum + Number(row.interactions || 0), 0);
     const projectOpenWeek = Array.from({ length: 7 }, (_, index) => {
