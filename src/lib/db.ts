@@ -314,12 +314,22 @@ export interface AdminReviewSummary {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_VISIBLE_XP_CAP = 680;
+const ADMIN_WINDOW_XP_CAP = 120;
+const ADMIN_DAILY_ACTIVITY_XP_CAP = 24;
+const MEMBER_DAILY_ACTIVITY_XP_CAP = 120;
 
 function applyVisibleXpDisplayCap(points: number, role?: string | null) {
     const safePoints = Math.max(0, Math.round(points));
     return String(role || '').toLowerCase() === 'admin'
         ? Math.min(safePoints, ADMIN_VISIBLE_XP_CAP)
         : safePoints;
+}
+
+function normalizeDailyActivityXp(points: number, role?: string | null) {
+    const cap = String(role || '').toLowerCase() === 'admin'
+        ? ADMIN_DAILY_ACTIVITY_XP_CAP
+        : MEMBER_DAILY_ACTIVITY_XP_CAP;
+    return Math.min(Math.max(0, Math.round(points)), cap);
 }
 
 function getVisibleLevel(points: number) {
@@ -1794,32 +1804,100 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
     await ensureProjectEnhancements();
     await ensurePointAwardsTable();
 
+    if (window === 'all' && category === 'all') {
+        const { rows } = await sql<User>`
+          SELECT
+            id,
+            username,
+            avatar,
+            avatar_emoji,
+            avatar_theme,
+            CASE WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) ELSE points END as points,
+            GREATEST(
+              1,
+              FLOOR(SQRT((CASE WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) ELSE points END) / 50.0))::int + 1
+            ) as level,
+            role,
+            badge_preferences,
+            verification_status,
+            (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
+          FROM users
+          WHERE verification_status = 'verified'
+          ORDER BY
+            CASE WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) ELSE points END DESC,
+            points DESC
+          LIMIT ${limit}
+        `;
+        return rows;
+    }
+
     const sinceInterval = window === 'month' ? '30 days' : window === 'week' ? '7 days' : window === 'day' ? '1 day' : '36500 days';
     const { rows } = await sql<User>`
       WITH first_posts AS (
         SELECT
-          posts.author_id as user_id,
+          posts.id,
+          posts.author_id,
           posts.created_at,
-          CASE
-            WHEN ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) = 1 THEN 100
-            ELSE 10
-          END as points,
-          'community' as category
+          ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) as post_rank
         FROM posts
       ),
-      project_publish_events AS (
+      legacy_project_firsts AS (
         SELECT
-          projects.author_id as user_id,
+          projects.id,
+          projects.author_id,
           projects.created_at,
-          CASE
-            WHEN ROW_NUMBER() OVER (PARTITION BY projects.author_id ORDER BY projects.created_at ASC, projects.id ASC) <= 3 THEN 100
-            ELSE 0
-          END as points,
-          'project' as category
+          ROW_NUMBER() OVER (PARTITION BY projects.author_id ORDER BY projects.created_at ASC, projects.id ASC) as project_rank
         FROM projects
       ),
+      award_events AS (
+        SELECT
+          point_awards.user_id,
+          point_awards.amount as points,
+          CASE
+            WHEN point_awards.award_key LIKE 'hub_%' THEN 'project'
+            ELSE 'community'
+          END as category,
+          point_awards.created_at
+        FROM point_awards
+        WHERE point_awards.award_key IN ('first_post_bonus', 'hub_project_bonus')
+           OR point_awards.award_key LIKE 'hub_version_bonus:%'
+      ),
+      post_events AS (
+        SELECT
+          first_posts.author_id as user_id,
+          CASE WHEN first_posts.post_rank = 1 THEN 100 ELSE 10 END as points,
+          'community' as category,
+          first_posts.created_at
+        FROM first_posts
+        WHERE NOT (
+          first_posts.post_rank = 1
+          AND EXISTS (
+            SELECT 1 FROM point_awards
+            WHERE point_awards.user_id = first_posts.author_id
+              AND point_awards.award_key = 'first_post_bonus'
+          )
+        )
+      ),
+      legacy_project_events AS (
+        SELECT
+          legacy_project_firsts.author_id as user_id,
+          100 as points,
+          'project' as category,
+          legacy_project_firsts.created_at
+        FROM legacy_project_firsts
+        WHERE legacy_project_firsts.project_rank = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM point_awards
+            WHERE point_awards.user_id = legacy_project_firsts.author_id
+              AND point_awards.award_key = 'hub_project_bonus'
+          )
+      ),
       score_events AS (
-        SELECT user_id, points, category, created_at FROM first_posts
+        SELECT user_id, points, category, created_at FROM award_events
+        UNION ALL
+        SELECT user_id, points, category, created_at FROM post_events
+        UNION ALL
+        SELECT user_id, points, category, created_at FROM legacy_project_events
         UNION ALL
         SELECT comments.author_id as user_id, 5 as points, 'community' as category, comments.created_at
         FROM comments
@@ -1839,12 +1917,6 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         UNION ALL
         SELECT checkins.user_id as user_id, 10 as points, 'community' as category, checkins.created_at
         FROM checkins
-        UNION ALL
-        SELECT user_id, points, category, created_at FROM project_publish_events WHERE points > 0
-        UNION ALL
-        SELECT point_awards.user_id as user_id, 50 as points, 'project' as category, point_awards.created_at
-        FROM point_awards
-        WHERE point_awards.award_key LIKE 'hub_version_bonus:%'
         UNION ALL
         SELECT projects.author_id as user_id, 5 as points, 'project' as category, project_likes.created_at
         FROM project_likes
@@ -1867,15 +1939,15 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         GROUP BY user_id
       )
       SELECT users.id, users.username, users.avatar, users.avatar_emoji, users.avatar_theme,
-        CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE ranked.points END as points,
-        GREATEST(1, FLOOR(SQRT((CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE ranked.points END) / 50.0))::int + 1) as level,
+        CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END as points,
+        GREATEST(1, FLOOR(SQRT((CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END) / 50.0))::int + 1) as level,
         users.role, users.badge_preferences, users.verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM ranked
       JOIN users ON users.id = ranked.user_id
       WHERE users.verification_status = 'verified'
       ORDER BY
-        CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE ranked.points END DESC,
+        CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END DESC,
         users.points DESC
       LIMIT ${limit}
     `;
@@ -2250,28 +2322,69 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
     const { rows: eventRows } = await sql<{ local_day: string; category: LeaderboardCategory; points: number }>`
       WITH first_posts AS (
         SELECT
-          posts.author_id as user_id,
+          posts.id,
+          posts.author_id,
           posts.created_at,
-          CASE
-            WHEN ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) = 1 THEN 100
-            ELSE 10
-          END as points,
-          'community' as category
+          ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) as post_rank
         FROM posts
       ),
-      project_publish_events AS (
+      legacy_project_firsts AS (
         SELECT
-          projects.author_id as user_id,
+          projects.id,
+          projects.author_id,
           projects.created_at,
-          CASE
-            WHEN ROW_NUMBER() OVER (PARTITION BY projects.author_id ORDER BY projects.created_at ASC, projects.id ASC) <= 3 THEN 100
-            ELSE 0
-          END as points,
-          'project' as category
+          ROW_NUMBER() OVER (PARTITION BY projects.author_id ORDER BY projects.created_at ASC, projects.id ASC) as project_rank
         FROM projects
       ),
+      award_events AS (
+        SELECT
+          point_awards.user_id,
+          point_awards.amount as points,
+          CASE
+            WHEN point_awards.award_key LIKE 'hub_%' THEN 'project'
+            ELSE 'community'
+          END as category,
+          point_awards.created_at
+        FROM point_awards
+        WHERE point_awards.award_key IN ('first_post_bonus', 'hub_project_bonus')
+           OR point_awards.award_key LIKE 'hub_version_bonus:%'
+      ),
+      post_events AS (
+        SELECT
+          first_posts.author_id as user_id,
+          CASE WHEN first_posts.post_rank = 1 THEN 100 ELSE 10 END as points,
+          'community' as category,
+          first_posts.created_at
+        FROM first_posts
+        WHERE NOT (
+          first_posts.post_rank = 1
+          AND EXISTS (
+            SELECT 1 FROM point_awards
+            WHERE point_awards.user_id = first_posts.author_id
+              AND point_awards.award_key = 'first_post_bonus'
+          )
+        )
+      ),
+      legacy_project_events AS (
+        SELECT
+          legacy_project_firsts.author_id as user_id,
+          100 as points,
+          'project' as category,
+          legacy_project_firsts.created_at
+        FROM legacy_project_firsts
+        WHERE legacy_project_firsts.project_rank = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM point_awards
+            WHERE point_awards.user_id = legacy_project_firsts.author_id
+              AND point_awards.award_key = 'hub_project_bonus'
+          )
+      ),
       score_events AS (
-        SELECT user_id, points, category, created_at FROM first_posts
+        SELECT user_id, points, category, created_at FROM award_events
+        UNION ALL
+        SELECT user_id, points, category, created_at FROM post_events
+        UNION ALL
+        SELECT user_id, points, category, created_at FROM legacy_project_events
         UNION ALL
         SELECT comments.author_id as user_id, 5 as points, 'community' as category, comments.created_at
         FROM comments
@@ -2291,12 +2404,6 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
         UNION ALL
         SELECT checkins.user_id as user_id, 10 as points, 'community' as category, checkins.created_at
         FROM checkins
-        UNION ALL
-        SELECT user_id, points, category, created_at FROM project_publish_events WHERE points > 0
-        UNION ALL
-        SELECT point_awards.user_id as user_id, 50 as points, 'project' as category, point_awards.created_at
-        FROM point_awards
-        WHERE point_awards.award_key LIKE 'hub_version_bonus:%'
         UNION ALL
         SELECT projects.author_id as user_id, 5 as points, 'project' as category, project_likes.created_at
         FROM project_likes
@@ -2396,8 +2503,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
 
     const opensByDay = new Map(projectOpenRows.map(row => [row.local_day, Number(row.opens || 0)]));
     const interactionsByDay = new Map(interactionRows.map(row => [row.local_day, Number(row.interactions || 0)]));
-    const uncappedVisibleXp = eventRows.reduce((sum, row) => sum + Number(row.points || 0), 0);
-    const visibleXp = applyVisibleXpDisplayCap(uncappedVisibleXp, userRole);
+    const visibleXp = applyVisibleXpDisplayCap(rawXp, userRole);
     const projectOpenTotal = projectOpenRows.reduce((sum, row) => sum + Number(row.opens || 0), 0);
     const postInteractionTotal = interactionRows.reduce((sum, row) => sum + Number(row.interactions || 0), 0);
     const projectOpenWeek = Array.from({ length: 7 }, (_, index) => {
@@ -2407,7 +2513,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
 
     const buildDay = (offset: number, mode: 'weekday' | 'date'): ProfileAnalyticsDay => {
         const key = getShanghaiDateKeyFromOffset(offset);
-        const xp = xpByDay.get(key) || 0;
+        const xp = normalizeDailyActivityXp(xpByDay.get(key) || 0, userRole);
         const projectOpens = opensByDay.get(key) || 0;
         const postInteractions = interactionsByDay.get(key) || 0;
         return {

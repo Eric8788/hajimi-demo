@@ -151,6 +151,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const avatarSettingsRef = useRef<HTMLElement | null>(null);
     const avatarEmojiInputRef = useRef<HTMLInputElement | null>(null);
     const trendChartRef = useRef<HTMLDivElement | null>(null);
+    const trendHoverLineRef = useRef<HTMLSpanElement | null>(null);
     const trendTooltipRef = useRef<HTMLDivElement | null>(null);
     const heatmapTooltipRef = useRef<HTMLDivElement | null>(null);
     const trendFrameRef = useRef<number | null>(null);
@@ -213,8 +214,8 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 ...point,
                 x,
                 y,
-                activityLabel: `+${formatNumber(Number(point.value || 0))} activity`,
-                detail: `XP +${formatNumber(Number(point.xp || 0))} · ${formatNumber(Number(point.projectOpens || 0))} opens · ${formatNumber(Number(point.postInteractions || 0))} interactions`,
+                activityLabel: `${formatNumber(Number(point.value || 0))} 活跃`,
+                detail: `活跃 ${formatNumber(Number(point.value || 0))} · 项目打开 ${formatNumber(Number(point.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(point.postInteractions || 0))}`,
             };
         });
     }, [analytics?.trend7Days]);
@@ -226,7 +227,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         return days.map(day => ({
             ...day,
             heat: Math.min(5, Math.ceil((Number(day.value || 0) / maxValue) * 5)),
-            detail: `XP +${formatNumber(Number(day.xp || 0))} · ${formatNumber(Number(day.projectOpens || 0))} opens · ${formatNumber(Number(day.postInteractions || 0))} interactions`,
+            detail: `活跃 ${formatNumber(Number(day.value || 0))} · 项目打开 ${formatNumber(Number(day.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(day.postInteractions || 0))}`,
         }));
     }, [analytics?.heatmap28Days]);
     const contributionBars = analytics?.contributionBreakdown || [
@@ -347,8 +348,10 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         const parent = tooltip.parentElement;
         if (!parent) return;
         const rect = parent.getBoundingClientRect();
-        const x = Math.min(Math.max(event.clientX - rect.left + 14, 10), rect.width - 170);
-        const y = Math.min(Math.max(event.clientY - rect.top - 34, 10), rect.height - 44);
+        const maxX = Math.max(10, rect.width - 190);
+        const maxY = Math.max(10, rect.height - 54);
+        const x = Math.min(Math.max(event.clientX - rect.left + 14, 10), maxX);
+        const y = Math.min(Math.max(event.clientY - rect.top - 34, 10), maxY);
         tooltip.textContent = content;
         tooltip.classList.add('is-visible');
         if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
@@ -374,11 +377,16 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         const point = analyticsTrend[index];
         chart.querySelectorAll('.profile-trend-dot.is-active').forEach(node => node.classList.remove('is-active'));
         chart.querySelector(`[data-trend-index="${index}"]`)?.classList.add('is-active');
-        positionTooltip(trendTooltipRef.current, trendFrameRef, event, `${point.label}: ${point.detail}`);
+        if (trendHoverLineRef.current) {
+            trendHoverLineRef.current.style.left = `${(point.x / 700) * 100}%`;
+            trendHoverLineRef.current.classList.add('is-visible');
+        }
+        positionTooltip(trendTooltipRef.current, trendFrameRef, event, `${point.label} · ${point.detail}`);
     };
 
     const handleTrendPointerLeave = () => {
         trendChartRef.current?.querySelectorAll('.profile-trend-dot.is-active').forEach(node => node.classList.remove('is-active'));
+        trendHoverLineRef.current?.classList.remove('is-visible');
         hideTooltip(trendTooltipRef.current, trendFrameRef);
     };
 
@@ -820,16 +828,16 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 <div>
                     <span>Data Studio</span>
                     <h3>个人数据分析</h3>
-                    <p>把 XP、项目打开量和帖子互动放在一起，看见自己在 Hajimi 里的成长轨迹。</p>
+                    <p>XP 使用榜单同口径；趋势只展示最近真实活跃，不再把维护或发布操作渲染成夸张涨幅。</p>
                 </div>
-                <span className="profile-analytics-badge">方案 B</span>
+                <span className="profile-analytics-live">真实数据</span>
             </div>
 
             <div className="profile-analytics-kpis">
                 <article className="profile-analytics-kpi is-purple">
                     <span>Total XP</span>
                     <strong>{formatNumber(totalXp)}</strong>
-                    <small>Lv.{displayLevel} · {xpToNext} XP to next</small>
+                    <small>Lv.{displayLevel} · 榜单同口径</small>
                 </article>
                 <article className="profile-analytics-kpi is-aqua">
                     <span>Project Opens</span>
@@ -853,9 +861,9 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                     <div className="profile-analytics-card-head">
                         <div>
                             <h4>7 天成长曲线</h4>
-                            <p>hover 数据点查看当日项目打开和帖子互动。</p>
+                            <p>移动鼠标会吸附最近日期，查看当天打开和互动。</p>
                         </div>
-                        <span>+{formatNumber(weeklyGrowth)}</span>
+                        <span>7天活跃 {formatNumber(weeklyGrowth)}</span>
                     </div>
                     <div
                         className="profile-trend-chart"
@@ -886,6 +894,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                 aria-hidden="true"
                             />
                         ))}
+                        <span className="profile-trend-hover-line" ref={trendHoverLineRef} aria-hidden="true" />
                         {analyticsTrend.every(point => Number(point.value || 0) === 0) && (
                             <div className="profile-chart-empty">暂无足够真实数据</div>
                         )}
@@ -911,11 +920,11 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             </div>
                         ))}
                     </div>
-                    <div className="profile-xp-ledger-teaser">
+                    <div className="profile-analytics-note">
                         <span>XP</span>
                         <div>
-                            <strong>XP 明细将接入账本</strong>
-                            <small>当前先展示总览；后续用流水表还原每笔积分。</small>
+                            <strong>积分以已结算总分为准</strong>
+                            <small>趋势图只做活跃观察，避免和排行榜积分混在一起。</small>
                         </div>
                     </div>
                 </aside>
@@ -925,9 +934,9 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 <div className="profile-analytics-card-head">
                     <div>
                         <h4>28 天参与热力图</h4>
-                        <p>颜色越深，代表当天 XP、项目打开和帖子互动越集中。</p>
+                        <p>颜色越深，代表当天打开、互动和轻量贡献更集中。</p>
                     </div>
-                    <span>Hover</span>
+                    <span>28 days</span>
                 </div>
                 <div className="profile-heatmap-shell">
                     <div className="profile-heatmap" aria-label="28 天参与热力图">
