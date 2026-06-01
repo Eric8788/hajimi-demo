@@ -2881,8 +2881,15 @@ textarea:hover,
 
 .profile-hero.is-editing .profile-hero-content {
   min-height: 230px;
-  padding-bottom: 18px;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 680px) auto;
+  padding: 58px 42px 18px;
+  grid-template-columns: minmax(220px, 250px) minmax(0, 1fr);
+  grid-template-areas:
+    "avatar copy"
+    "avatar actions";
+  align-items: center;
+  justify-content: center;
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 .profile-hero.is-preview .profile-hero-content {
@@ -3041,6 +3048,16 @@ textarea:hover,
   justify-content: flex-start;
 }
 
+.profile-hero.is-editing .profile-hero-copy {
+  grid-area: copy;
+}
+
+.profile-hero.is-editing .profile-hero-actions {
+  grid-area: actions;
+  align-self: start;
+  flex-wrap: wrap;
+}
+
 .profile-hero-button {
   border: 1px solid rgba(108,92,231,0.16);
   border-radius: 14px;
@@ -3094,10 +3111,11 @@ textarea:hover,
   position: relative;
   z-index: 3;
   display: grid;
-  grid-template-columns: minmax(260px, 0.92fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
-  margin: -6px 42px 0;
-  justify-content: end;
+  width: min(900px, calc(100% - 84px));
+  margin: 0 auto 18px;
+  justify-content: center;
 }
 
 .profile-hero-edit-dock .profile-badge-editor {
@@ -3608,6 +3626,64 @@ textarea:hover,
   height: 100%;
 }
 
+.profile-trend-dot {
+  position: absolute;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  border: 3px solid #6c5ce7;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 5px rgba(108,92,231,0.08);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: width 0.16s ease, height 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.profile-trend-dot.is-active {
+  width: 18px;
+  height: 18px;
+  border-color: #37c6d0;
+  box-shadow: 0 0 0 7px rgba(55,198,208,0.14), 0 0 18px rgba(55,198,208,0.42);
+}
+
+.profile-chart-empty,
+.profile-heatmap-empty {
+  position: absolute;
+  inset: auto 18px 16px;
+  z-index: 3;
+  color: #8f96a3;
+  font-size: 0.78rem;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.profile-floating-tooltip {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: #1f2937;
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(108,92,231,0.16);
+  box-shadow: 0 16px 32px rgba(45,52,54,0.16);
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(16px);
+  transition: opacity 0.12s ease;
+  will-change: transform;
+}
+
+.profile-floating-tooltip.is-visible {
+  opacity: 1;
+}
+
 .profile-trend-area,
 .profile-trend-line {
   pointer-events: none;
@@ -3723,6 +3799,10 @@ textarea:hover,
 
 .profile-heatmap-card {
   margin-top: 14px;
+}
+
+.profile-heatmap-shell {
+  position: relative;
 }
 
 .profile-heatmap {
@@ -4063,6 +4143,7 @@ textarea:hover,
 }
 
 .profile-hero-avatar-editor-shell {
+  grid-area: avatar;
   align-self: stretch;
   display: flex;
   min-width: 0;
@@ -4520,6 +4601,7 @@ textarea:hover,
 
   .profile-hero.is-editing .profile-hero-content {
     grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+    max-width: none;
   }
 
   .profile-hero-actions {
@@ -4598,6 +4680,10 @@ textarea:hover,
 
   .profile-hero.is-editing .profile-hero-content {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "avatar"
+      "copy"
+      "actions";
   }
 
   .profile-hero-avatar {

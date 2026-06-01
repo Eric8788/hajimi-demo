@@ -39,6 +39,33 @@ export type LeaderboardWindow = 'all' | 'day' | 'week' | 'month';
 export type LeaderboardCategory = 'all' | 'community' | 'project';
 export type AccountStatus = 'active' | 'disabled';
 
+export interface ProfileAnalyticsDay {
+    key: string;
+    label: string;
+    xp: number;
+    projectOpens: number;
+    postInteractions: number;
+    value: number;
+}
+
+export interface ProfileAnalytics {
+    visibleXp: number;
+    rawXp: number;
+    displayLevel: number;
+    xpToNext: number;
+    progressPercent: number;
+    projectOpenTotal: number;
+    projectOpenWeek: number;
+    postInteractionTotal: number;
+    postCount: number;
+    projectCount: number;
+    creatorScore: number;
+    weeklyGrowth: number;
+    trend7Days: ProfileAnalyticsDay[];
+    heatmap28Days: ProfileAnalyticsDay[];
+    contributionBreakdown: Array<{ label: string; value: number }>;
+}
+
 export interface AdminAuditEvent {
     id: number;
     actor_id: number | null;
@@ -283,6 +310,51 @@ export interface AdminReviewSummary {
     verificationCount: number;
     projectSubmissionCount: number;
     tasks: AdminReviewTask[];
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getVisibleLevel(points: number) {
+    return Math.max(1, Math.floor(Math.sqrt(Math.max(0, points) / 50.0)) + 1);
+}
+
+function getLevelProgress(points: number) {
+    const safePoints = Math.max(0, Math.round(points));
+    const level = getVisibleLevel(safePoints);
+    const currentLevelStart = 50 * Math.pow(level - 1, 2);
+    const nextLevelStart = 50 * Math.pow(level, 2);
+    const required = Math.max(1, nextLevelStart - currentLevelStart);
+    const progress = Math.max(0, safePoints - currentLevelStart);
+
+    return {
+        displayLevel: level,
+        xpToNext: Math.max(0, nextLevelStart - safePoints),
+        progressPercent: Math.min(100, Math.round((progress / required) * 100)),
+    };
+}
+
+function getShanghaiDateKey(date: Date) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find(part => part.type === 'year')?.value || '1970';
+    const month = parts.find(part => part.type === 'month')?.value || '01';
+    const day = parts.find(part => part.type === 'day')?.value || '01';
+    return `${year}-${month}-${day}`;
+}
+
+function getShanghaiDateKeyFromOffset(offsetFromToday: number) {
+    return getShanghaiDateKey(new Date(Date.now() + offsetFromToday * DAY_MS));
+}
+
+function formatAnalyticsDayLabel(key: string, mode: 'weekday' | 'date') {
+    const date = new Date(`${key}T00:00:00+08:00`);
+    return date.toLocaleDateString('en-US', mode === 'weekday'
+        ? { weekday: 'short', timeZone: 'Asia/Shanghai' }
+        : { month: 'short', day: 'numeric', timeZone: 'Asia/Shanghai' });
 }
 
 // --- User Helpers ---
@@ -1392,6 +1464,7 @@ async function ensureForumEnhancements() {
         forumEnhancementsReady = (async () => {
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
+            await sql`ALTER TABLE IF EXISTS post_likes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
             await ensureBookmarksTable();
         })().catch(error => {
             forumEnhancementsReady = null;
@@ -1711,24 +1784,34 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
     await ensureUserProfileEnhancements();
     await ensureForumEnhancements();
     await ensureProjectEnhancements();
-
-    if (window === 'all' && category === 'all') {
-        const { rows } = await sql<User>`
-          SELECT id, username, avatar, avatar_emoji, avatar_theme, points, level, role, badge_preferences, verification_status,
-            (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
-          FROM users
-          WHERE verification_status = 'verified'
-          ORDER BY points DESC
-          LIMIT ${limit}
-        `;
-        return rows;
-    }
+    await ensurePointAwardsTable();
 
     const sinceInterval = window === 'month' ? '30 days' : window === 'week' ? '7 days' : window === 'day' ? '1 day' : '36500 days';
     const { rows } = await sql<User>`
-      WITH score_events AS (
-        SELECT posts.author_id as user_id, 10 as points, 'community' as category, posts.created_at
+      WITH first_posts AS (
+        SELECT
+          posts.author_id as user_id,
+          posts.created_at,
+          CASE
+            WHEN ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) = 1 THEN 100
+            ELSE 10
+          END as points,
+          'community' as category
         FROM posts
+      ),
+      project_publish_events AS (
+        SELECT
+          projects.author_id as user_id,
+          projects.created_at,
+          CASE
+            WHEN ROW_NUMBER() OVER (PARTITION BY projects.author_id ORDER BY projects.created_at ASC, projects.id ASC) <= 3 THEN 100
+            ELSE 0
+          END as points,
+          'project' as category
+        FROM projects
+      ),
+      score_events AS (
+        SELECT user_id, points, category, created_at FROM first_posts
         UNION ALL
         SELECT comments.author_id as user_id, 5 as points, 'community' as category, comments.created_at
         FROM comments
@@ -1736,17 +1819,37 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         SELECT post_likes.user_id as user_id, 1 as points, 'community' as category, post_likes.created_at
         FROM post_likes
         UNION ALL
-        SELECT bookmarks.user_id as user_id, 3 as points, 'community' as category, bookmarks.created_at
-        FROM bookmarks
+        SELECT posts.author_id as user_id, 1 as points, 'community' as category, post_likes.created_at
+        FROM post_likes
+        JOIN posts ON posts.id = post_likes.post_id
+        WHERE posts.author_id != post_likes.user_id
         UNION ALL
-        SELECT project_likes.user_id as user_id, 5 as points, 'project' as category, project_likes.created_at
+        SELECT posts.author_id as user_id, 3 as points, 'community' as category, bookmarks.created_at
+        FROM bookmarks
+        JOIN posts ON posts.id = bookmarks.post_id
+        WHERE posts.author_id != bookmarks.user_id
+        UNION ALL
+        SELECT checkins.user_id as user_id, 10 as points, 'community' as category, checkins.created_at
+        FROM checkins
+        UNION ALL
+        SELECT user_id, points, category, created_at FROM project_publish_events WHERE points > 0
+        UNION ALL
+        SELECT point_awards.user_id as user_id, 50 as points, 'project' as category, point_awards.created_at
+        FROM point_awards
+        WHERE point_awards.award_key LIKE 'hub_version_bonus:%'
+        UNION ALL
+        SELECT projects.author_id as user_id, 5 as points, 'project' as category, project_likes.created_at
         FROM project_likes
+        JOIN projects ON projects.id = project_likes.project_id
+        WHERE projects.author_id != project_likes.user_id
         UNION ALL
         SELECT project_comments.author_id as user_id, 2 as points, 'project' as category, project_comments.created_at
         FROM project_comments
         UNION ALL
-        SELECT projects.author_id as user_id, 100 as points, 'project' as category, projects.created_at
-        FROM projects
+        SELECT projects.author_id as user_id, 3 as points, 'project' as category, project_comments.created_at
+        FROM project_comments
+        JOIN projects ON projects.id = project_comments.project_id
+        WHERE projects.author_id != project_comments.author_id
       ),
       ranked AS (
         SELECT user_id, SUM(points)::int as points
@@ -1783,6 +1886,8 @@ async function ensureProjectEnhancements() {
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'live'`;
             await sql`ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS cover_url TEXT`;
             await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS score NUMERIC DEFAULT 5`;
+            await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+            await sql`ALTER TABLE IF EXISTS project_comments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
             await ensureProjectOpenEventsTable();
             await applyProjectAttributionCorrections();
         })().catch(error => {
@@ -2113,6 +2218,231 @@ export async function getProjectsByAuthor(authorId: number): Promise<Project[]> 
     `;
 
     return rows;
+}
+
+export async function getProfileAnalytics(userId: number): Promise<ProfileAnalytics> {
+    await ensureUserProfileEnhancements();
+    await ensureForumEnhancements();
+    await ensureProjectEnhancements();
+    await ensureProjectOpenEventsTable();
+    await ensurePointAwardsTable();
+
+    const { rows: userRows } = await sql<{ points: number }>`
+      SELECT points
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+    const rawXp = Number(userRows[0]?.points || 0);
+
+    const { rows: eventRows } = await sql<{ local_day: string; category: LeaderboardCategory; points: number }>`
+      WITH first_posts AS (
+        SELECT
+          posts.author_id as user_id,
+          posts.created_at,
+          CASE
+            WHEN ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) = 1 THEN 100
+            ELSE 10
+          END as points,
+          'community' as category
+        FROM posts
+      ),
+      project_publish_events AS (
+        SELECT
+          projects.author_id as user_id,
+          projects.created_at,
+          CASE
+            WHEN ROW_NUMBER() OVER (PARTITION BY projects.author_id ORDER BY projects.created_at ASC, projects.id ASC) <= 3 THEN 100
+            ELSE 0
+          END as points,
+          'project' as category
+        FROM projects
+      ),
+      score_events AS (
+        SELECT user_id, points, category, created_at FROM first_posts
+        UNION ALL
+        SELECT comments.author_id as user_id, 5 as points, 'community' as category, comments.created_at
+        FROM comments
+        UNION ALL
+        SELECT post_likes.user_id as user_id, 1 as points, 'community' as category, post_likes.created_at
+        FROM post_likes
+        UNION ALL
+        SELECT posts.author_id as user_id, 1 as points, 'community' as category, post_likes.created_at
+        FROM post_likes
+        JOIN posts ON posts.id = post_likes.post_id
+        WHERE posts.author_id != post_likes.user_id
+        UNION ALL
+        SELECT posts.author_id as user_id, 3 as points, 'community' as category, bookmarks.created_at
+        FROM bookmarks
+        JOIN posts ON posts.id = bookmarks.post_id
+        WHERE posts.author_id != bookmarks.user_id
+        UNION ALL
+        SELECT checkins.user_id as user_id, 10 as points, 'community' as category, checkins.created_at
+        FROM checkins
+        UNION ALL
+        SELECT user_id, points, category, created_at FROM project_publish_events WHERE points > 0
+        UNION ALL
+        SELECT point_awards.user_id as user_id, 50 as points, 'project' as category, point_awards.created_at
+        FROM point_awards
+        WHERE point_awards.award_key LIKE 'hub_version_bonus:%'
+        UNION ALL
+        SELECT projects.author_id as user_id, 5 as points, 'project' as category, project_likes.created_at
+        FROM project_likes
+        JOIN projects ON projects.id = project_likes.project_id
+        WHERE projects.author_id != project_likes.user_id
+        UNION ALL
+        SELECT project_comments.author_id as user_id, 2 as points, 'project' as category, project_comments.created_at
+        FROM project_comments
+        UNION ALL
+        SELECT projects.author_id as user_id, 3 as points, 'project' as category, project_comments.created_at
+        FROM project_comments
+        JOIN projects ON projects.id = project_comments.project_id
+        WHERE projects.author_id != project_comments.author_id
+      )
+      SELECT
+        (created_at AT TIME ZONE 'Asia/Shanghai')::date::text as local_day,
+        category,
+        SUM(points)::int as points
+      FROM score_events
+      WHERE user_id = ${userId}
+      GROUP BY local_day, category
+      ORDER BY local_day ASC
+    `;
+
+    const { rows: projectOpenRows } = await sql<{ local_day: string; opens: number }>`
+      WITH verified_opens AS (
+        SELECT
+          project_opens.user_id,
+          project_opens.opened_at,
+          (project_opens.opened_at AT TIME ZONE 'Asia/Shanghai')::date as local_day
+        FROM project_opens
+        JOIN projects ON projects.id = project_opens.project_id
+        JOIN users open_users ON open_users.id = project_opens.user_id
+        WHERE projects.author_id = ${userId}
+          AND project_opens.user_id IS NOT NULL
+          AND open_users.verification_status = 'verified'
+      ),
+      ordered_opens AS (
+        SELECT
+          user_id,
+          opened_at,
+          local_day,
+          LAG(opened_at) OVER (PARTITION BY user_id, local_day ORDER BY opened_at) as previous_opened_at
+        FROM verified_opens
+      ),
+      session_opens AS (
+        SELECT user_id, local_day
+        FROM ordered_opens
+        WHERE previous_opened_at IS NULL OR opened_at - previous_opened_at >= INTERVAL '30 minutes'
+      ),
+      daily_effective AS (
+        SELECT
+          user_id,
+          local_day,
+          LEAST(COUNT(*)::int, 3) as effective_sessions
+        FROM session_opens
+        GROUP BY user_id, local_day
+      )
+      SELECT local_day::text, COALESCE(SUM(effective_sessions), 0)::int as opens
+      FROM daily_effective
+      GROUP BY local_day
+      ORDER BY local_day ASC
+    `;
+
+    const { rows: interactionRows } = await sql<{ local_day: string; interactions: number }>`
+      WITH post_interactions AS (
+        SELECT post_likes.created_at
+        FROM post_likes
+        JOIN posts ON posts.id = post_likes.post_id
+        WHERE posts.author_id = ${userId}
+        UNION ALL
+        SELECT comments.created_at
+        FROM comments
+        JOIN posts ON posts.id = comments.post_id
+        WHERE posts.author_id = ${userId}
+      )
+      SELECT
+        (created_at AT TIME ZONE 'Asia/Shanghai')::date::text as local_day,
+        COUNT(*)::int as interactions
+      FROM post_interactions
+      GROUP BY local_day
+      ORDER BY local_day ASC
+    `;
+
+    const { rows: countRows } = await sql<{ post_count: number; project_count: number }>`
+      SELECT
+        (SELECT COUNT(*)::int FROM posts WHERE author_id = ${userId}) as post_count,
+        (SELECT COUNT(*)::int FROM projects WHERE author_id = ${userId}) as project_count
+    `;
+
+    const xpByDay = new Map<string, number>();
+    const categoryTotals = new Map<string, number>();
+    eventRows.forEach(row => {
+        xpByDay.set(row.local_day, (xpByDay.get(row.local_day) || 0) + Number(row.points || 0));
+        categoryTotals.set(row.category, (categoryTotals.get(row.category) || 0) + Number(row.points || 0));
+    });
+
+    const opensByDay = new Map(projectOpenRows.map(row => [row.local_day, Number(row.opens || 0)]));
+    const interactionsByDay = new Map(interactionRows.map(row => [row.local_day, Number(row.interactions || 0)]));
+    const visibleXp = eventRows.reduce((sum, row) => sum + Number(row.points || 0), 0);
+    const projectOpenTotal = projectOpenRows.reduce((sum, row) => sum + Number(row.opens || 0), 0);
+    const postInteractionTotal = interactionRows.reduce((sum, row) => sum + Number(row.interactions || 0), 0);
+    const projectOpenWeek = Array.from({ length: 7 }, (_, index) => {
+        const key = getShanghaiDateKeyFromOffset(index - 6);
+        return opensByDay.get(key) || 0;
+    }).reduce((sum, opens) => sum + opens, 0);
+
+    const buildDay = (offset: number, mode: 'weekday' | 'date'): ProfileAnalyticsDay => {
+        const key = getShanghaiDateKeyFromOffset(offset);
+        const xp = xpByDay.get(key) || 0;
+        const projectOpens = opensByDay.get(key) || 0;
+        const postInteractions = interactionsByDay.get(key) || 0;
+        return {
+            key,
+            label: formatAnalyticsDayLabel(key, mode),
+            xp,
+            projectOpens,
+            postInteractions,
+            value: xp + projectOpens + postInteractions,
+        };
+    };
+
+    const trend7Days = Array.from({ length: 7 }, (_, index) => buildDay(index - 6, 'weekday'));
+    const heatmap28Days = Array.from({ length: 28 }, (_, index) => buildDay(index - 27, 'date'));
+    const weeklyGrowth = trend7Days.reduce((sum, day) => sum + day.value, 0);
+    const levelProgress = getLevelProgress(visibleXp);
+    const postCount = Number(countRows[0]?.post_count || 0);
+    const projectCount = Number(countRows[0]?.project_count || 0);
+    const creatorScore = Math.min(99, Math.round(
+        projectCount * 10
+        + postCount * 3
+        + postInteractionTotal * 1.2
+        + projectOpenTotal * 0.08
+        + visibleXp * 0.04,
+    ));
+    const contributionBase = Math.max(1, visibleXp + projectOpenTotal + postInteractionTotal);
+    const contributionBreakdown = [
+        { label: '可见 XP', value: Math.min(100, Math.max(8, Math.round(visibleXp / contributionBase * 100))) },
+        { label: '项目打开量', value: Math.min(100, Math.max(8, Math.round(projectOpenTotal / contributionBase * 100))) },
+        { label: '帖子互动', value: Math.min(100, Math.max(8, Math.round(postInteractionTotal / contributionBase * 100))) },
+        { label: '项目创作', value: Math.min(100, Math.max(8, Math.round((categoryTotals.get('project') || 0) / Math.max(1, visibleXp) * 100))) },
+    ];
+
+    return {
+        visibleXp,
+        rawXp,
+        ...levelProgress,
+        projectOpenTotal,
+        projectOpenWeek,
+        postInteractionTotal,
+        postCount,
+        projectCount,
+        creatorScore,
+        weeklyGrowth,
+        trend7Days,
+        heatmap28Days,
+        contributionBreakdown,
+    };
 }
 
 export async function createProject(data: Omit<Project, 'id' | 'likes' | 'created_at'>) {
