@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getUserById, rateProject } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
+import { clearServerCache } from '@/lib/serverCache';
 
 export async function POST(request: Request) {
     try {
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
         }
 
         const result = await rateProject(userId, normalizedProjectId, normalizedScore);
+        clearServerCache('projects:');
         
         return NextResponse.json({ success: true, ...result });
     } catch (err) {

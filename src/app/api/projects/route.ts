@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getProjects } from '@/lib/db';
+import { cachedServerValue } from '@/lib/serverCache';
 
 export async function GET() {
     try {
-        const projects = await getProjects();
-        return NextResponse.json(projects);
+        const projects = await cachedServerValue('projects:list', 60_000, getProjects);
+        return NextResponse.json(projects, {
+            headers: {
+                'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=120',
+            },
+        });
     } catch (err) {
         console.error("Fetch Projects Error", err);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });

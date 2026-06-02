@@ -4,6 +4,7 @@ import { togglePostLike, createComment, getComments, toggleBookmark, toggleComme
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
 import { del } from '@vercel/blob';
+import { clearServerCache } from '@/lib/serverCache';
 
 // POST: Handle actions (like, comment, bookmark, like_comment)
 export async function POST(request: Request) {
@@ -28,12 +29,14 @@ export async function POST(request: Request) {
             if (hasLiked) {
                 await createPostInteractionNotification(userId, postId, 'post_like');
             }
+            clearServerCache('posts:');
             return NextResponse.json({ success: true, hasLiked });
         }
 
         else if (action === 'comment') {
             if (!postId || !content) return NextResponse.json({ error: 'Missing data' }, { status: 400 });
             await createComment(userId, postId, content, parentCommentId ? Number(parentCommentId) : null);
+            clearServerCache('posts:');
             return NextResponse.json({ success: true });
         }
 
@@ -43,6 +46,7 @@ export async function POST(request: Request) {
             if (isBookmarked) {
                 await createPostInteractionNotification(userId, postId, 'post_bookmark');
             }
+            clearServerCache('posts:');
             return NextResponse.json({ success: true, isBookmarked });
         }
 
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
             if (hasLiked) {
                 await createCommentLikeNotification(userId, commentId);
             }
+            clearServerCache('posts:');
             return NextResponse.json({ success: true, hasLiked });
         }
 
@@ -67,6 +72,7 @@ export async function POST(request: Request) {
                     console.warn('Failed to delete post blob:', error);
                 }
             }
+            clearServerCache('posts:');
             return NextResponse.json({ success: true });
         }
 
@@ -74,6 +80,7 @@ export async function POST(request: Request) {
             if (!commentId) return NextResponse.json({ error: 'Missing commentId' }, { status: 400 });
             const deleted = await deleteComment(userId, commentId, canModerate);
             if (!deleted) return NextResponse.json({ error: 'Cannot delete comment' }, { status: 403 });
+            clearServerCache('posts:');
             return NextResponse.json({ success: true });
         }
 

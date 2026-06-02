@@ -32,12 +32,12 @@ function formatNotificationTime(value: Date | string | null | undefined) {
     return new Date(value).toLocaleString();
 }
 
-export default function NotificationsBell() {
+export default function NotificationsBell({ initialUnreadCount = 0 }: { initialUnreadCount?: number }) {
     const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [reviewSummary, setReviewSummary] = useState<AdminReviewSummary | null>(null);
     const [reviewHistory, setReviewHistory] = useState<AdminAuditEvent[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<NotificationTab>('activity');
 
@@ -73,7 +73,11 @@ export default function NotificationsBell() {
     }, []);
 
     useEffect(() => {
-        const initialLoad = window.setTimeout(loadNotifications, 0);
+        setUnreadCount(initialUnreadCount);
+    }, [initialUnreadCount]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(loadNotifications, 3600);
         const interval = window.setInterval(loadNotifications, 45000);
 
         const handleRefresh = () => loadNotifications();
@@ -201,7 +205,7 @@ export default function NotificationsBell() {
                         key={notification.id}
                         className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
                     >
-                        <Avatar value={notification.actor_avatar} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
+                        <Avatar value={notification.actor_avatar} emoji={notification.actor_avatar_emoji} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
                         <div className="notification-copy">
                             <div
                                 className="notification-message"

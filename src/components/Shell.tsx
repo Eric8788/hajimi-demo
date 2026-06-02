@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { User } from '@/lib/db';
 import { motion } from 'framer-motion';
 import NotificationsBell from './NotificationsBell';
@@ -9,10 +9,14 @@ import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 import Avatar from './Avatar';
 import { isAdminRole } from '@/lib/roles';
 
+const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile'];
+
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
     const pathname = usePathname();
+    const [isPending, startTransition] = useTransition();
     const [unreadCount, setUnreadCount] = useState(0);
+    const [pendingPath, setPendingPath] = useState('');
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
@@ -22,6 +26,11 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         { icon: '🏆', path: '/leaderboard', label: 'Rank' },
         ...(isAdminRole(user?.role) ? [{ icon: '🛡️', path: '/admin', label: 'Admin' }] : []),
     ];
+    const prefetchPath = useCallback((path: string) => {
+        if (path === pathname) return;
+        router.prefetch(path);
+    }, [pathname, router]);
+
     const loadUnreadCount = useCallback(async () => {
         if (!user) {
             setUnreadCount(0);
@@ -35,7 +44,9 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     }, [user]);
 
     useEffect(() => {
-        const initialLoad = window.setTimeout(loadUnreadCount, 0);
+        const scheduleIdle = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1800));
+        const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
+        const initialLoad = scheduleIdle(loadUnreadCount, { timeout: 2600 });
         const interval = window.setInterval(loadUnreadCount, 45000);
 
         const handleNotificationCount = (event: Event) => {
@@ -50,21 +61,50 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         window.addEventListener('hajimi-notifications-refresh', handleRefresh);
 
         return () => {
-            window.clearTimeout(initialLoad);
+            cancelIdle(initialLoad);
             window.clearInterval(interval);
             window.removeEventListener('hajimi-notifications-count', handleNotificationCount);
             window.removeEventListener('hajimi-notifications-refresh', handleRefresh);
         };
     }, [loadUnreadCount]);
 
+    useEffect(() => {
+        const scheduleIdle = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1600));
+        const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
+        const idleId = scheduleIdle(() => {
+            PREFETCH_PATHS.forEach(prefetchPath);
+        }, { timeout: 3000 });
+
+        return () => cancelIdle(idleId);
+    }, [prefetchPath]);
+
+    const navigateTo = (path: string) => {
+        if (path === pathname) return;
+        setPendingPath(path);
+        prefetchPath(path);
+        startTransition(() => {
+            router.push(path);
+        });
+    };
+
+    const activePendingPath = pendingPath !== pathname ? pendingPath : '';
+    const routePending = Boolean(activePendingPath) || isPending;
+
     return (
         <div className="app-container">
+            {routePending && (
+                <div className="route-transition-indicator" aria-live="polite" aria-label="Loading next Hajimi view">
+                    <span />
+                </div>
+            )}
             {/* Fixed Glass Sidebar */}
             <aside className="glass-panel glass-sidebar">
                 <button
                     type="button"
                     className="sidebar-brand"
-                    onClick={() => router.push('/dashboard')}
+                    onClick={() => navigateTo('/dashboard')}
+                    onPointerEnter={() => prefetchPath('/dashboard')}
+                    onFocus={() => prefetchPath('/dashboard')}
                     aria-label="Go to Hajimi home"
                 >
                     <span className="sidebar-logo-mark" aria-hidden="true">
@@ -76,11 +116,15 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                 {navItems.map((item) => {
                     const isActive = pathname === item.path;
                     return (
-                        <div
+                        <button
+                            type="button"
                             key={item.path}
-                            className={`nav-icon ${isActive ? 'is-active' : ''}`}
-                            onClick={() => router.push(item.path)}
+                            className={`nav-icon ${isActive ? 'is-active' : ''} ${activePendingPath === item.path ? 'is-pending' : ''}`}
+                            onClick={() => navigateTo(item.path)}
+                            onPointerEnter={() => prefetchPath(item.path)}
+                            onFocus={() => prefetchPath(item.path)}
                             title={item.label}
+                            aria-current={isActive ? 'page' : undefined}
                         >
                             <span className="nav-symbol">
                                 {item.icon}
@@ -89,18 +133,20 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                             {item.path === '/resources' && unreadCount > 0 && (
                                 <span className="sidebar-nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
                             )}
-                        </div>
+                        </button>
                     );
                 })}
 
                 <div className="sidebar-bottom">
                     {user ? (
                         <>
-                            <NotificationsBell />
+                            <NotificationsBell initialUnreadCount={unreadCount} />
                             <button
                                 type="button"
                                 className="sidebar-avatar-button"
-                                onClick={() => router.push('/profile')}
+                                onClick={() => navigateTo('/profile')}
+                                onPointerEnter={() => prefetchPath('/profile')}
+                                onFocus={() => prefetchPath('/profile')}
                                 title="Profile"
                             >
                                 <Avatar value={user.avatar} theme={user.avatar_theme} fallback="😊" size={42} />
@@ -110,7 +156,9 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                         <button
                             type="button"
                             className="sidebar-avatar-button"
-                            onClick={() => router.push('/login')}
+                            onClick={() => navigateTo('/login')}
+                            onPointerEnter={() => prefetchPath('/login')}
+                            onFocus={() => prefetchPath('/login')}
                             title="Login"
                         >
                             👤
@@ -120,7 +168,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
             </aside>
 
             {/* Main Content Area */}
-            <div className="main-content">
+            <div className={`main-content ${routePending ? 'is-route-pending' : ''}`}>
                 <motion.div
                     key={pathname}
                     initial={{ opacity: 0, x: 20 }}

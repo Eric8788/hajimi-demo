@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { addProjectComment, deleteProjectComment, getProjectComments, getUserById } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
+import { clearServerCache } from '@/lib/serverCache';
 
 function parsePositiveInteger(value: string | null | unknown) {
     const parsed = typeof value === 'number' ? value : Number(value);
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
         }
 
         const commentId = await addProjectComment(userId, projectId, content);
+        clearServerCache('projects:');
         return NextResponse.json({ success: true, commentId });
     } catch (err) {
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
@@ -69,6 +71,7 @@ export async function DELETE(request: Request) {
         if (!commentId) return NextResponse.json({ error: 'Missing commentId' }, { status: 400 });
 
         await deleteProjectComment(commentId, userId);
+        clearServerCache('projects:');
         return NextResponse.json({ success: true });
     } catch (err) {
         console.error("Delete Comment Error", err);

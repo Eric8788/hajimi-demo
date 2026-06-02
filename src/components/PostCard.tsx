@@ -10,6 +10,7 @@ import { isAdminRole } from '@/lib/roles';
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
 import PostTextComposer from './PostTextComposer';
+import { clearCachedJson } from '@/lib/clientJsonCache';
 
 const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
 
@@ -234,6 +235,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         reply_content: comment.reply_content,
         author_name: comment.author_name,
         author_avatar: comment.author_avatar,
+        author_avatar_emoji: comment.author_avatar_emoji,
         author_avatar_theme: comment.author_avatar_theme,
         author_role: comment.author_role,
         author_is_creator: comment.author_is_creator,
@@ -269,6 +271,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             method: 'POST',
             body: JSON.stringify({ action: 'like', postId: post.id })
         });
+        clearCachedJson('posts:');
         window.dispatchEvent(new Event('hajimi-notifications-refresh'));
     };
 
@@ -287,6 +290,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             method: 'POST',
             body: JSON.stringify({ action: 'bookmark', postId: post.id })
         });
+        clearCachedJson('posts:');
         if (nextBookmarked) {
             window.dispatchEvent(new CustomEvent('hajimi-xp-feedback', { detail: { amount: 3, label: 'author saved' } }));
         }
@@ -324,6 +328,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             method: 'POST',
             body: JSON.stringify({ action: 'like_comment', commentId })
         });
+        clearCachedJson('posts:');
         window.dispatchEvent(new Event('hajimi-notifications-refresh'));
     };
 
@@ -337,6 +342,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             body: JSON.stringify({ action: 'delete_post', postId: post.id })
         });
         if (res.ok && onDeleted) {
+            clearCachedJson('posts:');
             onDeleted(post.id);
         }
     };
@@ -377,6 +383,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         });
 
         if (res.ok) {
+            clearCachedJson('posts:');
             setDisplayTitle(editTitle.trim());
             setDisplayContent(editContent.trim());
             setDisplayTag(editTag.trim().replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24) || 'general');
@@ -401,6 +408,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             body: JSON.stringify({ action: 'delete_comment', commentId })
         });
         if (res.ok) {
+            clearCachedJson('posts:');
             setComments(current => {
                 const nextComments = current.filter(c => c.id !== commentId);
                 setFeaturedComment(pickFeaturedComment(nextComments));
@@ -433,6 +441,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         });
 
         if (res.ok) {
+            clearCachedJson('posts:');
             setCommentXpBurst(count => {
                 const next = count + 1;
                 window.setTimeout(() => setCommentXpBurst(current => current === next ? 0 : current), 800);
@@ -474,7 +483,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     onClick={() => openProfile(post.author_id)}
                     aria-label={`View ${post.author_name || 'author'} profile`}
                 >
-                    <Avatar className="post-author-avatar" value={post.author_avatar} theme={post.author_avatar_theme} fallback="👤" size={40} style={{ fontSize: '1.2rem', border: '2px solid white' }} />
+                    <Avatar className="post-author-avatar" value={post.author_avatar} emoji={post.author_avatar_emoji} theme={post.author_avatar_theme} fallback="👤" size={40} style={{ fontSize: '1.2rem', border: '2px solid white' }} />
                 </button>
                 <div className="post-author-meta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -627,7 +636,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 onClick={() => setShowImageModal(true)}
                                 aria-label="Open image"
                             >
-                                <img src={post.attachment_url} alt="Post attachment" />
+                                <img
+                                    src={post.attachment_url}
+                                    alt="Post attachment"
+                                    loading="lazy"
+                                    decoding="async"
+                                    fetchPriority="low"
+                                />
                             </button>
                         ) : (
                             <a href={post.attachment_url} target="_blank" className="btn" style={{ background: '#dfe6e9', color: '#2d3436', fontSize: '0.9rem', padding: '10px 15px' }}>
@@ -647,7 +662,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 onClick={() => openProfile(featuredComment.author_id)}
                                 aria-label={`View ${featuredComment.author_name || 'comment author'} profile`}
                             >
-                                <Avatar value={featuredComment.author_avatar} theme={featuredComment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
+                                <Avatar value={featuredComment.author_avatar} emoji={featuredComment.author_avatar_emoji} theme={featuredComment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
                             </button>
                             <div className="featured-comment-copy">
                                 <div className="featured-comment-author">
@@ -787,7 +802,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                             onClick={() => openProfile(c.author_id)}
                                             aria-label={`View ${c.author_name || 'comment author'} profile`}
                                         >
-                                            <Avatar value={c.author_avatar} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
+                                            <Avatar value={c.author_avatar} emoji={c.author_avatar_emoji} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
                                         </button>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

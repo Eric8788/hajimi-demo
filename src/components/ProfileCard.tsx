@@ -96,6 +96,7 @@ type ProfileCardProps = {
     posts?: Post[];
     projects?: Project[];
     analytics?: ProfileAnalytics;
+    analyticsLoading?: boolean;
 };
 
 type AnalyticsRange = 'today' | 'week' | 'month' | 'custom';
@@ -185,7 +186,7 @@ function getPieSliceOffset(startAngle: number, endAngle: number, distance = 8) {
     };
 }
 
-export default function ProfilePage({ user, readOnly = false, posts = [], projects = [], analytics }: ProfileCardProps) {
+export default function ProfilePage({ user, readOnly = false, posts = [], projects = [], analytics, analyticsLoading = false }: ProfileCardProps) {
     const router = useRouter();
     const [bio, setBio] = useState(user.bio || '');
     const [avatar, setAvatar] = useState(user.avatar || '😊');
@@ -1653,7 +1654,22 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         </section>
                     )}
 
-                    {!readOnly && analytics && renderAnalyticsPanel()}
+                    {!readOnly && (analytics ? renderAnalyticsPanel() : analyticsLoading && (
+                        <section className="profile-feed-section profile-analytics-panel">
+                            <div className="profile-feed-heading profile-analytics-heading">
+                                <div>
+                                    <span>成长报告</span>
+                                    <h3>个人数据分析</h3>
+                                    <p>正在载入你的贡献趋势、项目打开量和活跃热力图。</p>
+                                </div>
+                            </div>
+                            <div className="profile-analytics-overview-grid">
+                                <section className="profile-analytics-card profile-growth-summary">
+                                    <div className="profile-chart-empty">Loading Data Studio...</div>
+                                </section>
+                            </div>
+                        </section>
+                    ))}
 
                     <section className="profile-feed-section">
                         <div className="profile-feed-heading">

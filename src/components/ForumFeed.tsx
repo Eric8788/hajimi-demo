@@ -9,6 +9,7 @@ import { isStaffRole } from '@/lib/roles';
 import Avatar from './Avatar';
 import { FORUM_PROMOS } from '@/data/forumPromos';
 import PostTextComposer from './PostTextComposer';
+import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -231,8 +232,13 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
     const fetchPosts = async (sort: string = sortType, filter: string = filterType, tag: string = selectedTag) => {
         const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
-        const res = await fetch(`/api/posts?sort=${sort}&filter=${filter}${tagParam}`, { cache: 'no-store' });
-        const data = await res.json();
+        const url = `/api/posts?sort=${sort}&filter=${filter}${tagParam}`;
+        const data = await cachedJson<Post[]>(
+            `posts:${user?.id || 'guest'}:${sort}:${filter}:${tag}`,
+            url,
+            user ? 15_000 : 45_000,
+            { cache: user ? 'no-store' : 'default' },
+        );
         setPosts(data);
     };
 
@@ -356,6 +362,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                 return;
             }
 
+            clearCachedJson('posts:');
             resetComposer();
             await fetchPosts();
         } finally {

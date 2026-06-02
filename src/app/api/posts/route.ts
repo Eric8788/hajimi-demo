@@ -4,6 +4,7 @@ import { getPosts, createPost, updatePost, countAttachmentsByUser, countRecentAt
 import { isStaffRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
 import { put } from '@vercel/blob';
+import { cachedServerValue, clearServerCache } from '@/lib/serverCache';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
 const DAILY_ATTACHMENT_LIMIT = 5;
@@ -43,10 +44,19 @@ export async function GET(request: Request) {
     const session = await getSession();
 
     try {
-        const posts = await getPosts(sort, session ? Number(session.userId) : undefined, filter, tag);
+        const isPublicList = !session && filter === 'all';
+        const posts = isPublicList
+            ? await cachedServerValue(
+                `posts:public:${sort}:${filter}:${tag || 'all'}`,
+                30_000,
+                () => getPosts(sort, undefined, filter, tag),
+            )
+            : await getPosts(sort, session ? Number(session.userId) : undefined, filter, tag);
         return NextResponse.json(posts, {
             headers: {
-                'Cache-Control': 'no-store, max-age=0, must-revalidate'
+                'Cache-Control': isPublicList
+                    ? 'public, max-age=15, s-maxage=30, stale-while-revalidate=90'
+                    : 'private, no-cache, no-store, max-age=0, must-revalidate',
             }
         });
     } catch {
@@ -126,6 +136,7 @@ export async function POST(request: Request) {
         }
 
         await createPost(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrl, tag);
+        clearServerCache('posts:');
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
         console.error(err);
@@ -173,6 +184,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Cannot edit post' }, { status: 403 });
         }
 
+        clearServerCache('posts:');
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
         console.error(err);

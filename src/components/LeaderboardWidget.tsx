@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Avatar from './Avatar';
 import { User } from '@/lib/db';
 import UserBadges from './UserBadges';
+import { cachedJson } from '@/lib/clientJsonCache';
 
 const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
 const WINDOW_TABS = [
@@ -37,11 +38,12 @@ export default function LeaderboardWidget({
         let active = true;
         setLoading(true);
         setError('');
-        fetch(`/api/leaderboard?limit=${limit}&window=${windowType}&category=all`, { signal: controller.signal })
-            .then(res => {
-                if (!res.ok) throw new Error('Leaderboard request failed');
-                return res.json();
-            })
+        cachedJson<User[]>(
+            `leaderboard:${limit}:${windowType}:all`,
+            `/api/leaderboard?limit=${limit}&window=${windowType}&category=all`,
+            45_000,
+            { signal: controller.signal },
+        )
             .then(data => {
                 if (!active) return;
                 if (Array.isArray(data)) {

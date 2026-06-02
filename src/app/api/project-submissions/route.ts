@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { createProjectSubmission, getProjectSubmissions, getUserById, reviewProjectSubmission } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
+import { clearServerCache } from '@/lib/serverCache';
 
 const ALLOWED_TAGS = new Set(['Game', 'Tool', 'AI', 'Multiplayer', 'Simulation', 'Visual', 'Finance', 'Narrative', 'Sailing', 'Classroom']);
 
@@ -115,6 +116,9 @@ export async function PATCH(request: Request) {
         }
 
         await reviewProjectSubmission(submissionId, reviewer.id, action === 'approve' ? 'approved' : 'rejected', note);
+        if (action === 'approve') {
+            clearServerCache('projects:');
+        }
         return NextResponse.json({ success: true });
     } catch (error: any) {
         if (error?.message === 'Submission not found') {

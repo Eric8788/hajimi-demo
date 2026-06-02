@@ -5,7 +5,7 @@ import Shell from '@/components/Shell';
 import CheckInButton from '@/components/CheckInButton';
 import Link from 'next/link';
 import TarotGame from '@/components/TarotGame';
-import { getPosts } from '@/lib/db';
+import { getRecentPostHighlights } from '@/lib/db';
 import LeaderboardWidget from '@/components/LeaderboardWidget';
 import Avatar from '@/components/Avatar';
 import DashboardAlumniPreview from '@/components/DashboardAlumniPreview';
@@ -37,12 +37,11 @@ export default async function DashboardPage() {
   });
   if (!user) redirect('/login');
 
-  const latestPosts = await getPosts('time').catch((error) => {
+  const recentTwo = await getRecentPostHighlights(2).catch((error) => {
     if (process.env.NODE_ENV === 'production') throw error;
     console.warn('Dashboard posts unavailable:', error);
     return [];
   });
-  const recentTwo = latestPosts.slice(0, 2);
 
   return (
     <Shell user={user}>

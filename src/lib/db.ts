@@ -3,6 +3,12 @@ import { hashStudentId, STUDENT_GRADES, type VerificationStatus, type Verificati
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 import { normalizeUsernameInput, validateUsername } from './accountValidation';
 
+const AUTO_ENSURE_READ_SCHEMA = process.env.HAJIMI_AUTO_ENSURE_ON_READ === '1' || process.env.NODE_ENV !== 'production';
+
+function shouldAutoEnsureReadSchema() {
+    return AUTO_ENSURE_READ_SCHEMA;
+}
+
 // --- Interfaces ---
 
 export interface User {
@@ -154,6 +160,8 @@ export interface Project {
     likes: number; // Keeping for backward compatibility temporarily if needed
     rating: number;
     rating_count: number;
+    commentCount?: number;
+    comment_count?: number;
     cover_url?: string | null;
     user_score?: number; // Score given by the current user, fetched dynamically
     open_count_today?: number;
@@ -178,6 +186,7 @@ export interface ProjectComment {
     author_id: number;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_emoji?: string | null;
     author_avatar_theme?: string | null;
     content: string;
     created_at: string;
@@ -235,6 +244,7 @@ export interface Post {
     updated_at?: Date;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_emoji?: string | null;
     author_avatar_theme?: string | null;
     author_role?: string;
     author_is_creator?: boolean;
@@ -258,6 +268,7 @@ export interface Comment {
     reply_content?: string | null;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_emoji?: string | null;
     author_avatar_theme?: string | null;
     author_role?: string;
     author_is_creator?: boolean;
@@ -276,6 +287,7 @@ export interface FeaturedComment {
     reply_content?: string | null;
     author_name?: string;
     author_avatar?: string;
+    author_avatar_emoji?: string | null;
     author_avatar_theme?: string | null;
     author_role?: string;
     author_is_creator?: boolean;
@@ -295,6 +307,7 @@ export interface Notification {
     created_at: Date;
     actor_name?: string;
     actor_avatar?: string;
+    actor_avatar_emoji?: string | null;
     actor_avatar_theme?: string | null;
     post_title?: string;
 }
@@ -542,7 +555,9 @@ export async function getUser(username: string) {
 }
 
 export async function getUserById(id: number): Promise<User | null> {
-    await ensureUserProfileEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+    }
 
     const { rows } = await sql<User>`
       SELECT
@@ -1518,11 +1533,17 @@ async function ensureBookmarksTable() {
 }
 
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
-    await ensureUserProfileEnhancements();
-    await ensureForumEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+    }
 
     const { rows } = await sql`
-      SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url, posts.likes, posts.created_at, posts.updated_at,
+      users.username as author_name,
+      CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+      users.avatar_emoji as author_avatar_emoji,
+      users.role as author_role,
       users.avatar_theme as author_avatar_theme,
       users.badge_preferences as author_badge_preferences,
       users.verification_status as author_verification_status,
@@ -1547,7 +1568,8 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
           'reply_author_name', parent_users.username,
           'reply_content', parent_comments.content,
           'author_name', comment_authors.username,
-          'author_avatar', comment_authors.avatar,
+          'author_avatar', CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END,
+          'author_avatar_emoji', comment_authors.avatar_emoji,
           'author_avatar_theme', comment_authors.avatar_theme,
           'author_role', comment_authors.role,
           'author_is_creator', (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id),
@@ -1588,12 +1610,48 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
     return rows as Post[];
 }
 
+export async function getRecentPostHighlights(limit = 2) {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+    }
+
+    const { rows } = await sql<Post>`
+      SELECT
+        posts.id,
+        posts.author_id,
+        posts.title,
+        posts.type,
+        posts.tag,
+        posts.likes,
+        posts.created_at,
+        users.username as author_name,
+        users.role as author_role,
+        users.verification_status as author_verification_status,
+        (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count
+      FROM posts
+      JOIN users ON posts.author_id = users.id
+      ORDER BY
+        CASE WHEN posts.tag = 'announcement' THEN 0 ELSE 1 END ASC,
+        posts.created_at DESC
+      LIMIT ${limit}
+    `;
+
+    return rows;
+}
+
 export async function getPostsByAuthor(authorId: number, viewerId?: number, limit = 12) {
-    await ensureUserProfileEnhancements();
-    await ensureForumEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+    }
 
     const { rows } = await sql`
-      SELECT posts.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url, posts.likes, posts.created_at, posts.updated_at,
+      users.username as author_name,
+      CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+      users.avatar_emoji as author_avatar_emoji,
+      users.role as author_role,
       users.avatar_theme as author_avatar_theme,
       users.badge_preferences as author_badge_preferences,
       users.verification_status as author_verification_status,
@@ -1616,11 +1674,16 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
 }
 
 export async function getComments(postId: number, userId?: number) {
-    await ensureUserProfileEnhancements();
-    await ensureForumEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+    }
 
     const { rows } = await sql`
-      SELECT comments.*, users.username as author_name, users.avatar as author_avatar, users.role as author_role,
+      SELECT comments.*, users.username as author_name,
+      CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+      users.avatar_emoji as author_avatar_emoji,
+      users.role as author_role,
       users.avatar_theme as author_avatar_theme,
       users.badge_preferences as author_badge_preferences,
       users.verification_status as author_verification_status,
@@ -1759,7 +1822,7 @@ export async function togglePostLike(userId: number, postId: number): Promise<bo
         const lastLikeDate = user?.last_like_at ? new Date(user.last_like_at).toDateString() : '';
         const isToday = lastLikeDate === now.toDateString();
 
-        let dailyCount = isToday ? (user?.daily_likes_count || 0) : 0;
+        const dailyCount = isToday ? (user?.daily_likes_count || 0) : 0;
         if (dailyCount < 5) {
             await addPoints(userId, 1);
             await sql`UPDATE users SET daily_likes_count = ${dailyCount + 1}, last_like_at = CURRENT_TIMESTAMP WHERE id = ${userId}`;
@@ -1805,17 +1868,19 @@ export async function toggleBookmark(userId: number, postId: number) {
 }
 
 export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'all', category: LeaderboardCategory = 'all'): Promise<User[]> {
-    await ensureUserProfileEnhancements();
-    await ensureForumEnhancements();
-    await ensureProjectEnhancements();
-    await ensurePointAwardsTable();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+        await ensureProjectEnhancements();
+        await ensurePointAwardsTable();
+    }
 
     if (window === 'all' && category === 'all') {
         const { rows } = await sql<User>`
           SELECT
             id,
             username,
-            avatar,
+            CASE WHEN avatar LIKE 'data:image/%' THEN NULL ELSE avatar END as avatar,
             avatar_emoji,
             avatar_theme,
             CASE WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) ELSE points END as points,
@@ -1944,7 +2009,10 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
           AND (${category} = 'all' OR category = ${category})
         GROUP BY user_id
       )
-      SELECT users.id, users.username, users.avatar, users.avatar_emoji, users.avatar_theme,
+      SELECT users.id, users.username,
+        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as avatar,
+        users.avatar_emoji,
+        users.avatar_theme,
         CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END as points,
         GREATEST(1, FLOOR(SQRT((CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END) / 50.0))::int + 1) as level,
         users.role, users.badge_preferences, users.verification_status,
@@ -2136,29 +2204,47 @@ async function ensureProjectSubmissionsTable() {
 }
 
 export async function getProjects(): Promise<Project[]> {
-    await ensureProjectEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureProjectEnhancements();
+    }
 
     const { rows } = await sql<Project>`
-      SELECT projects.*, users.username as author_name,
+      WITH comment_stats AS (
+        SELECT project_id, COUNT(*)::int as comment_count
+        FROM project_comments
+        GROUP BY project_id
+      )
+      SELECT
+        projects.id,
+        projects.author_id,
+        projects.title,
+        projects.description,
+        projects.emoji,
+        projects.url,
+        projects.tags,
+        projects.accent_color,
+        projects.cover_url,
+        projects.status,
+        projects.likes,
+        projects.created_at,
+        users.username as author_name,
         COALESCE(projects.rating, 0.0) as rating,
         COALESCE(projects.rating_count, 0) as rating_count,
-        (SELECT COUNT(*)::int FROM project_comments WHERE project_id = projects.id) as "commentCount",
-        COALESCE(opens.effective_open_count_today, 0)::int as open_count_today,
-        COALESCE(opens.effective_open_count_week, 0)::int as open_count_week,
-        COALESCE(opens.effective_open_count_month, 0)::int as open_count_month,
-        COALESCE(opens.effective_open_count_total, 0)::int as open_count_total,
-        COALESCE(opens.unique_open_count_today, 0)::int as unique_open_count_today,
-        COALESCE(opens.unique_open_count_week, 0)::int as unique_open_count_week,
-        COALESCE(opens.unique_open_count_month, 0)::int as unique_open_count_month,
-        COALESCE(opens.unique_open_count_total, 0)::int as unique_open_count_total,
-        COALESCE(opens.effective_open_count_today, 0)::int as effective_open_count_today,
-        COALESCE(opens.effective_open_count_week, 0)::int as effective_open_count_week,
-        COALESCE(opens.effective_open_count_month, 0)::int as effective_open_count_month,
-        COALESCE(opens.effective_open_count_total, 0)::int as effective_open_count_total,
+        COALESCE(comment_stats.comment_count, 0)::int as "commentCount",
+        0::int as open_count_today,
+        0::int as open_count_week,
+        0::int as open_count_month,
+        0::int as open_count_total,
+        0::int as unique_open_count_today,
+        0::int as unique_open_count_week,
+        0::int as unique_open_count_month,
+        0::int as unique_open_count_total,
+        0::int as effective_open_count_today,
+        0::int as effective_open_count_week,
+        0::int as effective_open_count_month,
+        0::int as effective_open_count_total,
         ROUND((
-          COALESCE(opens.unique_open_count_today, 0) * 10
-          + COALESCE(opens.effective_open_count_today, 0) * 2
-          + CASE
+          CASE
               WHEN COALESCE(projects.rating_count, 0) > 0
               THEN (((COALESCE(projects.rating, 0) * COALESCE(projects.rating_count, 0)) + 4.2 * 3) / (COALESCE(projects.rating_count, 0) + 3)) * 8
               ELSE 0
@@ -2167,62 +2253,116 @@ export async function getProjects(): Promise<Project[]> {
         )::numeric, 1) as hub_score
       FROM projects
       JOIN users ON projects.author_id = users.id
-      LEFT JOIN LATERAL (
-        WITH verified_opens AS (
-          SELECT
-            project_opens.user_id,
-            project_opens.opened_at,
-            (project_opens.opened_at AT TIME ZONE 'Asia/Shanghai')::date as local_day
-          FROM project_opens
-          JOIN users open_users ON open_users.id = project_opens.user_id
-          WHERE project_opens.project_id = projects.id
-            AND project_opens.user_id IS NOT NULL
-            AND open_users.verification_status = 'verified'
-        ),
-        ordered_opens AS (
-          SELECT
-            user_id,
-            opened_at,
-            local_day,
-            LAG(opened_at) OVER (PARTITION BY user_id, local_day ORDER BY opened_at) as previous_opened_at
-          FROM verified_opens
-        ),
-        session_opens AS (
-          SELECT user_id, opened_at, local_day
-          FROM ordered_opens
-          WHERE previous_opened_at IS NULL OR opened_at - previous_opened_at >= INTERVAL '30 minutes'
-        ),
-        daily_effective AS (
-          SELECT
-            user_id,
-            local_day,
-            LEAST(COUNT(*)::int, 3) as effective_sessions
-          FROM session_opens
-          GROUP BY user_id, local_day
-        ),
-        boundaries AS (
-          SELECT
-            (NOW() AT TIME ZONE 'Asia/Shanghai')::date as today,
-            ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 6) as week_start,
-            ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 29) as month_start
-        )
-        SELECT
-          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens, boundaries WHERE local_day = today) as unique_open_count_today,
-          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens, boundaries WHERE local_day >= week_start) as unique_open_count_week,
-          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens, boundaries WHERE local_day >= month_start) as unique_open_count_month,
-          (SELECT COUNT(DISTINCT user_id)::int FROM verified_opens) as unique_open_count_total,
-          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective, boundaries WHERE local_day = today) as effective_open_count_today,
-          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective, boundaries WHERE local_day >= week_start) as effective_open_count_week,
-          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective, boundaries WHERE local_day >= month_start) as effective_open_count_month,
-          (SELECT COALESCE(SUM(effective_sessions), 0)::int FROM daily_effective) as effective_open_count_total
-      ) opens ON true
+      LEFT JOIN comment_stats ON comment_stats.project_id = projects.id
       ORDER BY created_at DESC
     `;
     return rows;
 }
 
+export async function getProjectOpenStats(): Promise<Partial<Project>[]> {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureProjectEnhancements();
+    }
+
+    const { rows } = await sql<Partial<Project>>`
+      WITH boundaries AS (
+        SELECT
+          (NOW() AT TIME ZONE 'Asia/Shanghai')::date as today,
+          ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 6) as week_start,
+          ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 29) as month_start
+      ),
+      verified_opens AS (
+        SELECT
+          project_opens.project_id,
+          project_opens.user_id,
+          project_opens.opened_at,
+          (project_opens.opened_at AT TIME ZONE 'Asia/Shanghai')::date as local_day
+        FROM project_opens
+        JOIN users open_users ON open_users.id = project_opens.user_id
+        WHERE project_opens.user_id IS NOT NULL
+          AND open_users.verification_status = 'verified'
+      ),
+      ordered_opens AS (
+        SELECT
+          project_id,
+          user_id,
+          opened_at,
+          local_day,
+          LAG(opened_at) OVER (PARTITION BY project_id, user_id, local_day ORDER BY opened_at) as previous_opened_at
+        FROM verified_opens
+      ),
+      session_opens AS (
+        SELECT project_id, user_id, opened_at, local_day
+        FROM ordered_opens
+        WHERE previous_opened_at IS NULL OR opened_at - previous_opened_at >= INTERVAL '30 minutes'
+      ),
+      daily_effective AS (
+        SELECT
+          project_id,
+          user_id,
+          local_day,
+          LEAST(COUNT(*)::int, 3) as effective_sessions
+        FROM session_opens
+        GROUP BY project_id, user_id, local_day
+      ),
+      unique_stats AS (
+        SELECT
+          verified_opens.project_id,
+          COUNT(DISTINCT verified_opens.user_id) FILTER (WHERE verified_opens.local_day = boundaries.today)::int as unique_open_count_today,
+          COUNT(DISTINCT verified_opens.user_id) FILTER (WHERE verified_opens.local_day >= boundaries.week_start)::int as unique_open_count_week,
+          COUNT(DISTINCT verified_opens.user_id) FILTER (WHERE verified_opens.local_day >= boundaries.month_start)::int as unique_open_count_month,
+          COUNT(DISTINCT verified_opens.user_id)::int as unique_open_count_total
+        FROM verified_opens
+        CROSS JOIN boundaries
+        GROUP BY verified_opens.project_id
+      ),
+      effective_stats AS (
+        SELECT
+          daily_effective.project_id,
+          COALESCE(SUM(daily_effective.effective_sessions) FILTER (WHERE daily_effective.local_day = boundaries.today), 0)::int as effective_open_count_today,
+          COALESCE(SUM(daily_effective.effective_sessions) FILTER (WHERE daily_effective.local_day >= boundaries.week_start), 0)::int as effective_open_count_week,
+          COALESCE(SUM(daily_effective.effective_sessions) FILTER (WHERE daily_effective.local_day >= boundaries.month_start), 0)::int as effective_open_count_month,
+          COALESCE(SUM(daily_effective.effective_sessions), 0)::int as effective_open_count_total
+        FROM daily_effective
+        CROSS JOIN boundaries
+        GROUP BY daily_effective.project_id
+      )
+      SELECT
+        projects.id,
+        COALESCE(effective_stats.effective_open_count_today, 0)::int as open_count_today,
+        COALESCE(effective_stats.effective_open_count_week, 0)::int as open_count_week,
+        COALESCE(effective_stats.effective_open_count_month, 0)::int as open_count_month,
+        COALESCE(effective_stats.effective_open_count_total, 0)::int as open_count_total,
+        COALESCE(unique_stats.unique_open_count_today, 0)::int as unique_open_count_today,
+        COALESCE(unique_stats.unique_open_count_week, 0)::int as unique_open_count_week,
+        COALESCE(unique_stats.unique_open_count_month, 0)::int as unique_open_count_month,
+        COALESCE(unique_stats.unique_open_count_total, 0)::int as unique_open_count_total,
+        COALESCE(effective_stats.effective_open_count_today, 0)::int as effective_open_count_today,
+        COALESCE(effective_stats.effective_open_count_week, 0)::int as effective_open_count_week,
+        COALESCE(effective_stats.effective_open_count_month, 0)::int as effective_open_count_month,
+        COALESCE(effective_stats.effective_open_count_total, 0)::int as effective_open_count_total,
+        ROUND((
+          COALESCE(unique_stats.unique_open_count_today, 0) * 10
+          + COALESCE(effective_stats.effective_open_count_today, 0) * 2
+          + CASE
+              WHEN COALESCE(projects.rating_count, 0) > 0
+              THEN (((COALESCE(projects.rating, 0) * COALESCE(projects.rating_count, 0)) + 4.2 * 3) / (COALESCE(projects.rating_count, 0) + 3)) * 8
+              ELSE 0
+            END
+          + COALESCE(projects.rating_count, 0) * 1.5
+        )::numeric, 1) as hub_score
+      FROM projects
+      LEFT JOIN unique_stats ON unique_stats.project_id = projects.id
+      LEFT JOIN effective_stats ON effective_stats.project_id = projects.id
+    `;
+
+    return rows;
+}
+
 export async function getProjectsByAuthor(authorId: number): Promise<Project[]> {
-    await ensureProjectEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureProjectEnhancements();
+    }
 
     const { rows } = await sql<Project>`
       SELECT projects.*, users.username as author_name,
@@ -2310,11 +2450,13 @@ export async function getProjectsByAuthor(authorId: number): Promise<Project[]> 
 }
 
 export async function getProfileAnalytics(userId: number): Promise<ProfileAnalytics> {
-    await ensureUserProfileEnhancements();
-    await ensureForumEnhancements();
-    await ensureProjectEnhancements();
-    await ensureProjectOpenEventsTable();
-    await ensurePointAwardsTable();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+        await ensureProjectEnhancements();
+        await ensureProjectOpenEventsTable();
+        await ensurePointAwardsTable();
+    }
 
     const { rows: userRows } = await sql<{ points: number; role: string }>`
       SELECT points, role
@@ -2765,7 +2907,8 @@ export async function getProjectComments(projectId: number): Promise<ProjectComm
       SELECT 
         project_comments.*, 
         users.username as author_name, 
-        users.avatar as author_avatar,
+        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+        users.avatar_emoji as author_avatar_emoji,
         users.avatar_theme as author_avatar_theme,
         (SELECT score FROM project_likes WHERE project_likes.user_id = project_comments.author_id AND project_likes.project_id = ${projectId} LIMIT 1) as author_score
       FROM project_comments
@@ -3231,10 +3374,16 @@ export async function createCommentLikeNotification(actorId: number, commentId: 
 }
 
 export async function getNotifications(userId: number) {
-    await ensureNotificationsTable();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureNotificationsTable();
+    }
 
     const { rows } = await sql<Notification>`
-      SELECT notifications.*, users.username as actor_name, users.avatar as actor_avatar, users.avatar_theme as actor_avatar_theme, posts.title as post_title
+      SELECT notifications.*, users.username as actor_name,
+        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as actor_avatar,
+        users.avatar_emoji as actor_avatar_emoji,
+        users.avatar_theme as actor_avatar_theme,
+        posts.title as post_title
       FROM notifications
       JOIN users ON notifications.actor_id = users.id
       LEFT JOIN posts ON notifications.post_id = posts.id
@@ -3247,7 +3396,9 @@ export async function getNotifications(userId: number) {
 }
 
 export async function getUnreadNotificationCount(userId: number) {
-    await ensureNotificationsTable();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureNotificationsTable();
+    }
 
     const { rows } = await sql<{ unread_count: number }>`
       SELECT COUNT(*)::int as unread_count

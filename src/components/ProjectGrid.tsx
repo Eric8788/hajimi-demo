@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ALL_TAGS, type ProjectTag } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { User } from '@/lib/db';
+import type { Project, User } from '@/lib/db';
 import ProjectCoverStudio from './ProjectCoverStudio';
+import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 
 const TAG_COLORS: Record<string, string> = {
     Game: '#6c5ce7',
@@ -64,9 +65,17 @@ type ProjectGridProps = {
     canSubmitProjects?: boolean;
 };
 
+type HubProject = Project & {
+    author?: string;
+    accentColor?: string;
+    coverUrl?: string | null;
+    summary?: string;
+    tagline?: string;
+};
+
 type SubmissionDraft = {
     type: 'new_project' | 'new_version';
-    project?: any;
+    project?: HubProject;
 };
 
 function recordProjectOpen(projectId: number | string) {
@@ -129,7 +138,7 @@ function isValidCoverUrl(url: unknown) {
 }
 
 export default function ProjectGrid({ user, canSubmitProjects = false }: ProjectGridProps) {
-    const [projects, setProjects] = useState<any[]>([]);
+    const [projects, setProjects] = useState<HubProject[]>([]);
     const [selectedTag, setSelectedTag] = useState<ProjectTag | 'all'>('all');
     const [selectedCreator, setSelectedCreator] = useState<string | 'all'>('all');
     const [sortType, setSortType] = useState<'rating' | 'name'>('rating');
@@ -152,6 +161,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [hubRankingMode, setHubRankingMode] = useState<HubRankingMode>('heat');
     const [spotlightIndex, setSpotlightIndex] = useState(0);
     const [spotlightPaused, setSpotlightPaused] = useState(false);
+    const [projectStatsLoaded, setProjectStatsLoaded] = useState(false);
     const currentUserId = user ? Number(user.id) : null;
 
     useEffect(() => {
@@ -159,14 +169,11 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         let active = true;
 
         setProjectLoadError('');
-        fetch('/api/projects', { signal: controller.signal })
-            .then(res => {
-                if (!res.ok) throw new Error('Projects request failed');
-                return res.json();
-            })
+        cachedJson<HubProject[]>('projects:list', '/api/projects', 60_000, { signal: controller.signal })
             .then(data => {
                 if (!active) return;
                 setProjects(Array.isArray(data) ? data : []);
+                setProjectStatsLoaded(false);
             })
             .catch(error => {
                 if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -184,6 +191,35 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             controller.abort();
         };
     }, []);
+
+    useEffect(() => {
+        if (loading || projectStatsLoaded || projects.length === 0) return;
+
+        const controller = new AbortController();
+        let active = true;
+
+        cachedJson<Partial<HubProject>[]>('projects:stats', '/api/projects/stats', 60_000, { signal: controller.signal })
+            .then(data => {
+                if (!active || !Array.isArray(data)) return;
+                const statsById = new Map<number, Partial<HubProject>>(data.map(item => [Number(item.id), item]));
+                setProjects(current => current.map(project => ({
+                    ...project,
+                    ...(statsById.get(Number(project.id)) || {}),
+                })));
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                console.warn('Hub stats unavailable:', error);
+            })
+            .finally(() => {
+                if (active) setProjectStatsLoaded(true);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [loading, projectStatsLoaded, projects.length]);
 
     useEffect(() => {
         const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 1;
@@ -212,7 +248,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
     const getSpotlightCopy = (project: any): HubSpotlightCopy | null => {
         const kind = getSpotlightKind(project);
-        const authorName = getDisplayName(project.author_name || project.author);
+        const authorName = getDisplayName(project.author_name || project.author || '');
 
         if (kind === 'cpaper') {
             return {
@@ -245,7 +281,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         return null;
     };
 
-    const uniqueCreators = Array.from(new Set(projects.map(p => getDisplayName(p.author_name || p.author)))).sort();
+    const uniqueCreators = Array.from(new Set(projects.map(p => getDisplayName(p.author_name || p.author || '')))).sort();
 
     const spotlightProjects = [...projects]
         .filter(project => project.status === 'live' && getSpotlightKind(project))
@@ -272,7 +308,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 project,
                 copy: getSpotlightCopy(project),
             }))
-            .filter((item): item is { key: string; project: any; copy: HubSpotlightCopy } => Boolean(item.copy)),
+            .filter((item): item is { key: string; project: HubProject; copy: HubSpotlightCopy } => Boolean(item.copy)),
     ];
     const activeSpotlightIndex = Math.min(spotlightIndex, spotlightSlides.length - 1);
 
@@ -298,7 +334,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     const compareTitles = (a: any, b: any) => String(a.title).localeCompare(String(b.title));
-    const getProjectCommentCount = (project: any) => Number(project.commentCount ?? project.comment_count ?? 0);
+    const getProjectCommentCount = (project: HubProject) => Number(project.commentCount ?? project.comment_count ?? 0);
 
     const compareByHeat = (a: any, b: any) => {
         const statsA = getHubStats(a);
@@ -345,7 +381,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
     const filtered = projects.filter(p => {
         const tagMatch = selectedTag === 'all' || p.tags.includes(selectedTag);
-        const creatorMatch = selectedCreator === 'all' || getDisplayName(p.author_name || p.author) === selectedCreator;
+        const creatorMatch = selectedCreator === 'all' || getDisplayName(p.author_name || p.author || '') === selectedCreator;
         const liveMatch = !showLiveOnly || p.status === 'live';
         return tagMatch && creatorMatch && liveMatch;
     }).sort((a, b) => {
@@ -769,7 +805,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                     <span className="hub-leaderboard-emoji">{project.emoji}</span>
                                     <span className="hub-leaderboard-title">
                                         {project.title}
-                                        <small>by {getDisplayName(project.author_name || project.author)}</small>
+                                        <small>by {getDisplayName(project.author_name || project.author || '')}</small>
                                     </span>
                                     <span className="hub-leaderboard-meta">
                                         {stats.uniquePlayers} 人体验 · {stats.effectiveOpens} 次有效进入 · ⭐ {Number(project.rating || 0).toFixed(1)} · 💬 {getProjectCommentCount(project)}
@@ -1154,6 +1190,7 @@ function ProjectCard({
             if (onRatingUpdate) onRatingUpdate(project.id, rating, ratingCount);
             return;
         }
+        clearCachedJson('projects:');
         
         // Submit comment
         const submittedScore = selectedScore;
@@ -1166,6 +1203,7 @@ function ProjectCard({
             body: JSON.stringify({ projectId: project.id, content: tempContent })
         });
         if (res.ok) {
+            clearCachedJson('projects:');
             if (!isUpdate) {
                 setXpBurst('+2 XP');
                 window.setTimeout(() => setXpBurst(''), 900);
@@ -1190,6 +1228,7 @@ function ProjectCard({
             setInteractionMessage(data?.error || '删除评论失败，请稍后再试。');
             return;
         }
+        clearCachedJson('projects:');
         
         // Reset inputs if we deleted our own comment
         setNewComment('');
