@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type ChangeEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type ChangeEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Post, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
@@ -10,6 +10,7 @@ import Avatar from './Avatar';
 import { FORUM_PROMOS } from '@/data/forumPromos';
 import PostTextComposer from './PostTextComposer';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
+import { applyAvatarPatch, applyPostAvatarPatch, collectPostAvatarIds, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -132,6 +133,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         ? [{ id: 'announcement', label: '📢 Announcement' }, ...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS]
         : [...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS];
     const [posts, setPosts] = useState<Post[]>(initialPosts);
+    const [hydratedUser, setHydratedUser] = useState<User | null>(user);
     const [isCreating, setIsCreating] = useState(false);
     const [sortType, setSortType] = useState<'time' | 'heat' | 'likes'>('time');
     const [filterType, setFilterType] = useState<'all' | 'saved'>('all');
@@ -153,6 +155,14 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         ...visibleTagOptions,
         ...visiblePopularTags.map(({ tag }) => ({ id: tag, label: `# ${tag}` })),
     ].filter((option, index, options) => options.findIndex(item => item.id === option.id) === index);
+    const displayUser = hydratedUser || user;
+    const avatarIdsKey = useMemo(() => {
+        return Array.from(new Set(
+            collectPostAvatarIds(posts, user)
+                .map(id => Number(id))
+                .filter(id => Number.isFinite(id) && id > 0),
+        )).sort((a, b) => a - b).join(',');
+    }, [posts, user]);
 
     const requireLogin = () => {
         if (!user) {
@@ -229,6 +239,30 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             window.clearTimeout(timeoutId);
         };
     }, [posts.length]);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        let active = true;
+
+        const avatarIds = avatarIdsKey.split(',').map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0);
+        loadAvatarPatches(avatarIds, controller.signal)
+            .then(patches => {
+                if (!active || patches.size === 0) return;
+                setPosts(current => current.map(post => applyPostAvatarPatch(post, patches)));
+                if (user) {
+                    setHydratedUser(applyAvatarPatch(user, patches));
+                }
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                console.warn('Forum avatars unavailable:', error);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [avatarIdsKey, user]);
 
     const fetchPosts = async (sort: string = sortType, filter: string = filterType, tag: string = selectedTag) => {
         const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
@@ -639,7 +673,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                         className="glass-card composer-trigger"
                         style={{ marginBottom: createError ? '10px' : '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px', border: '2px dashed rgba(162, 155, 254, 0.5)', background: 'rgba(255,255,255,0.3)' }}
                     >
-                        <Avatar value={user?.avatar} theme={user?.avatar_theme} fallback="✍️" size={48} style={{ fontSize: '1.5rem', border: '2px solid white' }} />
+                        <Avatar value={displayUser?.avatar} emoji={displayUser?.avatar_emoji} theme={displayUser?.avatar_theme} fallback="✍️" size={48} style={{ fontSize: '1.5rem', border: '2px solid white' }} />
                         <div style={{ flex: 1, padding: '12px 20px', borderRadius: '20px', background: 'rgba(255,255,255,0.6)', color: '#636e72', fontWeight: 500 }}>
                             {user ? canCreatePost ? `Share your thoughts, ${user.username}...` : '完成 Hajimi 认证后可以互动和发帖' : 'Sign in to share your thoughts...'}
                         </div>
@@ -720,7 +754,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             {/* Feed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 {posts.map(post => (
-                    <PostCard key={post.id} post={post} currentUser={user} onDeleted={handlePostDeleted} onGuestAction={() => setShowLoginPrompt(true)} />
+                    <PostCard key={post.id} post={post} currentUser={displayUser} onDeleted={handlePostDeleted} onGuestAction={() => setShowLoginPrompt(true)} />
                 ))}
             </div>
         </div>

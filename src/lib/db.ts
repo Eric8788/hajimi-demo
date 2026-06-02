@@ -321,6 +321,13 @@ export interface AdminReviewTask {
     created_at: Date | string | null;
 }
 
+export interface PublicAvatar {
+    id: number;
+    avatar?: string | null;
+    avatar_emoji?: string | null;
+    avatar_theme?: string | null;
+}
+
 export interface AdminReviewSummary {
     totalCount: number;
     verificationCount: number;
@@ -592,6 +599,22 @@ export async function getUserById(id: number): Promise<User | null> {
       LIMIT 1
     `;
     return rows[0] || null;
+}
+
+export async function getPublicAvatars(userIds: number[]): Promise<PublicAvatar[]> {
+    const ids = Array.from(new Set(userIds.map(id => Math.floor(Number(id))).filter(id => Number.isFinite(id) && id > 0))).slice(0, 80);
+    if (ids.length === 0) return [];
+
+    const { rows } = await db.query<PublicAvatar>(
+        `
+          SELECT id, avatar, avatar_emoji, avatar_theme
+          FROM users
+          WHERE id = ANY($1::int[])
+        `,
+        [ids],
+    );
+
+    return rows;
 }
 
 export async function createUser(

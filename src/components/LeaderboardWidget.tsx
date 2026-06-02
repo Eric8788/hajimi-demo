@@ -6,6 +6,7 @@ import Avatar from './Avatar';
 import { User } from '@/lib/db';
 import UserBadges from './UserBadges';
 import { cachedJson } from '@/lib/clientJsonCache';
+import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
 const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
 const WINDOW_TABS = [
@@ -48,6 +49,15 @@ export default function LeaderboardWidget({
                 if (!active) return;
                 if (Array.isArray(data)) {
                     setLeaderboard(data.slice(0, limit));
+                    loadAvatarPatches(data.slice(0, limit).map(user => user.id), controller.signal)
+                        .then(patches => {
+                            if (!active || patches.size === 0) return;
+                            setLeaderboard(current => current.map(user => applyAvatarPatch(user, patches)));
+                        })
+                        .catch(error => {
+                            if (error instanceof DOMException && error.name === 'AbortError') return;
+                            console.warn('Leaderboard avatars unavailable:', error);
+                        });
                 } else {
                     setLeaderboard([]);
                     setError('榜单暂时没有返回有效数据。');

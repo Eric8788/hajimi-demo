@@ -13,6 +13,7 @@ import { formatHajimiId } from '@/lib/hajimiId';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avatarThemes';
+import { clearCachedJson } from '@/lib/clientJsonCache';
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -639,6 +640,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 return;
             }
 
+            clearCachedJson('avatars:');
             setIsEditing(false);
             setProfileSaveMessage('主页已更新。');
             router.refresh();

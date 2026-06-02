@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { updateUserProfile } from '@/lib/db';
 import { normalizeBadgePreferences } from '@/lib/badges';
+import { clearServerCache } from '@/lib/serverCache';
 
 export async function POST(request: Request) {
     try {
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
         };
 
         await updateUserProfile(userId, profileUpdates);
+        clearServerCache('avatars:');
 
         return NextResponse.json({ success: true });
     } catch (err) {

@@ -11,6 +11,7 @@ import Avatar from './Avatar';
 import UserBadges from './UserBadges';
 import PostTextComposer from './PostTextComposer';
 import { clearCachedJson } from '@/lib/clientJsonCache';
+import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
 const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
 
@@ -163,6 +164,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 setCommentsLoaded(true);
                 setCommentCount(data.length);
                 setFeaturedComment(pickFeaturedComment(data));
+                loadAvatarPatches(data.map(comment => comment.author_id))
+                    .then(patches => {
+                        if (patches.size === 0) return;
+                        setComments(current => current.map(comment => applyAuthorAvatarPatch(comment, patches)));
+                        setFeaturedComment(current => current ? applyAuthorAvatarPatch(current, patches) : current);
+                    })
+                    .catch(error => {
+                        console.warn('Comment avatars unavailable:', error);
+                    });
                 return data;
             }
 
