@@ -472,7 +472,6 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setSendingComment(false);
     };
 
-    const visibleComments = showComments ? comments : comments.slice(0, 2);
     const portalTarget = typeof document === 'undefined' ? null : document.body;
     const featuredCommentBadgeUser = featuredComment ? {
         username: featuredComment.author_name || '',
@@ -481,6 +480,71 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         badge_preferences: featuredComment.author_badge_preferences,
         verification_status: featuredComment.author_verification_status || undefined,
     } : null;
+    const visibleComments = showComments ? comments : [];
+    const hasFeaturedPreview = !isEditing && !showComments && featuredComment && featuredCommentBadgeUser;
+    const featuredCommentPreview = hasFeaturedPreview ? (
+        <div className="featured-comment-preview">
+            <div className="featured-comment-kicker">🔥 最火评论</div>
+            <div className="featured-comment-body">
+                <button
+                    type="button"
+                    className="avatar-link-button comment-avatar-button"
+                    onClick={() => openProfile(featuredComment.author_id)}
+                    aria-label={`View ${featuredComment.author_name || 'comment author'} profile`}
+                >
+                    <Avatar value={featuredComment.author_avatar} emoji={featuredComment.author_avatar_emoji} theme={featuredComment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
+                </button>
+                <div className="featured-comment-copy">
+                    <div className="featured-comment-author">
+                        <span>{featuredComment.author_name}</span>
+                        <UserBadges user={featuredCommentBadgeUser} compact iconOnly />
+                        <small suppressHydrationWarning className="inline-exact-time-chip featured-comment-time-chip">
+                            {formatExactTime(featuredComment.created_at, '回复')}
+                        </small>
+                    </div>
+                    {featuredComment.reply_author_name && (
+                        <div className="comment-reply-context">
+                            Replying to @{featuredComment.reply_author_name}: {shortPreview(featuredComment.reply_content)}
+                        </div>
+                    )}
+                    <div>{renderRichText(shortPreview(featuredComment.content))}</div>
+                    <div className="featured-comment-actions">
+                        <motion.button
+                            type="button"
+                            onClick={() => handleCommentLike(featuredComment.id)}
+                            className={`featured-comment-action reaction-button ${featuredComment.has_liked ? 'is-liked' : ''}`}
+                            whileTap={{ scale: 0.86 }}
+                            animate={commentLikeBurst === featuredComment.id ? { scale: [1, 1.16, 1] } : { scale: 1 }}
+                            transition={{ duration: 0.25 }}
+                        >
+                            <AnimatePresence>
+                                {commentLikeBurst === featuredComment.id && (
+                                    <motion.span
+                                        key={featuredComment.id}
+                                        className="reaction-burst"
+                                        initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                        animate={{ opacity: 1, y: -8, scale: 1 }}
+                                        exit={{ opacity: 0, y: -18, scale: 0.6 }}
+                                        transition={{ duration: 0.42 }}
+                                    >
+                                        liked
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
+                            {featuredComment.has_liked ? '❤️' : '🤍'} {featuredComment.likes}
+                        </motion.button>
+                        <button
+                            type="button"
+                            className="featured-comment-action"
+                            onClick={() => startReplyToComment(featuredComment)}
+                        >
+                            Reply
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    ) : null;
 
     return (
         <div
@@ -677,69 +741,6 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     </div>
                 )}
 
-                {!isEditing && !showComments && featuredComment && featuredCommentBadgeUser && (
-                    <div className="featured-comment-preview">
-                        <div className="featured-comment-kicker">🔥 最火评论</div>
-                        <div className="featured-comment-body">
-                            <button
-                                type="button"
-                                className="avatar-link-button comment-avatar-button"
-                                onClick={() => openProfile(featuredComment.author_id)}
-                                aria-label={`View ${featuredComment.author_name || 'comment author'} profile`}
-                            >
-                                <Avatar value={featuredComment.author_avatar} emoji={featuredComment.author_avatar_emoji} theme={featuredComment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
-                            </button>
-                            <div className="featured-comment-copy">
-                                <div className="featured-comment-author">
-                                    <span>{featuredComment.author_name}</span>
-                                    <UserBadges user={featuredCommentBadgeUser} compact iconOnly />
-                                    <small suppressHydrationWarning className="inline-exact-time-chip featured-comment-time-chip">
-                                        {formatExactTime(featuredComment.created_at, '回复')}
-                                    </small>
-                                </div>
-                                {featuredComment.reply_author_name && (
-                                    <div className="comment-reply-context">
-                                        Replying to @{featuredComment.reply_author_name}: {shortPreview(featuredComment.reply_content)}
-                                    </div>
-                                )}
-                                <div>{renderRichText(shortPreview(featuredComment.content))}</div>
-                                <div className="featured-comment-actions">
-                                    <motion.button
-                                        type="button"
-                                        onClick={() => handleCommentLike(featuredComment.id)}
-                                        className={`featured-comment-action reaction-button ${featuredComment.has_liked ? 'is-liked' : ''}`}
-                                        whileTap={{ scale: 0.86 }}
-                                        animate={commentLikeBurst === featuredComment.id ? { scale: [1, 1.16, 1] } : { scale: 1 }}
-                                        transition={{ duration: 0.25 }}
-                                    >
-                                        <AnimatePresence>
-                                            {commentLikeBurst === featuredComment.id && (
-                                                <motion.span
-                                                    key={featuredComment.id}
-                                                    className="reaction-burst"
-                                                    initial={{ opacity: 0, y: 8, scale: 0.7 }}
-                                                    animate={{ opacity: 1, y: -8, scale: 1 }}
-                                                    exit={{ opacity: 0, y: -18, scale: 0.6 }}
-                                                    transition={{ duration: 0.42 }}
-                                                >
-                                                    liked
-                                                </motion.span>
-                                            )}
-                                        </AnimatePresence>
-                                        {featuredComment.has_liked ? '❤️' : '🤍'} {featuredComment.likes}
-                                    </motion.button>
-                                    <button
-                                        type="button"
-                                        className="featured-comment-action"
-                                        onClick={() => startReplyToComment(featuredComment)}
-                                    >
-                                        Reply
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Actions Bar */}
@@ -809,7 +810,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Comments Section (Always Rendered if Loaded) */}
             <AnimatePresence>
-                {(commentsLoaded && comments.length > 0) && (
+                {(featuredCommentPreview || (showComments && commentsLoaded && comments.length > 0)) && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -817,98 +818,92 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         style={{ overflow: 'hidden' }}
                     >
                         <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
-                            {/* Comments List... */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: showComments ? '300px' : 'none', overflowY: showComments ? 'auto' : 'visible' }}>
-                                {visibleComments.map(c => (
-                                    <div key={c.id} className="comment-row-time-hover" style={{ display: 'flex', gap: '10px' }}>
-                                        <button
-                                            type="button"
-                                            className="avatar-link-button comment-avatar-button"
-                                            onClick={() => openProfile(c.author_id)}
-                                            aria-label={`View ${c.author_name || 'comment author'} profile`}
-                                        >
-                                            <Avatar value={c.author_avatar} emoji={c.author_avatar_emoji} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
-                                        </button>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</span>
-                                                    <UserBadges
-                                                        user={{
-                                                            username: c.author_name || '',
-                                                            role: c.author_role || 'student',
-                                                            is_creator: c.author_is_creator,
-                                                            badge_preferences: c.author_badge_preferences,
-                                                            verification_status: c.author_verification_status || undefined,
-                                                        }}
-                                                        compact
-                                                        iconOnly
-                                                    />
-                                                    <span suppressHydrationWarning className="inline-exact-time-chip comment-exact-time-chip">
-                                                        {formatExactTime(c.created_at, '回复')}
-                                                    </span>
-                                                </div>
-                                                <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    {c.likes > 0 && <span>{c.likes} likes</span>}
-                                                    <motion.button
-                                                        onClick={() => handleCommentLike(c.id)}
-                                                        className="reaction-button"
-                                                        whileTap={{ scale: 0.84 }}
-                                                        animate={commentLikeBurst === c.id ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-                                                        transition={{ duration: 0.25 }}
-                                                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: c.has_liked ? '#ff7675' : '#b2bec3' }}
-                                                    >
-                                                        <AnimatePresence>
-                                                            {commentLikeBurst === c.id && (
-                                                                <motion.span
-                                                                    key={c.id}
-                                                                    className="reaction-burst"
-                                                                    initial={{ opacity: 0, y: 8, scale: 0.7 }}
-                                                                    animate={{ opacity: 1, y: -8, scale: 1 }}
-                                                                    exit={{ opacity: 0, y: -18, scale: 0.6 }}
-                                                                    transition={{ duration: 0.42 }}
-                                                                >
-                                                                    liked
-                                                                </motion.span>
-                                                            )}
-                                                        </AnimatePresence>
-                                                        {c.has_liked ? '❤️' : '🤍'}
-                                                    </motion.button>
-                                                    {!isGuest && canInteract && (
-                                                        <button
-                                                            onClick={() => startReplyToComment(c)}
-                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6c5ce7', fontSize: '0.8rem', fontWeight: 700 }}
-                                                            title={`Reply to ${c.author_name}`}
-                                                        >Reply</button>
-                                                    )}
-                                                    {!isGuest && currentUser && (c.author_id === currentUser.id || canModerate) && (
-                                                        <button
-                                                            onClick={() => handleDeleteComment(c.id)}
-                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
-                                                            title={c.author_id === currentUser.id ? 'Delete Comment' : 'Admin Delete Comment'}
-                                                        >🗑️</button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {c.reply_author_name && (
-                                                <div className="comment-reply-context">
-                                                    Replying to @{c.reply_author_name}: {shortPreview(c.reply_content)}
-                                                </div>
-                                            )}
-                                            <div style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>{renderRichText(c.content)}</div>
-                                        </div>
-                                    </div>
-                                ))}
+                            {featuredCommentPreview}
 
-                                {!showComments && comments.length > 2 && (
-                                    <div
-                                        onClick={() => setShowComments(true)}
-                                        style={{ fontSize: '0.85rem', color: '#6c5ce7', cursor: 'pointer', fontWeight: 600 }}
-                                    >
-                                        View all {comments.length} comments...
-                                    </div>
-                                )}
-                            </div>
+                            {showComments && commentsLoaded && comments.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: '300px', overflowY: 'auto' }}>
+                                    {visibleComments.map(c => (
+                                        <div key={c.id} className="comment-row-time-hover" style={{ display: 'flex', gap: '10px' }}>
+                                            <button
+                                                type="button"
+                                                className="avatar-link-button comment-avatar-button"
+                                                onClick={() => openProfile(c.author_id)}
+                                                aria-label={`View ${c.author_name || 'comment author'} profile`}
+                                            >
+                                                <Avatar value={c.author_avatar} emoji={c.author_avatar_emoji} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
+                                            </button>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</span>
+                                                        <UserBadges
+                                                            user={{
+                                                                username: c.author_name || '',
+                                                                role: c.author_role || 'student',
+                                                                is_creator: c.author_is_creator,
+                                                                badge_preferences: c.author_badge_preferences,
+                                                                verification_status: c.author_verification_status || undefined,
+                                                            }}
+                                                            compact
+                                                            iconOnly
+                                                        />
+                                                        <span suppressHydrationWarning className="inline-exact-time-chip comment-exact-time-chip">
+                                                            {formatExactTime(c.created_at, '回复')}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                        {c.likes > 0 && <span>{c.likes} likes</span>}
+                                                        <motion.button
+                                                            onClick={() => handleCommentLike(c.id)}
+                                                            className="reaction-button"
+                                                            whileTap={{ scale: 0.84 }}
+                                                            animate={commentLikeBurst === c.id ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                                                            transition={{ duration: 0.25 }}
+                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: c.has_liked ? '#ff7675' : '#b2bec3' }}
+                                                        >
+                                                            <AnimatePresence>
+                                                                {commentLikeBurst === c.id && (
+                                                                    <motion.span
+                                                                        key={c.id}
+                                                                        className="reaction-burst"
+                                                                        initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                                                        animate={{ opacity: 1, y: -8, scale: 1 }}
+                                                                        exit={{ opacity: 0, y: -18, scale: 0.6 }}
+                                                                        transition={{ duration: 0.42 }}
+                                                                    >
+                                                                        liked
+                                                                    </motion.span>
+                                                                )}
+                                                            </AnimatePresence>
+                                                            {c.has_liked ? '❤️' : '🤍'}
+                                                        </motion.button>
+                                                        {!isGuest && canInteract && (
+                                                            <button
+                                                                onClick={() => startReplyToComment(c)}
+                                                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6c5ce7', fontSize: '0.8rem', fontWeight: 700 }}
+                                                                title={`Reply to ${c.author_name}`}
+                                                            >Reply</button>
+                                                        )}
+                                                        {!isGuest && currentUser && (c.author_id === currentUser.id || canModerate) && (
+                                                            <button
+                                                                onClick={() => handleDeleteComment(c.id)}
+                                                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
+                                                                title={c.author_id === currentUser.id ? 'Delete Comment' : 'Admin Delete Comment'}
+                                                            >🗑️</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {c.reply_author_name && (
+                                                    <div className="comment-reply-context">
+                                                        Replying to @{c.reply_author_name}: {shortPreview(c.reply_content)}
+                                                    </div>
+                                                )}
+                                                <div style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>{renderRichText(c.content)}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* Comment Input - Only visible when fully expanded or if no comments yet */}
                             {showComments && (

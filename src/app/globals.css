@@ -9251,7 +9251,7 @@ html *::after {
 }
 
 .featured-comment-preview {
-  margin-top: 14px;
+  margin: 0;
   padding: 11px 12px;
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(255,255,255,0.72), rgba(162,155,254,0.1));
