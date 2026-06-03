@@ -657,8 +657,8 @@ textarea:hover,
 
 .project-card-shell {
   position: relative;
-  height: 500px;
-  min-height: 500px;
+  height: 470px;
+  min-height: 470px;
   border: 0;
   background: transparent;
   perspective: 1200px;
@@ -687,9 +687,9 @@ textarea:hover,
   inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   overflow: hidden;
-  padding: 24px;
+  padding: 22px;
   border: 1px solid rgba(255,255,255,0.72);
   background: var(--project-accent-bg, rgba(255,255,255,0.58));
   backface-visibility: hidden;
@@ -803,16 +803,16 @@ textarea:hover,
 }
 
 .project-card-bookmark {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
-  border: none;
+  border: 1px solid rgba(108,92,231,0.14);
   border-radius: 999px;
-  color: #fff;
-  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-  box-shadow: 0 10px 22px rgba(108,92,231,0.24);
+  color: #8f96a3;
+  background: rgba(255,255,255,0.68);
+  box-shadow: 0 8px 18px rgba(108,92,231,0.08);
   font-family: inherit;
   font-size: 1rem;
   font-weight: 950;
@@ -826,13 +826,14 @@ textarea:hover,
 .project-card-bookmark.is-active {
   outline: none;
   transform: translateY(-1px);
-  color: #fff;
-  background: linear-gradient(135deg, #6c5ce7, #37c6d0);
-  box-shadow: 0 14px 26px rgba(108,92,231,0.3);
+  color: #f39c12;
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(243,156,18,0.28);
+  box-shadow: 0 12px 24px rgba(243,156,18,0.14);
 }
 
 .project-card-bookmark:disabled {
-  opacity: 0.62;
+  opacity: 0.55;
   cursor: wait;
 }
 
@@ -1068,7 +1069,7 @@ textarea:hover,
   border-radius: 999px;
   padding: 8px 13px;
   color: #fff;
-  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  background: #7b61ff;
   box-shadow: 0 10px 20px rgba(108,92,231,0.22);
   font-family: inherit;
   font-size: 0.76rem;
@@ -1080,8 +1081,8 @@ textarea:hover,
 .project-card-back-button:hover,
 .project-card-back-button:focus-visible {
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #6c5ce7, #37c6d0);
-  box-shadow: 0 14px 28px rgba(108,92,231,0.3);
+  background: #7b61ff;
+  box-shadow: 0 14px 28px rgba(108,92,231,0.28);
   outline: none;
 }
 
@@ -1181,11 +1182,12 @@ textarea:hover,
 
 .project-card-tip-box {
   display: grid;
-  gap: 9px;
-  border-radius: 16px;
-  padding: 12px;
-  background: linear-gradient(135deg, rgba(108,92,231,0.1), rgba(55,198,208,0.08));
-  border: 1px solid rgba(108,92,231,0.12);
+  gap: 8px;
+  border-radius: 14px;
+  padding: 11px;
+  background: rgba(255,255,255,0.42);
+  border: 1px solid rgba(255,255,255,0.68);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.62);
 }
 
 .project-card-tip-head {
@@ -1202,39 +1204,39 @@ textarea:hover,
 
 .project-card-tip-head strong {
   color: #2d3436;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 950;
 }
 
 .project-card-tip-head span {
   margin-top: 3px;
   color: #6b7280;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 760;
   line-height: 1.35;
 }
 
 .project-card-tip-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(38px, auto)) minmax(64px, 1fr) auto;
+  grid-template-columns: repeat(3, minmax(34px, auto)) minmax(58px, 1fr) auto;
   gap: 6px;
   align-items: center;
 }
 
 .project-card-tip-options button,
 .project-card-tip-options input {
-  min-height: 34px;
+  min-height: 31px;
   border-radius: 999px;
   font-family: inherit;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 900;
 }
 
 .project-card-tip-options button {
   border: none;
   color: #fff;
-  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-  box-shadow: 0 9px 18px rgba(108,92,231,0.18);
+  background: #7b61ff;
+  box-shadow: 0 7px 14px rgba(108,92,231,0.14);
   cursor: pointer;
   transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
@@ -1245,8 +1247,8 @@ textarea:hover,
   outline: none;
   transform: translateY(-1px);
   color: #fff;
-  background: linear-gradient(135deg, #6c5ce7, #37c6d0);
-  box-shadow: 0 10px 20px rgba(108,92,231,0.16);
+  background: #7b61ff;
+  box-shadow: 0 10px 20px rgba(108,92,231,0.2);
 }
 
 .project-card-tip-options button:disabled {
@@ -1270,10 +1272,10 @@ textarea:hover,
 
 .project-card-tip-submit {
   border: none;
-  padding: 0 13px;
+  padding: 0 12px;
   color: #fff;
-  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-  box-shadow: 0 9px 18px rgba(108,92,231,0.2);
+  background: #7b61ff;
+  box-shadow: 0 7px 14px rgba(108,92,231,0.16);
   cursor: pointer;
 }
 
@@ -1281,8 +1283,8 @@ textarea:hover,
 .project-card-tip-submit:focus-visible:not(:disabled) {
   outline: none;
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #6c5ce7, #37c6d0);
-  box-shadow: 0 12px 24px rgba(108,92,231,0.28);
+  background: #7b61ff;
+  box-shadow: 0 12px 24px rgba(108,92,231,0.24);
 }
 
 .project-card-tip-submit:disabled {

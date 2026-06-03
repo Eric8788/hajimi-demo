@@ -342,7 +342,7 @@ const ADMIN_WINDOW_XP_CAP = 120;
 const ADMIN_DAILY_ACTIVITY_XP_CAP = 24;
 const MEMBER_DAILY_ACTIVITY_XP_CAP = 120;
 
-function applyVisibleXpDisplayCap(points: number, role?: string | null) {
+export function applyVisibleXpDisplayCap(points: number, role?: string | null) {
     const safePoints = Math.max(0, Math.round(points));
     return String(role || '').toLowerCase() === 'admin'
         ? Math.min(safePoints, ADMIN_VISIBLE_XP_CAP)
@@ -571,8 +571,11 @@ export async function getUserById(id: number): Promise<User | null> {
       SELECT
         users.id,
         users.username,
-        users.points,
-        users.level,
+        CASE WHEN users.role = 'admin' THEN LEAST(users.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE users.points END as points,
+        GREATEST(
+          1,
+          FLOOR(SQRT((CASE WHEN users.role = 'admin' THEN LEAST(users.points, ${ADMIN_VISIBLE_XP_CAP}) ELSE users.points END) / 50.0))::int + 1
+        ) as level,
         users.role,
         users.bio,
         users.avatar,
@@ -1425,8 +1428,19 @@ export async function addPoints(userId: number, amount: number) {
     await sql`
     UPDATE users
     SET
-      points = points + ${amount},
-      level = GREATEST(level, FLOOR(SQRT((points + ${amount}) / 50.0))::int + 1)
+      points = CASE
+        WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + ${amount})
+        ELSE points + ${amount}
+      END,
+      level = GREATEST(
+        level,
+        FLOOR(SQRT((
+          CASE
+            WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + ${amount})
+            ELSE points + ${amount}
+          END
+        ) / 50.0))::int + 1
+      )
     WHERE id = ${userId}
   `;
 }
@@ -2974,31 +2988,55 @@ export async function tipProject(senderId: number, projectId: number, amount: nu
         const recipientId = Number(project.author_id);
         if (recipientId === senderId) throw new Error('Cannot tip your own project');
 
-        const { rows: senderRows } = await client.sql<{ points: number }>`
-          SELECT points
+        const { rows: senderRows } = await client.sql<{ points: number; role: string | null }>`
+          SELECT points, role
           FROM users
           WHERE id = ${senderId}
           FOR UPDATE
         `;
         const senderPoints = Number(senderRows[0]?.points || 0);
-        if (senderPoints < safeAmount) throw new Error('Insufficient points');
+        const senderVisiblePoints = applyVisibleXpDisplayCap(senderPoints, senderRows[0]?.role);
+        if (senderVisiblePoints < safeAmount) throw new Error('Insufficient points');
 
-        const { rows: debitedRows } = await client.sql<{ points: number; level: number }>`
+        const { rows: debitedRows } = await client.sql<{ points: number; level: number; role: string | null }>`
           UPDATE users
           SET
-            points = points - ${safeAmount},
-            level = GREATEST(1, FLOOR(SQRT(GREATEST(points - ${safeAmount}, 0) / 50.0))::int + 1)
+            points = CASE
+              WHEN role = 'admin' THEN GREATEST(LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) - ${safeAmount}, 0)
+              ELSE points - ${safeAmount}
+            END,
+            level = GREATEST(
+              1,
+              FLOOR(SQRT(GREATEST(
+                CASE
+                  WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) - ${safeAmount}
+                  ELSE points - ${safeAmount}
+                END,
+                0
+              ) / 50.0))::int + 1
+            )
           WHERE id = ${senderId}
-          RETURNING points, level
+          RETURNING points, level, role
         `;
 
-        const { rows: creditedRows } = await client.sql<{ points: number; level: number }>`
+        const { rows: creditedRows } = await client.sql<{ points: number; level: number; role: string | null }>`
           UPDATE users
           SET
-            points = points + ${safeAmount},
-            level = GREATEST(level, FLOOR(SQRT((points + ${safeAmount}) / 50.0))::int + 1)
+            points = CASE
+              WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + ${safeAmount})
+              ELSE points + ${safeAmount}
+            END,
+            level = GREATEST(
+              level,
+              FLOOR(SQRT((
+                CASE
+                  WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + ${safeAmount})
+                  ELSE points + ${safeAmount}
+                END
+              ) / 50.0))::int + 1
+            )
           WHERE id = ${recipientId}
-          RETURNING points, level
+          RETURNING points, level, role
         `;
 
         const { rows: tipRows } = await client.sql<{ id: number }>`
@@ -3013,9 +3051,9 @@ export async function tipProject(senderId: number, projectId: number, amount: nu
             id: Number(tipRows[0]?.id || 0),
             amount: safeAmount,
             recipientId,
-            senderPoints: Number(debitedRows[0]?.points || 0),
+            senderPoints: applyVisibleXpDisplayCap(Number(debitedRows[0]?.points || 0), debitedRows[0]?.role),
             senderLevel: Number(debitedRows[0]?.level || 1),
-            recipientPoints: Number(creditedRows[0]?.points || 0),
+            recipientPoints: applyVisibleXpDisplayCap(Number(creditedRows[0]?.points || 0), creditedRows[0]?.role),
             recipientLevel: Number(creditedRows[0]?.level || 1),
         };
     } catch (error) {
@@ -3414,8 +3452,19 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
                     await client.sql`
                       UPDATE users
                       SET
-                        points = points + 50,
-                        level = GREATEST(level, FLOOR(SQRT((points + 50) / 50.0))::int + 1)
+                        points = CASE
+                          WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + 50)
+                          ELSE points + 50
+                        END,
+                        level = GREATEST(
+                          level,
+                          FLOOR(SQRT((
+                            CASE
+                              WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + 50)
+                              ELSE points + 50
+                            END
+                          ) / 50.0))::int + 1
+                        )
                       WHERE id = ${submission.author_id}
                     `;
                 }
@@ -3445,8 +3494,19 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
                     await client.sql`
                       UPDATE users
                       SET
-                        points = points + 100,
-                        level = GREATEST(level, FLOOR(SQRT((points + 100) / 50.0))::int + 1)
+                        points = CASE
+                          WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + 100)
+                          ELSE points + 100
+                        END,
+                        level = GREATEST(
+                          level,
+                          FLOOR(SQRT((
+                            CASE
+                              WHEN role = 'admin' THEN LEAST(${ADMIN_VISIBLE_XP_CAP}, LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) + 100)
+                              ELSE points + 100
+                            END
+                          ) / 50.0))::int + 1
+                        )
                       WHERE id = ${submission.author_id}
                     `;
                 }
