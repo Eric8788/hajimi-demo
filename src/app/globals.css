@@ -1974,6 +1974,27 @@ textarea:hover,
   pointer-events: none;
 }
 
+.hub-spotlight-cover-visual {
+  padding: 0;
+  background: rgba(255,255,255,0.74);
+}
+
+.hub-spotlight-cover-visual::before {
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.42), transparent 38%),
+    linear-gradient(0deg, rgba(255,255,255,0.16), transparent 42%);
+}
+
+.hub-spotlight-cover-visual img {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
 .hub-paper-workspace {
   position: relative;
   z-index: 1;

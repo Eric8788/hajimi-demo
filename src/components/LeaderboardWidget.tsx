@@ -20,7 +20,7 @@ type LeaderboardWindow = (typeof WINDOW_TABS)[number]['id'];
 export default function LeaderboardWidget({
     limit = 10,
     showViewAll = true,
-    defaultWindow = 'all',
+    defaultWindow = 'week',
     subtitle,
 }: {
     limit?: number;

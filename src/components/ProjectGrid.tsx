@@ -47,7 +47,7 @@ type HubLeaderboardStats = {
     effectiveOpens: number;
 };
 
-type SpotlightKind = 'submit' | 'cpaper' | 'ocean';
+type SpotlightKind = 'submit' | 'galgame' | 'vocab' | 'cpaper' | 'ocean';
 
 type HubSpotlightCopy = {
     kind: SpotlightKind;
@@ -98,6 +98,14 @@ function recordProjectOpen(projectId: number | string) {
 function getSpotlightKind(project: any): SpotlightKind | null {
     const fingerprint = `${project.title || ''} ${project.url || ''}`.toLowerCase();
 
+    if (fingerprint.includes('galgame') || fingerprint.includes('cagg.top')) {
+        return 'galgame';
+    }
+
+    if (fingerprint.includes('vocab runner') || fingerprint.includes('vocab-runner-game')) {
+        return 'vocab';
+    }
+
     if (fingerprint.includes('c-paper') || fingerprint.includes('cpaper') || fingerprint.includes('yiming.us/c-paper')) {
         return 'cpaper';
     }
@@ -111,8 +119,10 @@ function getSpotlightKind(project: any): SpotlightKind | null {
 
 function getSpotlightOrder(project: any) {
     const kind = getSpotlightKind(project);
-    if (kind === 'cpaper') return 0;
-    if (kind === 'ocean') return 1;
+    if (kind === 'galgame') return 0;
+    if (kind === 'vocab') return 1;
+    if (kind === 'cpaper') return 2;
+    if (kind === 'ocean') return 3;
     return 99;
 }
 
@@ -158,7 +168,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [submissionMessage, setSubmissionMessage] = useState('');
     const [submissionLoading, setSubmissionLoading] = useState(false);
     const [projectLoadError, setProjectLoadError] = useState('');
-    const [hubLeaderboardWindow, setHubLeaderboardWindow] = useState<HubLeaderboardWindow>('today');
+    const [hubLeaderboardWindow, setHubLeaderboardWindow] = useState<HubLeaderboardWindow>('week');
     const [hubRankingMode, setHubRankingMode] = useState<HubRankingMode>('heat');
     const [spotlightIndex, setSpotlightIndex] = useState(0);
     const [spotlightPaused, setSpotlightPaused] = useState(false);
@@ -250,6 +260,34 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const getSpotlightCopy = (project: any): HubSpotlightCopy | null => {
         const kind = getSpotlightKind(project);
         const authorName = getDisplayName(project.author_name || project.author || '');
+
+        if (kind === 'galgame') {
+            return {
+                kind,
+                label: 'New Project',
+                status: `${project.title} · by ${authorName} · 视觉小说体验`,
+                titleBefore: 'LUNA 新作：',
+                titleAccent: project.title || '~galgame~',
+                titleAfter: '',
+                text: '用视觉小说的节奏体验剧情、选择和角色互动。适合直接打开试玩，然后把文本节奏、分支选择和画面反馈留给创作者。',
+                meta: ['Game', 'Visual Novel', `⭐ ${Number(project.rating || 0).toFixed(1)} · ${Number(project.rating_count || 0)} 条反馈`],
+                ctaLabel: '立即体验',
+            };
+        }
+
+        if (kind === 'vocab') {
+            return {
+                kind,
+                label: 'New Project',
+                status: `${project.title} · by ${authorName} · 英语词汇冲刺`,
+                titleBefore: 'Vocab Runner：',
+                titleAccent: '边跑边背单词',
+                titleAfter: '',
+                text: '把课堂词汇练习做成 sprint runner：关卡、反馈和任务节奏结合，适合用真实班级词表测试难度和记忆效率。',
+                meta: ['Tool', 'Classroom', `⭐ ${Number(project.rating || 0).toFixed(1)} · ${Number(project.rating_count || 0)} 条反馈`],
+                ctaLabel: '立即体验',
+            };
+        }
 
         if (kind === 'cpaper') {
             return {
@@ -957,6 +995,15 @@ function HubSpotlightVisual({ kind, project }: { kind: SpotlightKind, project: a
                     <strong>03</strong>
                     <span>上线展示</span>
                 </div>
+            </div>
+        );
+    }
+
+    const coverUrl = getImageDisplayUrl(project?.cover_url || project?.coverUrl);
+    if (coverUrl) {
+        return (
+            <div className="hub-spotlight-visual hub-spotlight-cover-visual" aria-hidden="true">
+                <img src={coverUrl} alt="" loading="lazy" decoding="async" />
             </div>
         );
     }

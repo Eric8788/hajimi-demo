@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminAuditEvent, AdminReviewSummary, AdminReviewTask, Notification } from '@/lib/db';
@@ -34,6 +34,7 @@ function formatNotificationTime(value: Date | string | null | undefined) {
 
 export default function NotificationsBell({ initialUnreadCount = 0 }: { initialUnreadCount?: number }) {
     const router = useRouter();
+    const popoverRef = useRef<HTMLDivElement | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [reviewSummary, setReviewSummary] = useState<AdminReviewSummary | null>(null);
     const [reviewHistory, setReviewHistory] = useState<AdminAuditEvent[]>([]);
@@ -89,6 +90,19 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
             window.removeEventListener('hajimi-notifications-refresh', handleRefresh);
         };
     }, [loadNotifications]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (target && popoverRef.current?.contains(target)) return;
+            setIsOpen(false);
+        };
+
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => document.removeEventListener('pointerdown', handlePointerDown);
+    }, [isOpen]);
 
     const markActivityRead = async () => {
         if (unreadCount <= 0) return;
@@ -225,7 +239,7 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
     };
 
     return (
-        <div style={{ position: 'relative', marginBottom: '14px' }}>
+        <div ref={popoverRef} style={{ position: 'relative', marginBottom: '14px' }}>
             <motion.button
                 type="button"
                 className={`notification-trigger ${displayCount > 0 ? 'has-unread' : ''}`}
