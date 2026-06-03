@@ -8,6 +8,7 @@ import NotificationsBell from './NotificationsBell';
 import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 import Avatar from './Avatar';
 import { isAdminRole } from '@/lib/roles';
+import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
 const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile'];
 
@@ -17,6 +18,8 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const [isPending, startTransition] = useTransition();
     const [unreadCount, setUnreadCount] = useState(0);
     const [pendingPath, setPendingPath] = useState('');
+    const [hydratedUser, setHydratedUser] = useState<User | null>(user);
+    const displayUser = hydratedUser || user;
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
@@ -24,12 +27,39 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         { icon: '🚀', path: '/functions', label: 'Hub' },
         { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '🏆', path: '/leaderboard', label: 'Rank' },
-        ...(isAdminRole(user?.role) ? [{ icon: '🛡️', path: '/admin', label: 'Admin' }] : []),
+        ...(isAdminRole(displayUser?.role) ? [{ icon: '🛡️', path: '/admin', label: 'Admin' }] : []),
     ];
     const prefetchPath = useCallback((path: string) => {
         if (path === pathname) return;
         router.prefetch(path);
     }, [pathname, router]);
+
+    useEffect(() => {
+        setHydratedUser(user);
+    }, [user]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        if (user.avatar?.startsWith('data:image/') || user.avatar?.startsWith('http')) return;
+
+        const controller = new AbortController();
+        let active = true;
+
+        loadAvatarPatches([user.id], controller.signal)
+            .then(patches => {
+                if (!active || patches.size === 0) return;
+                setHydratedUser(applyAvatarPatch(user, patches));
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                console.warn('Sidebar avatar unavailable:', error);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [user]);
 
     const loadUnreadCount = useCallback(async () => {
         if (!user) {
@@ -138,7 +168,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                 })}
 
                 <div className="sidebar-bottom">
-                    {user ? (
+                    {displayUser ? (
                         <>
                             <NotificationsBell initialUnreadCount={unreadCount} />
                             <button
@@ -149,7 +179,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 onFocus={() => prefetchPath('/profile')}
                                 title="Profile"
                             >
-                                <Avatar value={user.avatar} theme={user.avatar_theme} fallback="😊" size={42} />
+                                <Avatar value={displayUser.avatar} emoji={displayUser.avatar_emoji} theme={displayUser.avatar_theme} fallback="😊" size={42} />
                             </button>
                         </>
                     ) : (
