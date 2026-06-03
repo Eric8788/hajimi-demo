@@ -1260,6 +1260,14 @@ textarea:hover,
   box-shadow: 0 10px 20px rgba(108,92,231,0.2);
 }
 
+.project-card-tip-options button:not(.project-card-tip-submit).is-active:hover:not(:disabled),
+.project-card-tip-options button:not(.project-card-tip-submit).is-active:focus-visible:not(:disabled) {
+  color: #fff;
+  background: #7b61ff;
+  border-color: transparent;
+  box-shadow: 0 10px 20px rgba(108,92,231,0.2);
+}
+
 .project-card-tip-options button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
