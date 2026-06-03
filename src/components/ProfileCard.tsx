@@ -14,6 +14,7 @@ import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPo
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avatarThemes';
 import { clearCachedJson } from '@/lib/clientJsonCache';
+import { getImageDisplayUrl } from '@/lib/imageProxy';
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -1615,7 +1616,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             <div className="profile-feed-label">Featured Post</div>
                             <Link href={getPostHref(featuredPost.id)} className="profile-featured-content profile-post-link-card" aria-label={`打开论坛帖子：${featuredPost.title}`}>
                                 {featuredPost.attachment_url && (
-                                    <img src={featuredPost.attachment_url} alt="" />
+                                    <img src={getImageDisplayUrl(featuredPost.attachment_url)} alt="" />
                                 )}
                                 <div>
                                     <span>{getTagLabel(featuredPost.tag)}</span>
@@ -1634,7 +1635,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             <div className="profile-feed-label">Profile Note</div>
                             <div className="profile-featured-content">
                                 {profileImage && (
-                                    <img src={profileImage} alt={`${user.username}'s profile note`} />
+                                    <img src={getImageDisplayUrl(profileImage)} alt={`${user.username}'s profile note`} />
                                 )}
                                 <div>
                                     <span>#Profile</span>
@@ -1684,7 +1685,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <div className="profile-post-list">
                             {recentPosts.length > 0 ? recentPosts.map(post => (
                                 <Link key={post.id} href={getPostHref(post.id)} className="profile-post-list-item profile-post-link-card" aria-label={`打开论坛帖子：${post.title}`}>
-                                    {post.attachment_url && <img src={post.attachment_url} alt="" />}
+                                    {post.attachment_url && <img src={getImageDisplayUrl(post.attachment_url)} alt="" />}
                                     <div>
                                         <h4>{post.title}</h4>
                                         <p>{getPreviewText(post.content, 96)}</p>

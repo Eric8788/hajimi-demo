@@ -9079,6 +9079,40 @@ html *::after {
   background: #fff;
 }
 
+.post-image-fallback,
+.post-image-modal-fallback {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 26px;
+  color: #5f4bd8;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(108,92,231,0.14), transparent 40%),
+    rgba(255,255,255,0.72);
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.post-image-fallback small {
+  color: #7b8794;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.post-image-modal-fallback {
+  min-width: min(420px, 82vw);
+  min-height: 160px;
+  border-radius: 18px;
+  color: #fff;
+  background: rgba(108,92,231,0.36);
+  border: 1px solid rgba(255,255,255,0.22);
+  text-decoration: none;
+  backdrop-filter: blur(18px);
+}
+
 .post-rich-link {
   color: #5f4bd8;
   font-weight: 700;

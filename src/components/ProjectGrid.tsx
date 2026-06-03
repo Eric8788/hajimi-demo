@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Project, User } from '@/lib/db';
 import ProjectCoverStudio from './ProjectCoverStudio';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
+import { getImageDisplayUrl } from '@/lib/imageProxy';
 
 const TAG_COLORS: Record<string, string> = {
     Game: '#6c5ce7',
@@ -1059,6 +1060,7 @@ function ProjectCard({
     const [newComment, setNewComment] = useState('');
     const [xpBurst, setXpBurst] = useState('');
     const [interactionMessage, setInteractionMessage] = useState('');
+    const [coverFailed, setCoverFailed] = useState(false);
     const displayAuthor = project.author_name
         ? (project.author_name.toLowerCase() === 'eric' ? 'AI Club' : project.author_name)
         : (project.author?.toLowerCase() === 'eric' ? 'AI Club' : project.author);
@@ -1066,7 +1068,12 @@ function ProjectCard({
     const tagline = getProjectTagline(project);
     const primaryTag = getPrimaryProjectTag(project);
     const coverUrl = isValidCoverUrl(project.cover_url || project.coverUrl) ? String(project.cover_url || project.coverUrl).trim() : '';
+    const coverImageSrc = getImageDisplayUrl(coverUrl);
     const coverAccent = TAG_COLORS[primaryTag] || project.accent_color || project.accentColor || '#6c5ce7';
+
+    useEffect(() => {
+        setCoverFailed(false);
+    }, [coverUrl]);
 
     const openBack = () => {
         setIsFlipped(true);
@@ -1257,12 +1264,20 @@ function ProjectCard({
             <div className="project-card-inner">
                 <article className="project-card-face project-card-front glass-panel" aria-hidden={isFlipped} inert={isFlipped ? true : undefined}>
                     <div className="project-card-cover" style={{ '--project-cover-accent': coverAccent } as CSSProperties}>
-                        {coverUrl ? (
-                            <img className="project-card-cover-image" src={coverUrl} alt="" loading="lazy" />
+                        {coverImageSrc && !coverFailed ? (
+                            <img
+                                className="project-card-cover-image"
+                                src={coverImageSrc}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                onError={() => setCoverFailed(true)}
+                            />
                         ) : (
                             <div className="project-card-cover-fallback" aria-hidden="true">
                                 <span className="project-card-cover-emoji">{project.emoji}</span>
                                 <span className="project-card-cover-kicker">{TAG_EMOJIS[primaryTag] ? `${TAG_EMOJIS[primaryTag]} ${primaryTag}` : primaryTag}</span>
+                                <strong>{project.title}</strong>
                             </div>
                         )}
                         <div className="project-card-cover-shine" aria-hidden="true" />

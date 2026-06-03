@@ -12,6 +12,7 @@ import UserBadges from './UserBadges';
 import PostTextComposer from './PostTextComposer';
 import { clearCachedJson } from '@/lib/clientJsonCache';
 import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
+import { getImageDisplayUrl } from '@/lib/imageProxy';
 
 const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
 
@@ -154,6 +155,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     // Image Modal State
     const [showImageModal, setShowImageModal] = useState(false);
+    const [attachmentImageFailed, setAttachmentImageFailed] = useState(false);
+    const attachmentImageSrc = getImageDisplayUrl(post.attachment_url);
+
+    useEffect(() => {
+        setAttachmentImageFailed(false);
+    }, [post.attachment_url]);
 
     const loadComments = useCallback(async () => {
         try {
@@ -646,13 +653,21 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 onClick={() => setShowImageModal(true)}
                                 aria-label="Open image"
                             >
-                                <img
-                                    src={post.attachment_url}
-                                    alt="Post attachment"
-                                    loading="lazy"
-                                    decoding="async"
-                                    fetchPriority="low"
-                                />
+                                {attachmentImageSrc && !attachmentImageFailed ? (
+                                    <img
+                                        src={attachmentImageSrc}
+                                        alt="Post attachment"
+                                        loading="lazy"
+                                        decoding="async"
+                                        fetchPriority="low"
+                                        onError={() => setAttachmentImageFailed(true)}
+                                    />
+                                ) : (
+                                    <span className="post-image-fallback">
+                                        <strong>图片暂时加载失败</strong>
+                                        <small>点击可尝试打开原图</small>
+                                    </span>
+                                )}
                             </button>
                         ) : (
                             <a href={post.attachment_url} target="_blank" className="btn" style={{ background: '#dfe6e9', color: '#2d3436', fontSize: '0.9rem', padding: '10px 15px' }}>
@@ -975,20 +990,33 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 cursor: 'default'
                             }}
                         >
-                            <motion.img
-                                initial={{ scale: 0.9 }}
-                                animate={{ scale: 1 }}
-                                exit={{ scale: 0.9 }}
-                                src={post.attachment_url}
-                                alt="Full size"
-                                onClick={e => e.stopPropagation()}
-                                style={{
-                                    maxWidth: '95vw', maxHeight: '95vh',
-                                    borderRadius: '4px',
-                                    boxShadow: '0 0 50px rgba(0,0,0,0.5)',
-                                    objectFit: 'contain'
-                                }}
-                            />
+                            {attachmentImageSrc && !attachmentImageFailed ? (
+                                <motion.img
+                                    initial={{ scale: 0.9 }}
+                                    animate={{ scale: 1 }}
+                                    exit={{ scale: 0.9 }}
+                                    src={attachmentImageSrc}
+                                    alt="Full size"
+                                    onClick={e => e.stopPropagation()}
+                                    onError={() => setAttachmentImageFailed(true)}
+                                    style={{
+                                        maxWidth: '95vw', maxHeight: '95vh',
+                                        borderRadius: '4px',
+                                        boxShadow: '0 0 50px rgba(0,0,0,0.5)',
+                                        objectFit: 'contain'
+                                    }}
+                                />
+                            ) : (
+                                <a
+                                    href={post.attachment_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="post-image-modal-fallback"
+                                >
+                                    原图暂时无法通过站内加载，点击打开原图
+                                </a>
+                            )}
 
                             <div
                                 onClick={(e) => {
