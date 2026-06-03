@@ -867,6 +867,8 @@ export async function deleteUser(id: number) {
     await ensureProjectEnhancements();
     await ensureProjectSubmissionsTable();
     await ensureProjectOpenEventsTable();
+    await ensureProjectBookmarksTable();
+    await ensureProjectTipsTable();
     await ensureNotificationsTable();
 
     const client = await db.connect();
@@ -913,6 +915,17 @@ export async function deleteUser(id: number) {
         await client.sql`DELETE FROM posts WHERE author_id = ${id}`;
 
         // Hub cleanup: test accounts may have project ratings/comments/submissions/projects.
+        await client.sql`
+          DELETE FROM project_tips
+          WHERE sender_id = ${id}
+             OR recipient_id = ${id}
+             OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
+        `;
+        await client.sql`
+          DELETE FROM project_bookmarks
+          WHERE user_id = ${id}
+             OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
+        `;
         await client.sql`
           DELETE FROM project_comments
           WHERE author_id = ${id}
@@ -1891,6 +1904,8 @@ export async function toggleBookmark(userId: number, postId: number) {
 }
 
 export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'all', category: LeaderboardCategory = 'all'): Promise<User[]> {
+    await ensureProjectTipsTable();
+
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
         await ensureForumEnhancements();
@@ -2009,6 +2024,9 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         JOIN posts ON posts.id = bookmarks.post_id
         WHERE posts.author_id != bookmarks.user_id
         UNION ALL
+        SELECT project_tips.recipient_id as user_id, project_tips.amount as points, 'project' as category, project_tips.created_at
+        FROM project_tips
+        UNION ALL
         SELECT checkins.user_id as user_id, 10 as points, 'community' as category, checkins.created_at
         FROM checkins
         UNION ALL
@@ -2057,6 +2075,8 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
 let projectEnhancementsReady: Promise<void> | null = null;
 let projectSubmissionsTableReady: Promise<void> | null = null;
 let projectOpenEventsReady: Promise<void> | null = null;
+let projectBookmarksReady: Promise<void> | null = null;
+let projectTipsReady: Promise<void> | null = null;
 
 async function ensureProjectEnhancements() {
     if (!projectEnhancementsReady) {
@@ -2069,6 +2089,8 @@ async function ensureProjectEnhancements() {
             await sql`ALTER TABLE IF EXISTS project_likes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
             await sql`ALTER TABLE IF EXISTS project_comments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
             await ensureProjectOpenEventsTable();
+            await ensureProjectBookmarksTable();
+            await ensureProjectTipsTable();
             await applyProjectAttributionCorrections();
         })().catch(error => {
             projectEnhancementsReady = null;
@@ -2100,6 +2122,53 @@ async function ensureProjectOpenEventsTable() {
     }
 
     return projectOpenEventsReady;
+}
+
+async function ensureProjectBookmarksTable() {
+    if (!projectBookmarksReady) {
+        projectBookmarksReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS project_bookmarks (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, project_id)
+              );
+            `;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_bookmarks_user_created ON project_bookmarks(user_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_bookmarks_project_created ON project_bookmarks(project_id, created_at DESC)`;
+        })().catch(error => {
+            projectBookmarksReady = null;
+            throw error;
+        });
+    }
+
+    return projectBookmarksReady;
+}
+
+async function ensureProjectTipsTable() {
+    if (!projectTipsReady) {
+        projectTipsReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS project_tips (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                amount INTEGER NOT NULL CHECK (amount > 0),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_tips_project_created ON project_tips(project_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_tips_sender_created ON project_tips(sender_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_project_tips_recipient_created ON project_tips(recipient_id, created_at DESC)`;
+        })().catch(error => {
+            projectTipsReady = null;
+            throw error;
+        });
+    }
+
+    return projectTipsReady;
 }
 
 async function applyProjectAttributionCorrections() {
@@ -2473,6 +2542,8 @@ export async function getProjectsByAuthor(authorId: number): Promise<Project[]> 
 }
 
 export async function getProfileAnalytics(userId: number): Promise<ProfileAnalytics> {
+    await ensureProjectTipsTable();
+
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
         await ensureForumEnhancements();
@@ -2572,6 +2643,9 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
         FROM bookmarks
         JOIN posts ON posts.id = bookmarks.post_id
         WHERE posts.author_id != bookmarks.user_id
+        UNION ALL
+        SELECT project_tips.recipient_id as user_id, project_tips.amount as points, 'project' as category, project_tips.created_at
+        FROM project_tips
         UNION ALL
         SELECT checkins.user_id as user_id, 10 as points, 'community' as category, checkins.created_at
         FROM checkins
@@ -2822,6 +2896,133 @@ export async function trackProjectOpen(projectId: number, userId?: number | null
     `;
 
     return (rowCount ?? 0) > 0;
+}
+
+export async function getProjectBookmarkIds(userId: number): Promise<number[]> {
+    await ensureProjectBookmarksTable();
+
+    const { rows } = await sql<{ project_id: number }>`
+      SELECT project_id
+      FROM project_bookmarks
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `;
+
+    return rows.map(row => Number(row.project_id)).filter(id => Number.isFinite(id) && id > 0);
+}
+
+export async function toggleProjectBookmark(userId: number, projectId: number): Promise<boolean> {
+    await ensureProjectBookmarksTable();
+
+    const { rows } = await sql`
+      SELECT 1
+      FROM project_bookmarks
+      WHERE user_id = ${userId} AND project_id = ${projectId}
+      LIMIT 1
+    `;
+
+    if (rows[0]) {
+        await sql`
+          DELETE FROM project_bookmarks
+          WHERE user_id = ${userId} AND project_id = ${projectId}
+        `;
+        return false;
+    }
+
+    const { rowCount } = await sql`
+      INSERT INTO project_bookmarks (user_id, project_id)
+      SELECT ${userId}, projects.id
+      FROM projects
+      WHERE projects.id = ${projectId}
+        AND projects.status = 'live'
+      ON CONFLICT (user_id, project_id) DO NOTHING
+    `;
+
+    if ((rowCount ?? 0) <= 0) {
+        const { rows: projectRows } = await sql<{ status: string | null }>`SELECT status FROM projects WHERE id = ${projectId} LIMIT 1`;
+        if (!projectRows[0]) throw new Error('Project not found');
+        if (projectRows[0].status !== 'live') throw new Error('Project is not live');
+    }
+
+    return true;
+}
+
+export async function tipProject(senderId: number, projectId: number, amount: number) {
+    await ensureProjectTipsTable();
+
+    const safeAmount = Math.floor(Number(amount));
+    if (!Number.isInteger(safeAmount) || safeAmount < 1 || safeAmount > 100) {
+        throw new Error('Invalid tip amount');
+    }
+
+    const client = await db.connect();
+
+    try {
+        await client.sql`BEGIN`;
+
+        const { rows: projectRows } = await client.sql<{ author_id: number; status: string | null }>`
+          SELECT author_id, status
+          FROM projects
+          WHERE id = ${projectId}
+          LIMIT 1
+        `;
+        const project = projectRows[0];
+        if (!project) throw new Error('Project not found');
+        if (project.status !== 'live') throw new Error('Project is not live');
+
+        const recipientId = Number(project.author_id);
+        if (recipientId === senderId) throw new Error('Cannot tip your own project');
+
+        const { rows: senderRows } = await client.sql<{ points: number }>`
+          SELECT points
+          FROM users
+          WHERE id = ${senderId}
+          FOR UPDATE
+        `;
+        const senderPoints = Number(senderRows[0]?.points || 0);
+        if (senderPoints < safeAmount) throw new Error('Insufficient points');
+
+        const { rows: debitedRows } = await client.sql<{ points: number; level: number }>`
+          UPDATE users
+          SET
+            points = points - ${safeAmount},
+            level = GREATEST(1, FLOOR(SQRT(GREATEST(points - ${safeAmount}, 0) / 50.0))::int + 1)
+          WHERE id = ${senderId}
+          RETURNING points, level
+        `;
+
+        const { rows: creditedRows } = await client.sql<{ points: number; level: number }>`
+          UPDATE users
+          SET
+            points = points + ${safeAmount},
+            level = GREATEST(level, FLOOR(SQRT((points + ${safeAmount}) / 50.0))::int + 1)
+          WHERE id = ${recipientId}
+          RETURNING points, level
+        `;
+
+        const { rows: tipRows } = await client.sql<{ id: number }>`
+          INSERT INTO project_tips (project_id, sender_id, recipient_id, amount)
+          VALUES (${projectId}, ${senderId}, ${recipientId}, ${safeAmount})
+          RETURNING id
+        `;
+
+        await client.sql`COMMIT`;
+
+        return {
+            id: Number(tipRows[0]?.id || 0),
+            amount: safeAmount,
+            recipientId,
+            senderPoints: Number(debitedRows[0]?.points || 0),
+            senderLevel: Number(debitedRows[0]?.level || 1),
+            recipientPoints: Number(creditedRows[0]?.points || 0),
+            recipientLevel: Number(creditedRows[0]?.level || 1),
+        };
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 export async function rateProject(userId: number, projectId: number, score: number) {
@@ -3629,6 +3830,8 @@ export async function initDB() {
     await ensureProjectEnhancements();
     await ensureProjectSubmissionsTable();
     await ensureProjectOpenEventsTable();
+    await ensureProjectBookmarksTable();
+    await ensureProjectTipsTable();
 
     await ensurePointAwardsTable();
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;

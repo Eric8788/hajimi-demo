@@ -1024,7 +1024,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                     <span>{analyticsMode === 'overview' ? '成长报告' : '贡献工作台'}</span>
                     <h3>{analyticsMode === 'overview' ? '个人数据分析' : '详细分析'}</h3>
                     <p>{analyticsMode === 'overview'
-                        ? '汇总本月 XP、活跃天数、签到和近期高光。'
+                        ? '用本月热度图快速查看自己的真实活跃节奏。'
                         : '按时间范围查看 XP、项目打开、帖子互动和贡献来源。'}</p>
                 </div>
                 <div className="profile-analytics-mode-tabs" aria-label="个人数据分析模式">
@@ -1047,32 +1047,18 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
 
             {analyticsMode === 'overview' ? (
                 <>
-                    <div className="profile-analytics-overview-grid">
-                        <section className="profile-analytics-card profile-growth-summary">
-                            <div className="profile-growth-avatar" aria-hidden="true">{avatarEmoji || '🐱'}</div>
+                    <section className="profile-analytics-card profile-heatmap-card profile-heatmap-overview-card">
+                        <div className="profile-analytics-card-head">
                             <div>
-                                <span className="profile-analytics-badge">本月报告</span>
-                                <h4>{user.username} 的成长概览</h4>
-                                <p>本月有 {activeMonthDays} 天留下记录，主要来源是 {topContribution.label}。</p>
-                                <button type="button" className="profile-analytics-primary-action" onClick={() => setAnalyticsMode('detail')}>
-                                    查看详细分析
-                                </button>
+                                <h4>本月活跃热度图</h4>
+                                <p>{activeMonthDays} 天留下记录，颜色越深代表当天活跃越集中。</p>
                             </div>
-                        </section>
-
-                        <section className="profile-analytics-card profile-growth-highlights">
-                            <div className="profile-analytics-card-head">
-                                <div>
-                                    <h4>本月高光</h4>
-                                    <p>最近的关键成长记录。</p>
-                                </div>
-                            </div>
-                            <div className="profile-growth-highlight-list">
-                                <article><strong>{formatNumber(totalXp)}</strong><span>总 XP</span></article>
-                                <article><strong>{activeMonthDays}</strong><span>活跃天数</span></article>
-                                <article><strong>{user.streak_count || 0}</strong><span>连续签到</span></article>
-                            </div>
-                            <div className="profile-heatmap profile-heatmap-compact" aria-label="当月活跃方格">
+                            <button type="button" className="profile-analytics-primary-action is-compact" onClick={() => setAnalyticsMode('detail')}>
+                                详细分析
+                            </button>
+                        </div>
+                        <div className="profile-heatmap-shell">
+                            <div className="profile-heatmap profile-heatmap-detail" aria-label="当月活跃方格">
                                 {overviewHeatmapCells.map((cell, index) => (
                                     <span
                                         key={`${cell.key}-overview-${index}`}
@@ -1086,24 +1072,17 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                     />
                                 ))}
                             </div>
-                        </section>
-                    </div>
-
-                    <div className="profile-analytics-quick-links">
-                        <button type="button" onClick={() => setAnalyticsMode('detail')}>
-                            <strong>查看时间范围</strong>
-                            <span>按今天、本周、本月或自定义日期查看变化。</span>
-                        </button>
-                        <button type="button" onClick={() => setAnalyticsMode('detail')}>
-                            <strong>查看来源构成</strong>
-                            <span>用饼图查看所选时间范围里的主要贡献来源。</span>
-                        </button>
-                        <button type="button" onClick={() => setAnalyticsMode('detail')}>
-                            <strong>查看内容表现</strong>
-                            <span>聚合项目打开、评分反馈和帖子互动表现。</span>
-                        </button>
-                    </div>
-                    <div className="profile-floating-tooltip profile-overview-tooltip" ref={heatmapTooltipRef} aria-hidden="true" />
+                            {overviewHeatmapCells.every(cell => Number(cell.value || 0) === 0) && (
+                                <div className="profile-heatmap-empty">本月暂无活跃记录</div>
+                            )}
+                            <div className="profile-floating-tooltip profile-overview-tooltip" ref={heatmapTooltipRef} aria-hidden="true" />
+                        </div>
+                        <div className="profile-heatmap-legend" aria-hidden="true">
+                            <span>低</span>
+                            {[0, 1, 2, 3, 4, 5].map(value => <i key={value} style={{ '--heat': value } as CSSProperties} />)}
+                            <span>高</span>
+                        </div>
+                    </section>
                 </>
             ) : (
                 <>

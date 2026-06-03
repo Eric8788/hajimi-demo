@@ -47,7 +47,7 @@ type HubLeaderboardStats = {
     effectiveOpens: number;
 };
 
-type SpotlightKind = 'submit' | 'galgame' | 'vocab' | 'cpaper' | 'ocean';
+type SpotlightKind = 'submit' | 'rewards' | 'galgame' | 'vocab' | 'cpaper' | 'ocean';
 
 type HubSpotlightCopy = {
     kind: SpotlightKind;
@@ -59,6 +59,7 @@ type HubSpotlightCopy = {
     text: string;
     meta: string[];
     ctaLabel: string;
+    ctaTarget?: 'submit' | 'projects';
 };
 
 type ProjectGridProps = {
@@ -154,6 +155,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [selectedCreator, setSelectedCreator] = useState<string | 'all'>('all');
     const [sortType, setSortType] = useState<'rating' | 'name'>('rating');
     const [showLiveOnly, setShowLiveOnly] = useState(false);
+    const [showSavedOnly, setShowSavedOnly] = useState(false);
     const [loading, setLoading] = useState(true);
     const [showSubmissionForm, setShowSubmissionForm] = useState(false);
     const [submissionType, setSubmissionType] = useState<'new_project' | 'new_version'>('new_project');
@@ -173,7 +175,11 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [spotlightIndex, setSpotlightIndex] = useState(0);
     const [spotlightPaused, setSpotlightPaused] = useState(false);
     const [projectStatsLoaded, setProjectStatsLoaded] = useState(false);
+    const [bookmarkedProjectIds, setBookmarkedProjectIds] = useState<Set<number>>(() => new Set());
+    const [bookmarksLoaded, setBookmarksLoaded] = useState(false);
+    const [localUserPoints, setLocalUserPoints] = useState(user ? Number(user.points || 0) : 0);
     const currentUserId = user ? Number(user.id) : null;
+    const savedCount = bookmarkedProjectIds.size;
 
     useEffect(() => {
         const controller = new AbortController();
@@ -233,14 +239,55 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     }, [loading, projectStatsLoaded, projects.length]);
 
     useEffect(() => {
-        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 1;
+        setLocalUserPoints(user ? Number(user.points || 0) : 0);
+    }, [user?.id, user?.points]);
+
+    useEffect(() => {
+        if (!user || !canSubmitProjects) {
+            setBookmarkedProjectIds(new Set());
+            setBookmarksLoaded(true);
+            return;
+        }
+
+        const controller = new AbortController();
+        let active = true;
+
+        fetch('/api/projects/bookmarks', {
+            signal: controller.signal,
+            cache: 'no-store',
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Project bookmarks request failed');
+                return res.json();
+            })
+            .then(data => {
+                if (!active) return;
+                const projectIds = Array.isArray(data?.projectIds) ? data.projectIds : [];
+                setBookmarkedProjectIds(new Set(projectIds.map(Number).filter((id: number) => Number.isFinite(id) && id > 0)));
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                console.warn('Project bookmarks unavailable:', error);
+            })
+            .finally(() => {
+                if (active) setBookmarksLoaded(true);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [user?.id, canSubmitProjects]);
+
+    useEffect(() => {
+        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 2;
         if (spotlightCount > 0 && spotlightIndex >= spotlightCount) {
             setSpotlightIndex(0);
         }
     }, [projects, spotlightIndex]);
 
     useEffect(() => {
-        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 1;
+        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 2;
         if (spotlightPaused || spotlightCount <= 1) return;
 
         const timer = window.setInterval(() => {
@@ -339,6 +386,23 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                 text: 'Hub 项目开放体验；新项目和新版本先提交申请，管理员审核后发布。',
                 meta: ['新项目', '新版本', '审核上线'],
                 ctaLabel: showSubmissionForm ? '收起申请' : '提交申请',
+                ctaTarget: 'submit' as const,
+            },
+        },
+        {
+            key: 'hub-rewards',
+            project: null,
+            copy: {
+                kind: 'rewards' as const,
+                label: 'Hub Notice',
+                status: '评论 / 评分奖励',
+                titleBefore: '给项目',
+                titleAccent: '评论和评分',
+                titleAfter: '，一起赚 XP',
+                text: '真实反馈会直接帮创作者改进项目：留下评论可获得 +2 XP，项目作者获得 +3 XP；首次评分会给项目作者 +5 XP。',
+                meta: ['评论者 +2 XP', '作者评论奖励 +3 XP', '评分作者 +5 XP'],
+                ctaLabel: '去看项目',
+                ctaTarget: 'projects' as const,
             },
         },
         ...spotlightProjects
@@ -350,6 +414,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             .filter((item): item is { key: string; project: HubProject; copy: HubSpotlightCopy } => Boolean(item.copy)),
     ];
     const activeSpotlightIndex = Math.min(spotlightIndex, spotlightSlides.length - 1);
+    const scrollToProjectGrid = () => {
+        document.getElementById('hub-project-showcase')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     const getHubStats = (project: any): HubLeaderboardStats => {
         if (hubLeaderboardWindow === 'month') {
@@ -421,8 +488,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const filtered = projects.filter(p => {
         const tagMatch = selectedTag === 'all' || p.tags.includes(selectedTag);
         const creatorMatch = selectedCreator === 'all' || getDisplayName(p.author_name || p.author || '') === selectedCreator;
+        const savedMatch = !showSavedOnly || bookmarkedProjectIds.has(Number(p.id));
         const liveMatch = !showLiveOnly || p.status === 'live';
-        return tagMatch && creatorMatch && liveMatch;
+        return tagMatch && creatorMatch && savedMatch && liveMatch;
     }).sort((a, b) => {
         if (sortType === 'rating') {
             return Number(b.rating || 0) - Number(a.rating || 0)
@@ -438,6 +506,39 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         setProjects(prev => prev.map(p => 
             String(p.id) === String(projectId) ? { ...p, rating: newRating, rating_count: newCount } : p
         ));
+    };
+
+    const handleBookmarkUpdate = (projectId: number | string, bookmarked: boolean) => {
+        const normalizedProjectId = Number(projectId);
+        if (!Number.isFinite(normalizedProjectId) || normalizedProjectId <= 0) return;
+
+        setBookmarkedProjectIds(current => {
+            const next = new Set(current);
+            if (bookmarked) {
+                next.add(normalizedProjectId);
+            } else {
+                next.delete(normalizedProjectId);
+            }
+            return next;
+        });
+    };
+
+    const handleTipSuccess = (points: number) => {
+        setLocalUserPoints(Math.max(0, Math.round(Number(points || 0))));
+    };
+
+    const toggleSavedFilter = () => {
+        if (!user) {
+            setSubmissionMessage('登录并完成 Hajimi 认证后可以收藏项目。');
+            return;
+        }
+
+        if (!canSubmitProjects) {
+            setSubmissionMessage('完成 Hajimi 认证后可以收藏项目。');
+            return;
+        }
+
+        setShowSavedOnly(value => !value);
     };
 
     const toggleSubmissionTag = (tag: ProjectTag) => {
@@ -694,7 +795,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                                     <span className="hub-spotlight-status">{copy.status}</span>
                                                 </div>
                                                 <div className="hub-spotlight-actions">
-                                                    {copy.kind === 'submit' ? (
+                                                    {copy.ctaTarget === 'submit' ? (
                                                         <>
                                                             <button
                                                                 type="button"
@@ -714,6 +815,15 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                                                 </a>
                                                             )}
                                                         </>
+                                                    ) : copy.ctaTarget === 'projects' ? (
+                                                        <button
+                                                            type="button"
+                                                            className="hub-spotlight-cta"
+                                                            tabIndex={isActive ? undefined : -1}
+                                                            onClick={scrollToProjectGrid}
+                                                        >
+                                                            {copy.ctaLabel}
+                                                        </button>
                                                     ) : project?.url && (
                                                         <a
                                                             className="hub-spotlight-cta"
@@ -927,6 +1037,19 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
                     {/* Live Toggle */}
                     <button
+                        onClick={toggleSavedFilter}
+                        className={`project-live-toggle project-saved-toggle ${showSavedOnly ? 'is-active' : ''}`}
+                        disabled={!!user && canSubmitProjects && !bookmarksLoaded}
+                        style={{
+                            background: showSavedOnly ? 'rgba(108, 92, 231, 0.18)' : 'rgba(255,255,255,0.6)',
+                            color: showSavedOnly ? '#5b4fe6' : '#636e72',
+                            margin: 0
+                        }}
+                    >
+                        <span aria-hidden="true">{showSavedOnly ? '★' : '☆'}</span>
+                        Saved {savedCount > 0 ? savedCount : ''}
+                    </button>
+                    <button
                         onClick={() => setShowLiveOnly(!showLiveOnly)}
                         className={`project-live-toggle ${showLiveOnly ? 'is-active' : ''}`}
                         style={{
@@ -943,6 +1066,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
             {/* Project Grid */}
             <motion.div
+                id="hub-project-showcase"
                 layout
                 style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}
             >
@@ -961,8 +1085,12 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                 user={user}
                                 canInteract={canSubmitProjects}
                                 canEdit={currentUserId !== null && Number(project.author_id) === currentUserId}
+                                isBookmarked={bookmarkedProjectIds.has(Number(project.id))}
+                                userPoints={localUserPoints}
                                 onEditProject={() => openSubmissionDraft({ type: 'new_version', project })}
                                 onRatingUpdate={handleRatingUpdate}
+                                onBookmarkUpdate={handleBookmarkUpdate}
+                                onTipSuccess={handleTipSuccess}
                             />
                         </motion.div>
                     ))}
@@ -994,6 +1122,27 @@ function HubSpotlightVisual({ kind, project }: { kind: SpotlightKind, project: a
                 <div className="hub-submit-step">
                     <strong>03</strong>
                     <span>上线展示</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (kind === 'rewards') {
+        return (
+            <div className="hub-spotlight-visual hub-rewards-visual" aria-hidden="true">
+                <div className="hub-rewards-orbit">
+                    <span>+2</span>
+                    <span>+3</span>
+                    <span>+5</span>
+                </div>
+                <div className="hub-rewards-card">
+                    <strong>XP Feedback</strong>
+                    <p>评论 · 评分 · 支持创作者</p>
+                    <div>
+                        <span>💬</span>
+                        <span>⭐</span>
+                        <span>🎁</span>
+                    </div>
                 </div>
             </div>
         );
@@ -1086,15 +1235,23 @@ function ProjectCard({
     user,
     canInteract,
     canEdit,
+    isBookmarked,
+    userPoints,
     onEditProject,
     onRatingUpdate,
+    onBookmarkUpdate,
+    onTipSuccess,
 }: {
     project: any,
     user: User | null,
     canInteract: boolean,
     canEdit: boolean,
+    isBookmarked: boolean,
+    userPoints: number,
     onEditProject: () => void,
     onRatingUpdate?: (projectId: number | string, rating: number, count: number) => void,
+    onBookmarkUpdate?: (projectId: number | string, bookmarked: boolean) => void,
+    onTipSuccess?: (points: number) => void,
 }) {
     const isLive = project.status === 'live';
     const [rating, setRating] = useState(Number(project.rating || project.likes || 0));
@@ -1108,6 +1265,11 @@ function ProjectCard({
     const [xpBurst, setXpBurst] = useState('');
     const [interactionMessage, setInteractionMessage] = useState('');
     const [coverFailed, setCoverFailed] = useState(false);
+    const [bookmarkPending, setBookmarkPending] = useState(false);
+    const [tipAmount, setTipAmount] = useState(5);
+    const [customTipAmount, setCustomTipAmount] = useState('');
+    const [tipPending, setTipPending] = useState(false);
+    const [tipMessage, setTipMessage] = useState('');
     const displayAuthor = project.author_name
         ? (project.author_name.toLowerCase() === 'eric' ? 'AI Club' : project.author_name)
         : (project.author?.toLowerCase() === 'eric' ? 'AI Club' : project.author);
@@ -1117,6 +1279,7 @@ function ProjectCard({
     const coverUrl = isValidCoverUrl(project.cover_url || project.coverUrl) ? String(project.cover_url || project.coverUrl).trim() : '';
     const coverImageSrc = getImageDisplayUrl(coverUrl);
     const coverAccent = TAG_COLORS[primaryTag] || project.accent_color || project.accentColor || '#6c5ce7';
+    const canTipProject = isLive && user && Number(user.id) !== Number(project.author_id);
 
     useEffect(() => {
         setCoverFailed(false);
@@ -1146,18 +1309,116 @@ function ProjectCard({
         }
     };
 
-    const requireProjectInteraction = () => {
+    const requireProjectInteraction = (action = '评分和评论项目') => {
         if (!user) {
-            setInteractionMessage('登录并完成 Hajimi 认证后可以评分和评论项目。');
+            setInteractionMessage(`登录并完成 Hajimi 认证后可以${action}。`);
+            setIsFlipped(true);
             return true;
         }
 
         if (!canInteract) {
-            setInteractionMessage('完成 Hajimi 认证后可以评分和评论项目。');
+            setInteractionMessage(`完成 Hajimi 认证后可以${action}。`);
+            setIsFlipped(true);
             return true;
         }
 
         return false;
+    };
+
+    const handleBookmarkToggle = async (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (requireProjectInteraction('收藏项目')) return;
+        if (bookmarkPending) return;
+
+        const previous = isBookmarked;
+        setBookmarkPending(true);
+        onBookmarkUpdate?.(project.id, !previous);
+        setInteractionMessage('');
+
+        try {
+            const res = await fetch('/api/projects/bookmark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: project.id }),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                onBookmarkUpdate?.(project.id, previous);
+                setInteractionMessage(data?.error || '收藏项目失败，请稍后再试。');
+                setIsFlipped(true);
+                return;
+            }
+            onBookmarkUpdate?.(project.id, !!data?.bookmarked);
+            setTipMessage(data?.bookmarked ? '已收藏到 Saved。' : '已取消收藏。');
+        } catch (error) {
+            console.warn('Project bookmark failed:', error);
+            onBookmarkUpdate?.(project.id, previous);
+            setInteractionMessage('收藏项目失败，请稍后再试。');
+            setIsFlipped(true);
+        } finally {
+            setBookmarkPending(false);
+        }
+    };
+
+    const handleTipAmountSelect = (amount: number) => {
+        setTipAmount(amount);
+        setCustomTipAmount('');
+        setTipMessage('');
+    };
+
+    const handleCustomTipChange = (value: string) => {
+        const normalized = value.replace(/[^\d]/g, '').slice(0, 3);
+        setCustomTipAmount(normalized);
+        setTipAmount(Number(normalized || 0));
+        setTipMessage('');
+    };
+
+    const handleTipProject = async (event: React.FormEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (requireProjectInteraction('打赏项目')) return;
+        if (!canTipProject) {
+            setTipMessage(canEdit ? '不能给自己的项目打赏。' : '项目上线后才可以打赏。');
+            return;
+        }
+
+        const amount = Math.floor(Number(tipAmount || customTipAmount || 0));
+        if (!Number.isInteger(amount) || amount < 1 || amount > 100) {
+            setTipMessage('打赏金额需要是 1-100 的整数。');
+            return;
+        }
+        if (amount > Math.max(0, Number(userPoints || 0))) {
+            setTipMessage('积分余额不足，先去签到、评论或发布内容赚 XP。');
+            return;
+        }
+        if (tipPending) return;
+
+        setTipPending(true);
+        setTipMessage('');
+
+        try {
+            const res = await fetch('/api/projects/tip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: project.id, amount }),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setTipMessage(data?.error || '打赏失败，请稍后再试。');
+                return;
+            }
+
+            onTipSuccess?.(Number(data?.senderPoints ?? Math.max(0, Number(userPoints || 0) - amount)));
+            setTipMessage(`已打赏 ${amount} XP，创作者会收到你的支持。`);
+            setXpBurst(`-${amount} XP`);
+            window.setTimeout(() => setXpBurst(''), 900);
+        } catch (error) {
+            console.warn('Project tip failed:', error);
+            setTipMessage('打赏失败，请稍后再试。');
+        } finally {
+            setTipPending(false);
+        }
     };
 
     const getScoreFromPointer = (element: HTMLDivElement, clientX: number) => {
@@ -1334,7 +1595,18 @@ function ProjectCard({
                             <h3>{project.title}</h3>
                             <span>by {displayAuthor}</span>
                         </div>
-                        <div className="project-card-emoji">{project.emoji}</div>
+                        <button
+                            type="button"
+                            className={`project-card-bookmark ${isBookmarked ? 'is-active' : ''}`}
+                            aria-label={isBookmarked ? '取消收藏项目' : '收藏项目'}
+                            aria-pressed={isBookmarked}
+                            disabled={bookmarkPending}
+                            tabIndex={isFlipped ? -1 : undefined}
+                            onClick={handleBookmarkToggle}
+                            title={isBookmarked ? '取消收藏' : '收藏项目'}
+                        >
+                            {isBookmarked ? '★' : '☆'}
+                        </button>
                     </div>
                     <p className="project-card-tagline">{tagline}</p>
                     <button
@@ -1452,6 +1724,7 @@ function ProjectCard({
                             <span>⭐ {rating.toFixed(1)}</span>
                             <span>{ratingCount} ratings</span>
                             <span>{commentCount} comments</span>
+                            {user && <span>余额 {Math.max(0, Math.round(Number(userPoints || 0)))} XP</span>}
                         </div>
                         {canEdit && (
                             <button
@@ -1475,6 +1748,56 @@ function ProjectCard({
                                 } as CSSProperties}>{TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}</span>
                             ))}
                         </div>
+                        <form className="project-card-tip-box" onSubmit={handleTipProject}>
+                            <div className="project-card-tip-head">
+                                <div>
+                                    <strong>打赏积分</strong>
+                                    <span>支持创作者，积分会从你的余额转给作者。</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={`project-card-bookmark is-back ${isBookmarked ? 'is-active' : ''}`}
+                                    aria-label={isBookmarked ? '取消收藏项目' : '收藏项目'}
+                                    aria-pressed={isBookmarked}
+                                    disabled={bookmarkPending}
+                                    tabIndex={isFlipped ? undefined : -1}
+                                    onClick={handleBookmarkToggle}
+                                >
+                                    {isBookmarked ? '★' : '☆'}
+                                </button>
+                            </div>
+                            <div className="project-card-tip-options">
+                                {[5, 10, 20].map(amount => (
+                                    <button
+                                        key={amount}
+                                        type="button"
+                                        className={!customTipAmount && tipAmount === amount ? 'is-active' : ''}
+                                        tabIndex={isFlipped ? undefined : -1}
+                                        onClick={() => handleTipAmountSelect(amount)}
+                                    >
+                                        {amount}
+                                    </button>
+                                ))}
+                                <input
+                                    value={customTipAmount}
+                                    onChange={event => handleCustomTipChange(event.target.value)}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder="自定义"
+                                    aria-label="自定义打赏积分"
+                                    tabIndex={isFlipped ? undefined : -1}
+                                />
+                                <button
+                                    type="submit"
+                                    className="project-card-tip-submit"
+                                    disabled={tipPending || !canTipProject || tipAmount < 1}
+                                    tabIndex={isFlipped ? undefined : -1}
+                                >
+                                    {tipPending ? '打赏中' : '打赏'}
+                                </button>
+                            </div>
+                            {tipMessage && <p className="project-card-tip-message">{tipMessage}</p>}
+                        </form>
                         <div className="project-card-comments">
                             {comments.length > 0 ? comments.map(c => (
                                 <div key={c.id} className="project-card-comment">
