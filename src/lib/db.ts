@@ -310,6 +310,7 @@ export interface Notification {
     actor_avatar_emoji?: string | null;
     actor_avatar_theme?: string | null;
     post_title?: string;
+    comment_content?: string | null;
 }
 
 export interface AdminReviewTask {
@@ -3607,10 +3608,12 @@ export async function getNotifications(userId: number) {
         CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as actor_avatar,
         users.avatar_emoji as actor_avatar_emoji,
         users.avatar_theme as actor_avatar_theme,
-        posts.title as post_title
+        posts.title as post_title,
+        comments.content as comment_content
       FROM notifications
       JOIN users ON notifications.actor_id = users.id
       LEFT JOIN posts ON notifications.post_id = posts.id
+      LEFT JOIN comments ON notifications.comment_id = comments.id
       WHERE notifications.recipient_id = ${userId}
       ORDER BY notifications.created_at DESC
       LIMIT 20

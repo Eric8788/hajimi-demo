@@ -23,6 +23,34 @@ function notificationText(notification: Notification) {
     return `${actor} liked your comment`;
 }
 
+function shortNotificationPreview(text?: string | null) {
+    if (!text) return '';
+    const compact = text.replace(/\s+/g, ' ').trim();
+    return compact.length > 72 ? `${compact.slice(0, 72)}...` : compact;
+}
+
+function notificationHref(notification: Notification) {
+    if (notification.type === 'comment_like' && notification.post_id && notification.comment_id) {
+        return `/resources#post-${notification.post_id}-comment-${notification.comment_id}`;
+    }
+
+    if (notification.post_id) {
+        return `/resources#post-${notification.post_id}`;
+    }
+
+    return '/resources';
+}
+
+function notificationPreview(notification: Notification) {
+    if (notification.type === 'comment_like') {
+        const commentPreview = shortNotificationPreview(notification.comment_content);
+        if (commentPreview) return `“${commentPreview}”`;
+        if (notification.post_title) return `in 「${notification.post_title}」`;
+    }
+
+    return '';
+}
+
 function reviewTaskIcon(task: AdminReviewTask) {
     return task.kind === 'verification' ? '✅' : '🚀';
 }
@@ -214,26 +242,37 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
 
         return (
             <div className="notification-list">
-                {notifications.map(notification => (
-                    <div
-                        key={notification.id}
-                        className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
-                    >
-                        <Avatar value={notification.actor_avatar} emoji={notification.actor_avatar_emoji} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
-                        <div className="notification-copy">
-                            <div
-                                className="notification-message"
-                                style={{ fontWeight: notification.read_at ? 600 : 800 }}
-                                title={notificationText(notification)}
-                            >
-                                {notificationText(notification)}
-                            </div>
-                            <div suppressHydrationWarning className="notification-time">
-                                {formatNotificationTime(notification.created_at)}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                {notifications.map(notification => {
+                    const preview = notificationPreview(notification);
+
+                    return (
+                        <button
+                            type="button"
+                            key={notification.id}
+                            className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
+                            onClick={() => goTo(notificationHref(notification))}
+                        >
+                            <Avatar value={notification.actor_avatar} emoji={notification.actor_avatar_emoji} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
+                            <span className="notification-copy">
+                                <span
+                                    className="notification-message"
+                                    style={{ fontWeight: notification.read_at ? 600 : 800 }}
+                                    title={notificationText(notification)}
+                                >
+                                    {notificationText(notification)}
+                                </span>
+                                {preview && (
+                                    <span className="notification-preview" title={preview}>
+                                        {preview}
+                                    </span>
+                                )}
+                                <span suppressHydrationWarning className="notification-time">
+                                    {formatNotificationTime(notification.created_at)}
+                                </span>
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
         );
     };

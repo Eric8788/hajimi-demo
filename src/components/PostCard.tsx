@@ -141,6 +141,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [comments, setComments] = useState<Comment[]>([]);
     const [commentsLoaded, setCommentsLoaded] = useState(false);
     const [commentCount, setCommentCount] = useState(post.comment_count || 0);
+    const [locationHash, setLocationHash] = useState('');
 
     const [newComment, setNewComment] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
@@ -192,6 +193,39 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setCommentsLoaded(true);
         return [];
     }, [post.id]);
+
+    useEffect(() => {
+        const syncHash = () => setLocationHash(window.location.hash || '');
+        syncHash();
+        window.addEventListener('hashchange', syncHash);
+
+        return () => window.removeEventListener('hashchange', syncHash);
+    }, []);
+
+    useEffect(() => {
+        const commentTargetPrefix = `#post-${post.id}-comment-`;
+        if (!locationHash.startsWith(commentTargetPrefix)) return;
+
+        let active = true;
+        const targetId = locationHash.slice(1);
+
+        const scrollToTarget = () => {
+            const target = document.getElementById(targetId);
+            target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+
+        setShowComments(true);
+        (commentsLoaded ? Promise.resolve(comments) : loadComments()).then(() => {
+            if (!active) return;
+            window.requestAnimationFrame(scrollToTarget);
+            window.setTimeout(scrollToTarget, 260);
+            window.setTimeout(scrollToTarget, 620);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [comments, commentsLoaded, loadComments, locationHash, post.id]);
 
     useEffect(() => {
         setDisplayTitle(post.title);
@@ -823,7 +857,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             {showComments && commentsLoaded && comments.length > 0 && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: '300px', overflowY: 'auto' }}>
                                     {visibleComments.map(c => (
-                                        <div key={c.id} className="comment-row-time-hover" style={{ display: 'flex', gap: '10px' }}>
+                                        <div key={c.id} id={`post-${post.id}-comment-${c.id}`} className="comment-row-time-hover" style={{ display: 'flex', gap: '10px' }}>
                                             <button
                                                 type="button"
                                                 className="avatar-link-button comment-avatar-button"
