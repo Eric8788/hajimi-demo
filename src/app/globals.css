@@ -649,10 +649,10 @@ textarea:hover,
 }
 
 .project-card:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  transform: none;
+  box-shadow: none;
   border-color: rgba(108, 92, 231, 0.2);
-  background: #ffffff !important;
+  background: inherit !important;
 }
 
 .project-card-shell {
@@ -670,7 +670,7 @@ textarea:hover,
 }
 
 .project-card-shell:focus-visible .project-card-face {
-  box-shadow: 0 0 0 3px rgba(108,92,231,0.18), 0 22px 46px rgba(108,92,231,0.14);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.16);
 }
 
 .project-card-inner {
@@ -710,8 +710,8 @@ textarea:hover,
 }
 
 .project-card-shell.is-live:hover .project-card-front {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+  transform: none;
+  box-shadow: none;
 }
 
 .project-card-shell.is-flipped:hover .project-card-front {
