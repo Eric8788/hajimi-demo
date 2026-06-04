@@ -649,10 +649,9 @@ textarea:hover,
 }
 
 .project-card:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: rgba(108, 92, 231, 0.2);
-  background: inherit !important;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  border-color: #fff;
 }
 
 .project-card-shell {
@@ -663,10 +662,11 @@ textarea:hover,
   background: transparent;
   perspective: 1200px;
   transform-style: preserve-3d;
-  contain: layout paint;
+  contain: layout style;
   isolation: isolate;
   cursor: pointer;
   outline: none;
+  transition: transform 0.22s ease;
 }
 
 .project-card-shell:focus-visible .project-card-face {
@@ -680,7 +680,7 @@ textarea:hover,
   border-radius: var(--radius-lg);
   background: transparent;
   transform-style: preserve-3d;
-  transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1);
+  transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1), filter 0.22s ease;
 }
 
 .project-card-shell.is-flipped .project-card-inner {
@@ -714,6 +714,14 @@ textarea:hover,
 .project-card-shell.is-live:hover .project-card-front {
   transform: none;
   box-shadow: none !important;
+}
+
+.project-card-shell.is-live:hover {
+  transform: translateY(-4px);
+}
+
+.project-card-shell.is-live:hover .project-card-inner {
+  filter: drop-shadow(0 14px 24px rgba(31, 38, 135, 0.12));
 }
 
 .project-card-shell.is-flipped:hover .project-card-front {
