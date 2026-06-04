@@ -1762,6 +1762,29 @@ function ProjectCard({
                                 } as CSSProperties}>{TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}</span>
                             ))}
                         </div>
+                        <div className="project-card-comments">
+                            {comments.length > 0 ? comments.map(c => (
+                                <div key={c.id} className="project-card-comment">
+                                    <div>
+                                        <strong>
+                                            {c.author_name}
+                                            {c.author_score > 0 && <span>⭐ {c.author_score}</span>}
+                                        </strong>
+                                        <p>{c.content}</p>
+                                    </div>
+                                    {c.is_own_comment && (
+                                        <button
+                                            type="button"
+                                            tabIndex={isFlipped ? undefined : -1}
+                                            onClick={() => handleDeleteComment(c.id)}
+                                            title="Delete comment"
+                                        >🗑️</button>
+                                    )}
+                                </div>
+                            )) : (
+                                <div className="project-card-empty-comments">还没有评论，翻到这里的你可以当第一个。</div>
+                            )}
+                        </div>
                         <form className="project-card-tip-box" onSubmit={handleTipProject}>
                             <div className="project-card-tip-head">
                                 <div>
@@ -1812,29 +1835,6 @@ function ProjectCard({
                             </div>
                             {tipMessage && <p className="project-card-tip-message">{tipMessage}</p>}
                         </form>
-                        <div className="project-card-comments">
-                            {comments.length > 0 ? comments.map(c => (
-                                <div key={c.id} className="project-card-comment">
-                                    <div>
-                                        <strong>
-                                            {c.author_name}
-                                            {c.author_score > 0 && <span>⭐ {c.author_score}</span>}
-                                        </strong>
-                                        <p>{c.content}</p>
-                                    </div>
-                                    {c.is_own_comment && (
-                                        <button
-                                            type="button"
-                                            tabIndex={isFlipped ? undefined : -1}
-                                            onClick={() => handleDeleteComment(c.id)}
-                                            title="Delete comment"
-                                        >🗑️</button>
-                                    )}
-                                </div>
-                            )) : (
-                                <div className="project-card-empty-comments">还没有评论，翻到这里的你可以当第一个。</div>
-                            )}
-                        </div>
                         {interactionMessage && (
                             <div className="forum-verification-callout project-interaction-callout">
                                 <span>{interactionMessage}</span>

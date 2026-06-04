@@ -676,6 +676,8 @@ textarea:hover,
 .project-card-inner {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
   transform-style: preserve-3d;
   transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1);
 }
@@ -693,6 +695,7 @@ textarea:hover,
   overflow: hidden;
   padding: 22px;
   border: 1px solid rgba(255,255,255,0.72);
+  border-radius: var(--radius-lg);
   background: var(--project-accent-bg, rgba(255,255,255,0.58));
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -718,7 +721,7 @@ textarea:hover,
 .project-card-back {
   transform: rotateY(180deg);
   background: rgba(255,255,255,0.72);
-  box-shadow: 0 18px 42px rgba(31,38,135,0.07);
+  box-shadow: none;
   cursor: default;
 }
 
@@ -1107,7 +1110,7 @@ textarea:hover,
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   overflow-y: auto;
   padding-right: 3px;
   scrollbar-width: thin;
@@ -1147,7 +1150,7 @@ textarea:hover,
 
 .project-card-comments {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .project-card-comment,
@@ -1198,12 +1201,12 @@ textarea:hover,
 
 .project-card-tip-box {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   border-radius: 14px;
-  padding: 11px;
-  background: rgba(255,255,255,0.42);
-  border: 1px solid rgba(255,255,255,0.68);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.62);
+  padding: 9px;
+  background: rgba(255,255,255,0.32);
+  border: 1px solid rgba(255,255,255,0.58);
+  box-shadow: none;
 }
 
 .project-card-tip-head {
@@ -1220,31 +1223,31 @@ textarea:hover,
 
 .project-card-tip-head strong {
   color: #2d3436;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 950;
 }
 
 .project-card-tip-head span {
   margin-top: 3px;
   color: #6b7280;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-weight: 760;
   line-height: 1.35;
 }
 
 .project-card-tip-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(34px, auto)) minmax(58px, 1fr) auto;
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(30px, auto)) minmax(52px, 1fr) auto;
+  gap: 5px;
   align-items: center;
 }
 
 .project-card-tip-options button,
 .project-card-tip-options input {
-  min-height: 31px;
+  min-height: 28px;
   border-radius: 999px;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 900;
 }
 
@@ -1292,7 +1295,7 @@ textarea:hover,
 .project-card-tip-options input {
   min-width: 0;
   border: 1px solid rgba(223,230,233,0.9);
-  padding: 0 12px;
+  padding: 0 10px;
   color: #2d3436;
   background: rgba(255,255,255,0.82);
   outline: none;
@@ -1305,7 +1308,7 @@ textarea:hover,
 
 .project-card-tip-submit {
   border: none;
-  padding: 0 12px;
+  padding: 0 11px;
   color: #fff;
   background: #7b61ff;
   box-shadow: 0 7px 14px rgba(108,92,231,0.16);
