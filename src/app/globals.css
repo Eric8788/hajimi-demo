@@ -679,7 +679,9 @@ textarea:hover,
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1), box-shadow 0.2s ease;
 }
 
 .project-card-shell.is-flipped .project-card-inner {
@@ -709,15 +711,27 @@ textarea:hover,
   visibility: hidden;
 }
 
-.project-card-shell.is-live:hover {
+.project-card-shell.is-live:not(.is-flipped):hover {
   transform: translateY(-5px);
+}
+
+.project-card-shell.is-live:not(.is-flipped):hover .project-card-inner {
   box-shadow:
     0 18px 44px rgba(24,44,39,0.07),
     0 8px 24px rgba(108,92,231,0.05);
 }
 
-.project-card-shell.is-live:hover .project-card-front {
+.project-card-shell.is-live:not(.is-flipped):hover .project-card-front {
   transform: none;
+  box-shadow: none;
+}
+
+.project-card-shell.is-flipped {
+  transform: none;
+  box-shadow: none;
+}
+
+.project-card-shell.is-flipped .project-card-inner {
   box-shadow: none;
 }
 
