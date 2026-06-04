@@ -678,6 +678,7 @@ textarea:hover,
   inset: 0;
   overflow: hidden;
   border-radius: var(--radius-lg);
+  background: transparent;
   transform-style: preserve-3d;
   transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1);
 }
@@ -697,6 +698,7 @@ textarea:hover,
   border: 1px solid rgba(255,255,255,0.72);
   border-radius: var(--radius-lg);
   background: var(--project-accent-bg, rgba(255,255,255,0.58));
+  box-shadow: none !important;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   will-change: transform;
@@ -711,7 +713,7 @@ textarea:hover,
 
 .project-card-shell.is-live:hover .project-card-front {
   transform: none;
-  box-shadow: none;
+  box-shadow: none !important;
 }
 
 .project-card-shell.is-flipped:hover .project-card-front {
