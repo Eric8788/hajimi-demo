@@ -660,8 +660,6 @@ textarea:hover,
   min-height: 470px;
   border: 0;
   background: transparent;
-  perspective: 1200px;
-  transform-style: preserve-3d;
   contain: layout style;
   isolation: isolate;
   cursor: pointer;
@@ -692,12 +690,6 @@ textarea:hover,
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: transparent;
-  transform-style: preserve-3d;
-  transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1);
-}
-
-.project-card-shell.is-flipped .project-card-inner {
-  transform: rotateY(180deg);
 }
 
 .project-card-face {
@@ -712,10 +704,8 @@ textarea:hover,
   border-radius: var(--radius-lg);
   background: var(--project-accent-bg, rgba(255,255,255,0.58));
   box-shadow: none !important;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  will-change: transform;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.18s ease, visibility 0s linear 0.18s;
+  will-change: transform, opacity;
+  transition: transform 0.22s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.18s ease, visibility 0s linear 0.18s;
 }
 
 .project-card-face[aria-hidden="true"] {
@@ -742,7 +732,7 @@ textarea:hover,
 }
 
 .project-card-back {
-  transform: rotateY(180deg);
+  transform: translateY(12px) scale(0.985);
   background: rgba(255,255,255,0.72);
   box-shadow: none;
   cursor: default;
@@ -750,12 +740,14 @@ textarea:hover,
 
 .project-card-shell.is-flipped .project-card-back {
   opacity: 1;
+  transform: translateY(0) scale(1);
   visibility: visible;
   transition-delay: 0s;
 }
 
 .project-card-shell.is-flipped .project-card-front {
   opacity: 0;
+  transform: translateY(-10px) scale(0.985);
   visibility: hidden;
   transition-delay: 0s, 0s, 0s, 0s, 0s, 0.18s;
 }
