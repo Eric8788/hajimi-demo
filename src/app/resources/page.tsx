@@ -28,7 +28,7 @@ export default async function Page() {
     }
 
     return (
-        <Shell user={safeUser}>
+        <Shell user={user}>
             <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 20px' }}>
                 <div style={{ marginBottom: '30px', textAlign: 'center' }}>
                     <h1 style={{ fontSize: '2.5rem', marginBottom: '10px' }}>The Hallway 🗝️</h1>
