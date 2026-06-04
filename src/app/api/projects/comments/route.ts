@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { addProjectComment, deleteProjectComment, getProjectComments, getUserById } from '@/lib/db';
+import { addProjectComment, deleteProjectComment, getProjectComments, getProjectUserFeedback, getUserById } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
 import { clearServerCache } from '@/lib/serverCache';
 
@@ -21,10 +21,11 @@ export async function GET(request: Request) {
         const comments = await getProjectComments(projectId);
         const commentsWithOwnership = comments.map(c => ({
             ...c,
-            is_own_comment: userId ? c.author_id === userId : false
+            is_own_comment: userId ? Number(c.author_id) === userId : false
         }));
+        const myFeedback = userId ? await getProjectUserFeedback(projectId, userId) : null;
         
-        return NextResponse.json(commentsWithOwnership);
+        return NextResponse.json({ comments: commentsWithOwnership, myFeedback });
     } catch (err) {
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }

@@ -1258,6 +1258,7 @@ function ProjectCard({
     const [ratingCount, setRatingCount] = useState(Number(project.rating_count || project.likes || 0));
     const [hoverScore, setHoverScore] = useState(0);
     const [selectedScore, setSelectedScore] = useState(0);
+    const [ownRatingScore, setOwnRatingScore] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [hasLoadedComments, setHasLoadedComments] = useState(false);
     const [comments, setComments] = useState<any[]>([]);
@@ -1448,14 +1449,23 @@ function ProjectCard({
             const res = await fetch(`/api/projects/comments?projectId=${project.id}`);
             if (!res.ok) throw new Error('Comments request failed');
             const data = await res.json();
-            const nextComments = Array.isArray(data) ? data : [];
+            const nextComments = Array.isArray(data)
+                ? data
+                : Array.isArray(data?.comments) ? data.comments : [];
+            const myFeedback = !Array.isArray(data) && data?.myFeedback ? data.myFeedback : null;
             setComments(nextComments);
             setHasLoadedComments(true);
 
             const myComment = nextComments.find((c: any) => c.is_own_comment);
-            if (myComment) {
-                setNewComment(myComment.content);
-                setSelectedScore(myComment.author_score || 0);
+            const nextCommentContent = myFeedback?.content ?? myComment?.content ?? '';
+            const nextScore = Number(myFeedback?.score ?? myComment?.author_score ?? 0);
+            if (nextCommentContent) {
+                setNewComment(nextCommentContent);
+            }
+            if (Number.isFinite(nextScore) && nextScore > 0) {
+                setSelectedScore(nextScore);
+                setOwnRatingScore(nextScore);
+                setHoverScore(0);
             }
         } catch (error) {
             console.error('Failed to load project comments:', error);
@@ -1475,14 +1485,16 @@ function ProjectCard({
             return;
         }
         
-        const isUpdate = !!comments.find(c => c.is_own_comment);
-        const oldScore = comments.find(c => c.is_own_comment)?.author_score || 0;
+        const ownComment = comments.find(c => c.is_own_comment);
+        const isCommentUpdate = !!ownComment;
+        const isRatingUpdate = ownRatingScore > 0;
+        const oldScore = Number(ownRatingScore || ownComment?.author_score || 0);
         
         // Optimistic UI for rating
         let newCount = ratingCount;
         let newRating = rating;
 
-        if (isUpdate) {
+        if (isRatingUpdate) {
             newRating = ratingCount > 0 ? (rating * ratingCount - oldScore + selectedScore) / ratingCount : selectedScore;
         } else {
             newCount = ratingCount + 1;
@@ -1511,6 +1523,7 @@ function ProjectCard({
         const submittedScore = selectedScore;
         setNewComment('');
         setSelectedScore(0);
+        setOwnRatingScore(submittedScore);
         
         const res = await fetch('/api/projects/comments', {
             method: 'POST',
@@ -1519,7 +1532,7 @@ function ProjectCard({
         });
         if (res.ok) {
             clearCachedJson('projects:');
-            if (!isUpdate) {
+            if (!isCommentUpdate) {
                 setXpBurst('+2 XP');
                 window.setTimeout(() => setXpBurst(''), 900);
             }
@@ -1548,6 +1561,7 @@ function ProjectCard({
         // Reset inputs if we deleted our own comment
         setNewComment('');
         setSelectedScore(0);
+        setOwnRatingScore(0);
 
         if (deletedComment && deletedComment.author_score > 0) {
             const newCount = Math.max(0, ratingCount - 1);

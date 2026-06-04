@@ -188,8 +188,15 @@ export interface ProjectComment {
     author_avatar?: string;
     author_avatar_emoji?: string | null;
     author_avatar_theme?: string | null;
+    author_score?: number | null;
     content: string;
     created_at: string;
+}
+
+export interface ProjectUserFeedback {
+    comment_id: number | null;
+    content: string | null;
+    score: number | null;
 }
 
 export type ProjectSubmissionType = 'new_project' | 'new_version';
@@ -3180,6 +3187,33 @@ export async function getProjectComments(projectId: number): Promise<ProjectComm
       ORDER BY created_at DESC
     `;
     return rows;
+}
+
+export async function getProjectUserFeedback(projectId: number, userId: number): Promise<ProjectUserFeedback> {
+    await ensureProjectEnhancements();
+
+    const [commentResult, ratingResult] = await Promise.all([
+        sql<{ id: number; content: string }>`
+          SELECT id, content
+          FROM project_comments
+          WHERE project_id = ${projectId}
+            AND author_id = ${userId}
+          LIMIT 1
+        `,
+        sql<{ score: number }>`
+          SELECT score
+          FROM project_likes
+          WHERE project_id = ${projectId}
+            AND user_id = ${userId}
+          LIMIT 1
+        `,
+    ]);
+
+    return {
+        comment_id: commentResult.rows[0]?.id ?? null,
+        content: commentResult.rows[0]?.content ?? null,
+        score: ratingResult.rows[0]?.score ? Number(ratingResult.rows[0].score) : null,
+    };
 }
 
 function normalizeProjectSubmission(input: ProjectSubmissionInput) {
