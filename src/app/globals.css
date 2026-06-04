@@ -649,9 +649,10 @@ textarea:hover,
 }
 
 .project-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-  border-color: #fff;
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  border-color: rgba(108, 92, 231, 0.2);
+  background: #ffffff !important;
 }
 
 .project-card-shell {
@@ -660,28 +661,16 @@ textarea:hover,
   min-height: 470px;
   border: 0;
   background: transparent;
-  contain: layout style;
+  perspective: 1200px;
+  transform-style: preserve-3d;
+  contain: layout paint;
   isolation: isolate;
   cursor: pointer;
   outline: none;
-  transition: transform 0.22s ease;
-}
-
-.project-card-shell::after {
-  content: "";
-  position: absolute;
-  inset: 8px;
-  z-index: -1;
-  border-radius: var(--radius-lg);
-  opacity: 0;
-  background: rgba(255,255,255,0.36);
-  box-shadow: 0 14px 26px rgba(31, 38, 135, 0.12);
-  transition: opacity 0.22s ease;
-  pointer-events: none;
 }
 
 .project-card-shell:focus-visible .project-card-face {
-  box-shadow: 0 0 0 3px rgba(108,92,231,0.16);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.18), 0 22px 46px rgba(108,92,231,0.14);
 }
 
 .project-card-inner {
@@ -689,7 +678,12 @@ textarea:hover,
   inset: 0;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  background: transparent;
+  transform-style: preserve-3d;
+  transition: transform 0.58s cubic-bezier(0.2, 0.74, 0.24, 1);
+}
+
+.project-card-shell.is-flipped .project-card-inner {
+  transform: rotateY(180deg);
 }
 
 .project-card-face {
@@ -703,9 +697,10 @@ textarea:hover,
   border: 1px solid rgba(255,255,255,0.72);
   border-radius: var(--radius-lg);
   background: var(--project-accent-bg, rgba(255,255,255,0.58));
-  box-shadow: none !important;
-  will-change: transform, opacity;
-  transition: transform 0.22s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.18s ease, visibility 0s linear 0.18s;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.18s ease, visibility 0s linear 0.18s;
 }
 
 .project-card-face[aria-hidden="true"] {
@@ -715,16 +710,8 @@ textarea:hover,
 }
 
 .project-card-shell.is-live:hover .project-card-front {
-  transform: none;
-  box-shadow: none !important;
-}
-
-.project-card-shell.is-live:hover {
-  transform: translateY(-4px);
-}
-
-.project-card-shell.is-live:hover::after {
-  opacity: 1;
+  transform: translateY(-5px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
 }
 
 .project-card-shell.is-flipped:hover .project-card-front {
@@ -732,7 +719,7 @@ textarea:hover,
 }
 
 .project-card-back {
-  transform: translateY(12px) scale(0.985);
+  transform: rotateY(180deg);
   background: rgba(255,255,255,0.72);
   box-shadow: none;
   cursor: default;
@@ -740,14 +727,12 @@ textarea:hover,
 
 .project-card-shell.is-flipped .project-card-back {
   opacity: 1;
-  transform: translateY(0) scale(1);
   visibility: visible;
   transition-delay: 0s;
 }
 
 .project-card-shell.is-flipped .project-card-front {
   opacity: 0;
-  transform: translateY(-10px) scale(0.985);
   visibility: hidden;
   transition-delay: 0s, 0s, 0s, 0s, 0s, 0.18s;
 }
