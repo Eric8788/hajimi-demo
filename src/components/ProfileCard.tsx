@@ -15,6 +15,7 @@ import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE 
 import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avatarThemes';
 import { clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
+import { getPostPrimaryAttachmentUrl } from '@/lib/forumAttachments';
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -79,6 +80,10 @@ function getTagLabel(tag?: string | null) {
 
 function getPostHref(postId: number) {
     return `/resources#post-${postId}`;
+}
+
+function getProfilePostImage(post: Post) {
+    return getPostPrimaryAttachmentUrl(post);
 }
 
 function getRoleLabel(user: User) {
@@ -1594,8 +1599,8 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <section className="profile-featured-post">
                             <div className="profile-feed-label">Featured Post</div>
                             <Link href={getPostHref(featuredPost.id)} className="profile-featured-content profile-post-link-card" aria-label={`打开论坛帖子：${featuredPost.title}`}>
-                                {featuredPost.attachment_url && (
-                                    <img src={getImageDisplayUrl(featuredPost.attachment_url)} alt="" />
+                                {getProfilePostImage(featuredPost) && (
+                                    <img src={getImageDisplayUrl(getProfilePostImage(featuredPost))} alt="" />
                                 )}
                                 <div>
                                     <span>{getTagLabel(featuredPost.tag)}</span>
@@ -1664,7 +1669,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <div className="profile-post-list">
                             {recentPosts.length > 0 ? recentPosts.map(post => (
                                 <Link key={post.id} href={getPostHref(post.id)} className="profile-post-list-item profile-post-link-card" aria-label={`打开论坛帖子：${post.title}`}>
-                                    {post.attachment_url && <img src={getImageDisplayUrl(post.attachment_url)} alt="" />}
+                                    {getProfilePostImage(post) && <img src={getImageDisplayUrl(getProfilePostImage(post))} alt="" />}
                                     <div>
                                         <h4>{post.title}</h4>
                                         <p>{getPreviewText(post.content, 96)}</p>

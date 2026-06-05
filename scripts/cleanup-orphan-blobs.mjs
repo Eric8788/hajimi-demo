@@ -8,13 +8,26 @@ const deleteBatchSize = 100;
 
 async function getReferencedUrls() {
     const { rows } = await sql`
-      SELECT attachment_url
-      FROM posts
-      WHERE attachment_url IS NOT NULL
-        AND attachment_url != ''
+      SELECT DISTINCT url
+      FROM (
+        SELECT attachment_url as url
+        FROM posts
+        WHERE attachment_url IS NOT NULL
+          AND attachment_url != ''
+        UNION ALL
+        SELECT jsonb_array_elements_text(COALESCE(attachment_urls, '[]'::jsonb)) as url
+        FROM posts
+        UNION ALL
+        SELECT attachment_url as url
+        FROM comments
+        WHERE attachment_url IS NOT NULL
+          AND attachment_url != ''
+      ) referenced_urls
+      WHERE url IS NOT NULL
+        AND url != ''
     `;
 
-    return new Set(rows.map((row) => row.attachment_url));
+    return new Set(rows.map((row) => row.url));
 }
 
 async function getForumBlobs() {

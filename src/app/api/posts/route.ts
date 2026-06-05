@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getPosts, createPost, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
+import { getPosts, createPostWithAttachments, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
 import { isStaffRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
-import { put } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { cachedServerValue, clearServerCache } from '@/lib/serverCache';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
+const MAX_POST_ATTACHMENTS = 3;
 const DAILY_ATTACHMENT_LIMIT = 5;
 const TOTAL_ATTACHMENT_LIMIT = 30;
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -34,6 +35,29 @@ function normalizeHashtag(value: FormDataEntryValue | null) {
         .replace(/^#+/, '')
         .replace(/\s+/g, '')
         .slice(0, 24) || 'general';
+}
+
+function getPostFiles(formData: FormData) {
+    const files = formData
+        .getAll('files')
+        .filter((value): value is File => value instanceof File && value.size > 0);
+    const legacyFile = formData.get('file');
+
+    if (files.length === 0 && legacyFile instanceof File && legacyFile.size > 0) {
+        files.push(legacyFile);
+    }
+
+    return files;
+}
+
+async function cleanupUploadedBlobs(urls: string[]) {
+    if (urls.length === 0) return;
+
+    try {
+        await del(urls);
+    } catch (error) {
+        console.warn('Failed to clean up uploaded post blobs:', error);
+    }
 }
 
 export async function GET(request: Request) {
@@ -85,8 +109,8 @@ export async function POST(request: Request) {
         const content = String(formData.get('content') || '').trim();
         let type = 'text';
         const tag = normalizeHashtag(formData.get('tag'));
-        const file = formData.get('file') as File | null;
-        const hasFile = Boolean(file && file.size > 0);
+        const files = getPostFiles(formData);
+        const hasFiles = files.length > 0;
 
         if (!title) {
             return NextResponse.json({ error: '标题必填，内容可以选填。' }, { status: 400 });
@@ -100,15 +124,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Hashtags can use letters, numbers, Chinese characters, underscores, or hyphens' }, { status: 400 });
         }
 
-        let attachmentUrl = '';
+        const attachmentUrls: string[] = [];
 
-        if (hasFile && file) {
-            if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-                return NextResponse.json({ error: 'Only JPEG, PNG, WebP, or GIF images can be uploaded' }, { status: 415 });
+        if (hasFiles) {
+            if (files.length > MAX_POST_ATTACHMENTS) {
+                return NextResponse.json({ error: `最多一次上传 ${MAX_POST_ATTACHMENTS} 张图片。` }, { status: 400 });
             }
 
-            if (file.size > MAX_ATTACHMENT_SIZE) {
-                return NextResponse.json({ error: 'Image must be 1 MB or smaller' }, { status: 413 });
+            for (const file of files) {
+                if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+                    return NextResponse.json({ error: 'Only JPEG, PNG, WebP, or GIF images can be uploaded' }, { status: 415 });
+                }
+
+                if (file.size > MAX_ATTACHMENT_SIZE) {
+                    return NextResponse.json({ error: 'Each image must be 1 MB or smaller' }, { status: 413 });
+                }
             }
 
             if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -116,26 +146,39 @@ export async function POST(request: Request) {
             }
 
             const totalUploads = await countAttachmentsByUser(userId);
-            if (totalUploads >= TOTAL_ATTACHMENT_LIMIT) {
+            if (totalUploads + files.length > TOTAL_ATTACHMENT_LIMIT) {
                 return NextResponse.json({ error: 'Image storage limit reached. Delete old image posts before uploading more.' }, { status: 429 });
             }
 
             const recentUploads = await countRecentAttachmentsByUser(userId);
-            if (recentUploads >= DAILY_ATTACHMENT_LIMIT) {
+            if (recentUploads + files.length > DAILY_ATTACHMENT_LIMIT) {
                 return NextResponse.json({ error: 'Daily image upload limit reached. Try again tomorrow.' }, { status: 429 });
             }
 
-            const blobName = `forum/${Date.now()}-${crypto.randomUUID()}-${safeFilename(file.name)}`;
-            const blob = await put(blobName, file, {
-                access: 'public',
-                contentType: file.type || undefined,
-            });
+            try {
+                for (const file of files) {
+                    const blobName = `forum/${Date.now()}-${crypto.randomUUID()}-${safeFilename(file.name)}`;
+                    const blob = await put(blobName, file, {
+                        access: 'public',
+                        contentType: file.type || undefined,
+                    });
 
-            attachmentUrl = blob.url;
+                    attachmentUrls.push(blob.url);
+                }
+            } catch (error) {
+                await cleanupUploadedBlobs(attachmentUrls);
+                throw error;
+            }
+
             type = 'image';
         }
 
-        await createPost(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrl, tag);
+        try {
+            await createPostWithAttachments(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrls, tag);
+        } catch (error) {
+            await cleanupUploadedBlobs(attachmentUrls);
+            throw error;
+        }
         clearServerCache('posts:');
         return NextResponse.json({ success: true });
     } catch (err: unknown) {

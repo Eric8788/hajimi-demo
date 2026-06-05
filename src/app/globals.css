@@ -9428,15 +9428,74 @@ html *::after {
   color: #b7791f;
 }
 
+.composer-image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.composer-image-preview {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(108,92,231,0.16);
+  background: rgba(255,255,255,0.72);
+}
+
+.composer-image-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.composer-image-preview button,
+.comment-image-draft button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(45,52,54,0.7);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.post-image-grid {
+  display: grid;
+  gap: 6px;
+  width: min(100%, 420px);
+  margin-top: 15px;
+}
+
+.post-image-grid.count-1 {
+  grid-template-columns: minmax(0, 320px);
+}
+
+.post-image-grid.count-2 {
+  grid-template-columns: repeat(2, minmax(0, 150px));
+}
+
+.post-image-grid.count-3 {
+  grid-template-columns: repeat(3, minmax(0, 118px));
+}
+
 .post-image-attachment {
   width: 100%;
   display: block;
+  aspect-ratio: 1;
   padding: 0;
   border: 1px solid rgba(108,92,231,0.12);
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
   background: transparent;
-  box-shadow: 0 12px 28px rgba(108,92,231,0.08);
+  box-shadow: 0 10px 24px rgba(108,92,231,0.08);
   line-height: 0;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
@@ -9449,15 +9508,15 @@ html *::after {
 
 .post-image-attachment img {
   width: 100%;
-  max-height: 520px;
+  height: 100%;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
   background: #fff;
 }
 
 .post-image-fallback,
 .post-image-modal-fallback {
-  min-height: 180px;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -9487,6 +9546,41 @@ html *::after {
   border: 1px solid rgba(255,255,255,0.22);
   text-decoration: none;
   backdrop-filter: blur(18px);
+}
+
+.post-image-modal-nav {
+  position: absolute;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255,255,255,0.16);
+  font-size: 2.2rem;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.post-image-modal-nav.is-prev {
+  left: 28px;
+}
+
+.post-image-modal-nav.is-next {
+  right: 28px;
+}
+
+.post-image-modal-count {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255,255,255,0.16);
+  font-size: 0.86rem;
+  font-weight: 800;
+  transform: translateX(-50%);
 }
 
 .post-rich-link {
@@ -9768,6 +9862,86 @@ html *::after {
 .featured-comment-action.is-liked {
   color: #ff7675;
   background: rgba(255,118,117,0.1);
+}
+
+.comment-content-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.comment-image-thumb {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid rgba(108,92,231,0.14);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.72);
+  cursor: pointer;
+}
+
+.comment-image-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.comment-compose-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.comment-image-button {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(108,92,231,0.1);
+  cursor: pointer;
+}
+
+.comment-image-button input {
+  display: none;
+}
+
+.comment-image-draft {
+  position: relative;
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 34px 6px 6px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.55);
+  color: #00a878;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.comment-image-draft img {
+  width: 42px;
+  height: 42px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.comment-image-error {
+  flex: 1 0 100%;
+  padding: 7px 9px;
+  border-radius: 9px;
+  color: #d63031;
+  background: rgba(255,118,117,0.13);
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 
 .post-edit-form {

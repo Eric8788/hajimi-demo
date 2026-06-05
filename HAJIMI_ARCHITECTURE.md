@@ -60,8 +60,8 @@ The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not 
 ## 5. Database Schema (`src/lib/db.ts`)
 Database interactions are handled via standard SQL functions.
 - **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason`.
-- **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `likes`, `created_at`.
-- **`comments`:** `id`, `post_id`, `author_id`, `content`, `created_at`.
+- **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `attachment_url`, `attachment_urls`, `likes`, `created_at`.
+- **`comments`:** `id`, `post_id`, `author_id`, `content`, `attachment_url`, `created_at`.
 - **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
 - **`projects`:** `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `cover_url`, `status`, `rating`, `rating_count`, `created_at`.
 - **`project_likes` / `project_comments`:** Hub ratings and comments, verified-only interaction data for project contribution rankings.
@@ -89,10 +89,11 @@ Database interactions are handled via standard SQL functions.
    - Parse session cookies securely using `getSession()`.
 4. **Handling forum and project cover attachments:**
    - Use Vercel Blob for uploads; do not write to `public/uploads` or any local filesystem path.
-   - Store only the public Blob URL in `posts.attachment_url`.
+   - Forum posts can store up to 3 public Blob URLs in `posts.attachment_urls`; the first URL is mirrored in legacy `posts.attachment_url` for compatibility.
+   - Forum comments can store one optional public Blob URL in `comments.attachment_url`.
    - Accept only JPEG/PNG/WebP/GIF images, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user.
    - The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
-   - Delete the associated Blob when a post is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
+   - Delete associated Blobs when a post or image comment is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
    - Function Hall project covers upload through `POST /api/project-submissions/cover`; the browser crops screenshots to 16:9 WebP before upload, and the resulting URL is stored on `project_submissions.cover_url` for review/approval.
 5. **Forum moderation:**
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.

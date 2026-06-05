@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useCallback, useState, useEffect, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useState, useEffect, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
@@ -13,6 +13,14 @@ import PostTextComposer from './PostTextComposer';
 import { clearCachedJson } from '@/lib/clientJsonCache';
 import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
+import { getPostAttachmentUrls } from '@/lib/forumAttachments';
+import {
+    compressForumImageForUpload,
+    formatFileSize,
+    FORUM_ALLOWED_IMAGE_TYPES,
+    FORUM_COMPRESSIBLE_IMAGE_TYPES,
+    MAX_FORUM_IMAGE_SIZE,
+} from '@/lib/clientImageUpload';
 
 const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
 
@@ -107,6 +115,12 @@ function pickFeaturedComment(comments: Comment[]) {
     })[0] ?? null;
 }
 
+type CommentImageDraft = {
+    file: File;
+    previewUrl: string;
+    status: string;
+};
+
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
     const isGuest = !currentUser;
@@ -144,6 +158,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [locationHash, setLocationHash] = useState('');
 
     const [newComment, setNewComment] = useState('');
+    const [commentImage, setCommentImage] = useState<CommentImageDraft | null>(null);
+    const [commentImageError, setCommentImageError] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
     const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -154,14 +170,25 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [editError, setEditError] = useState('');
     const [interactionMessage, setInteractionMessage] = useState('');
 
-    // Image Modal State
-    const [showImageModal, setShowImageModal] = useState(false);
-    const [attachmentImageFailed, setAttachmentImageFailed] = useState(false);
-    const attachmentImageSrc = getImageDisplayUrl(post.attachment_url);
+    const postAttachmentUrls = getPostAttachmentUrls(post);
+    const [imageModalUrls, setImageModalUrls] = useState<string[]>([]);
+    const [imageModalIndex, setImageModalIndex] = useState(0);
+    const [attachmentImageFailed, setAttachmentImageFailed] = useState<Record<string, boolean>>({});
+    const showImageModal = imageModalUrls.length > 0;
+    const activeImageUrl = imageModalUrls[imageModalIndex] || '';
+    const activeImageSrc = getImageDisplayUrl(activeImageUrl);
 
     useEffect(() => {
-        setAttachmentImageFailed(false);
-    }, [post.attachment_url]);
+        setAttachmentImageFailed({});
+    }, [post.attachment_url, post.attachment_urls]);
+
+    useEffect(() => {
+        return () => {
+            if (commentImage) {
+                URL.revokeObjectURL(commentImage.previewUrl);
+            }
+        };
+    }, [commentImage]);
 
     const loadComments = useCallback(async () => {
         try {
@@ -275,11 +302,36 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         return false;
     };
 
+    const openImageModal = (urls: string[], index = 0) => {
+        const cleanUrls = urls.map(url => String(url || '').trim()).filter(Boolean);
+        if (cleanUrls.length === 0) return;
+        setImageModalUrls(cleanUrls);
+        setImageModalIndex(Math.min(Math.max(0, index), cleanUrls.length - 1));
+    };
+
+    const closeImageModal = () => {
+        setImageModalUrls([]);
+        setImageModalIndex(0);
+    };
+
+    const showPreviousImage = () => {
+        setImageModalIndex(current => (current - 1 + imageModalUrls.length) % imageModalUrls.length);
+    };
+
+    const showNextImage = () => {
+        setImageModalIndex(current => (current + 1) % imageModalUrls.length);
+    };
+
+    const markImageFailed = (url: string) => {
+        setAttachmentImageFailed(current => ({ ...current, [url]: true }));
+    };
+
     const makeReplyTarget = (comment: Comment | NonNullable<Post['featured_comment']>): Comment => ({
         id: comment.id,
         post_id: post.id,
         author_id: comment.author_id,
         content: comment.content,
+        attachment_url: comment.attachment_url,
         likes: comment.likes,
         created_at: comment.created_at,
         reply_author_name: comment.reply_author_name,
@@ -478,17 +530,85 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         }
     };
 
+    const clearCommentImage = () => {
+        setCommentImage(current => {
+            if (current) URL.revokeObjectURL(current.previewUrl);
+            return null;
+        });
+        setCommentImageError('');
+    };
+
+    const prepareCommentImage = async (selectedFile: File) => {
+        setCommentImageError('');
+
+        if (!FORUM_ALLOWED_IMAGE_TYPES.includes(selectedFile.type)) {
+            setCommentImageError('Only JPEG, PNG, WebP, or GIF images can be uploaded.');
+            return;
+        }
+
+        if (selectedFile.type === 'image/gif' && selectedFile.size > MAX_FORUM_IMAGE_SIZE) {
+            setCommentImageError('Animated GIFs must be 1 MB or smaller.');
+            return;
+        }
+
+        let nextFile = selectedFile;
+        let status = `Ready: ${formatFileSize(selectedFile.size)}.`;
+
+        if (selectedFile.size > MAX_FORUM_IMAGE_SIZE) {
+            if (!FORUM_COMPRESSIBLE_IMAGE_TYPES.has(selectedFile.type)) {
+                setCommentImageError('Image must be 1 MB or smaller.');
+                return;
+            }
+
+            try {
+                nextFile = await compressForumImageForUpload(selectedFile);
+            } catch {
+                setCommentImageError('Could not optimize this image. Try a smaller JPEG, PNG, or WebP file.');
+                return;
+            }
+
+            if (nextFile.size > MAX_FORUM_IMAGE_SIZE) {
+                setCommentImageError(`This image is still ${formatFileSize(nextFile.size)} after compression. Try a smaller image or crop it first.`);
+                return;
+            }
+
+            status = `Optimized from ${formatFileSize(selectedFile.size)} to ${formatFileSize(nextFile.size)}.`;
+        }
+
+        setCommentImage(current => {
+            if (current) URL.revokeObjectURL(current.previewUrl);
+            return {
+                file: nextFile,
+                previewUrl: URL.createObjectURL(nextFile),
+                status,
+            };
+        });
+    };
+
+    const handleCommentImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = event.target.files?.[0] || null;
+        event.target.value = '';
+        if (!selectedFile) return;
+        await prepareCommentImage(selectedFile);
+    };
+
     const submitComment = async (e: FormEvent) => {
         e.preventDefault();
         if (requireVerifiedInteraction()) return;
-        if (!newComment.trim()) return;
+        if (!newComment.trim() && !commentImage) return;
         setSendingComment(true);
         const commentText = newComment.trim();
         const parentCommentId = replyingTo?.id;
+        const formData = new FormData();
+        formData.append('action', 'comment');
+        formData.append('postId', String(post.id));
+        formData.append('content', commentText);
+        if (parentCommentId) formData.append('parentCommentId', String(parentCommentId));
+        if (commentImage) formData.append('file', commentImage.file);
 
         const res = await fetch('/api/posts/interact', {
             method: 'POST',
-            body: JSON.stringify({ action: 'comment', postId: post.id, content: commentText, parentCommentId })
+            body: formData,
         });
 
         if (res.ok) {
@@ -499,9 +619,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 return next;
             });
             setNewComment('');
+            clearCommentImage();
             setReplyingTo(null);
             setShowComments(true);
             await loadComments();
+        } else {
+            const data = await res.json().catch(() => null);
+            setCommentImageError(data?.error || 'Could not send this comment.');
         }
         setSendingComment(false);
     };
@@ -516,6 +640,48 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     } : null;
     const visibleComments = showComments ? comments : [];
     const hasFeaturedPreview = !isEditing && !showComments && featuredComment && featuredCommentBadgeUser;
+    const commentComposer = canInteract ? (
+        <form onSubmit={submitComment} className="comment-compose-form">
+            {replyingTo && (
+                <div className="comment-reply-pill">
+                    Replying to @{replyingTo.author_name}
+                    <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">×</button>
+                </div>
+            )}
+            {commentImage && (
+                <div className="comment-image-draft">
+                    <img src={commentImage.previewUrl} alt="" />
+                    <span>{commentImage.status}</span>
+                    <button type="button" onClick={clearCommentImage} aria-label="Remove comment image">×</button>
+                </div>
+            )}
+            {commentImageError && <div className="comment-image-error">{commentImageError}</div>}
+            <input
+                className="glass-input"
+                style={{ flex: '1 1 220px', padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
+                placeholder={replyingTo ? `Reply to ${replyingTo.author_name}...` : 'Write a comment...'}
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+            />
+            <label className="comment-image-button" title="Attach image">
+                🖼️
+                <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleCommentImageChange}
+                    disabled={sendingComment}
+                />
+            </label>
+            <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }} disabled={sendingComment || (!newComment.trim() && !commentImage)}>
+                Send
+            </button>
+        </form>
+    ) : (
+        <div className="forum-verification-callout">
+            <span>{isGuest ? '登录后可以提交认证并参与评论。' : '完成 Hajimi 认证后可以评论和回复。'}</span>
+            <button type="button" onClick={() => router.push(isGuest ? '/login' : '/profile')}>{isGuest ? '登录' : '去认证'}</button>
+        </div>
+    );
     const featuredCommentPreview = hasFeaturedPreview ? (
         <div className="featured-comment-preview">
             <div className="featured-comment-kicker">🔥 最火评论</div>
@@ -541,7 +707,19 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             Replying to @{featuredComment.reply_author_name}: {shortPreview(featuredComment.reply_content)}
                         </div>
                     )}
-                    <div>{renderRichText(shortPreview(featuredComment.content))}</div>
+                    <div className="comment-content-line">
+                        {featuredComment.content && <span>{renderRichText(shortPreview(featuredComment.content))}</span>}
+                        {featuredComment.attachment_url && (
+                            <button
+                                type="button"
+                                className="comment-image-thumb"
+                                onClick={() => openImageModal([featuredComment.attachment_url || ''])}
+                                aria-label="Open comment image"
+                            >
+                                <img src={getImageDisplayUrl(featuredComment.attachment_url)} alt="" />
+                            </button>
+                        )}
+                    </div>
                     <div className="featured-comment-actions">
                         <motion.button
                             type="button"
@@ -741,37 +919,38 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     </>
                 )}
 
-                {/* Attachment / Thumbnail */}
-                {post.attachment_url && (
-                    <div style={{ marginTop: '15px' }}>
-                        {post.type === 'image' ? (
-                            <button
-                                type="button"
-                                className="post-image-attachment"
-                                onClick={() => setShowImageModal(true)}
-                                aria-label="Open image"
-                            >
-                                {attachmentImageSrc && !attachmentImageFailed ? (
-                                    <img
-                                        src={attachmentImageSrc}
-                                        alt="Post attachment"
-                                        loading="lazy"
-                                        decoding="async"
-                                        fetchPriority="low"
-                                        onError={() => setAttachmentImageFailed(true)}
-                                    />
-                                ) : (
-                                    <span className="post-image-fallback">
-                                        <strong>图片暂时加载失败</strong>
-                                        <small>点击可尝试打开原图</small>
-                                    </span>
-                                )}
-                            </button>
-                        ) : (
-                            <a href={post.attachment_url} target="_blank" className="btn" style={{ background: '#dfe6e9', color: '#2d3436', fontSize: '0.9rem', padding: '10px 15px' }}>
-                                📎 Download Attachment
-                            </a>
-                        )}
+                {postAttachmentUrls.length > 0 && (
+                    <div className={`post-image-grid count-${Math.min(postAttachmentUrls.length, 3)}`} aria-label="Post images">
+                        {postAttachmentUrls.slice(0, 3).map((url, index) => {
+                            const imageSrc = getImageDisplayUrl(url);
+                            const failed = attachmentImageFailed[url];
+
+                            return (
+                                <button
+                                    key={url}
+                                    type="button"
+                                    className="post-image-attachment"
+                                    onClick={() => openImageModal(postAttachmentUrls, index)}
+                                    aria-label={`Open image ${index + 1}`}
+                                >
+                                    {imageSrc && !failed ? (
+                                        <img
+                                            src={imageSrc}
+                                            alt=""
+                                            loading="lazy"
+                                            decoding="async"
+                                            fetchPriority="low"
+                                            onError={() => markImageFailed(url)}
+                                        />
+                                    ) : (
+                                        <span className="post-image-fallback">
+                                            <strong>图片暂时加载失败</strong>
+                                            <small>点击可尝试打开原图</small>
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -932,7 +1111,19 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                         Replying to @{c.reply_author_name}: {shortPreview(c.reply_content)}
                                                     </div>
                                                 )}
-                                                <div style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>{renderRichText(c.content)}</div>
+                                                <div className="comment-content-line" style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>
+                                                    {c.content && <span>{renderRichText(c.content)}</span>}
+                                                    {c.attachment_url && (
+                                                        <button
+                                                            type="button"
+                                                            className="comment-image-thumb"
+                                                            onClick={() => openImageModal([c.attachment_url || ''])}
+                                                            aria-label="Open comment image"
+                                                        >
+                                                            <img src={getImageDisplayUrl(c.attachment_url)} alt="" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -940,33 +1131,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             )}
 
                             {/* Comment Input - Only visible when fully expanded or if no comments yet */}
-                            {showComments && (
-                                canInteract ? (
-                                <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                    {replyingTo && (
-                                        <div className="comment-reply-pill">
-                                            Replying to @{replyingTo.author_name}
-                                            <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">×</button>
-                                        </div>
-                                    )}
-                                    <input
-                                        className="glass-input"
-                                        style={{ flex: '1 1 220px', padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
-                                        placeholder={replyingTo ? `Reply to ${replyingTo.author_name}...` : 'Write a comment...'}
-                                        value={newComment}
-                                        onChange={e => setNewComment(e.target.value)}
-                                    />
-                                    <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }} disabled={sendingComment}>
-                                        Send
-                                    </button>
-                                </form>
-                                ) : (
-                                    <div className="forum-verification-callout">
-                                        <span>{isGuest ? '登录后可以提交认证并参与评论。' : '完成 Hajimi 认证后可以评论和回复。'}</span>
-                                        <button type="button" onClick={() => router.push(isGuest ? '/login' : '/profile')}>{isGuest ? '登录' : '去认证'}</button>
-                                    </div>
-                                )
-                            )}
+                            {showComments && commentComposer}
                         </div>
                     </motion.div>
                 )}
@@ -978,25 +1143,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     >
                         <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
                             <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>No comments yet.</div>
-                            {canInteract ? (
-                            <form onSubmit={submitComment} style={{ display: 'flex', gap: '10px' }}>
-                                <input
-                                    className="glass-input"
-                                    style={{ flex: 1, padding: '8px 12px', fontSize: '0.9rem', background: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: '8px' }}
-                                    placeholder="Be the first to comment..."
-                                    value={newComment}
-                                    onChange={e => setNewComment(e.target.value)}
-                                />
-                                <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }} disabled={sendingComment}>
-                                    Send
-                                </button>
-                            </form>
-                            ) : (
-                                <div className="forum-verification-callout">
-                                    <span>{isGuest ? '登录后可以提交认证并参与评论。' : '完成 Hajimi 认证后可以成为第一个评论的人。'}</span>
-                                    <button type="button" onClick={() => router.push(isGuest ? '/login' : '/profile')}>{isGuest ? '登录' : '去认证'}</button>
-                                </div>
-                            )}
+                            {commentComposer}
                         </div>
                     </motion.div>
                 )}
@@ -1010,7 +1157,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            onClick={() => setShowImageModal(false)}
+                            onClick={closeImageModal}
                             style={{
                                 position: 'fixed', inset: 0,
                                 background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)',
@@ -1019,15 +1166,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 cursor: 'default'
                             }}
                         >
-                            {attachmentImageSrc && !attachmentImageFailed ? (
+                            {activeImageSrc && !attachmentImageFailed[activeImageUrl] ? (
                                 <motion.img
                                     initial={{ scale: 0.9 }}
                                     animate={{ scale: 1 }}
                                     exit={{ scale: 0.9 }}
-                                    src={attachmentImageSrc}
+                                    src={activeImageSrc}
                                     alt="Full size"
                                     onClick={e => e.stopPropagation()}
-                                    onError={() => setAttachmentImageFailed(true)}
+                                    onError={() => markImageFailed(activeImageUrl)}
                                     style={{
                                         maxWidth: '95vw', maxHeight: '95vh',
                                         borderRadius: '4px',
@@ -1037,7 +1184,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 />
                             ) : (
                                 <a
-                                    href={post.attachment_url}
+                                    href={activeImageUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={e => e.stopPropagation()}
@@ -1047,10 +1194,40 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 </a>
                             )}
 
+                            {imageModalUrls.length > 1 && (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="post-image-modal-nav is-prev"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            showPreviousImage();
+                                        }}
+                                        aria-label="Previous image"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="post-image-modal-nav is-next"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            showNextImage();
+                                        }}
+                                        aria-label="Next image"
+                                    >
+                                        ›
+                                    </button>
+                                    <div className="post-image-modal-count">
+                                        {imageModalIndex + 1} / {imageModalUrls.length}
+                                    </div>
+                                </>
+                            )}
+
                             <div
                                 onClick={(e) => {
-                                    e.stopPropagation(); // Ensure button click handles logic
-                                    setShowImageModal(false);
+                                    e.stopPropagation();
+                                    closeImageModal();
                                 }}
                                 style={{
                                     position: 'absolute', top: '30px', right: '30px',

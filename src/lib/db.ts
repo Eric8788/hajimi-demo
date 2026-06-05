@@ -246,6 +246,7 @@ export interface Post {
     type: string;
     tag: string;
     attachment_url?: string;
+    attachment_urls?: string[] | null;
     likes: number;
     created_at: Date;
     updated_at?: Date;
@@ -268,6 +269,7 @@ export interface Comment {
     post_id: number;
     author_id: number;
     content: string;
+    attachment_url?: string | null;
     likes: number;
     created_at: Date;
     parent_comment_id?: number | null;
@@ -288,6 +290,7 @@ export interface FeaturedComment {
     id: number;
     author_id: number;
     content: string;
+    attachment_url?: string | null;
     likes: number;
     created_at: Date;
     reply_author_name?: string | null;
@@ -1557,7 +1560,9 @@ async function ensureForumEnhancements() {
     if (!forumEnhancementsReady) {
         forumEnhancementsReady = (async () => {
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
+            await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS attachment_urls JSONB DEFAULT '[]'::jsonb`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
+            await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS attachment_url TEXT`;
             await sql`ALTER TABLE IF EXISTS post_likes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
             await ensureBookmarksTable();
         })().catch(error => {
@@ -1593,11 +1598,17 @@ async function ensureBookmarksTable() {
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
-        await ensureForumEnhancements();
     }
+    await ensureForumEnhancements();
 
     const { rows } = await sql`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url, posts.likes, posts.created_at, posts.updated_at,
+      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url,
+      CASE
+        WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
+        WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
+        ELSE '[]'::jsonb
+      END as attachment_urls,
+      posts.likes, posts.created_at, posts.updated_at,
       users.username as author_name,
       CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
       users.avatar_emoji as author_avatar_emoji,
@@ -1621,6 +1632,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
           'id', featured_comments.id,
           'author_id', featured_comments.author_id,
           'content', featured_comments.content,
+          'attachment_url', featured_comments.attachment_url,
           'likes', featured_comments.likes,
           'created_at', featured_comments.created_at,
           'reply_author_name', parent_users.username,
@@ -1701,11 +1713,17 @@ export async function getRecentPostHighlights(limit = 2) {
 export async function getPostsByAuthor(authorId: number, viewerId?: number, limit = 12) {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
-        await ensureForumEnhancements();
     }
+    await ensureForumEnhancements();
 
     const { rows } = await sql`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url, posts.likes, posts.created_at, posts.updated_at,
+      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url,
+      CASE
+        WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
+        WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
+        ELSE '[]'::jsonb
+      END as attachment_urls,
+      posts.likes, posts.created_at, posts.updated_at,
       users.username as author_name,
       CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
       users.avatar_emoji as author_avatar_emoji,
@@ -1734,8 +1752,8 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
 export async function getComments(postId: number, userId?: number) {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
-        await ensureForumEnhancements();
     }
+    await ensureForumEnhancements();
 
     const { rows } = await sql`
       SELECT comments.*, users.username as author_name,
@@ -1765,9 +1783,36 @@ export async function getComments(postId: number, userId?: number) {
 }
 
 export async function createPost(authorId: number, title: string, content: string, type: string = 'text', attachmentUrl: string = '', tag: string = 'general') {
+    await ensureForumEnhancements();
+    const attachmentUrls = attachmentUrl ? [attachmentUrl] : [];
     const { rows } = await sql`
-    INSERT INTO posts (author_id, title, content, type, attachment_url, tag) 
-    VALUES (${authorId}, ${title}, ${content}, ${type}, ${attachmentUrl}, ${tag})
+    INSERT INTO posts (author_id, title, content, type, attachment_url, attachment_urls, tag)
+    VALUES (${authorId}, ${title}, ${content}, ${type}, ${attachmentUrl}, ${JSON.stringify(attachmentUrls)}::jsonb, ${tag})
+    RETURNING id
+  `;
+    const { rows: postCountRows } = await sql<{ post_count: number }>`
+      SELECT COUNT(*)::int as post_count
+      FROM posts
+      WHERE author_id = ${authorId}
+    `;
+    const isFirstPost = (postCountRows[0]?.post_count ?? 0) === 1;
+
+    if (isFirstPost) {
+        await addAwardPointsOnce(authorId, 'first_post_bonus', 100);
+    } else {
+        await addPoints(authorId, 10);
+    }
+
+    return rows[0]?.id;
+}
+
+export async function createPostWithAttachments(authorId: number, title: string, content: string, type: string = 'text', attachmentUrls: string[] = [], tag: string = 'general') {
+    await ensureForumEnhancements();
+    const cleanAttachmentUrls = attachmentUrls.map(url => String(url || '').trim()).filter(Boolean);
+    const firstAttachmentUrl = cleanAttachmentUrls[0] || '';
+    const { rows } = await sql`
+    INSERT INTO posts (author_id, title, content, type, attachment_url, attachment_urls, tag)
+    VALUES (${authorId}, ${title}, ${content}, ${type}, ${firstAttachmentUrl}, ${JSON.stringify(cleanAttachmentUrls)}::jsonb, ${tag})
     RETURNING id
   `;
     const { rows: postCountRows } = await sql<{ post_count: number }>`
@@ -1808,31 +1853,58 @@ export async function updatePost(userId: number, postId: number, title: string, 
 }
 
 export async function countRecentAttachmentsByUser(userId: number) {
+    await ensureForumEnhancements();
+
     const { rows } = await sql<{ upload_count: number }>`
-      SELECT COUNT(*)::int as upload_count
-      FROM posts
-      WHERE author_id = ${userId}
-        AND attachment_url IS NOT NULL
-        AND attachment_url != ''
-        AND created_at >= NOW() - INTERVAL '24 hours'
+      SELECT COALESCE(SUM(upload_count), 0)::int as upload_count
+      FROM (
+        SELECT
+          CASE
+            WHEN jsonb_array_length(COALESCE(attachment_urls, '[]'::jsonb)) > 0 THEN jsonb_array_length(COALESCE(attachment_urls, '[]'::jsonb))
+            WHEN attachment_url IS NOT NULL AND attachment_url != '' THEN 1
+            ELSE 0
+          END as upload_count
+        FROM posts
+        WHERE author_id = ${userId}
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        UNION ALL
+        SELECT
+          CASE WHEN attachment_url IS NOT NULL AND attachment_url != '' THEN 1 ELSE 0 END as upload_count
+        FROM comments
+        WHERE author_id = ${userId}
+          AND created_at >= NOW() - INTERVAL '24 hours'
+      ) attachment_counts
   `;
 
     return rows[0]?.upload_count ?? 0;
 }
 
 export async function countAttachmentsByUser(userId: number) {
+    await ensureForumEnhancements();
+
     const { rows } = await sql<{ upload_count: number }>`
-      SELECT COUNT(*)::int as upload_count
-      FROM posts
-      WHERE author_id = ${userId}
-        AND attachment_url IS NOT NULL
-        AND attachment_url != ''
+      SELECT COALESCE(SUM(upload_count), 0)::int as upload_count
+      FROM (
+        SELECT
+          CASE
+            WHEN jsonb_array_length(COALESCE(attachment_urls, '[]'::jsonb)) > 0 THEN jsonb_array_length(COALESCE(attachment_urls, '[]'::jsonb))
+            WHEN attachment_url IS NOT NULL AND attachment_url != '' THEN 1
+            ELSE 0
+          END as upload_count
+        FROM posts
+        WHERE author_id = ${userId}
+        UNION ALL
+        SELECT
+          CASE WHEN attachment_url IS NOT NULL AND attachment_url != '' THEN 1 ELSE 0 END as upload_count
+        FROM comments
+        WHERE author_id = ${userId}
+      ) attachment_counts
   `;
 
     return rows[0]?.upload_count ?? 0;
 }
 
-export async function createComment(authorId: number, postId: number, content: string, parentCommentId?: number | null) {
+export async function createComment(authorId: number, postId: number, content: string, parentCommentId?: number | null, attachmentUrl = '') {
     await ensureForumEnhancements();
 
     let replyToId: number | null = null;
@@ -1847,8 +1919,8 @@ export async function createComment(authorId: number, postId: number, content: s
     }
 
     await sql`
-    INSERT INTO comments (author_id, post_id, content, parent_comment_id)
-    VALUES (${authorId}, ${postId}, ${content}, ${replyToId})
+    INSERT INTO comments (author_id, post_id, content, parent_comment_id, attachment_url)
+    VALUES (${authorId}, ${postId}, ${content}, ${replyToId}, ${attachmentUrl || ''})
   `;
     await addPoints(authorId, 5);
 }
@@ -3742,11 +3814,41 @@ export async function markNotificationsRead(userId: number) {
     `;
 }
 
-export async function getPostAttachmentForDelete(userId: number, postId: number, canModerate = false): Promise<string> {
-    const { rows } = await sql<{ attachment_url: string | null }>`
-      SELECT attachment_url
+export async function getPostAttachmentsForDelete(userId: number, postId: number, canModerate = false): Promise<string[]> {
+    await ensureForumEnhancements();
+
+    const { rows } = await sql<{ attachment_urls: string[] | null }>`
+      SELECT ARRAY(
+        SELECT DISTINCT url
+        FROM (
+          SELECT jsonb_array_elements_text(COALESCE(posts.attachment_urls, '[]'::jsonb)) as url
+          UNION ALL
+          SELECT posts.attachment_url as url
+          WHERE posts.attachment_url IS NOT NULL AND posts.attachment_url != ''
+          UNION ALL
+          SELECT comments.attachment_url as url
+          FROM comments
+          WHERE comments.post_id = posts.id
+            AND comments.attachment_url IS NOT NULL
+            AND comments.attachment_url != ''
+        ) attachment_values
+        WHERE url IS NOT NULL AND url != ''
+      ) as attachment_urls
       FROM posts
       WHERE id = ${postId} AND (${canModerate}::boolean OR author_id = ${userId})
+      LIMIT 1
+  `;
+
+    return rows[0]?.attachment_urls || [];
+}
+
+export async function getCommentAttachmentForDelete(userId: number, commentId: number, canModerate = false): Promise<string> {
+    await ensureForumEnhancements();
+
+    const { rows } = await sql<{ attachment_url: string | null }>`
+      SELECT attachment_url
+      FROM comments
+      WHERE id = ${commentId} AND (${canModerate}::boolean OR author_id = ${userId})
       LIMIT 1
   `;
 
@@ -3758,9 +3860,10 @@ export async function deletePost(userId: number, postId: number, canModerate = f
     if (!rows[0] || (!canModerate && rows[0].author_id !== userId)) return false;
 
     // Cleanup
-    await sql`DELETE FROM comments WHERE post_id = ${postId}`;
+    await sql`DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ${postId})`;
     await sql`DELETE FROM post_likes WHERE post_id = ${postId}`;
     await sql`DELETE FROM bookmarks WHERE post_id = ${postId}`;
+    await sql`DELETE FROM comments WHERE post_id = ${postId}`;
     await sql`DELETE FROM posts WHERE id = ${postId}`;
     return true;
 }
@@ -3852,6 +3955,7 @@ export async function initDB() {
       type TEXT DEFAULT 'text',
       tag TEXT DEFAULT 'general',
       attachment_url TEXT,
+      attachment_urls JSONB DEFAULT '[]'::jsonb,
       likes INTEGER DEFAULT 0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
@@ -3863,6 +3967,7 @@ export async function initDB() {
       post_id INTEGER NOT NULL REFERENCES posts(id),
       author_id INTEGER NOT NULL REFERENCES users(id),
       content TEXT NOT NULL,
+      attachment_url TEXT,
       likes INTEGER DEFAULT 0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );

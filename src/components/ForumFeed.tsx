@@ -11,6 +11,13 @@ import { FORUM_PROMOS } from '@/data/forumPromos';
 import PostTextComposer from './PostTextComposer';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 import { applyAvatarPatch, applyPostAvatarPatch, collectPostAvatarIds, loadAvatarPatches } from '@/lib/clientAvatarHydration';
+import {
+    compressForumImageForUpload,
+    formatFileSize,
+    FORUM_ALLOWED_IMAGE_TYPES,
+    FORUM_COMPRESSIBLE_IMAGE_TYPES,
+    MAX_FORUM_IMAGE_SIZE,
+} from '@/lib/clientImageUpload';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -28,101 +35,14 @@ const CUSTOM_TAG_SUGGESTIONS = [
     { id: '项目孵化器', label: '🛠️ 项目孵化器' },
 ];
 
-const MAX_IMAGE_SIZE = 1 * 1024 * 1024;
-const TARGET_COMPRESSED_IMAGE_SIZE = 900 * 1024;
-const MAX_IMAGE_DIMENSION = 1600;
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-function formatFileSize(bytes: number) {
-    if (bytes >= 1024 * 1024) {
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    }
+const MAX_POST_IMAGE_COUNT = 3;
 
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-function optimizedImageName(name: string) {
-    const baseName = name.replace(/\.[^/.]+$/, '') || 'image';
-    return `${baseName}-optimized.webp`;
-}
-
-function loadImage(file: File) {
-    return new Promise<HTMLImageElement>((resolve, reject) => {
-        const image = new Image();
-        const url = URL.createObjectURL(file);
-
-        image.onload = () => {
-            URL.revokeObjectURL(url);
-            resolve(image);
-        };
-        image.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error('Could not read image'));
-        };
-        image.src = url;
-    });
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
-    return new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(blob => {
-            if (blob) {
-                resolve(blob);
-            } else {
-                reject(new Error('Could not optimize image'));
-            }
-        }, type, quality);
-    });
-}
-
-async function compressImageForUpload(file: File) {
-    const image = await loadImage(file);
-    const sourceWidth = image.naturalWidth || image.width;
-    const sourceHeight = image.naturalHeight || image.height;
-
-    if (!sourceWidth || !sourceHeight) {
-        throw new Error('Invalid image dimensions');
-    }
-
-    const maxSourceDimension = Math.max(sourceWidth, sourceHeight);
-    const initialScale = Math.min(1, MAX_IMAGE_DIMENSION / maxSourceDimension);
-    const dimensionScales = [1, 0.85, 0.7, 0.55];
-    const qualities = [0.82, 0.74, 0.66, 0.58, 0.5];
-    let smallestBlob: Blob | null = null;
-
-    for (const dimensionScale of dimensionScales) {
-        const scale = initialScale * dimensionScale;
-        const width = Math.max(1, Math.round(sourceWidth * scale));
-        const height = Math.max(1, Math.round(sourceHeight * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-
-        const context = canvas.getContext('2d');
-        if (!context) {
-            throw new Error('Could not prepare image optimizer');
-        }
-
-        context.drawImage(image, 0, 0, width, height);
-
-        for (const quality of qualities) {
-            const blob = await canvasToBlob(canvas, 'image/webp', quality);
-            if (!smallestBlob || blob.size < smallestBlob.size) {
-                smallestBlob = blob;
-            }
-
-            if (blob.size <= TARGET_COMPRESSED_IMAGE_SIZE) {
-                return new File([blob], optimizedImageName(file.name), { type: 'image/webp' });
-            }
-        }
-    }
-
-    if (!smallestBlob) {
-        throw new Error('Could not optimize image');
-    }
-
-    return new File([smallestBlob], optimizedImageName(file.name), { type: 'image/webp' });
-}
+type ComposerImage = {
+    id: string;
+    file: File;
+    previewUrl: string;
+    status: string;
+};
 
 export default function ForumFeed({ user, initialPosts }: { user: User | null, initialPosts: Post[] }) {
     const router = useRouter();
@@ -141,7 +61,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [newTitle, setNewTitle] = useState('');
     const [newContent, setNewContent] = useState('');
     const [newTag, setNewTag] = useState('general');
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<ComposerImage[]>([]);
+    const filesRef = useRef<ComposerImage[]>([]);
     const [fileStatus, setFileStatus] = useState('');
     const [isPreparingImage, setIsPreparingImage] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -195,13 +116,16 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
         const handlePointerDown = (event: PointerEvent) => {
             const target = event.target as Node;
-            const hasDraft = !!(newTitle.trim() || newContent.trim() || file);
+            const hasDraft = !!(newTitle.trim() || newContent.trim() || files.length > 0);
 
             if (!hasDraft && !loading && !isPreparingImage && composerRef.current && !composerRef.current.contains(target)) {
                 setNewTitle('');
                 setNewContent('');
                 setNewTag('general');
-                setFile(null);
+                setFiles(current => {
+                    current.forEach(item => URL.revokeObjectURL(item.previewUrl));
+                    return [];
+                });
                 setFileStatus('');
                 setCreateError('');
                 setIsCreating(false);
@@ -210,7 +134,17 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
         document.addEventListener('pointerdown', handlePointerDown);
         return () => document.removeEventListener('pointerdown', handlePointerDown);
-    }, [file, isCreating, isPreparingImage, loading, newContent, newTitle, user]);
+    }, [files.length, isCreating, isPreparingImage, loading, newContent, newTitle, user]);
+
+    useEffect(() => {
+        filesRef.current = files;
+    }, [files]);
+
+    useEffect(() => {
+        return () => {
+            filesRef.current.forEach(item => URL.revokeObjectURL(item.previewUrl));
+        };
+    }, []);
 
     useEffect(() => {
         const intervalId = window.setInterval(() => {
@@ -339,7 +273,10 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         setNewTitle('');
         setNewContent('');
         setNewTag('general');
-        setFile(null);
+        setFiles(current => {
+            current.forEach(item => URL.revokeObjectURL(item.previewUrl));
+            return [];
+        });
         setFileStatus('');
         setCreateError('');
         setIsCreating(false);
@@ -380,8 +317,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         formData.append('title', newTitle);
         formData.append('content', newContent);
         formData.append('tag', newTag.trim() || 'general');
-        if (file) {
-            formData.append('file', file);
+        if (files.length > 0) {
+            files.forEach(item => formData.append('files', item.file));
             formData.append('type', 'image');
         } else {
             formData.append('type', 'text');
@@ -404,66 +341,106 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         }
     };
 
-    const handleFileChange = async (selectedFile: File | null) => {
+    const prepareComposerImage = async (selectedFile: File): Promise<ComposerImage | null> => {
         setCreateError('');
-        setFileStatus('');
 
-        if (!selectedFile) {
-            setFile(null);
-            return;
-        }
-
-        if (!ALLOWED_IMAGE_TYPES.includes(selectedFile.type)) {
-            setFile(null);
+        if (!FORUM_ALLOWED_IMAGE_TYPES.includes(selectedFile.type)) {
             setCreateError('Only JPEG, PNG, WebP, or GIF images can be uploaded.');
-            return;
+            return null;
         }
 
-        if (selectedFile.type === 'image/gif' && selectedFile.size > MAX_IMAGE_SIZE) {
-            setFile(null);
+        if (selectedFile.type === 'image/gif' && selectedFile.size > MAX_FORUM_IMAGE_SIZE) {
             setCreateError('Animated GIFs must be 1 MB or smaller.');
-            return;
+            return null;
         }
 
-        if (selectedFile.size <= MAX_IMAGE_SIZE) {
-            setFile(selectedFile);
-            setFileStatus(`Ready: ${formatFileSize(selectedFile.size)}.`);
-            return;
+        if (selectedFile.size <= MAX_FORUM_IMAGE_SIZE) {
+            return {
+                id: `${Date.now()}-${crypto.randomUUID()}`,
+                file: selectedFile,
+                previewUrl: URL.createObjectURL(selectedFile),
+                status: `Ready: ${formatFileSize(selectedFile.size)}.`,
+            };
         }
 
-        if (!COMPRESSIBLE_IMAGE_TYPES.has(selectedFile.type)) {
-            setFile(null);
+        if (!FORUM_COMPRESSIBLE_IMAGE_TYPES.has(selectedFile.type)) {
             setCreateError('Image must be 1 MB or smaller.');
-            return;
+            return null;
         }
 
-        setFile(null);
-        setIsPreparingImage(true);
         setFileStatus(`Optimizing ${formatFileSize(selectedFile.size)} image...`);
 
         try {
-            const optimizedFile = await compressImageForUpload(selectedFile);
+            const optimizedFile = await compressForumImageForUpload(selectedFile);
 
-            if (optimizedFile.size > MAX_IMAGE_SIZE) {
+            if (optimizedFile.size > MAX_FORUM_IMAGE_SIZE) {
                 setCreateError(`This image is still ${formatFileSize(optimizedFile.size)} after compression. Try a smaller image or crop it first.`);
                 setFileStatus('');
-                return;
+                return null;
             }
 
-            setFile(optimizedFile);
-            setFileStatus(`Optimized from ${formatFileSize(selectedFile.size)} to ${formatFileSize(optimizedFile.size)}.`);
+            return {
+                id: `${Date.now()}-${crypto.randomUUID()}`,
+                file: optimizedFile,
+                previewUrl: URL.createObjectURL(optimizedFile),
+                status: `Optimized from ${formatFileSize(selectedFile.size)} to ${formatFileSize(optimizedFile.size)}.`,
+            };
         } catch {
-            setFile(null);
             setFileStatus('');
             setCreateError('Could not optimize this image. Try a smaller JPEG, PNG, or WebP file.');
+            return null;
+        }
+    };
+
+    const handleFileChange = async (selectedFiles: File[]) => {
+        setCreateError('');
+        setFileStatus('');
+
+        if (selectedFiles.length === 0) return;
+
+        const availableSlots = MAX_POST_IMAGE_COUNT - filesRef.current.length;
+        if (availableSlots <= 0) {
+            setCreateError(`最多一次上传 ${MAX_POST_IMAGE_COUNT} 张图片。`);
+            return;
+        }
+
+        const nextFiles = selectedFiles.slice(0, availableSlots);
+        if (selectedFiles.length > availableSlots) {
+            setCreateError(`最多一次上传 ${MAX_POST_IMAGE_COUNT} 张图片，已保留前 ${availableSlots} 张。`);
+        }
+
+        setIsPreparingImage(true);
+
+        const preparedImages: ComposerImage[] = [];
+        try {
+            for (const selectedFile of nextFiles) {
+                const preparedImage = await prepareComposerImage(selectedFile);
+                if (preparedImage) {
+                    preparedImages.push(preparedImage);
+                }
+            }
+
+            if (preparedImages.length > 0) {
+                setFiles(current => [...current, ...preparedImages].slice(0, MAX_POST_IMAGE_COUNT));
+                setFileStatus(preparedImages.map(item => item.status).join(' · '));
+            }
         } finally {
             setIsPreparingImage(false);
         }
     };
 
     const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
-        await handleFileChange(event.target.files?.[0] || null);
+        await handleFileChange(Array.from(event.target.files || []));
         event.target.value = '';
+    };
+
+    const removeComposerImage = (id: string) => {
+        setFiles(current => {
+            const removed = current.find(item => item.id === id);
+            if (removed) URL.revokeObjectURL(removed.previewUrl);
+            return current.filter(item => item.id !== id);
+        });
+        setFileStatus('');
     };
 
     const handlePostDeleted = (postId: number) => {
@@ -731,8 +708,28 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                                 </div>
                             </div>
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading || isPreparingImage ? 'default' : 'pointer', color: '#636e72' }}>🖼️ {isPreparingImage ? 'Optimizing image...' : file ? file.name : 'Attach image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInputChange} disabled={loading || isPreparingImage} style={{ display: 'none' }} /></label>
-                                <div style={{ color: '#636e72', fontSize: '0.8rem', marginTop: '8px' }}>JPEG, PNG, WebP, or GIF · auto-compresses to max 1 MB · 5/day · 30 total</div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading || isPreparingImage || files.length >= MAX_POST_IMAGE_COUNT ? 'default' : 'pointer', color: '#636e72' }}>
+                                    🖼️ {isPreparingImage ? 'Optimizing images...' : files.length > 0 ? `${files.length}/${MAX_POST_IMAGE_COUNT} images selected` : 'Attach images'}
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp,image/gif"
+                                        multiple
+                                        onChange={handleFileInputChange}
+                                        disabled={loading || isPreparingImage || files.length >= MAX_POST_IMAGE_COUNT}
+                                        style={{ display: 'none' }}
+                                    />
+                                </label>
+                                <div style={{ color: '#636e72', fontSize: '0.8rem', marginTop: '8px' }}>JPEG, PNG, WebP, or GIF · up to 3 images per post · auto-compresses to max 1 MB each · 5/day · 30 total</div>
+                                {files.length > 0 && (
+                                    <div className="composer-image-preview-grid">
+                                        {files.map(item => (
+                                            <div key={item.id} className="composer-image-preview">
+                                                <img src={item.previewUrl} alt="" />
+                                                <button type="button" onClick={() => removeComposerImage(item.id)} aria-label="Remove image">×</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 {fileStatus && (
                                     <div style={{ color: '#00b894', fontSize: '0.8rem', marginTop: '8px', fontWeight: 700 }}>{fileStatus}</div>
                                 )}
