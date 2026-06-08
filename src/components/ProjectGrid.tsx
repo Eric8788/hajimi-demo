@@ -177,7 +177,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [projectStatsLoaded, setProjectStatsLoaded] = useState(false);
     const [bookmarkedProjectIds, setBookmarkedProjectIds] = useState<Set<number>>(() => new Set());
     const [bookmarksLoaded, setBookmarksLoaded] = useState(false);
-    const [localUserPoints, setLocalUserPoints] = useState(user ? Number(user.points || 0) : 0);
+    const [localCoinBalance, setLocalCoinBalance] = useState(0);
+    const [coinBalanceLoaded, setCoinBalanceLoaded] = useState(!user);
     const currentUserId = user ? Number(user.id) : null;
     const savedCount = bookmarkedProjectIds.size;
 
@@ -239,8 +240,42 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     }, [loading, projectStatsLoaded, projects.length]);
 
     useEffect(() => {
-        setLocalUserPoints(user ? Number(user.points || 0) : 0);
-    }, [user?.id, user?.points]);
+        if (!user) {
+            setLocalCoinBalance(0);
+            setCoinBalanceLoaded(true);
+            return;
+        }
+
+        const controller = new AbortController();
+        let active = true;
+        setCoinBalanceLoaded(false);
+
+        fetch('/api/coins/wallet', {
+            signal: controller.signal,
+            cache: 'no-store',
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Coin wallet request failed');
+                return res.json();
+            })
+            .then(data => {
+                if (!active) return;
+                setLocalCoinBalance(Math.max(0, Math.round(Number(data?.wallet?.balance || 0))));
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                console.warn('Coin wallet unavailable:', error);
+                if (active) setLocalCoinBalance(0);
+            })
+            .finally(() => {
+                if (active) setCoinBalanceLoaded(true);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [user?.id]);
 
     useEffect(() => {
         if (!user || !canSubmitProjects) {
@@ -523,8 +558,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         });
     };
 
-    const handleTipSuccess = (points: number) => {
-        setLocalUserPoints(Math.max(0, Math.round(Number(points || 0))));
+    const handleTipSuccess = (coinBalance: number) => {
+        setLocalCoinBalance(Math.max(0, Math.round(Number(coinBalance || 0))));
     };
 
     const toggleSavedFilter = () => {
@@ -1086,7 +1121,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                 canInteract={canSubmitProjects}
                                 canEdit={currentUserId !== null && Number(project.author_id) === currentUserId}
                                 isBookmarked={bookmarkedProjectIds.has(Number(project.id))}
-                                userPoints={localUserPoints}
+                                coinBalance={localCoinBalance}
+                                coinBalanceLoaded={coinBalanceLoaded}
                                 onEditProject={() => openSubmissionDraft({ type: 'new_version', project })}
                                 onRatingUpdate={handleRatingUpdate}
                                 onBookmarkUpdate={handleBookmarkUpdate}
@@ -1131,13 +1167,13 @@ function HubSpotlightVisual({ kind, project }: { kind: SpotlightKind, project: a
         return (
             <div className="hub-spotlight-visual hub-rewards-visual" aria-hidden="true">
                 <div className="hub-rewards-orbit">
-                    <span>+2</span>
+                    <span>+1</span>
                     <span>+3</span>
                     <span>+5</span>
                 </div>
                 <div className="hub-rewards-card">
-                    <strong>XP Feedback</strong>
-                    <p>评论 · 评分 · 支持创作者</p>
+                    <strong>H币 Feedback</strong>
+                    <p>评论 · 评分 · H币支持创作者</p>
                     <div>
                         <span>💬</span>
                         <span>⭐</span>
@@ -1236,7 +1272,8 @@ function ProjectCard({
     canInteract,
     canEdit,
     isBookmarked,
-    userPoints,
+    coinBalance,
+    coinBalanceLoaded,
     onEditProject,
     onRatingUpdate,
     onBookmarkUpdate,
@@ -1247,11 +1284,12 @@ function ProjectCard({
     canInteract: boolean,
     canEdit: boolean,
     isBookmarked: boolean,
-    userPoints: number,
+    coinBalance: number,
+    coinBalanceLoaded: boolean,
     onEditProject: () => void,
     onRatingUpdate?: (projectId: number | string, rating: number, count: number) => void,
     onBookmarkUpdate?: (projectId: number | string, bookmarked: boolean) => void,
-    onTipSuccess?: (points: number) => void,
+    onTipSuccess?: (coinBalance: number) => void,
 }) {
     const isLive = project.status === 'live';
     const [rating, setRating] = useState(Number(project.rating || project.likes || 0));
@@ -1267,7 +1305,7 @@ function ProjectCard({
     const [interactionMessage, setInteractionMessage] = useState('');
     const [coverFailed, setCoverFailed] = useState(false);
     const [bookmarkPending, setBookmarkPending] = useState(false);
-    const [tipAmount, setTipAmount] = useState(5);
+    const [tipAmount, setTipAmount] = useState(3);
     const [customTipAmount, setCustomTipAmount] = useState('');
     const [tipPending, setTipPending] = useState(false);
     const [tipMessage, setTipMessage] = useState('');
@@ -1389,8 +1427,8 @@ function ProjectCard({
             setTipMessage('打赏金额需要是 1-100 的整数。');
             return;
         }
-        if (amount > Math.max(0, Number(userPoints || 0))) {
-            setTipMessage('积分余额不足，先去签到、评论或发布内容赚 XP。');
+        if (coinBalanceLoaded && amount > Math.max(0, Number(coinBalance || 0))) {
+            setTipMessage('H币余额不足。可以通过项目发布、精品内容、老师悬赏或管理员发放获得 H币。');
             return;
         }
         if (tipPending) return;
@@ -1410,9 +1448,9 @@ function ProjectCard({
                 return;
             }
 
-            onTipSuccess?.(Number(data?.senderPoints ?? Math.max(0, Number(userPoints || 0) - amount)));
-            setTipMessage(`已打赏 ${amount} XP，创作者会收到你的支持。`);
-            setXpBurst(`-${amount} XP`);
+            onTipSuccess?.(Number(data?.senderCoinBalance ?? Math.max(0, Number(coinBalance || 0) - amount)));
+            setTipMessage(`已打赏 ${amount} H币，创作者会收到你的支持。`);
+            setXpBurst(`-${amount} H币`);
             window.setTimeout(() => setXpBurst(''), 900);
         } catch (error) {
             console.warn('Project tip failed:', error);
@@ -1738,7 +1776,7 @@ function ProjectCard({
                             <span>⭐ {rating.toFixed(1)}</span>
                             <span>{ratingCount} ratings</span>
                             <span>{commentCount} comments</span>
-                            {user && <span>余额 {Math.max(0, Math.round(Number(userPoints || 0)))} XP</span>}
+                            {user && <span>H币 {coinBalanceLoaded ? Math.max(0, Math.round(Number(coinBalance || 0))) : '...'}</span>}
                         </div>
                         {canEdit && (
                             <button
@@ -1765,8 +1803,8 @@ function ProjectCard({
                         <form className="project-card-tip-box" onSubmit={handleTipProject}>
                             <div className="project-card-tip-head">
                                 <div>
-                                    <strong>打赏积分</strong>
-                                    <span>支持创作者，积分会从你的余额转给作者。</span>
+                                    <strong>打赏 H币</strong>
+                                    <span>支持创作者，H币会从你的钱包转给作者。</span>
                                 </div>
                                 <button
                                     type="button"
@@ -1781,7 +1819,7 @@ function ProjectCard({
                                 </button>
                             </div>
                             <div className="project-card-tip-options">
-                                {[5, 10, 20].map(amount => (
+                                {[1, 3, 5, 10].map(amount => (
                                     <button
                                         key={amount}
                                         type="button"
@@ -1798,7 +1836,7 @@ function ProjectCard({
                                     inputMode="numeric"
                                     pattern="[0-9]*"
                                     placeholder="自定义"
-                                    aria-label="自定义打赏积分"
+                                    aria-label="自定义打赏 H币"
                                     tabIndex={isFlipped ? undefined : -1}
                                 />
                                 <button

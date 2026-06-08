@@ -27,7 +27,7 @@ export default async function AdminPage() {
                     <div>
                         <span>Hajimi Admin</span>
                         <h1>管理员中心</h1>
-                        <p>集中处理认证、Hub 项目申请、成员账号维护和审核历史。实名信息只在管理员入口按需查看，不进入公开页面。</p>
+                        <p>集中处理认证、Hub 项目申请、成员账号维护、H币发放与审核历史。实名信息只在管理员入口按需查看，不进入公开页面。</p>
                     </div>
                     <div className="admin-console-stats">
                         <div>
@@ -63,6 +63,12 @@ export default async function AdminPage() {
                         <h2>成员管理</h2>
                         <p>按需查看实名资料，维护认证信息，停用或恢复账号。</p>
                         <strong>进入管理台</strong>
+                    </Link>
+                    <Link href="/admin/coins" className="admin-console-card">
+                        <span>💳</span>
+                        <h2>H币管理</h2>
+                        <p>人工发放 H币，审核创作者 token 兑换申请，保留预算备注和审计记录。</p>
+                        <strong>进入钱包后台</strong>
                     </Link>
                 </div>
 

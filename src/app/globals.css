@@ -376,6 +376,37 @@ textarea:hover,
   box-shadow: 0 14px 30px rgba(108,92,231,0.32);
 }
 
+.sidebar-wallet-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  border: 1px solid rgba(108,92,231,0.14);
+  background: rgba(255,255,255,0.68);
+  color: #6c5ce7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.12rem;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(108,92,231,0.1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.sidebar-wallet-button:hover,
+.sidebar-wallet-button:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 12px 26px rgba(108,92,231,0.16);
+}
+
+.sidebar-wallet-button.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  box-shadow: 0 12px 24px rgba(108,92,231,0.24);
+}
+
 @keyframes gradient-bg {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -1258,8 +1289,8 @@ textarea:hover,
 
 .project-card-tip-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(34px, auto)) minmax(58px, 1fr) auto;
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(34px, 1fr)) minmax(56px, 1.25fr) minmax(52px, 0.95fr);
+  gap: 4px;
   align-items: center;
 }
 
@@ -1268,7 +1299,7 @@ textarea:hover,
   min-height: 31px;
   border-radius: 999px;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 900;
 }
 
@@ -1316,7 +1347,7 @@ textarea:hover,
 .project-card-tip-options input {
   min-width: 0;
   border: 1px solid rgba(223,230,233,0.9);
-  padding: 0 12px;
+  padding: 0 8px;
   color: #2d3436;
   background: rgba(255,255,255,0.82);
   outline: none;
@@ -1329,7 +1360,7 @@ textarea:hover,
 
 .project-card-tip-submit {
   border: none;
-  padding: 0 12px;
+  padding: 0 8px;
   color: #fff;
   background: #7b61ff;
   box-shadow: 0 7px 14px rgba(108,92,231,0.16);
@@ -6576,6 +6607,357 @@ textarea:hover,
   margin-top: 18px;
 }
 
+.wallet-page,
+.admin-coins-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.wallet-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: center;
+  min-height: 156px;
+}
+
+.wallet-hero-balance {
+  min-width: 160px;
+  padding: 18px;
+  border-radius: 22px;
+  text-align: center;
+  background: rgba(255,255,255,0.66);
+  border: 1px solid rgba(255,255,255,0.84);
+}
+
+.wallet-hero-balance strong {
+  display: block;
+  color: #2d3436;
+  font-size: 2.15rem;
+  line-height: 1;
+}
+
+.wallet-hero-balance span {
+  display: block;
+  margin-top: 8px;
+  color: #6c5ce7;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.wallet-grid,
+.admin-coins-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(460px, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.wallet-grid {
+  align-items: stretch;
+}
+
+.admin-coins-grid {
+  align-items: start;
+}
+
+.wallet-card,
+.admin-coins-users,
+.admin-coin-grant-panel,
+.admin-coin-redemptions-panel {
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.66);
+  border: 1px solid rgba(255,255,255,0.82);
+  box-shadow: 0 18px 46px rgba(108,92,231,0.1);
+}
+
+.wallet-balance-card {
+  align-self: stretch;
+  height: 100%;
+  min-height: 170px;
+  display: grid;
+  align-content: center;
+}
+
+.wallet-balance-card > span,
+.wallet-section-head span {
+  color: #6c5ce7;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wallet-balance-card strong {
+  display: block;
+  margin: 8px 0;
+  color: #2d3436;
+  font-size: clamp(2.1rem, 6vw, 3.4rem);
+  line-height: 1;
+}
+
+.wallet-balance-card p,
+.wallet-empty,
+.wallet-message {
+  margin: 0;
+  color: #636e72;
+  font-weight: 780;
+  line-height: 1.5;
+}
+
+.wallet-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.wallet-section-head h2 {
+  margin: 4px 0 0;
+  color: #2d3436;
+  font-size: 1.25rem;
+}
+
+.wallet-section-head > strong {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.1);
+  font-size: 0.74rem;
+  font-weight: 950;
+}
+
+.wallet-redemption-card,
+.admin-coin-grant-panel {
+  display: grid;
+  gap: 13px;
+}
+
+.wallet-redemption-card label,
+.admin-coin-grant-panel label {
+  display: grid;
+  gap: 7px;
+  color: #636e72;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.wallet-redemption-card textarea,
+.admin-coin-grant-panel textarea {
+  min-height: 98px;
+  resize: vertical;
+}
+
+.wallet-redemption-card button,
+.admin-coin-grant-panel button,
+.admin-coin-redemption-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  color: white;
+  background: linear-gradient(135deg, #6c5ce7, #0984e3);
+  font-weight: 950;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(108,92,231,0.18);
+}
+
+.wallet-redemption-card button:disabled,
+.admin-coin-grant-panel button:disabled,
+.admin-coin-redemption-actions button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.wallet-message {
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(108,92,231,0.08);
+}
+
+.wallet-history-card,
+.wallet-redemption-list-card,
+.admin-coin-redemptions-panel {
+  grid-column: 1 / -1;
+}
+
+.wallet-history-card {
+  grid-column: 1 / -1;
+}
+
+.wallet-redemption-list-card {
+  grid-column: 1 / -1;
+}
+
+.wallet-transaction-list,
+.wallet-redemption-list,
+.admin-coin-user-list,
+.admin-coin-redemption-list {
+  display: grid;
+  gap: 10px;
+}
+
+.wallet-transaction-row,
+.wallet-redemption-row,
+.admin-coin-user-row,
+.admin-coin-redemption-card {
+  border-radius: 18px;
+  padding: 13px;
+  background: rgba(255,255,255,0.58);
+  border: 1px solid rgba(108,92,231,0.1);
+}
+
+.wallet-transaction-row,
+.admin-coin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wallet-transaction-row strong,
+.wallet-redemption-row strong,
+.admin-coin-user-row strong,
+.admin-coin-redemption-card strong {
+  color: #2d3436;
+  font-size: 0.92rem;
+}
+
+.wallet-transaction-row p,
+.wallet-redemption-row p,
+.admin-coin-redemption-card p {
+  margin: 4px 0;
+  color: #636e72;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.wallet-transaction-row small,
+.wallet-redemption-row small,
+.admin-coin-user-row small,
+.admin-coin-redemption-card span {
+  color: #8f96a3;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.wallet-transaction-row > span,
+.admin-coin-user-row em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.wallet-transaction-row > span.is-positive {
+  color: #00b894;
+}
+
+.wallet-transaction-row > span.is-negative {
+  color: #d63031;
+}
+
+.wallet-redemption-row {
+  border-left: 4px solid rgba(108,92,231,0.24);
+}
+
+.wallet-redemption-row.is-approved {
+  border-left-color: #0984e3;
+}
+
+.wallet-redemption-row.is-completed {
+  border-left-color: #00b894;
+}
+
+.wallet-redemption-row.is-rejected {
+  border-left-color: #d63031;
+}
+
+.admin-coins-grid {
+  grid-template-columns: minmax(320px, 0.86fr) minmax(360px, 1.14fr);
+}
+
+.admin-coins-users {
+  grid-row: span 2;
+}
+
+.admin-coin-user-row {
+  width: 100%;
+  border: 1px solid rgba(108,92,231,0.1);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-coin-user-row.is-selected {
+  border-color: rgba(108,92,231,0.34);
+  background: rgba(108,92,231,0.1);
+}
+
+.admin-coin-user-row span,
+.admin-coin-user-row strong,
+.admin-coin-user-row small {
+  display: block;
+}
+
+.admin-coin-user-row em {
+  color: #6c5ce7;
+}
+
+.admin-coin-target {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  color: #2d3436;
+  background: rgba(108,92,231,0.08);
+  font-weight: 900;
+}
+
+.admin-coin-target span {
+  color: #6c5ce7;
+}
+
+.admin-coin-redemption-card {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-coin-redemption-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-coin-redemption-head em {
+  align-self: start;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.1);
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.admin-coin-redemption-card textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.admin-coin-redemption-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-coin-redemption-actions button.is-danger {
+  background: linear-gradient(135deg, #d63031, #fd79a8);
+  box-shadow: 0 12px 24px rgba(214,48,49,0.16);
+}
+
 .admin-audit-list {
   display: grid;
   gap: 10px;
@@ -6920,12 +7302,19 @@ textarea:hover,
 
 @media (max-width: 1120px) {
   .admin-console-hero,
-  .admin-users-shell {
+  .admin-users-shell,
+  .wallet-hero,
+  .wallet-grid,
+  .admin-coins-grid {
     grid-template-columns: 1fr;
   }
 
   .admin-user-detail-panel {
     position: static;
+  }
+
+  .admin-coins-users {
+    grid-row: auto;
   }
 }
 

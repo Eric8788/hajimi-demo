@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getAdminAuditHistory, getUserById } from '@/lib/db';
+import { getAdminCoinOverview, getUserById } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 
-function normalizeType(value: string | null) {
-    if (value === 'verification' || value === 'project' || value === 'user' || value === 'coin') return value;
-    return 'all';
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
@@ -19,17 +16,16 @@ export async function GET(request: Request) {
         }
 
         const { searchParams } = new URL(request.url);
-        const type = normalizeType(searchParams.get('type'));
-        const limit = Number(searchParams.get('limit') || 40);
-        const events = await getAdminAuditHistory(type, limit);
+        const overview = await getAdminCoinOverview({
+            query: searchParams.get('query') || '',
+            limit: Number(searchParams.get('limit') || 80),
+        });
 
-        return NextResponse.json({ events }, {
-            headers: {
-                'Cache-Control': 'no-store, max-age=0, must-revalidate',
-            },
+        return NextResponse.json(overview, {
+            headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
         });
     } catch (error) {
-        console.error('GET /api/admin/review-history error:', error);
+        console.error('GET /api/admin/coins error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }

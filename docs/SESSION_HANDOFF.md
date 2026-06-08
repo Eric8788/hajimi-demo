@@ -1,6 +1,6 @@
 # Hajimi Session Handoff
 
-*Last updated: 2026-05-22 (Asia/Shanghai)*
+*Last updated: 2026-06-08 (Asia/Shanghai)*
 
 **Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
@@ -48,6 +48,12 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
 - The UI review pass for `v0.2.0-beta.6` is live: the app logo and dashboard mascot now use Eric's supplied original PNG cat assets instead of the redrawn SVG version.
 - `Sailer 2D` is now served from the Static Hub: `https://hub.ericproject.xyz/projects/sailer-2d/index.html`.
+- Hajimi币 v1 is implemented as an independent wallet/ledger system separate from XP:
+  - `users.points` remains XP only.
+  - legacy `project_tips` remains historical XP tip data for analytics.
+  - new Function Hall tips use H币 wallet transfers through `coin_wallets`, `coin_transactions`, and `coin_project_tips`.
+  - `/wallet` shows H币 balance, ledger, and token redemption requests.
+  - `/admin/coins` supports manual H币 grants and token redemption review.
 
 ## 3. Required Environment Variables
 

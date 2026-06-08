@@ -94,6 +94,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Forum Moderation:** `teacher` and `admin` roles can publish `announcement` posts. Announcement posts are visually highlighted and sorted like pinned posts at the top of the main Hallway feed. Only `admin` can delete any post/comment; teachers and students can delete only their own posts/comments. Staff roles are shown with badges on forum posts/comments and profile pages.
 - **Hajimi Verification:** Registration and profile settings can submit optional student/teacher verification for admin review. The field label is `Name`, meaning school common name / English name / preferred name, not legal name. Students submit Name, G10-G13 grade, and optional student ID; teachers submit Name and subject. Student IDs are hashed server-side with `HAJIMI_VERIFICATION_PEPPER` and only the hash + last 4 are stored. `verification_status = 'verified'` is required for forum posts, comments, likes, bookmarks, check-ins, project ratings/comments, project submissions, and leaderboard visibility. Public UI never shows Name, student ID, or subject. Admin review shows strong conflicts for duplicate student ID hash and weak conflicts for duplicate Name + grade/subject.
 - **Hub Project Flow:** Hub projects are open to play for guests/unverified users. Verified users can submit project/new-version applications from `/functions`; admins approve/reject at `/admin/project-submissions`. Approval creates or updates live `projects` rows and preserves old project/comment data. Published project owners can edit from their own project card, but the edit is submitted as a `new_version` application and does not change the live row until admin approval. Project opens are recorded in `project_opens` for Function Hall Hub rankings.
+- **Hajimi币:** XP and H币 are independent. XP remains experience for levels, contribution, analytics, and leaderboards. H币 is a spendable budget currency for project tips and token redemption requests. Function Hall project tips now use H币 wallet transfers, not `users.points`. Legacy `project_tips` remains historical XP tip data only.
 - **Leaderboard:** Leaderboard only returns verified users. `/leaderboard` focuses on XP contribution views: all-time, daily, weekly, and monthly. Function Hall has separate Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first, then rating and capped effective opens; rating ranks cumulative stars first, then rating count while still displaying the selected day/week/month play window. One verified user counts once per project per local day for unique players; effective opens are 30-minute sessions capped at 3 per user per day.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
@@ -114,6 +115,11 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `projects` | `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `cover_url`, `rating`, `rating_count`, `created_at` |
 | `project_likes` / `project_comments` | Hub ratings and comments; verified accounts only |
 | `project_opens` | `project_id`, `user_id`, `opened_at`; raw open log used to derive verified unique players and capped effective opens for Hub rankings |
+| `project_tips` | legacy XP tip log; kept for historical XP analytics only |
+| `coin_wallets` | `user_id`, `balance`, `earned_total`, `spent_total`, timestamps; independent H币 wallet |
+| `coin_transactions` | H币 ledger rows with `amount`, `balance_after`, `type`, `source_type`, counterparty, note, and creator |
+| `coin_project_tips` | live H币 project tip log linking sender/recipient wallet transactions |
+| `coin_redemption_requests` | token redemption requests with `pending`, `approved`, `rejected`, `completed` statuses |
 | `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
 | `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
 | `project_submissions` | `author_id`, `submission_type`, `project_id`, `title`, `description`, `url`, `tags`, `status`, `reviewed_by`, `reviewed_at` |
@@ -127,10 +133,12 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/dashboard` | Protected | Welcome widget, Timeline, Tarot, Rec Room |
 | `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
 | `/functions` | Public | Function Hall — project grid, open project play, verified project submission, owner new-version edits, pasted/uploaded project cover crop |
+| `/wallet` | Protected | H币 wallet, transaction ledger, and token redemption request form |
 | `/profile` | Protected | User profile editor with Data Studio analytics for XP, project opens, post interactions, 7-day chart, and 28-day participation heatmap |
 | `/admin` | Admin | Admin console with review summary and recent history |
 | `/admin/users` | Admin | Member management, admin-only identity detail maintenance, account disable/restore |
 | `/admin/project-submissions` | Admin | Hub project/new-version application review |
+| `/admin/coins` | Admin | Manual H币 grants and token redemption review |
 
 ---
 

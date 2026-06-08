@@ -43,9 +43,15 @@ The app uses Next.js App Router (`src/app/`).
   - The project application form supports pasted/uploaded cover screenshots, client-side 16:9 crop adjustment, and Blob-backed cover URL storage.
   - Published project owners can start an edit from their own project card; edits are submitted as `new_version` applications and are not applied until admin approval.
   - Verified users can privately save projects into a `Saved` filter. Project saves do not award XP and do not affect public Hub rankings.
-  - Verified users can tip live projects with XP (`5 / 10 / 20` quick amounts or a custom `1-100` amount). Tips are real point transfers: the sender loses the same XP that the project author receives. Users cannot tip their own projects.
+  - Verified users can tip live projects with Hajimi币 (`1 / 3 / 5 / 10` quick amounts or a custom `1-100` amount). H币 tips are wallet transfers and never change XP or level. Users cannot tip their own projects.
   - Shows Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first, then rating and capped effective opens; rating ranks cumulative stars first while still showing selected-window play stats.
   - Live data comes from the `projects` table. External static HTML games are hosted on the Static Hub domain (`hub.ericproject.xyz`) and linked via absolute URLs.
+- `/wallet` **(Protected):**
+  - Shows the user's H币 wallet balance, recent ledger entries, and token redemption requests.
+  - Users can submit token redemption requests with a minimum of 50 H币. Submitted requests immediately freeze the requested H币 through a `redemption_hold` ledger entry.
+- `/admin/coins` **(Admin):**
+  - Admins manually grant H币 with a required note and source type, and review token redemption requests.
+  - Approving a request marks it ready for token issuance; rejecting refunds frozen H币; completing records that token has been issued.
 - `/profile` **(Protected):**
   - Shows the public profile editor plus a Data Studio card after the featured content. The default overview focuses on the monthly participation heatmap; the detail view shows range tabs, KPIs, trend chart, contribution pie, project performance, and post interactions.
   - First verified forum post awards `+100 XP`; later posts continue to use normal post XP.
@@ -67,7 +73,11 @@ Database interactions are handled via standard SQL functions.
 - **`project_likes` / `project_comments`:** Hub ratings and comments, verified-only interaction data for project contribution rankings.
 - **`project_opens`:** `id`, `project_id`, `user_id`, `opened_at`; raw play/open log. Hub rankings derive verified unique players and capped effective opens from this table.
 - **`project_bookmarks`:** `user_id`, `project_id`, `created_at`; private Function Hall saved-project filter. No XP and no public ranking effect.
-- **`project_tips`:** `id`, `project_id`, `sender_id`, `recipient_id`, `amount`, `created_at`; Hub XP tip transfer log. Recipient tips are counted as `project` XP in analytics and windowed leaderboards.
+- **`project_tips`:** legacy Hub XP tip transfer log. Kept for historical XP analytics and windowed leaderboards only; new project tips no longer write here.
+- **`coin_wallets`:** `user_id`, `balance`, `earned_total`, `spent_total`, `created_at`, `updated_at`; independent Hajimi币 wallet. Does not affect XP.
+- **`coin_transactions`:** `id`, `user_id`, `amount`, `balance_after`, `type`, `source_type`, `source_id`, `counterparty_user_id`, `note`, `created_by`, `created_at`; H币 ledger for grants, tips, redemption holds, and refunds.
+- **`coin_project_tips`:** `id`, `project_id`, `sender_id`, `recipient_id`, `amount`, `sender_transaction_id`, `recipient_transaction_id`, `created_at`; live H币 project tip log.
+- **`coin_redemption_requests`:** `id`, `user_id`, `amount`, `status`, `requested_note`, `review_note`, `reviewed_by`, `reviewed_at`, `completed_at`, `created_at`; token redemption requests. Minimum amount is 50 H币.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
 - **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.

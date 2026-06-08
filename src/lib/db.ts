@@ -1,4 +1,4 @@
-import { db, sql } from '@vercel/postgres';
+import { db, sql, type VercelPoolClient } from '@vercel/postgres';
 import { hashStudentId, STUDENT_GRADES, type VerificationStatus, type VerificationType, type VerificationDraft } from './verification';
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 import { normalizeUsernameInput, validateUsername } from './accountValidation';
@@ -80,7 +80,7 @@ export interface AdminAuditEvent {
     actor_name?: string | null;
     target_user_id: number | null;
     target_username?: string | null;
-    target_type: 'verification' | 'project_submission' | 'user';
+    target_type: 'verification' | 'project_submission' | 'user' | 'coin';
     target_id: number | null;
     event_type: string;
     summary: string;
@@ -103,6 +103,63 @@ export interface AdminUserSummary {
     disabled_at?: string | null;
     created_at: string;
     is_creator?: boolean;
+}
+
+export type CoinTransactionType =
+    | 'grant'
+    | 'admin_adjustment'
+    | 'tip_sent'
+    | 'tip_received'
+    | 'redemption_hold'
+    | 'redemption_refund';
+
+export type CoinRedemptionStatus = 'pending' | 'approved' | 'rejected' | 'completed';
+
+export interface CoinWallet {
+    user_id: number;
+    balance: number;
+    earned_total: number;
+    spent_total: number;
+    created_at: Date | string;
+    updated_at: Date | string;
+}
+
+export interface CoinTransaction {
+    id: number;
+    user_id: number;
+    username?: string | null;
+    amount: number;
+    balance_after: number;
+    type: CoinTransactionType;
+    source_type: string;
+    source_id: number | null;
+    counterparty_user_id: number | null;
+    counterparty_username?: string | null;
+    note: string | null;
+    created_by: number | null;
+    created_by_username?: string | null;
+    created_at: Date | string;
+}
+
+export interface CoinRedemptionRequest {
+    id: number;
+    user_id: number;
+    username?: string | null;
+    amount: number;
+    status: CoinRedemptionStatus;
+    requested_note: string | null;
+    review_note: string | null;
+    reviewed_by: number | null;
+    reviewer_name?: string | null;
+    reviewed_at: Date | string | null;
+    completed_at: Date | string | null;
+    created_at: Date | string;
+}
+
+export interface CoinWalletOverview {
+    wallet: CoinWallet;
+    transactions: CoinTransaction[];
+    redemptions: CoinRedemptionRequest[];
 }
 
 export interface AdminUserDetail extends AdminUserSummary {
@@ -555,6 +612,550 @@ async function createAdminAuditEvent(input: {
     `;
 }
 
+let coinTablesReady: Promise<void> | null = null;
+
+export async function ensureCoinTables() {
+    if (!coinTablesReady) {
+        coinTablesReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS coin_wallets (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                balance INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
+                earned_total INTEGER NOT NULL DEFAULT 0 CHECK (earned_total >= 0),
+                spent_total INTEGER NOT NULL DEFAULT 0 CHECK (spent_total >= 0),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`
+              CREATE TABLE IF NOT EXISTS coin_transactions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                amount INTEGER NOT NULL,
+                balance_after INTEGER NOT NULL CHECK (balance_after >= 0),
+                type TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                source_id INTEGER,
+                counterparty_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                note TEXT,
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`
+              CREATE TABLE IF NOT EXISTS coin_project_tips (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                amount INTEGER NOT NULL CHECK (amount > 0),
+                sender_transaction_id INTEGER NOT NULL REFERENCES coin_transactions(id),
+                recipient_transaction_id INTEGER NOT NULL REFERENCES coin_transactions(id),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`
+              CREATE TABLE IF NOT EXISTS coin_redemption_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                amount INTEGER NOT NULL CHECK (amount >= 50),
+                status TEXT NOT NULL DEFAULT 'pending',
+                requested_note TEXT,
+                review_note TEXT,
+                reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                reviewed_at TIMESTAMP WITH TIME ZONE,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_transactions_user_created ON coin_transactions(user_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_transactions_source ON coin_transactions(source_type, source_id)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_project_tips_project_created ON coin_project_tips(project_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_project_tips_sender_created ON coin_project_tips(sender_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_project_tips_recipient_created ON coin_project_tips(recipient_id, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_redemptions_status_created ON coin_redemption_requests(status, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_coin_redemptions_user_created ON coin_redemption_requests(user_id, created_at DESC)`;
+        })().catch(error => {
+            coinTablesReady = null;
+            throw error;
+        });
+    }
+
+    return coinTablesReady;
+}
+
+function normalizeCoinTransaction(row: CoinTransaction): CoinTransaction {
+    return {
+        ...row,
+        amount: Number(row.amount || 0),
+        balance_after: Number(row.balance_after || 0),
+        source_id: row.source_id === null || row.source_id === undefined ? null : Number(row.source_id),
+        counterparty_user_id: row.counterparty_user_id === null || row.counterparty_user_id === undefined ? null : Number(row.counterparty_user_id),
+        created_by: row.created_by === null || row.created_by === undefined ? null : Number(row.created_by),
+    };
+}
+
+function normalizeCoinWallet(row: CoinWallet): CoinWallet {
+    return {
+        ...row,
+        user_id: Number(row.user_id),
+        balance: Number(row.balance || 0),
+        earned_total: Number(row.earned_total || 0),
+        spent_total: Number(row.spent_total || 0),
+    };
+}
+
+function normalizeCoinRedemption(row: CoinRedemptionRequest): CoinRedemptionRequest {
+    return {
+        ...row,
+        id: Number(row.id),
+        user_id: Number(row.user_id),
+        amount: Number(row.amount || 0),
+    };
+}
+
+async function ensureCoinWalletForClient(client: VercelPoolClient, userId: number) {
+    const { rows } = await client.sql<CoinWallet>`
+      INSERT INTO coin_wallets (user_id)
+      VALUES (${userId})
+      ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
+      RETURNING *
+    `;
+
+    return normalizeCoinWallet(rows[0]);
+}
+
+async function writeCoinTransactionForClient(
+    client: VercelPoolClient,
+    input: {
+        userId: number;
+        amount: number;
+        type: CoinTransactionType;
+        sourceType: string;
+        sourceId?: number | null;
+        counterpartyUserId?: number | null;
+        note?: string | null;
+        createdBy?: number | null;
+    },
+) {
+    const { rows } = await client.sql<CoinWallet>`
+      UPDATE coin_wallets
+      SET
+        balance = balance + ${input.amount},
+        earned_total = earned_total + CASE WHEN ${input.amount} > 0 THEN ${input.amount} ELSE 0 END,
+        spent_total = spent_total + CASE WHEN ${input.amount} < 0 THEN ABS(${input.amount}) ELSE 0 END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ${input.userId}
+        AND balance + ${input.amount} >= 0
+      RETURNING *
+    `;
+
+    const wallet = rows[0];
+    if (!wallet) throw new Error('Insufficient coins');
+
+    const normalizedWallet = normalizeCoinWallet(wallet);
+    const { rows: transactionRows } = await client.sql<CoinTransaction>`
+      INSERT INTO coin_transactions (
+        user_id, amount, balance_after, type, source_type, source_id,
+        counterparty_user_id, note, created_by
+      )
+      VALUES (
+        ${input.userId},
+        ${input.amount},
+        ${normalizedWallet.balance},
+        ${input.type},
+        ${input.sourceType},
+        ${input.sourceId ?? null},
+        ${input.counterpartyUserId ?? null},
+        ${String(input.note || '').trim().slice(0, 500) || null},
+        ${input.createdBy ?? null}
+      )
+      RETURNING *
+    `;
+
+    return {
+        wallet: normalizedWallet,
+        transaction: normalizeCoinTransaction(transactionRows[0]),
+    };
+}
+
+export async function getCoinWallet(userId: number): Promise<CoinWallet> {
+    await ensureCoinTables();
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+        const wallet = await ensureCoinWalletForClient(client, userId);
+        await client.sql`COMMIT`;
+        return wallet;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function getCoinWalletOverview(userId: number): Promise<CoinWalletOverview> {
+    await ensureCoinTables();
+
+    const wallet = await getCoinWallet(userId);
+    const { rows: transactionRows } = await sql<CoinTransaction>`
+      SELECT
+        coin_transactions.*,
+        users.username,
+        counterparties.username as counterparty_username,
+        creators.username as created_by_username
+      FROM coin_transactions
+      JOIN users ON users.id = coin_transactions.user_id
+      LEFT JOIN users counterparties ON counterparties.id = coin_transactions.counterparty_user_id
+      LEFT JOIN users creators ON creators.id = coin_transactions.created_by
+      WHERE coin_transactions.user_id = ${userId}
+      ORDER BY coin_transactions.created_at DESC
+      LIMIT 40
+    `;
+    const { rows: redemptionRows } = await sql<CoinRedemptionRequest>`
+      SELECT
+        coin_redemption_requests.*,
+        users.username,
+        reviewers.username as reviewer_name
+      FROM coin_redemption_requests
+      JOIN users ON users.id = coin_redemption_requests.user_id
+      LEFT JOIN users reviewers ON reviewers.id = coin_redemption_requests.reviewed_by
+      WHERE coin_redemption_requests.user_id = ${userId}
+      ORDER BY coin_redemption_requests.created_at DESC
+      LIMIT 20
+    `;
+
+    return {
+        wallet,
+        transactions: transactionRows.map(normalizeCoinTransaction),
+        redemptions: redemptionRows.map(normalizeCoinRedemption),
+    };
+}
+
+export async function getAdminCoinOverview(options: { query?: string; limit?: number } = {}) {
+    await ensureCoinTables();
+
+    const query = String(options.query || '').trim().toLowerCase().slice(0, 60);
+    const safeLimit = Math.min(Math.max(Number(options.limit) || 80, 1), 120);
+
+    const { rows: userRows } = await sql<Array<CoinWallet & { username: string; role: string; verification_status: VerificationStatus }>[number]>`
+      SELECT
+        users.id as user_id,
+        users.username,
+        users.role,
+        users.verification_status,
+        COALESCE(coin_wallets.balance, 0)::int as balance,
+        COALESCE(coin_wallets.earned_total, 0)::int as earned_total,
+        COALESCE(coin_wallets.spent_total, 0)::int as spent_total,
+        COALESCE(coin_wallets.created_at, users.created_at) as created_at,
+        COALESCE(coin_wallets.updated_at, users.created_at) as updated_at
+      FROM users
+      LEFT JOIN coin_wallets ON coin_wallets.user_id = users.id
+      WHERE (
+        ${query} = ''
+        OR lower(users.username) LIKE ${`%${query}%`}
+        OR CAST(users.id AS TEXT) = ${query}
+        OR lower(COALESCE(users.verified_name, '')) LIKE ${`%${query}%`}
+      )
+      ORDER BY COALESCE(coin_wallets.balance, 0) DESC, users.created_at DESC
+      LIMIT ${safeLimit}
+    `;
+
+    const { rows: redemptionRows } = await sql<CoinRedemptionRequest>`
+      SELECT
+        coin_redemption_requests.*,
+        users.username,
+        reviewers.username as reviewer_name
+      FROM coin_redemption_requests
+      JOIN users ON users.id = coin_redemption_requests.user_id
+      LEFT JOIN users reviewers ON reviewers.id = coin_redemption_requests.reviewed_by
+      WHERE coin_redemption_requests.status IN ('pending', 'approved')
+      ORDER BY coin_redemption_requests.created_at ASC
+      LIMIT 80
+    `;
+
+    return {
+        users: userRows.map(row => ({
+            ...row,
+            user_id: Number(row.user_id),
+            balance: Number(row.balance || 0),
+            earned_total: Number(row.earned_total || 0),
+            spent_total: Number(row.spent_total || 0),
+        })),
+        redemptions: redemptionRows.map(normalizeCoinRedemption),
+    };
+}
+
+export async function grantCoinsByAdmin(input: {
+    adminId: number;
+    targetUserId: number;
+    amount: number;
+    sourceType: string;
+    note: string;
+}) {
+    await ensureCoinTables();
+    await ensureAdminAuditTable();
+
+    const amount = Math.floor(Number(input.amount));
+    const note = String(input.note || '').trim();
+    const sourceType = String(input.sourceType || 'manual').trim().slice(0, 80) || 'manual';
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
+    if (note.length < 2) throw new Error('Coin grant note required');
+
+    const target = await getUserById(input.targetUserId);
+    if (!target) throw new Error('Target user not found');
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+        await ensureCoinWalletForClient(client, input.targetUserId);
+        const result = await writeCoinTransactionForClient(client, {
+            userId: input.targetUserId,
+            amount,
+            type: 'grant',
+            sourceType,
+            note,
+            createdBy: input.adminId,
+        });
+        await client.sql`COMMIT`;
+
+        await createAdminAuditEvent({
+            actorId: input.adminId,
+            targetUserId: input.targetUserId,
+            targetType: 'coin',
+            targetId: result.transaction.id,
+            eventType: 'coin_granted',
+            summary: `向 ${target.username} 发放 ${amount} H币`,
+            details: {
+                amount,
+                source_type: sourceType,
+                note,
+                balance_after: result.wallet.balance,
+            },
+        });
+
+        return result;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function transferProjectCoinTip(senderId: number, projectId: number, amount: number) {
+    await ensureCoinTables();
+
+    const safeAmount = Math.floor(Number(amount));
+    if (!Number.isInteger(safeAmount) || safeAmount < 1 || safeAmount > 100) {
+        throw new Error('Invalid tip amount');
+    }
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+
+        const { rows: projectRows } = await client.sql<{ author_id: number; status: string | null }>`
+          SELECT author_id, status
+          FROM projects
+          WHERE id = ${projectId}
+          LIMIT 1
+        `;
+        const project = projectRows[0];
+        if (!project) throw new Error('Project not found');
+        if (project.status !== 'live') throw new Error('Project is not live');
+
+        const recipientId = Number(project.author_id);
+        if (recipientId === senderId) throw new Error('Cannot tip your own project');
+
+        await ensureCoinWalletForClient(client, senderId);
+        await ensureCoinWalletForClient(client, recipientId);
+
+        const senderResult = await writeCoinTransactionForClient(client, {
+            userId: senderId,
+            amount: -safeAmount,
+            type: 'tip_sent',
+            sourceType: 'project_tip',
+            sourceId: projectId,
+            counterpartyUserId: recipientId,
+            note: 'Function Hall 项目打赏',
+        });
+        const recipientResult = await writeCoinTransactionForClient(client, {
+            userId: recipientId,
+            amount: safeAmount,
+            type: 'tip_received',
+            sourceType: 'project_tip',
+            sourceId: projectId,
+            counterpartyUserId: senderId,
+            note: 'Function Hall 项目打赏',
+        });
+
+        const { rows: tipRows } = await client.sql<{ id: number }>`
+          INSERT INTO coin_project_tips (
+            project_id, sender_id, recipient_id, amount,
+            sender_transaction_id, recipient_transaction_id
+          )
+          VALUES (
+            ${projectId},
+            ${senderId},
+            ${recipientId},
+            ${safeAmount},
+            ${senderResult.transaction.id},
+            ${recipientResult.transaction.id}
+          )
+          RETURNING id
+        `;
+
+        await client.sql`COMMIT`;
+
+        return {
+            id: Number(tipRows[0]?.id || 0),
+            amount: safeAmount,
+            recipientId,
+            senderCoinBalance: senderResult.wallet.balance,
+            recipientCoinBalance: recipientResult.wallet.balance,
+        };
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function createCoinRedemptionRequest(userId: number, amount: number, requestedNote = '') {
+    await ensureCoinTables();
+
+    const safeAmount = Math.floor(Number(amount));
+    const note = String(requestedNote || '').trim().slice(0, 500);
+    if (!Number.isInteger(safeAmount) || safeAmount < 50 || safeAmount > 10000) {
+        throw new Error('Invalid redemption amount');
+    }
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+        await ensureCoinWalletForClient(client, userId);
+        const holdResult = await writeCoinTransactionForClient(client, {
+            userId,
+            amount: -safeAmount,
+            type: 'redemption_hold',
+            sourceType: 'token_redemption',
+            note: note || '申请兑换 token 额度',
+        });
+        const { rows } = await client.sql<CoinRedemptionRequest>`
+          INSERT INTO coin_redemption_requests (user_id, amount, requested_note)
+          VALUES (${userId}, ${safeAmount}, ${note || null})
+          RETURNING *
+        `;
+        const redemptionId = Number(rows[0]?.id || 0);
+        await client.sql`
+          UPDATE coin_transactions
+          SET source_id = ${redemptionId}
+          WHERE id = ${holdResult.transaction.id}
+        `;
+        await client.sql`COMMIT`;
+
+        return {
+            request: normalizeCoinRedemption(rows[0]),
+            wallet: holdResult.wallet,
+        };
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function reviewCoinRedemptionRequest(adminId: number, requestId: number, action: 'approve' | 'reject' | 'complete', reviewNote = '') {
+    await ensureCoinTables();
+    await ensureAdminAuditTable();
+
+    const note = String(reviewNote || '').trim().slice(0, 500);
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+
+        const { rows } = await client.sql<CoinRedemptionRequest & { username?: string | null }>`
+          SELECT coin_redemption_requests.*, users.username
+          FROM coin_redemption_requests
+          JOIN users ON users.id = coin_redemption_requests.user_id
+          WHERE coin_redemption_requests.id = ${requestId}
+          FOR UPDATE
+        `;
+        const request = rows[0];
+        if (!request) throw new Error('Redemption request not found');
+
+        let nextStatus: CoinRedemptionStatus;
+        let eventType = 'coin_redemption_updated';
+        let wallet: CoinWallet | null = null;
+
+        if (action === 'approve') {
+            if (request.status !== 'pending') throw new Error('Redemption request is not pending');
+            nextStatus = 'approved';
+            eventType = 'coin_redemption_approved';
+        } else if (action === 'reject') {
+            if (request.status !== 'pending' && request.status !== 'approved') throw new Error('Redemption request cannot be rejected');
+            nextStatus = 'rejected';
+            await ensureCoinWalletForClient(client, Number(request.user_id));
+            const refundResult = await writeCoinTransactionForClient(client, {
+                userId: Number(request.user_id),
+                amount: Number(request.amount),
+                type: 'redemption_refund',
+                sourceType: 'token_redemption',
+                sourceId: requestId,
+                note: note || '兑换申请未通过，退回 H币',
+                createdBy: adminId,
+            });
+            wallet = refundResult.wallet;
+            eventType = 'coin_redemption_rejected';
+        } else {
+            if (request.status !== 'approved') throw new Error('Redemption request is not approved');
+            nextStatus = 'completed';
+            eventType = 'coin_redemption_completed';
+        }
+
+        const { rows: updatedRows } = await client.sql<CoinRedemptionRequest>`
+          UPDATE coin_redemption_requests
+          SET
+            status = ${nextStatus},
+            review_note = ${note || request.review_note || null},
+            reviewed_by = ${adminId},
+            reviewed_at = CURRENT_TIMESTAMP,
+            completed_at = CASE WHEN ${nextStatus} = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
+          WHERE id = ${requestId}
+          RETURNING *
+        `;
+
+        await client.sql`COMMIT`;
+
+        await createAdminAuditEvent({
+            actorId: adminId,
+            targetUserId: Number(request.user_id),
+            targetType: 'coin',
+            targetId: requestId,
+            eventType,
+            summary: `${request.username || `用户 ${request.user_id}`} 的 ${request.amount} H币兑换申请已${nextStatus === 'approved' ? '通过' : nextStatus === 'rejected' ? '拒绝' : '完成'}`,
+            details: {
+                amount: Number(request.amount),
+                status: nextStatus,
+                note,
+                balance_after: wallet?.balance,
+            },
+        });
+
+        return normalizeCoinRedemption(updatedRows[0]);
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 export async function getUser(username: string) {
     await ensureUserProfileEnhancements();
 
@@ -883,6 +1484,7 @@ export async function deleteUser(id: number) {
     await ensureProjectOpenEventsTable();
     await ensureProjectBookmarksTable();
     await ensureProjectTipsTable();
+    await ensureCoinTables();
     await ensureNotificationsTable();
 
     const client = await db.connect();
@@ -896,6 +1498,9 @@ export async function deleteUser(id: number) {
         await client.sql`UPDATE admin_audit_events SET actor_id = NULL WHERE actor_id = ${id}`;
         await client.sql`UPDATE admin_audit_events SET target_user_id = NULL WHERE target_user_id = ${id}`;
         await client.sql`UPDATE project_submissions SET reviewed_by = NULL WHERE reviewed_by = ${id}`;
+        await client.sql`UPDATE coin_transactions SET counterparty_user_id = NULL WHERE counterparty_user_id = ${id}`;
+        await client.sql`UPDATE coin_transactions SET created_by = NULL WHERE created_by = ${id}`;
+        await client.sql`UPDATE coin_redemption_requests SET reviewed_by = NULL WHERE reviewed_by = ${id}`;
 
         await client.sql`DELETE FROM notifications WHERE recipient_id = ${id} OR actor_id = ${id}`;
 
@@ -936,6 +1541,12 @@ export async function deleteUser(id: number) {
              OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
         `;
         await client.sql`
+          DELETE FROM coin_project_tips
+          WHERE sender_id = ${id}
+             OR recipient_id = ${id}
+             OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
+        `;
+        await client.sql`
           DELETE FROM project_bookmarks
           WHERE user_id = ${id}
              OR project_id IN (SELECT projects.id FROM projects WHERE projects.author_id = ${id})
@@ -958,6 +1569,9 @@ export async function deleteUser(id: number) {
         await client.sql`DELETE FROM project_submissions WHERE author_id = ${id}`;
         await client.sql`DELETE FROM projects WHERE author_id = ${id}`;
 
+        await client.sql`DELETE FROM coin_transactions WHERE user_id = ${id}`;
+        await client.sql`DELETE FROM coin_redemption_requests WHERE user_id = ${id}`;
+        await client.sql`DELETE FROM coin_wallets WHERE user_id = ${id}`;
         await client.sql`DELETE FROM point_awards WHERE user_id = ${id}`;
         await client.sql`DELETE FROM checkins WHERE user_id = ${id}`;
         await client.sql`DELETE FROM users WHERE id = ${id}`;
@@ -985,7 +1599,7 @@ export async function isUserSessionActive(userId: number) {
 }
 
 export async function getAdminAuditHistory(
-    type: 'all' | 'verification' | 'project' | 'user' = 'all',
+    type: 'all' | 'verification' | 'project' | 'user' | 'coin' = 'all',
     limit = 20,
 ): Promise<AdminAuditEvent[]> {
     await ensureUserProfileEnhancements();
@@ -1007,6 +1621,7 @@ export async function getAdminAuditHistory(
         OR (${type} = 'project' AND admin_audit_events.target_type = 'project_submission')
         OR (${type} = 'verification' AND admin_audit_events.target_type = 'verification')
         OR (${type} = 'user' AND admin_audit_events.target_type = 'user')
+        OR (${type} = 'coin' AND admin_audit_events.target_type = 'coin')
       )
       ORDER BY admin_audit_events.created_at DESC
       LIMIT ${safeLimit}
@@ -3041,6 +3656,7 @@ export async function toggleProjectBookmark(userId: number, projectId: number): 
     return true;
 }
 
+// Legacy XP transfer helper. New Function Hall tips must use transferProjectCoinTip().
 export async function tipProject(senderId: number, projectId: number, amount: number) {
     await ensureProjectTipsTable();
 
@@ -4034,6 +4650,7 @@ export async function initDB() {
     await ensureProjectOpenEventsTable();
     await ensureProjectBookmarksTable();
     await ensureProjectTipsTable();
+    await ensureCoinTables();
 
     await ensurePointAwardsTable();
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;

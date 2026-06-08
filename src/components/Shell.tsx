@@ -10,7 +10,7 @@ import Avatar from './Avatar';
 import { isAdminRole } from '@/lib/roles';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
-const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile'];
+const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet'];
 
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
@@ -171,6 +171,17 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     {displayUser ? (
                         <>
                             <NotificationsBell initialUnreadCount={unreadCount} />
+                            <button
+                                type="button"
+                                className={`sidebar-wallet-button ${pathname === '/wallet' ? 'is-active' : ''}`}
+                                onClick={() => navigateTo('/wallet')}
+                                onPointerEnter={() => prefetchPath('/wallet')}
+                                onFocus={() => prefetchPath('/wallet')}
+                                title="Wallet"
+                                aria-current={pathname === '/wallet' ? 'page' : undefined}
+                            >
+                                💳
+                            </button>
                             <button
                                 type="button"
                                 className="sidebar-avatar-button"

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getUserById, tipProject } from '@/lib/db';
+import { getUserById, transferProjectCoinTip } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: '完成 Hajimi 认证后可以打赏项目。' }, { status: 403 });
         }
 
-        const result = await tipProject(userId, projectId, amount);
+        const result = await transferProjectCoinTip(userId, projectId, amount);
         return NextResponse.json({ success: true, ...result }, {
             headers: { 'Cache-Control': 'no-store' },
         });
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
         if (message === 'Cannot tip your own project') {
             return NextResponse.json({ error: '不能给自己的项目打赏。' }, { status: 400 });
         }
-        if (message === 'Insufficient points') {
-            return NextResponse.json({ error: '积分余额不足，先去签到、评论或发布内容赚 XP。' }, { status: 409 });
+        if (message === 'Insufficient coins') {
+            return NextResponse.json({ error: 'H币余额不足。可以通过项目发布、精品内容、老师悬赏或管理员发放获得 H币。' }, { status: 409 });
         }
         console.error('Project Tip Error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
