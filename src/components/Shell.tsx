@@ -10,7 +10,7 @@ import Avatar from './Avatar';
 import { isAdminRole } from '@/lib/roles';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
-const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet'];
+const PREFETCH_PATHS = ['/dashboard', '/resources', '/forum-v1', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet'];
 
 export default function Shell({ children, user }: { children: React.ReactNode, user: User | null }) {
     const router = useRouter();
@@ -24,6 +24,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
         { icon: '💬', path: '/resources', label: 'Forum' },
+        { icon: '🧪', path: '/forum-v1', label: 'Forum V1' },
         { icon: '🚀', path: '/functions', label: 'Hub' },
         { icon: '🗺️', path: '/alumni-map', label: 'Map' },
         { icon: '🏆', path: '/leaderboard', label: 'Rank' },
