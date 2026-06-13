@@ -11,6 +11,167 @@ import Avatar from '@/components/Avatar';
 import DashboardAlumniPreview from '@/components/DashboardAlumniPreview';
 import DashboardPromoCarousel from '@/components/DashboardPromoCarousel';
 
+type DashboardGreeting = {
+  title: string;
+  insight: string;
+};
+
+const TIME_ZONE = 'Asia/Shanghai';
+
+const timeGreetingPools = [
+  {
+    start: 5,
+    end: 10,
+    messages: [
+      { title: 'Morning, {name} ☀️', insight: 'New day, new tiny win.' },
+      { title: 'Rise and shine, {name} (ง •̀_•́)ง', insight: 'Brain loading... still counts.' },
+      { title: 'AM quest, {name} 🌱', insight: 'Start small, stack wins.' },
+    ],
+  },
+  {
+    start: 11,
+    end: 13,
+    messages: [
+      { title: 'Lunch break, {name} 🍱', insight: 'Feed the brain first.' },
+      { title: 'Midday check-in, {name} ✨', insight: 'Halfway there, still iconic.' },
+      { title: 'Noon mode, {name} (๑˃̵ᴗ˂̵)و', insight: 'Refuel, then roll.' },
+    ],
+  },
+  {
+    start: 14,
+    end: 17,
+    messages: [
+      { title: 'Afternoon boost, {name} ⚡', insight: 'Reboot your brain, keep rolling.' },
+      { title: 'Post-lunch loading, {name} (｡•̀ᴗ-)✧', insight: 'Tiny progress still counts.' },
+      { title: 'PM power-up, {name} 🚀', insight: 'One smart move at a time.' },
+    ],
+  },
+  {
+    start: 18,
+    end: 21,
+    messages: [
+      { title: 'Evening mode, {name} 🌙', insight: 'One last push, then chill.' },
+      { title: 'Golden hour, {name} ✨', insight: 'Finish strong, stay soft.' },
+      { title: 'After-school energy, {name} (￣▽￣)ノ', insight: 'Wrap it up with style.' },
+    ],
+  },
+  {
+    start: 22,
+    end: 23,
+    messages: [
+      { title: 'Late night, {name} (｡•́‿•̀｡)', insight: 'Do one small thing, then log off.' },
+      { title: 'Night shift, {name} 🌌', insight: 'Great ideas happen late. Sleep does too.' },
+      { title: 'Almost bedtime, {name} 💤', insight: 'Save your work, save yourself.' },
+    ],
+  },
+  {
+    start: 0,
+    end: 4,
+    messages: [
+      { title: 'Still awake, {name}? 👀', insight: 'Brilliant, yes. But sleep is OP.' },
+      { title: 'Deep night mode, {name} 🌙', insight: 'One tiny win, then offline.' },
+      { title: 'Midnight brain, {name} (。-ω-)zzz', insight: 'Ideas can wait in drafts.' },
+    ],
+  },
+];
+
+const fixedHolidayGreetings: Record<string, DashboardGreeting> = {
+  '01-01': { title: 'New year, {name} 🎆', insight: 'New save file. Better stats.' },
+  '04-05': { title: 'Take it slow, {name} 🌿', insight: 'Quiet days count too.' },
+  '05-01': { title: 'Long weekend energy, {name} ✨', insight: 'Rest is also productivity.' },
+  '10-01': { title: 'Golden week, {name} 🇨🇳', insight: 'Homework can wait. Maybe.' },
+  '10-31': { title: 'Spooky season, {name} 🎃', insight: 'Survive school beautifully.' },
+  '12-25': { title: 'Holiday sparkle, {name} 🎄', insight: 'Good vibes are in season.' },
+};
+
+const lunarHolidayGreetings: Record<string, DashboardGreeting> = {
+  '1-1': { title: 'CNY mode, {name} 🧧', insight: 'Luck buff activated.' },
+  '1-15': { title: 'Lantern night, {name} 🏮', insight: 'Soft glow, smart moves.' },
+  '5-5': { title: 'Dragon Boat vibes, {name} 🚣', insight: 'Stay sharp, stay steady.' },
+  '8-15': { title: 'Mooncake mode, {name} 🌕', insight: 'Big moon, bigger dreams.' },
+};
+
+function getShanghaiDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '00';
+
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: Number(value('hour')),
+  };
+}
+
+function getChineseCalendarParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US-u-ca-chinese', {
+    timeZone: TIME_ZONE,
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(date);
+
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '0';
+
+  return {
+    month: Number(value('month')),
+    day: Number(value('day')),
+  };
+}
+
+function isThanksgiving(year: string, month: string, day: string, hour: number) {
+  if (month !== '11') return false;
+
+  const date = new Date(`${year}-${month}-${day}T${String(hour).padStart(2, '0')}:00:00+08:00`);
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE,
+    weekday: 'short',
+  }).format(date);
+
+  return weekday === 'Thu' && Number(day) >= 22 && Number(day) <= 28;
+}
+
+function stableMessageIndex(seed: string, length: number) {
+  const total = Array.from(seed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return total % length;
+}
+
+function personalizeGreeting(message: DashboardGreeting, username: string): DashboardGreeting {
+  const displayName = username || 'friend';
+
+  return {
+    title: message.title.replace('{name}', displayName),
+    insight: message.insight,
+  };
+}
+
+function getDashboardGreeting(username: string): DashboardGreeting {
+  const { year, month, day, hour } = getShanghaiDateParts();
+  const holidayKey = `${month}-${day}`;
+  const { month: lunarMonth, day: lunarDay } = getChineseCalendarParts();
+  const holidayGreeting =
+    lunarHolidayGreetings[`${lunarMonth}-${lunarDay}`] ??
+    (isThanksgiving(year, month, day, hour)
+      ? { title: 'Thanks mode, {name} 🫶', insight: 'Tiny gratitude, big energy.' }
+      : fixedHolidayGreetings[holidayKey]);
+
+  if (holidayGreeting) {
+    return personalizeGreeting(holidayGreeting, username);
+  }
+
+  const timePool = timeGreetingPools.find((pool) => hour >= pool.start && hour <= pool.end) ?? timeGreetingPools[0];
+  const message = timePool.messages[stableMessageIndex(`${year}-${month}-${day}-${username}`, timePool.messages.length)];
+
+  return personalizeGreeting(message, username);
+}
+
 function getDevDashboardUser(userId: number): User {
   return {
     id: userId,
@@ -37,6 +198,8 @@ export default async function DashboardPage() {
   });
   if (!user) redirect('/login');
 
+  const greeting = getDashboardGreeting(user.username);
+
   const recentTwo = await getRecentPostHighlights(2).catch((error) => {
     if (process.env.NODE_ENV === 'production') throw error;
     console.warn('Dashboard posts unavailable:', error);
@@ -54,8 +217,8 @@ export default async function DashboardPage() {
           <div className="dashboard-welcome-content">
             <Avatar value={user.avatar} theme={user.avatar_theme} size={64} />
             <div>
-              <h2 className="dashboard-welcome-title">Good Morning, {user.username}! 🌤️</h2>
-              <p className="dashboard-welcome-insight">Today&apos;s Insight: Life is like a mushroom, handle with care.</p>
+              <h2 className="dashboard-welcome-title">{greeting.title}</h2>
+              <p className="dashboard-welcome-insight">{greeting.insight}</p>
             </div>
           </div>
 
