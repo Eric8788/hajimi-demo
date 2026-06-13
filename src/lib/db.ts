@@ -2631,10 +2631,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
             avatar_emoji,
             avatar_theme,
             CASE WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) ELSE points END as points,
-            GREATEST(
-              1,
-              FLOOR(SQRT((CASE WHEN role = 'admin' THEN LEAST(points, ${ADMIN_VISIBLE_XP_CAP}) ELSE points END) / 50.0))::int + 1
-            ) as level,
+            GREATEST(1, users.level) as level,
             role,
             badge_preferences,
             verification_status,
@@ -2764,7 +2761,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         users.avatar_emoji,
         users.avatar_theme,
         CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END as points,
-        GREATEST(1, FLOOR(SQRT((CASE WHEN users.role = 'admin' THEN LEAST(ranked.points, ${ADMIN_WINDOW_XP_CAP}) ELSE ranked.points END) / 50.0))::int + 1) as level,
+        GREATEST(1, users.level) as level,
         users.role, users.badge_preferences, users.verification_status,
         (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as is_creator
       FROM ranked
