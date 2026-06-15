@@ -8716,6 +8716,7 @@ textarea:hover,
 .alumni-contact-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 28px;
   padding: 6px 9px;
   border-radius: 999px;
@@ -8733,6 +8734,47 @@ textarea:hover,
   color: #5f6475;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(108, 92, 231, 0.1);
+}
+
+.alumni-contact-pill {
+  color: var(--accent, #6c5ce7);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.alumni-contact-pill:hover,
+.alumni-contact-pill:focus-visible {
+  transform: translateY(-1px);
+  background: white;
+  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 34%, white);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--accent, #6c5ce7) 10%, transparent);
+  outline: none;
+}
+
+.alumni-contact-request {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  color: #5f6475;
+  background: color-mix(in srgb, var(--accent, #6c5ce7) 7%, white);
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 16%, white);
+  font-size: 0.76rem;
+  line-height: 1.42;
+}
+
+.alumni-contact-request strong {
+  color: #111827;
+  font-size: 0.78rem;
+  font-weight: 930;
+}
+
+.alumni-contact-request span {
+  font-weight: 760;
 }
 
 @media (max-width: 1120px) {
