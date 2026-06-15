@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="IC">
+  <rect width="120" height="120" rx="28" fill="#123c69"/>
+  <circle cx="60" cy="60" r="44" fill="none" stroke="#d6b35a" stroke-width="8"/>
+  <text x="60" y="72" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="800" fill="#ffffff">IC</text>
+</svg>

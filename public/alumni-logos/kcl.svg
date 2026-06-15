@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="KCL">
+  <rect width="120" height="120" rx="28" fill="#c8102e"/>
+  <path d="M60 18 96 36v30c0 23-15 39-36 48-21-9-36-25-36-48V36z" fill="#ffffff" opacity=".18"/>
+  <text x="60" y="73" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="800" fill="#ffffff">KCL</text>
+</svg>

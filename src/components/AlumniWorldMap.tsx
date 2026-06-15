@@ -122,7 +122,11 @@ const SCHOOL_LOGO_SOURCES: Record<string, string> = {
   Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cardiff%20University%20(logo).svg',
   Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Athletics%20logo.svg',
   HKU: 'https://www.hku.hk/assets/img/hku-115.svg',
+  IC: '/alumni-logos/ic.svg',
+  KCL: '/alumni-logos/kcl.svg',
+  Northeastern: '/alumni-logos/northeastern.svg',
   Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Oxford.svg',
+  PCP: '/alumni-logos/pcp.svg',
   UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British%20columbia%20ca%20univ%20logo.svg',
   'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20wordmark.svg',
   UCL: '/alumni-logos/ucl.svg',
@@ -137,7 +141,11 @@ const SCHOOL_MAP_LOGO_SOURCES: Record<string, string> = {
   Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Shield%20of%20the%20University%20of%20Cardiff.svg',
   Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Blue%20Devils%20logo.svg',
   HKU: '/alumni-logos/hku-shield.png',
+  IC: '/alumni-logos/ic.svg',
+  KCL: '/alumni-logos/kcl.svg',
+  Northeastern: '/alumni-logos/northeastern.svg',
   Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/Coat%20of%20arms%20of%20the%20University%20of%20Oxford.svg',
+  PCP: '/alumni-logos/pcp.svg',
   UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British_columbia_univ_coat_arms.svg',
   'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20Aggies%20logo.svg',
   UCL: '/alumni-logos/ucl.svg',
@@ -148,6 +156,9 @@ const SCHOOL_MAP_LOGO_SOURCES: Record<string, string> = {
 };
 const SCHOOL_MAP_FAN_OUT: Record<string, { x: number; y: number }> = {
   Duke: { x: -1.4, y: -1.2 },
+  IC: { x: -0.8, y: 0.8 },
+  KCL: { x: 0.85, y: 0.85 },
+  Oxford: { x: -0.5, y: -0.9 },
   'UNC-Chapel Hill': { x: 1.4, y: 1.2 },
   USC: { x: -0.35, y: -0.25 },
   UCSD: { x: 0.35, y: 0.25 },
@@ -1404,7 +1415,7 @@ function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniD
         ) : (
           <span className="alumni-rank-pill is-muted">排名信息待补充</span>
         )}
-        <span className="alumni-contact-pill">点击获取联系方式</span>
+        <span className="alumni-contact-pill">联系 Eric 获取联系方式</span>
       </div>
     </article>
   );
