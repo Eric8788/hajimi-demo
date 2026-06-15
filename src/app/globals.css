@@ -7858,6 +7858,7 @@ textarea:hover,
 }
 
 .alumni-city-pin-hit-area,
+.alumni-city-pin-logo-backdrop,
 .alumni-city-pin-logo,
 .alumni-city-pin-count-badge {
   filter: none;
@@ -7868,6 +7869,14 @@ textarea:hover,
 
 .alumni-city-pin-hit-area {
   pointer-events: all;
+}
+
+.alumni-city-pin-logo-backdrop {
+  pointer-events: none;
+  fill: rgba(255, 255, 255, 0.96);
+  stroke: rgba(108, 92, 231, 0.18);
+  stroke-width: 0.55;
+  filter: drop-shadow(0 2px 5px rgba(31, 41, 55, 0.14));
 }
 
 .alumni-region-cluster-ring {
@@ -7943,6 +7952,15 @@ textarea:hover,
 .alumni-city-pin:focus-visible .alumni-city-pin-logo {
   transform: scale(1.16);
   filter: drop-shadow(0 4px 8px rgba(108, 92, 231, 0.24));
+}
+
+.alumni-city-pin:hover .alumni-city-pin-logo-backdrop,
+.alumni-city-pin.is-selected .alumni-city-pin-logo-backdrop,
+.alumni-city-pin:focus-visible .alumni-city-pin-logo-backdrop {
+  transform: scale(1.16);
+  stroke: var(--accent, #6c5ce7);
+  stroke-width: 0.75;
+  filter: drop-shadow(0 4px 9px rgba(108, 92, 231, 0.2));
 }
 
 @keyframes fadeIn {

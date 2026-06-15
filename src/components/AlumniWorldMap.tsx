@@ -137,23 +137,6 @@ const SCHOOL_LOGO_SOURCES: Record<string, string> = {
   USYD: 'https://www.sydney.edu.au/content/dam/icons/logos/logo-usyd-dark.svg',
   'UW Seattle': 'https://commons.wikimedia.org/wiki/Special:FilePath/Washington%20Huskies%20logo.svg',
 };
-const SCHOOL_MAP_LOGO_SOURCES: Record<string, string> = {
-  Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Shield%20of%20the%20University%20of%20Cardiff.svg',
-  Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Blue%20Devils%20logo.svg',
-  HKU: '/alumni-logos/hku-shield.png',
-  IC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Logo_for_Imperial_College_London.svg',
-  KCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/King%27s_College_London_logo.svg',
-  Northeastern: 'https://commons.wikimedia.org/wiki/Special:FilePath/Northeastern_University_wordmark.svg',
-  Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/Coat%20of%20arms%20of%20the%20University%20of%20Oxford.svg',
-  PCP: 'https://www.sju.edu/themes/custom/sju/images/sju_wordmark_horz_color.svg',
-  UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British_columbia_univ_coat_arms.svg',
-  'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20Aggies%20logo.svg',
-  UCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/UCL_Logo,_plain_background.svg',
-  UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/Seal%20of%20the%20University%20of%20California%2C%20San%20Diego.svg',
-  UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Illinois%20Fighting%20Illini%20logo.svg',
-  USC: 'https://commons.wikimedia.org/wiki/Special:FilePath/USC%20Trojans%20logo.svg',
-  USYD: 'https://commons.wikimedia.org/wiki/Special:FilePath/Arms%20of%20Sydney.svg',
-};
 const SCHOOL_MAP_FAN_OUT: Record<string, { x: number; y: number }> = {
   Duke: { x: -1.4, y: -1.2 },
   IC: { x: -0.8, y: 0.8 },
@@ -168,7 +151,7 @@ function getSchoolLogoUrl(contact: AlumniContact) {
 }
 
 function getMapSchoolLogoUrl(contact: AlumniContact) {
-  return SCHOOL_MAP_LOGO_SOURCES[contact.universityAbbr] ?? getSchoolLogoUrl(contact);
+  return contact.logoUrl;
 }
 
 type AlumniMapPoint = {
@@ -1069,6 +1052,14 @@ function AlumniPoint({
         rx={hitSize * 0.28}
         fill="transparent"
       />
+      <rect
+        className="alumni-city-pin-logo-backdrop"
+        x={point.x - logoSize / 2}
+        y={point.y - logoSize / 2}
+        width={logoSize}
+        height={logoSize}
+        rx={logoSize * 0.22}
+      />
       <image
         className="alumni-city-pin-logo"
         href={logoUrl}
@@ -1078,7 +1069,7 @@ function AlumniPoint({
         height={logoSize}
         preserveAspectRatio="xMidYMid meet"
         onError={(event) => {
-          const fallbackUrl = getSchoolLogoUrl(point.contact);
+          const fallbackUrl = point.contact.logoUrl;
           if (event.currentTarget.getAttribute('href') === fallbackUrl) return;
           event.currentTarget.setAttribute('href', fallbackUrl);
         }}
