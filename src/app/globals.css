@@ -8738,26 +8738,19 @@ textarea:hover,
 
 .alumni-contact-pill {
   color: var(--accent, #6c5ce7);
-  font: inherit;
-  font-size: 0.72rem;
   font-weight: 900;
-  cursor: pointer;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.alumni-contact-pill:hover,
-.alumni-contact-pill:focus-visible {
-  transform: translateY(-1px);
-  background: white;
-  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 34%, white);
-  box-shadow: 0 10px 20px color-mix(in srgb, var(--accent, #6c5ce7) 10%, transparent);
-  outline: none;
+.alumni-direct-contact {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.alumni-contact-request {
+.alumni-direct-contact a,
+.alumni-direct-contact div {
   display: grid;
   gap: 4px;
-  margin-top: 12px;
   padding: 10px 11px;
   border-radius: 14px;
   color: #5f6475;
@@ -8767,14 +8760,33 @@ textarea:hover,
   line-height: 1.42;
 }
 
-.alumni-contact-request strong {
+.alumni-direct-contact a {
+  text-decoration: none;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.alumni-direct-contact a:hover,
+.alumni-direct-contact a:focus-visible {
+  transform: translateY(-1px);
+  background: white;
+  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 34%, white);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--accent, #6c5ce7) 10%, transparent);
+  outline: none;
+}
+
+.alumni-direct-contact strong {
   color: #111827;
   font-size: 0.78rem;
   font-weight: 930;
+  overflow-wrap: anywhere;
 }
 
-.alumni-contact-request span {
+.alumni-direct-contact span {
   font-weight: 760;
+}
+
+.alumni-direct-contact .is-muted strong {
+  color: #8a8fa3;
 }
 
 @media (max-width: 1120px) {

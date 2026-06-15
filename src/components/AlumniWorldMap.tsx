@@ -1440,19 +1440,6 @@ type AlumniDetailCardProps = {
 };
 
 function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniDetailCardProps) {
-  const [contactRequestStatus, setContactRequestStatus] = useState<'idle' | 'copied' | 'shown'>('idle');
-
-  const handleContactRequest = async () => {
-    const requestText = `想获取 ${contact.name}（${contact.universityAbbr} · ${contact.major}）的校友联系方式`;
-
-    try {
-      await navigator.clipboard?.writeText(requestText);
-      setContactRequestStatus('copied');
-    } catch {
-      setContactRequestStatus('shown');
-    }
-  };
-
   return (
     <article className="alumni-detail-card" aria-live="polite">
       <div className="alumni-card-region-row">
@@ -1506,17 +1493,36 @@ function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniD
         ) : (
           <span className="alumni-rank-pill is-muted">排名信息待补充</span>
         )}
-        <button type="button" className="alumni-contact-pill" onClick={handleContactRequest}>
-          点击获取联系方式
-        </button>
+        <span className="alumni-contact-pill">联系方式</span>
       </div>
 
-      {contactRequestStatus !== 'idle' && (
-        <div className="alumni-contact-request" role="status">
-          <strong>{contactRequestStatus === 'copied' ? '请求文案已复制' : '联系方式请求'}</strong>
-          <span>请发送给 Eric：想获取 {contact.name}（{contact.universityAbbr} · {contact.major}）的校友联系方式。</span>
-        </div>
-      )}
+      <div className="alumni-direct-contact" aria-label={`${contact.name} 的联系方式`}>
+        {contact.contactMethods.length > 0 ? (
+          contact.contactMethods.map((method, index) => (
+            method.href ? (
+              <a
+                key={`${method.label}-${method.value}-${index}`}
+                href={method.href}
+                target={method.href.startsWith('http') ? '_blank' : undefined}
+                rel={method.href.startsWith('http') ? 'noreferrer' : undefined}
+              >
+                <span>{method.label}</span>
+                <strong>{method.value}</strong>
+              </a>
+            ) : (
+              <div key={`${method.label}-${method.value}-${index}`}>
+                <span>{method.label}</span>
+                <strong>{method.value}</strong>
+              </div>
+            )
+          ))
+        ) : (
+          <div className="is-muted">
+            <span>联系方式</span>
+            <strong>待补充</strong>
+          </div>
+        )}
+      </div>
     </article>
   );
 }
