@@ -8092,12 +8092,14 @@ textarea:hover,
 }
 
 .alumni-country-list,
+.alumni-school-list,
 .alumni-contact-list {
   display: grid;
   gap: 8px;
 }
 
 .alumni-country-row,
+.alumni-school-row,
 .alumni-contact-row {
   display: grid;
   width: 100%;
@@ -8124,6 +8126,8 @@ textarea:hover,
 
 .alumni-country-row:hover,
 .alumni-country-row:focus-visible,
+.alumni-school-row:hover,
+.alumni-school-row:focus-visible,
 .alumni-contact-row:hover,
 .alumni-contact-row:focus-visible,
 .alumni-contact-row.is-selected {
@@ -8160,11 +8164,13 @@ textarea:hover,
 }
 
 .alumni-country-copy,
+.alumni-school-row-copy,
 .alumni-contact-row-copy {
   min-width: 0;
 }
 
 .alumni-country-copy strong,
+.alumni-school-row-copy strong,
 .alumni-contact-row-copy strong {
   display: block;
   overflow: hidden;
@@ -8176,6 +8182,8 @@ textarea:hover,
 }
 
 .alumni-country-copy small,
+.alumni-school-row-copy small,
+.alumni-school-row-copy em,
 .alumni-contact-row-copy small,
 .alumni-contact-row-copy em {
   display: block;
@@ -8313,6 +8321,120 @@ textarea:hover,
   font-weight: 950;
 }
 
+.alumni-school-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 68px;
+  padding: 10px;
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--accent, #6c5ce7) 7%, white);
+  border-color: color-mix(in srgb, var(--accent, #6c5ce7) 16%, white);
+}
+
+.alumni-school-row-logo,
+.alumni-selected-school-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 20%, white);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+}
+
+.alumni-school-row-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.alumni-school-row-logo img,
+.alumni-selected-school-logo img {
+  display: block;
+  object-fit: contain;
+}
+
+.alumni-school-row-logo img {
+  width: 34px;
+  height: 34px;
+}
+
+.alumni-school-row-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.alumni-school-row-copy strong {
+  font-size: 0.88rem;
+}
+
+.alumni-school-row-count {
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--accent, #6c5ce7);
+  background: rgba(255, 255, 255, 0.76);
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.alumni-selected-school-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent, #6c5ce7) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 18%, white);
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--accent, #6c5ce7) 8%, transparent);
+}
+
+.alumni-selected-school-logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+}
+
+.alumni-selected-school-logo img {
+  width: 39px;
+  height: 39px;
+}
+
+.alumni-selected-school-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.alumni-selected-school-copy strong,
+.alumni-selected-school-copy small,
+.alumni-selected-school-copy em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alumni-selected-school-copy strong {
+  color: #111827;
+  font-size: 0.98rem;
+  font-weight: 940;
+}
+
+.alumni-selected-school-copy small,
+.alumni-selected-school-copy em {
+  color: #7a8094;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 780;
+}
+
 .alumni-contact-row {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -8343,6 +8465,25 @@ textarea:hover,
   height: 30px;
   display: block;
   object-fit: contain;
+}
+
+.alumni-student-avatar,
+.alumni-card-student-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(255,255,255,0.68)),
+    color-mix(in srgb, var(--accent, #6c5ce7) 10%, white);
+  border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 24%, white);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 10px 18px color-mix(in srgb, var(--accent, #6c5ce7) 8%, transparent);
+}
+
+.alumni-student-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 1.18rem;
 }
 
 .alumni-info-region-top {
@@ -8473,17 +8614,26 @@ textarea:hover,
   margin-bottom: 14px;
 }
 
-.alumni-card-school-logo {
+.alumni-card-school-logo,
+.alumni-card-student-avatar {
   width: 52px;
   height: 52px;
-  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.alumni-card-school-logo {
+  border-radius: 16px;
   overflow: hidden;
   background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.58));
   border: 1px solid color-mix(in srgb, var(--accent, #6c5ce7) 42%, white);
   box-shadow: 0 12px 22px rgba(108, 92, 231, 0.1);
+}
+
+.alumni-card-student-avatar {
+  flex: 0 0 52px;
+  font-size: 1.52rem;
 }
 
 .alumni-card-school-logo img {

@@ -122,14 +122,14 @@ const SCHOOL_LOGO_SOURCES: Record<string, string> = {
   Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cardiff%20University%20(logo).svg',
   Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Athletics%20logo.svg',
   HKU: 'https://www.hku.hk/assets/img/hku-115.svg',
-  IC: '/alumni-logos/ic.svg',
-  KCL: '/alumni-logos/kcl.svg',
-  Northeastern: '/alumni-logos/northeastern.svg',
+  IC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Logo_for_Imperial_College_London.svg',
+  KCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/King%27s_College_London_logo.svg',
+  Northeastern: 'https://commons.wikimedia.org/wiki/Special:FilePath/Northeastern_University_wordmark.svg',
   Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Oxford.svg',
-  PCP: '/alumni-logos/pcp.svg',
+  PCP: 'https://www.sju.edu/themes/custom/sju/images/sju_wordmark_horz_color.svg',
   UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British%20columbia%20ca%20univ%20logo.svg',
   'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20wordmark.svg',
-  UCL: '/alumni-logos/ucl.svg',
+  UCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/UCL_Logo,_plain_background.svg',
   UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20California%2C%20San%20Diego%20logo.svg',
   UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Illinois%20at%20Urbana%E2%80%93Champaign%20logo.svg',
   'UNC-Chapel Hill': 'https://commons.wikimedia.org/wiki/Special:FilePath/North%20Carolina%20Tar%20Heels%20logo.svg',
@@ -141,14 +141,14 @@ const SCHOOL_MAP_LOGO_SOURCES: Record<string, string> = {
   Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Shield%20of%20the%20University%20of%20Cardiff.svg',
   Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Blue%20Devils%20logo.svg',
   HKU: '/alumni-logos/hku-shield.png',
-  IC: '/alumni-logos/ic.svg',
-  KCL: '/alumni-logos/kcl.svg',
-  Northeastern: '/alumni-logos/northeastern.svg',
+  IC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Logo_for_Imperial_College_London.svg',
+  KCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/King%27s_College_London_logo.svg',
+  Northeastern: 'https://commons.wikimedia.org/wiki/Special:FilePath/Northeastern_University_wordmark.svg',
   Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/Coat%20of%20arms%20of%20the%20University%20of%20Oxford.svg',
-  PCP: '/alumni-logos/pcp.svg',
+  PCP: 'https://www.sju.edu/themes/custom/sju/images/sju_wordmark_horz_color.svg',
   UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British_columbia_univ_coat_arms.svg',
   'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20Aggies%20logo.svg',
-  UCL: '/alumni-logos/ucl.svg',
+  UCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/UCL_Logo,_plain_background.svg',
   UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/Seal%20of%20the%20University%20of%20California%2C%20San%20Diego.svg',
   UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Illinois%20Fighting%20Illini%20logo.svg',
   USC: 'https://commons.wikimedia.org/wiki/Special:FilePath/USC%20Trojans%20logo.svg',
@@ -192,6 +192,7 @@ type HotSchool = {
   count: number;
   region: AlumniRegion;
   firstContact: AlumniContact;
+  contacts: AlumniContact[];
   color: string;
   order: number;
 };
@@ -354,7 +355,6 @@ function getRegionClusterPoint(region: AlumniRegion) {
 
 function getSchoolPoints(
   contacts: AlumniContact[],
-  selectedAlumniId: string | null,
   regionId: AlumniRegionId,
 ): AlumniMapPoint[] {
   const groups = new Map<string, AlumniContact[]>();
@@ -366,14 +366,13 @@ function getSchoolPoints(
 
   const points = Array.from(groups.entries()).map(([id, group], index) => {
     const anchor = group[0];
-    const selectedContact = group.find((contact) => contact.alumniId === selectedAlumniId) ?? anchor;
     const projectedPoint = getContactMapPoint(anchor);
     const fanOut = SCHOOL_MAP_FAN_OUT[anchor.universityAbbr] ?? { x: 0, y: 0 };
 
     return {
       id,
       regionId,
-      contact: selectedContact,
+      contact: anchor,
       contacts: group,
       anchorX: projectedPoint.x,
       anchorY: projectedPoint.y,
@@ -395,6 +394,7 @@ export default function AlumniWorldMap() {
   );
   const [selectedRegionId, setSelectedRegionId] = useState<AlumniRegionId | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<AlumniRegionId | null>(null);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
   const [animatedViewBox, setAnimatedViewBox] = useState<MapViewBox>(WORLD_VIEW_BOX);
   const [isDraggingMap, setIsDraggingMap] = useState(false);
@@ -419,20 +419,18 @@ export default function AlumniWorldMap() {
 
   const currentPoints = useMemo(() => {
     if (!selectedRegion) return [];
-    return getSchoolPoints(selectedRegion.contacts, selectedAlumniId, selectedRegion.id);
-  }, [selectedAlumniId, selectedRegion]);
+    return getSchoolPoints(selectedRegion.contacts, selectedRegion.id);
+  }, [selectedRegion]);
 
   const worldSchoolPoints = useMemo(
-    () => worldRegions.flatMap((region) => getSchoolPoints(region.contacts, selectedAlumniId, region.id)),
-    [selectedAlumniId, worldRegions],
+    () => worldRegions.flatMap((region) => getSchoolPoints(region.contacts, region.id)),
+    [worldRegions],
   );
 
   const selectedPoint = useMemo(() => {
-    if (!selectedAlumni) return null;
-    return currentPoints.find((point) =>
-      point.contacts.some((contact) => contact.alumniId === selectedAlumni.alumniId),
-    ) ?? null;
-  }, [currentPoints, selectedAlumni]);
+    if (!selectedSchoolId) return null;
+    return currentPoints.find((point) => point.id === selectedSchoolId) ?? null;
+  }, [currentPoints, selectedSchoolId]);
 
   const totalContacts = worldRegions.reduce((sum, region) => sum + region.contacts.length, 0);
   const totalSchools = getUniqueCountFromContacts(
@@ -509,8 +507,10 @@ export default function AlumniWorldMap() {
     setCanSelectRegionPoints(false);
     suppressSchoolSelectUntilRef.current = performance.now() + REGION_POINT_SELECT_DELAY_MS;
     setSelectedRegionId(region.id);
+    setSelectedSchoolId(null);
     setSelectedAlumniId(null);
     clearRegionSelectionTimerRef.current = window.setTimeout(() => {
+      setSelectedSchoolId(null);
       setSelectedAlumniId(null);
       setCanSelectRegionPoints(true);
       clearRegionSelectionTimerRef.current = null;
@@ -519,12 +519,14 @@ export default function AlumniWorldMap() {
 
   const selectWorldSchoolPoint = (point: AlumniMapPoint) => {
     setSelectedRegionId(point.regionId);
-    setSelectedAlumniId(point.contact.alumniId);
+    setSelectedSchoolId(point.id);
+    setSelectedAlumniId(null);
   };
 
   const selectHotSchool = (school: HotSchool) => {
     setSelectedRegionId(school.region.id);
-    setSelectedAlumniId(school.firstContact.alumniId);
+    setSelectedSchoolId(school.key);
+    setSelectedAlumniId(null);
   };
 
   const resetWorld = () => {
@@ -533,6 +535,7 @@ export default function AlumniWorldMap() {
     }
     setSelectedRegionId(null);
     setHoveredRegionId(null);
+    setSelectedSchoolId(null);
     setSelectedAlumniId(null);
   };
 
@@ -819,7 +822,7 @@ export default function AlumniWorldMap() {
                             key={point.id}
                             point={point}
                             region={region}
-                            isSelected={point.contacts.some((contact) => contact.alumniId === selectedAlumniId)}
+                            isSelected={point.id === selectedSchoolId}
                             onSelect={() => selectWorldSchoolPoint(point)}
                             selectionEnabled
                             viewBoxWidth={animatedViewBox.width}
@@ -837,12 +840,13 @@ export default function AlumniWorldMap() {
                         key={point.id}
                         point={point}
                         region={selectedRegion}
-                        isSelected={point.contacts.some((contact) => contact.alumniId === selectedAlumniId)}
+                        isSelected={point.id === selectedSchoolId}
                         selectionEnabled={canSelectRegionPoints}
                         onSelect={() => {
                           if (!canSelectRegionPoints) return;
                           if (performance.now() < suppressSchoolSelectUntilRef.current) return;
-                          setSelectedAlumniId(point.contact.alumniId);
+                          setSelectedSchoolId(point.id);
+                          setSelectedAlumniId(null);
                         }}
                       />
                     ))}
@@ -877,13 +881,28 @@ export default function AlumniWorldMap() {
           <AlumniInfoPanel
             worldRegions={worldRegions}
             selectedRegion={selectedRegion}
+            selectedPoint={selectedPoint}
             selectedAlumni={selectedAlumni}
             relatedContacts={selectedPoint?.contacts ?? []}
             onSelectRegion={selectRegion}
             onSelectSchool={selectHotSchool}
             onHoverRegion={setHoveredRegionId}
-            onSelectContact={setSelectedAlumniId}
-            onBackToRegion={() => setSelectedAlumniId(null)}
+            onSelectPoint={(point) => {
+              setSelectedSchoolId(point.id);
+              setSelectedAlumniId(null);
+            }}
+            onSelectContact={(alumniId) => {
+              const contactPoint = currentPoints.find((point) =>
+                point.contacts.some((contact) => contact.alumniId === alumniId),
+              );
+              if (contactPoint) setSelectedSchoolId(contactPoint.id);
+              setSelectedAlumniId(alumniId);
+            }}
+            onBackToSchool={() => setSelectedAlumniId(null)}
+            onBackToRegion={() => {
+              setSelectedSchoolId(null);
+              setSelectedAlumniId(null);
+            }}
             onBackToWorld={resetWorld}
           />
         </div>
@@ -1019,7 +1038,7 @@ function AlumniPoint({
       className={`alumni-city-pin${isSelected ? ' is-selected' : ''}${showLabelOnVisible ? ' show-label' : ''}`}
       role="button"
       tabIndex={0}
-      aria-label={`${point.contact.name}，${point.contact.university}`}
+      aria-label={`${point.contact.universityAbbr}，${point.contact.university}，${point.contacts.length} 位学长学姐`}
       onPointerDown={(event) => {
         event.stopPropagation();
         pointerStartedOnPinRef.current = selectionEnabled;
@@ -1084,12 +1103,15 @@ function AlumniPoint({
 type AlumniInfoPanelProps = {
   worldRegions: AlumniRegion[];
   selectedRegion: AlumniRegion | null;
+  selectedPoint: AlumniMapPoint | null;
   selectedAlumni: AlumniContact | null;
   relatedContacts: AlumniContact[];
   onSelectRegion: (region: AlumniRegion) => void;
   onSelectSchool: (school: HotSchool) => void;
   onHoverRegion: (regionId: AlumniRegionId | null) => void;
+  onSelectPoint: (point: AlumniMapPoint) => void;
   onSelectContact: (alumniId: string) => void;
+  onBackToSchool: () => void;
   onBackToRegion: () => void;
   onBackToWorld: () => void;
 };
@@ -1097,12 +1119,15 @@ type AlumniInfoPanelProps = {
 function AlumniInfoPanel({
   worldRegions,
   selectedRegion,
+  selectedPoint,
   selectedAlumni,
   relatedContacts,
   onSelectRegion,
   onSelectSchool,
   onHoverRegion,
+  onSelectPoint,
   onSelectContact,
+  onBackToSchool,
   onBackToRegion,
   onBackToWorld,
 }: AlumniInfoPanelProps) {
@@ -1159,16 +1184,7 @@ function AlumniInfoPanel({
                 onMouseLeave={() => onHoverRegion(null)}
               >
                 <span className="alumni-hot-school-logo" aria-hidden="true">
-                  <img
-                    src={getSchoolLogoUrl(school.firstContact)}
-                    alt=""
-                    loading="lazy"
-                    onError={(event) => {
-                      const fallbackUrl = school.firstContact.logoUrl;
-                      if (event.currentTarget.src.endsWith(fallbackUrl)) return;
-                      event.currentTarget.src = fallbackUrl;
-                    }}
-                  />
+                  <SchoolLogo contact={school.firstContact} />
                 </span>
                 <span className="alumni-hot-school-copy">
                   <strong>{school.universityAbbr}</strong>
@@ -1185,6 +1201,7 @@ function AlumniInfoPanel({
 
   const regionSchools = getUniqueCount(selectedRegion.contacts, 'university');
   const regionCities = getUniqueCount(selectedRegion.contacts, 'city');
+  const regionSchoolPoints = getSchoolPoints(selectedRegion.contacts, selectedRegion.id);
 
   if (selectedAlumni) {
     return (
@@ -1194,8 +1211,8 @@ function AlumniInfoPanel({
         aria-label={`${selectedAlumni.name}校友详情`}
       >
         <div className="alumni-info-nav-row">
-          <button type="button" className="alumni-info-back" onClick={onBackToRegion}>
-            ← 返回
+          <button type="button" className="alumni-info-back" onClick={onBackToSchool}>
+            ← 返回学校
           </button>
         </div>
         <AlumniDetailCard
@@ -1230,40 +1247,108 @@ function AlumniInfoPanel({
         <span>{selectedRegion.contacts.length} 位学长学姐 · {regionSchools} 所学校 · {regionCities} 个城市</span>
       </div>
 
-      <div className="alumni-info-section-head">
-        <span>选择学长学姐</span>
-        <small>{selectedRegion.contacts.length} 位</small>
-      </div>
+      {!selectedPoint ? (
+        <>
+          <div className="alumni-info-section-head">
+            <span>选择学校</span>
+            <small>{regionSchools} 所</small>
+          </div>
 
-      <div className="alumni-contact-list">
-        {selectedRegion.contacts.map((contact) => (
-          <button
-            key={contact.alumniId}
-            type="button"
-            className="alumni-contact-row"
-            onClick={() => onSelectContact(contact.alumniId)}
-          >
-            <span className="alumni-contact-school-logo" aria-hidden="true">
-              <img
-                src={getSchoolLogoUrl(contact)}
-                alt=""
-                loading="lazy"
-                onError={(event) => {
-                  const fallbackUrl = contact.logoUrl;
-                  if (event.currentTarget.src.endsWith(fallbackUrl)) return;
-                  event.currentTarget.src = fallbackUrl;
-                }}
+          <div className="alumni-school-list">
+            {regionSchoolPoints.map((point) => (
+              <SchoolRow
+                key={point.id}
+                point={point}
+                region={selectedRegion}
+                onSelect={() => onSelectPoint(point)}
               />
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="alumni-selected-school-card">
+            <span className="alumni-selected-school-logo" aria-hidden="true">
+              <SchoolLogo contact={selectedPoint.contact} />
             </span>
-            <span className="alumni-contact-row-copy">
-              <strong>{contact.name}</strong>
-              <small>{contact.universityAbbr} · {contact.major}</small>
-              <em>{formatLocation(contact)}</em>
+            <span className="alumni-selected-school-copy">
+              <strong>{selectedPoint.contact.universityAbbr}</strong>
+              <small>{selectedPoint.contact.university}</small>
+              <em>{selectedPoint.contact.city} · {selectedPoint.contacts.length} 位学长学姐</em>
             </span>
-          </button>
-        ))}
-      </div>
+          </div>
+
+          <div className="alumni-info-section-head">
+            <span>选择学长学姐</span>
+            <small>{selectedPoint.contacts.length} 位</small>
+          </div>
+
+          <div className="alumni-contact-list">
+            {selectedPoint.contacts.map((contact) => (
+              <button
+                key={contact.alumniId}
+                type="button"
+                className="alumni-contact-row"
+                onClick={() => onSelectContact(contact.alumniId)}
+              >
+                <span className="alumni-student-avatar" aria-hidden="true">🧑‍🎓</span>
+                <span className="alumni-contact-row-copy">
+                  <strong>{contact.name}</strong>
+                  <small>{contact.major}</small>
+                  <em>{contact.graduationYear} 届 · {formatLocation(contact)}</em>
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </aside>
+  );
+}
+
+type SchoolLogoProps = {
+  contact: AlumniContact;
+};
+
+function SchoolLogo({ contact }: SchoolLogoProps) {
+  return (
+    <img
+      src={getSchoolLogoUrl(contact)}
+      alt=""
+      loading="lazy"
+      onError={(event) => {
+        const fallbackUrl = contact.logoUrl;
+        if (event.currentTarget.src.endsWith(fallbackUrl)) return;
+        event.currentTarget.src = fallbackUrl;
+      }}
+    />
+  );
+}
+
+type SchoolRowProps = {
+  point: AlumniMapPoint;
+  region: AlumniRegion;
+  onSelect: () => void;
+};
+
+function SchoolRow({ point, region, onSelect }: SchoolRowProps) {
+  return (
+    <button
+      type="button"
+      className="alumni-school-row"
+      style={{ '--accent': region.color } as CSSProperties}
+      onClick={onSelect}
+    >
+      <span className="alumni-school-row-logo" aria-hidden="true">
+        <SchoolLogo contact={point.contact} />
+      </span>
+      <span className="alumni-school-row-copy">
+        <strong>{point.contact.universityAbbr}</strong>
+        <small>{point.contact.university}</small>
+        <em>{point.contact.city} · {point.contacts.length} 位学长学姐</em>
+      </span>
+      <span className="alumni-school-row-count">{point.contacts.length}</span>
+    </button>
   );
 }
 
@@ -1303,6 +1388,7 @@ function getHotSchools(worldRegions: AlumniRegion[]): HotSchool[] {
       const current = schools.get(key);
       if (current) {
         current.count += 1;
+        current.contacts.push(contact);
       } else {
         schools.set(key, {
           key,
@@ -1313,6 +1399,7 @@ function getHotSchools(worldRegions: AlumniRegion[]): HotSchool[] {
           count: 1,
           region,
           firstContact: contact,
+          contacts: [contact],
           color: region.color,
           order: nextOrder,
         });
@@ -1361,17 +1448,8 @@ function AlumniDetailCard({ contact, relatedContacts, onSelectContact }: AlumniD
       </div>
 
       <div className="alumni-card-head">
-        <div className="alumni-card-school-logo" aria-hidden="true">
-          <img
-            src={getSchoolLogoUrl(contact)}
-            alt=""
-            loading="lazy"
-            onError={(event) => {
-              const fallbackUrl = contact.logoUrl;
-              if (event.currentTarget.src.endsWith(fallbackUrl)) return;
-              event.currentTarget.src = fallbackUrl;
-            }}
-          />
+        <div className="alumni-card-student-avatar" aria-hidden="true">
+          🧑‍🎓
         </div>
         <div>
           <h4>{contact.name}</h4>
