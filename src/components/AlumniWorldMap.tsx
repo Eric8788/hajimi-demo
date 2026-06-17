@@ -350,6 +350,26 @@ function getSchoolPoints(
   return points;
 }
 
+function getPointRenderKey(point: AlumniMapPoint) {
+  return `${point.regionId}:${point.id}`;
+}
+
+function orderSchoolPointsForLayer(
+  points: AlumniMapPoint[],
+  hoveredSchoolKey: string | null,
+  selectedRegionId: AlumniRegionId | null,
+  selectedSchoolId: string | null,
+) {
+  const getLayerRank = (point: AlumniMapPoint) => {
+    const pointKey = getPointRenderKey(point);
+    if (pointKey === hoveredSchoolKey) return 2;
+    if (point.regionId === selectedRegionId && point.id === selectedSchoolId) return 1;
+    return 0;
+  };
+
+  return points.slice().sort((a, b) => getLayerRank(a) - getLayerRank(b));
+}
+
 export default function AlumniWorldMap() {
   const worldRegions = useMemo(() => buildWorldRegions(), []);
   const worldRegionById = useMemo(
@@ -358,6 +378,7 @@ export default function AlumniWorldMap() {
   );
   const [selectedRegionId, setSelectedRegionId] = useState<AlumniRegionId | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<AlumniRegionId | null>(null);
+  const [hoveredSchoolKey, setHoveredSchoolKey] = useState<string | null>(null);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [selectedAlumniId, setSelectedAlumniId] = useState<string | null>(null);
   const [animatedViewBox, setAnimatedViewBox] = useState<MapViewBox>(WORLD_VIEW_BOX);
@@ -389,6 +410,16 @@ export default function AlumniWorldMap() {
   const worldSchoolPoints = useMemo(
     () => worldRegions.flatMap((region) => getSchoolPoints(region.contacts, region.id)),
     [worldRegions],
+  );
+
+  const layeredCurrentPoints = useMemo(
+    () => orderSchoolPointsForLayer(currentPoints, hoveredSchoolKey, selectedRegionId, selectedSchoolId),
+    [currentPoints, hoveredSchoolKey, selectedRegionId, selectedSchoolId],
+  );
+
+  const layeredWorldSchoolPoints = useMemo(
+    () => orderSchoolPointsForLayer(worldSchoolPoints, hoveredSchoolKey, selectedRegionId, selectedSchoolId),
+    [hoveredSchoolKey, selectedRegionId, selectedSchoolId, worldSchoolPoints],
   );
 
   const selectedPoint = useMemo(() => {
@@ -471,6 +502,7 @@ export default function AlumniWorldMap() {
     setCanSelectRegionPoints(false);
     suppressSchoolSelectUntilRef.current = performance.now() + REGION_POINT_SELECT_DELAY_MS;
     setSelectedRegionId(region.id);
+    setHoveredSchoolKey(null);
     setSelectedSchoolId(null);
     setSelectedAlumniId(null);
     clearRegionSelectionTimerRef.current = window.setTimeout(() => {
@@ -483,12 +515,14 @@ export default function AlumniWorldMap() {
 
   const selectWorldSchoolPoint = (point: AlumniMapPoint) => {
     setSelectedRegionId(point.regionId);
+    setHoveredSchoolKey(getPointRenderKey(point));
     setSelectedSchoolId(point.id);
     setSelectedAlumniId(null);
   };
 
   const selectHotSchool = (school: HotSchool) => {
     setSelectedRegionId(school.region.id);
+    setHoveredSchoolKey(`${school.region.id}:${school.key}`);
     setSelectedSchoolId(school.key);
     setSelectedAlumniId(null);
   };
@@ -499,6 +533,7 @@ export default function AlumniWorldMap() {
     }
     setSelectedRegionId(null);
     setHoveredRegionId(null);
+    setHoveredSchoolKey(null);
     setSelectedSchoolId(null);
     setSelectedAlumniId(null);
   };
@@ -643,6 +678,7 @@ export default function AlumniWorldMap() {
       setAnimatedViewBox(nextViewBox);
       animatedViewBoxRef.current = nextViewBox;
       setHoveredRegionId(null);
+      setHoveredSchoolKey(null);
       return;
     }
 
@@ -723,6 +759,7 @@ export default function AlumniWorldMap() {
               onPointerLeave={(event) => {
                 finishMapDrag(event);
                 setHoveredRegionId(null);
+                setHoveredSchoolKey(null);
               }}
             >
               <AlumniMapSVG
@@ -777,9 +814,10 @@ export default function AlumniWorldMap() {
                       ))}
                     </g>
                     <g className="alumni-world-school-points" aria-hidden={!shouldShowWorldSchoolDots}>
-                      {worldSchoolPoints.map((point) => {
+                      {layeredWorldSchoolPoints.map((point) => {
                         const region = worldRegionById.get(point.regionId);
                         if (!region) return null;
+                        const pointKey = getPointRenderKey(point);
 
                         return (
                           <AlumniPoint
@@ -787,7 +825,9 @@ export default function AlumniWorldMap() {
                             point={point}
                             region={region}
                             isSelected={point.id === selectedSchoolId}
+                            isHovered={pointKey === hoveredSchoolKey}
                             onSelect={() => selectWorldSchoolPoint(point)}
+                            onHover={setHoveredSchoolKey}
                             selectionEnabled
                             viewBoxWidth={animatedViewBox.width}
                             showLabelOnVisible
@@ -799,21 +839,28 @@ export default function AlumniWorldMap() {
                 )}
                 {selectedRegion && (
                   <g className={canSelectRegionPoints ? '' : 'is-region-transitioning'}>
-                    {currentPoints.map((point) => (
-                      <AlumniPoint
-                        key={point.id}
-                        point={point}
-                        region={selectedRegion}
-                        isSelected={point.id === selectedSchoolId}
-                        selectionEnabled={canSelectRegionPoints}
-                        onSelect={() => {
-                          if (!canSelectRegionPoints) return;
-                          if (performance.now() < suppressSchoolSelectUntilRef.current) return;
-                          setSelectedSchoolId(point.id);
-                          setSelectedAlumniId(null);
-                        }}
-                      />
-                    ))}
+                    {layeredCurrentPoints.map((point) => {
+                      const pointKey = getPointRenderKey(point);
+
+                      return (
+                        <AlumniPoint
+                          key={point.id}
+                          point={point}
+                          region={selectedRegion}
+                          isSelected={point.id === selectedSchoolId}
+                          isHovered={pointKey === hoveredSchoolKey}
+                          onHover={setHoveredSchoolKey}
+                          selectionEnabled={canSelectRegionPoints}
+                          onSelect={() => {
+                            if (!canSelectRegionPoints) return;
+                            if (performance.now() < suppressSchoolSelectUntilRef.current) return;
+                            setHoveredSchoolKey(pointKey);
+                            setSelectedSchoolId(point.id);
+                            setSelectedAlumniId(null);
+                          }}
+                        />
+                      );
+                    })}
                   </g>
                 )}
               </svg>
@@ -852,6 +899,7 @@ export default function AlumniWorldMap() {
             onSelectSchool={selectHotSchool}
             onHoverRegion={setHoveredRegionId}
             onSelectPoint={(point) => {
+              setHoveredSchoolKey(getPointRenderKey(point));
               setSelectedSchoolId(point.id);
               setSelectedAlumniId(null);
             }}
@@ -859,11 +907,15 @@ export default function AlumniWorldMap() {
               const contactPoint = currentPoints.find((point) =>
                 point.contacts.some((contact) => contact.alumniId === alumniId),
               );
-              if (contactPoint) setSelectedSchoolId(contactPoint.id);
+              if (contactPoint) {
+                setHoveredSchoolKey(getPointRenderKey(contactPoint));
+                setSelectedSchoolId(contactPoint.id);
+              }
               setSelectedAlumniId(alumniId);
             }}
             onBackToSchool={() => setSelectedAlumniId(null)}
             onBackToRegion={() => {
+              setHoveredSchoolKey(null);
               setSelectedSchoolId(null);
               setSelectedAlumniId(null);
             }}
@@ -984,7 +1036,9 @@ type AlumniPointProps = {
   point: AlumniMapPoint;
   region: AlumniRegion;
   isSelected: boolean;
+  isHovered: boolean;
   onSelect: () => void;
+  onHover: (pointKey: string | null) => void;
   selectionEnabled?: boolean;
   viewBoxWidth?: number;
   showLabelOnVisible?: boolean;
@@ -994,12 +1048,15 @@ function AlumniPoint({
   point,
   region,
   isSelected,
+  isHovered,
   onSelect,
+  onHover,
   selectionEnabled = true,
   viewBoxWidth,
   showLabelOnVisible = false,
 }: AlumniPointProps) {
   const pointerStartedOnPinRef = useRef(false);
+  const pointKey = getPointRenderKey(point);
   const baseViewBoxWidth = viewBoxWidth ?? getRegionFocusViewBox(region).width;
   const logoSize = Math.max(region.id === 'hong-kong' ? 8.5 : 3.2, Math.min(38, baseViewBoxWidth * 0.044));
   const hitSize = logoSize * 1.5;
@@ -1007,14 +1064,24 @@ function AlumniPoint({
   const countBadgeRadius = logoSize * 0.24;
   const countX = point.x + logoSize * 0.42;
   const countY = point.y - logoSize * 0.42;
+  const labelText = point.contact.university;
+  const labelFontSize = Math.max(2.6, Math.min(5.4, logoSize * 0.28));
+  const labelPaddingX = Math.max(1.8, logoSize * 0.18);
+  const labelHeight = Math.max(5.2, labelFontSize * 1.65);
+  const labelWidth = Math.max(logoSize * 1.16, labelText.length * labelFontSize * 0.52 + labelPaddingX * 2);
+  const labelY = point.y + logoSize / 2 + Math.max(1.4, logoSize * 0.1);
   const logoUrl = getMapSchoolLogoUrl(point.contact);
 
   return (
     <g
-      className={`alumni-city-pin${isSelected ? ' is-selected' : ''}${showLabelOnVisible ? ' show-label' : ''}`}
+      className={`alumni-city-pin${isSelected ? ' is-selected' : ''}${isHovered ? ' is-hovered' : ''}${showLabelOnVisible ? ' show-label' : ''}`}
       role="button"
       tabIndex={0}
       aria-label={`${point.contact.universityAbbr}，${point.contact.university}，${point.contacts.length} 位学长学姐`}
+      onMouseEnter={() => onHover(pointKey)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(pointKey)}
+      onBlur={() => onHover(null)}
       onPointerDown={(event) => {
         event.stopPropagation();
         pointerStartedOnPinRef.current = selectionEnabled;
@@ -1080,6 +1147,24 @@ function AlumniPoint({
           </text>
         </>
       )}
+      <g className="alumni-city-pin-label" aria-hidden="true">
+        <rect
+          className="alumni-city-pin-label-backdrop"
+          x={point.x - labelWidth / 2}
+          y={labelY}
+          width={labelWidth}
+          height={labelHeight}
+          rx={labelHeight / 2}
+        />
+        <text
+          className="alumni-city-pin-label-text"
+          x={point.x}
+          y={labelY + labelHeight / 2 + labelFontSize * 0.35}
+          style={{ fontSize: `${labelFontSize}px`, strokeWidth: `${Math.max(0.45, labelFontSize * 0.16)}px` }}
+        >
+          {labelText}
+        </text>
+      </g>
     </g>
   );
 }
