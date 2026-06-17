@@ -3,6 +3,7 @@ import Shell from '@/components/Shell';
 import WalletPanel from '@/components/WalletPanel';
 import { getSession } from '@/lib/auth';
 import { getCoinWalletOverview, getUserById } from '@/lib/db';
+import { canUseMemberInteractions } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export default async function WalletPage() {
                         <span>H币余额</span>
                     </div>
                 </div>
-                <WalletPanel initialOverview={overview} verified={user.verification_status === 'verified'} />
+                <WalletPanel initialOverview={overview} verified={canUseMemberInteractions(user)} readOnlyRole={user.role} />
             </section>
         </Shell>
     );

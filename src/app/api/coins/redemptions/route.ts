@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { createCoinRedemptionRequest, getUserById } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
         const userId = Number(session.userId);
         const user = await getUserById(userId);
         if (!isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以申请兑换 token。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '申请兑换 token') }, { status: 403 });
         }
 
         const body = await request.json().catch(() => null);

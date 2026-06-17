@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { createProjectSubmission, getProjectSubmissions, getUserById, reviewProjectSubmission } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage } from '@/lib/access';
 import { clearServerCache } from '@/lib/serverCache';
 
 const ALLOWED_TAGS = new Set(['Game', 'Tool', 'AI', 'Multiplayer', 'Simulation', 'Visual', 'Finance', 'Narrative', 'Sailing', 'Classroom']);
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
 
         const user = await getUserById(Number(session.userId));
         if (!user || !isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以提交项目或新版本申请。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '提交项目或新版本申请') }, { status: 403 });
         }
 
         const body = await request.json();

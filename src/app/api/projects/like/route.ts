@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getUserById, rateProject } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage } from '@/lib/access';
 import { clearServerCache } from '@/lib/serverCache';
 
 export async function POST(request: Request) {
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
         const userId = Number(session.userId);
         const user = await getUserById(userId);
         if (!isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以评分项目。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '评分项目') }, { status: 403 });
         }
 
         if (!Number.isInteger(normalizedProjectId) || normalizedProjectId <= 0) {

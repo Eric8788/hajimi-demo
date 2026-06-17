@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getUserById, submitUserVerification } from '@/lib/db';
 import { buildVerificationDraft } from '@/lib/verification';
+import { isReadOnlyRole, getReadOnlyRoleLabel } from '@/lib/access';
 
 export async function POST(request: Request) {
     try {
@@ -10,6 +11,10 @@ export async function POST(request: Request) {
 
         const user = await getUserById(Number(session.userId));
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        if (isReadOnlyRole(user.role)) {
+            return NextResponse.json({ error: `${getReadOnlyRoleLabel(user.role)}可以浏览和体验项目，不开放学生/老师互动认证。` }, { status: 403 });
+        }
 
         if (user.verification_status === 'pending') {
             return NextResponse.json({ error: '认证正在审核中，请等待管理员处理。' }, { status: 409 });

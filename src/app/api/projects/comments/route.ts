@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { addProjectComment, deleteProjectComment, getProjectComments, getProjectUserFeedback, getUserById } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { clearServerCache } from '@/lib/serverCache';
 
 function parsePositiveInteger(value: string | null | unknown) {
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
         const userId = Number(session.userId);
         const user = await getUserById(userId);
         if (!isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以评论项目。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '评论项目') }, { status: 403 });
         }
 
         const commentId = await addProjectComment(userId, projectId, content);
@@ -70,6 +71,11 @@ export async function DELETE(request: Request) {
         const userId = Number(session.userId);
 
         if (!commentId) return NextResponse.json({ error: 'Missing commentId' }, { status: 400 });
+
+        const user = await getUserById(userId);
+        if (isReadOnlyRole(user?.role)) {
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '管理项目评论') }, { status: 403 });
+        }
 
         await deleteProjectComment(commentId, userId);
         clearServerCache('projects:');

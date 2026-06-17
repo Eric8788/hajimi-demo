@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getUser, createUser } from '@/lib/db';
 import { createSession } from '@/lib/auth';
-import { isRegistrationConfigured, validateInviteCode } from '@/lib/inviteCodes';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { buildVerificationDraft } from '@/lib/verification';
 import { normalizeAvatarEmoji, normalizeAvatarThemeId } from '@/lib/avatarThemes';
+import { normalizeUserRole, type UserRole } from '@/lib/access';
 import bcrypt from 'bcryptjs';
+
+function normalizeRegistrationRole(value: unknown): UserRole {
+    const role = normalizeUserRole(String(value || 'student'));
+    return role === 'parent' || role === 'visitor' ? role : 'student';
+}
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
         const username = normalizeUsernameInput(body.username);
-        const { password, isRegister, inviteCode } = body;
+        const { password, isRegister } = body;
 
         if (!username || !password) {
             return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -37,15 +42,8 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'User already exists' }, { status: 409 });
             }
 
-            if (!isRegistrationConfigured()) {
-                return NextResponse.json({ error: 'Registration is not open yet. Ask a teacher to configure invite codes.' }, { status: 503 });
-            }
-
-            if (!validateInviteCode(inviteCode)) {
-                return NextResponse.json({ error: 'Invalid invite code' }, { status: 403 });
-            }
-
-            const shouldSubmitVerification = Boolean(body.verification?.enabled);
+            const registrationRole = normalizeRegistrationRole(body.role);
+            const shouldSubmitVerification = registrationRole === 'student' && Boolean(body.verification?.enabled);
             const verificationResult = shouldSubmitVerification
                 ? await buildVerificationDraft(body.verification)
                 : null;
@@ -62,14 +60,14 @@ export async function POST(request: Request) {
             const userId = await createUser(
                 username,
                 hashedPassword,
-                'student',
+                registrationRole,
                 verificationResult?.ok ? verificationResult.draft : null,
                 avatarSelection,
                 { bio: body.bio },
             );
             // Automatically log in
             await createSession(Number(userId));
-            return NextResponse.json({ success: true, role: 'student' });
+            return NextResponse.json({ success: true, role: registrationRole });
         } else {
             // Login
             if (!user || !user.password_hash) {
@@ -83,7 +81,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
             }
             await createSession(user.id);
-            return NextResponse.json({ success: true });
+            return NextResponse.json({ success: true, role: user.role });
         }
     } catch (err) {
         console.error(err);

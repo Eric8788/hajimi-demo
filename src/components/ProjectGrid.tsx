@@ -8,6 +8,7 @@ import type { Project, User } from '@/lib/db';
 import ProjectCoverStudio from './ProjectCoverStudio';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
+import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 
 const TAG_COLORS: Record<string, string> = {
     Game: '#6c5ce7',
@@ -180,6 +181,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [localCoinBalance, setLocalCoinBalance] = useState(0);
     const [coinBalanceLoaded, setCoinBalanceLoaded] = useState(!user);
     const currentUserId = user ? Number(user.id) : null;
+    const isReadOnlyUser = isReadOnlyRole(user?.role);
     const savedCount = bookmarkedProjectIds.size;
 
     useEffect(() => {
@@ -569,7 +571,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         }
 
         if (!canSubmitProjects) {
-            setSubmissionMessage('完成 Hajimi 认证后可以收藏项目。');
+            setSubmissionMessage(isReadOnlyUser
+                ? getInteractionBlockedMessage(user, '收藏项目')
+                : '完成 Hajimi 认证后可以收藏项目。');
             return;
         }
 
@@ -607,7 +611,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         }
 
         if (!canSubmitProjects) {
-            setSubmissionMessage('完成 Hajimi 认证后可以提交项目或新版本申请。');
+            setSubmissionMessage(isReadOnlyUser
+                ? getInteractionBlockedMessage(user, '提交项目或新版本申请')
+                : '完成 Hajimi 认证后可以提交项目或新版本申请。');
             return;
         }
 
@@ -728,7 +734,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             {submissionMessage && (
                 <div className="forum-verification-callout project-submit-message">
                     <span>{submissionMessage}</span>
-                    {!canSubmitProjects && <button type="button" onClick={() => window.location.assign(user ? '/profile' : '/login')}>{user ? '去认证' : '登录'}</button>}
+                    {!canSubmitProjects && <button type="button" onClick={() => window.location.assign(user ? isReadOnlyUser ? '/functions' : '/profile' : '/login')}>{user ? isReadOnlyUser ? '继续浏览' : '去认证' : '登录'}</button>}
                 </div>
             )}
             {projectLoadError && (
@@ -1319,6 +1325,7 @@ function ProjectCard({
     const coverImageSrc = getImageDisplayUrl(coverUrl);
     const coverAccent = TAG_COLORS[primaryTag] || project.accent_color || project.accentColor || '#6c5ce7';
     const canTipProject = isLive && user && Number(user.id) !== Number(project.author_id);
+    const isReadOnlyUser = isReadOnlyRole(user?.role);
 
     useEffect(() => {
         setCoverFailed(false);
@@ -1356,7 +1363,9 @@ function ProjectCard({
         }
 
         if (!canInteract) {
-            setInteractionMessage(`完成 Hajimi 认证后可以${action}。`);
+            setInteractionMessage(isReadOnlyUser
+                ? getInteractionBlockedMessage(user, action)
+                : `完成 Hajimi 认证后可以${action}。`);
             setIsFlipped(true);
             return true;
         }
@@ -1881,10 +1890,10 @@ function ProjectCard({
                                     tabIndex={isFlipped ? undefined : -1}
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        window.location.assign(user ? '/profile' : '/login');
+                                        window.location.assign(user ? isReadOnlyUser ? '/functions' : '/profile' : '/login');
                                     }}
                                 >
-                                    {user ? '去认证' : '登录'}
+                                    {user ? isReadOnlyUser ? '继续浏览' : '去认证' : '登录'}
                                 </button>
                             </div>
                         )}

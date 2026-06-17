@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
+import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
 import PostTextComposer from './PostTextComposer';
@@ -128,7 +129,8 @@ type CommentImageDraft = {
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
     const isGuest = !currentUser;
-    const canInteract = currentUser?.verification_status === 'verified';
+    const canInteract = canUseMemberInteractions(currentUser);
+    const isReadOnlyUser = isReadOnlyRole(currentUser?.role);
     const canModerate = isAdminRole(currentUser?.role);
     const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
     const canEditPost = !!currentUser && post.author_id === currentUser.id;
@@ -298,7 +300,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         }
 
         if (!canInteract) {
-            setInteractionMessage('完成 Hajimi 认证后可以评论、点赞和收藏。');
+            setInteractionMessage(getInteractionBlockedMessage(currentUser, '评论、点赞和收藏'));
             window.setTimeout(() => setInteractionMessage(''), 2600);
             return true;
         }
@@ -682,8 +684,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         </form>
     ) : (
         <div className="forum-verification-callout">
-            <span>{isGuest ? '登录后可以提交认证并参与评论。' : '完成 Hajimi 认证后可以评论和回复。'}</span>
-            <button type="button" onClick={() => router.push(isGuest ? '/login' : '/profile')}>{isGuest ? '登录' : '去认证'}</button>
+            <span>{isGuest ? '登录后可以提交认证并参与评论。' : isReadOnlyUser ? getInteractionBlockedMessage(currentUser, '评论和回复') : '完成 Hajimi 认证后可以评论和回复。'}</span>
+            <button type="button" onClick={() => router.push(isGuest ? '/login' : isReadOnlyUser ? '/functions' : '/profile')}>{isGuest ? '登录' : isReadOnlyUser ? '体验项目' : '去认证'}</button>
         </div>
     );
     const featuredCommentPreview = hasFeaturedPreview ? (
@@ -1021,7 +1023,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             {interactionMessage && (
                 <div className="forum-verification-callout post-interaction-callout" style={{ marginTop: '12px' }}>
                     <span>{interactionMessage}</span>
-                    <button type="button" onClick={() => router.push('/profile')}>去认证</button>
+                    <button type="button" onClick={() => router.push(isReadOnlyUser ? '/functions' : '/profile')}>{isReadOnlyUser ? '体验项目' : '去认证'}</button>
                 </div>
             )}
 

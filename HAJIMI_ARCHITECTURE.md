@@ -21,7 +21,7 @@ Hajimi is a comprehensive, gamified student community and project hub built for 
 ## 3. Core Architecture & Routing
 The app uses Next.js App Router (`src/app/`).
 - `/` **(Landing Page):** Public, SEO-friendly marketing page. Shows trending posts and generic club info.
-- `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`. Registration requires an invite code.
+- `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`. Graduation ceremony registration is open without invite codes; users choose student, parent, or visitor identity.
 - `/dashboard` **(Protected):** The user's personalized homepage. Contains:
   - **Welcome Widget:** Daily insight and Check-in button.
   - **Beta Test Mission:** Quick entry points for trying Function Hall and opening the pinned feedback announcement.
@@ -33,12 +33,12 @@ The app uses Next.js App Router (`src/app/`).
   - Announcement posts behave like pinned posts in the main feed; beta feedback is collected as comments under Eric's announcement.
   - Normal posts support custom hashtags; `announcement` is the only reserved staff-only tag.
   - Non-logged-in users can browse and read all posts.
-  - Registered but unverified users can browse, but cannot post, comment, like, bookmark, or earn check-in points. Interaction requires `verification_status = 'verified'`.
+  - Registered but unverified users can browse, but cannot post, comment, like, bookmark, or earn check-in points. Parent/visitor accounts are always read-only: they can browse and open projects, but cannot participate in forum/project interactions. Interaction requires `verification_status = 'verified'` and a non-read-only role.
   - **Action Interceptor Pattern:** Clicking "Like", "Comment", "Save", or "New Post" without permission triggers a localized login/verification prompt instead of a hard redirect.
 - `/functions` **(Function Hall - Public):** 
   - Replaces the legacy "AI Club Hub".
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
-  - Hub projects are open to play for guests and unverified users.
+  - Hub projects are open to play for guests, unverified users, parents, and visitors.
   - Verified users can submit project/new-version applications; admins approve/reject at `/admin/project-submissions` before live Hub updates.
   - The project application form supports pasted/uploaded cover screenshots, client-side 16:9 crop adjustment, and Blob-backed cover URL storage.
   - Published project owners can start an edit from their own project card; edits are submitted as `new_version` applications and are not applied until admin approval.
@@ -65,7 +65,7 @@ The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not 
 
 ## 5. Database Schema (`src/lib/db.ts`)
 Database interactions are handled via standard SQL functions.
-- **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role`, `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason`.
+- **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role` (`student`, `teacher`, `admin`, `parent`, `visitor`), `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason`.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `attachment_url`, `attachment_urls`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `attachment_url`, `created_at`.
 - **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
@@ -83,7 +83,7 @@ Database interactions are handled via standard SQL functions.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
 
-*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is invite-gated through the unified `HAJIMI_INVITE_CODE`; legacy `HAJIMI_STUDENT_INVITE_CODE` and `HAJIMI_TEACHER_INVITE_CODE` remain transition fallbacks only. Invite codes are set in Vercel environment variables and shared manually. If no invite code is configured, registration is closed but existing logins still work. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification uses optional registration/profile forms and admin review. The `Name` field is school common/preferred name, not legal name. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
+*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is currently open without invite codes for the graduation ceremony. Parent and visitor accounts are stored in `users.role` and remain read-only even if logged in. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification uses optional registration/profile forms and admin review for student/teacher accounts. The `Name` field is school common/preferred name, not legal name. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
 
 ## 6. Important Workflows for AI Assistants
 1. **Adding or updating a student project:**
@@ -93,7 +93,7 @@ Database interactions are handled via standard SQL functions.
    - Always check session via `const session = await getSession();` at the top of the Server Component.
    - Redirect to `/login` if `!session`.
    - Wrap the page in `<Shell user={user}>` to render the sidebar navigation.
-   - Do not bypass invite-gated registration in `src/app/api/auth/route.ts`.
+   - Keep the `student` / `parent` / `visitor` registration roles and read-only guardrails in `src/lib/access.ts` aligned with API checks.
 3. **Adding new APIs:**
    - Put them in `src/app/api/.../route.ts`. 
    - Parse session cookies securely using `getSession()`.

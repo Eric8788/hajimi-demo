@@ -1,3 +1,5 @@
+import { canUseMemberInteractions } from './access';
+
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type VerificationType = 'student' | 'teacher';
 
@@ -97,5 +99,5 @@ export async function buildVerificationDraft(payload: VerificationInput, fallbac
 }
 
 export function isVerifiedAccount(user?: { verification_status?: string | null } | null) {
-    return user?.verification_status === 'verified';
+    return canUseMemberInteractions(user);
 }

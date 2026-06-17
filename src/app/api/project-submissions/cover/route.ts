@@ -3,6 +3,7 @@ import { put } from '@vercel/blob';
 import { getSession } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage } from '@/lib/access';
 
 const MAX_PROJECT_COVER_SIZE = 1 * 1024 * 1024;
 const ALLOWED_COVER_TYPES = new Set([
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
         const user = await getUserById(Number(session.userId));
         if (!user || !isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以上传项目封面。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '上传项目封面') }, { status: 403 });
         }
 
         const formData = await request.formData();

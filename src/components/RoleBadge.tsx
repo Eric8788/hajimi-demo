@@ -1,12 +1,13 @@
 import { BADGE_DEFINITIONS, type BadgeId } from '@/lib/badges';
 import { isStaffRole } from '@/lib/roles';
+import { isReadOnlyRole, normalizeUserRole } from '@/lib/access';
 import BadgePill from './BadgePill';
 
 export default function RoleBadge({ role, showStudent = false, compact = false, iconOnly = false }: { role?: string | null; showStudent?: boolean; compact?: boolean; iconOnly?: boolean }) {
-    const normalizedRole = (role || 'student').toLowerCase();
+    const normalizedRole = normalizeUserRole(role);
     const isStaff = isStaffRole(normalizedRole);
 
-    if (!isStaff && !showStudent) {
+    if (!isStaff && !isReadOnlyRole(normalizedRole) && !showStudent) {
         return null;
     }
 

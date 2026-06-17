@@ -53,6 +53,7 @@ export default function TarotGame() {
                 const res = await fetch('/api/oracle');
                 const data = await res.json();
                 if (!isMounted || !res.ok) return;
+                if (data.readonly) setLimitMessage(data.message || '参观账号可以体验项目，Cyber Oracle 暂不开放。');
                 if (typeof data.remaining === 'number') setRemainingReadings(data.remaining);
                 if (typeof data.limit === 'number') setDailyLimit(data.limit);
             } catch (error) {
@@ -83,7 +84,7 @@ export default function TarotGame() {
             });
             const data = await res.json();
 
-            if (res.status === 429) {
+            if (res.status === 403 || res.status === 429) {
                 const remaining = typeof data?.remaining === 'number' ? data.remaining : 0;
                 const limit = typeof data?.limit === 'number' ? data.limit : dailyLimit;
                 setRemainingReadings(remaining);

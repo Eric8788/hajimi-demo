@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { CoinWalletOverview } from '@/lib/db';
+import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 
 function formatTime(value: Date | string | null | undefined) {
     if (!value) return '';
@@ -29,7 +30,7 @@ function redemptionLabel(status: string) {
     return '待审核';
 }
 
-export default function WalletPanel({ initialOverview, verified }: { initialOverview: CoinWalletOverview; verified: boolean }) {
+export default function WalletPanel({ initialOverview, verified, readOnlyRole }: { initialOverview: CoinWalletOverview; verified: boolean; readOnlyRole?: string | null }) {
     const [overview, setOverview] = useState(initialOverview);
     const [amount, setAmount] = useState('50');
     const [requestedNote, setRequestedNote] = useState('');
@@ -51,7 +52,9 @@ export default function WalletPanel({ initialOverview, verified }: { initialOver
 
         const parsedAmount = Math.floor(Number(amount));
         if (!verified) {
-            setMessage('完成 Hajimi 认证后可以申请兑换 token。');
+            setMessage(isReadOnlyRole(readOnlyRole)
+                ? getInteractionBlockedMessage({ role: readOnlyRole, verification_status: 'unverified' }, '申请兑换 token')
+                : '完成 Hajimi 认证后可以申请兑换 token。');
             return;
         }
         if (!Number.isInteger(parsedAmount) || parsedAmount < 50) {

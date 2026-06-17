@@ -8,6 +8,7 @@ import NotificationsBell from './NotificationsBell';
 import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 import Avatar from './Avatar';
 import { isAdminRole } from '@/lib/roles';
+import { isReadOnlyRole } from '@/lib/access';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
 const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet'];
@@ -20,6 +21,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const [pendingPath, setPendingPath] = useState('');
     const [hydratedUser, setHydratedUser] = useState<User | null>(user);
     const displayUser = hydratedUser || user;
+    const isReadOnlyUser = isReadOnlyRole(displayUser?.role);
 
     const navItems = [
         { icon: '🏠', path: '/dashboard', label: 'Home' },
@@ -171,17 +173,19 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                     {displayUser ? (
                         <>
                             <NotificationsBell initialUnreadCount={unreadCount} />
-                            <button
-                                type="button"
-                                className={`sidebar-wallet-button ${pathname === '/wallet' ? 'is-active' : ''}`}
-                                onClick={() => navigateTo('/wallet')}
-                                onPointerEnter={() => prefetchPath('/wallet')}
-                                onFocus={() => prefetchPath('/wallet')}
-                                title="Wallet"
-                                aria-current={pathname === '/wallet' ? 'page' : undefined}
-                            >
-                                💳
-                            </button>
+                            {!isReadOnlyUser && (
+                                <button
+                                    type="button"
+                                    className={`sidebar-wallet-button ${pathname === '/wallet' ? 'is-active' : ''}`}
+                                    onClick={() => navigateTo('/wallet')}
+                                    onPointerEnter={() => prefetchPath('/wallet')}
+                                    onFocus={() => prefetchPath('/wallet')}
+                                    title="Wallet"
+                                    aria-current={pathname === '/wallet' ? 'page' : undefined}
+                                >
+                                    💳
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 className="sidebar-avatar-button"

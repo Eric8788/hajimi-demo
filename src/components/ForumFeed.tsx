@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
 import { useRouter } from 'next/navigation';
 import { isStaffRole } from '@/lib/roles';
+import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import Avatar from './Avatar';
 import { FORUM_PROMOS } from '@/data/forumPromos';
 import PostTextComposer from './PostTextComposer';
@@ -48,7 +49,8 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const router = useRouter();
     const composerRef = useRef<HTMLFormElement | null>(null);
     const canPostAnnouncement = isStaffRole(user?.role);
-    const canCreatePost = user?.verification_status === 'verified';
+    const canCreatePost = canUseMemberInteractions(user);
+    const isReadOnlyUser = isReadOnlyRole(user?.role);
     const visibleTagOptions = canPostAnnouncement
         ? [{ id: 'announcement', label: '📢 Announcement' }, ...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS]
         : [...TAG_OPTIONS, ...CUSTOM_TAG_SUGGESTIONS];
@@ -285,7 +287,9 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const openComposer = () => {
         if (requireLogin()) return;
         if (!canCreatePost) {
-            setCreateError('完成 Hajimi 认证后可以发帖、评论、点赞和收藏；未认证账号可以浏览和体验项目。');
+            setCreateError(isReadOnlyUser
+                ? getInteractionBlockedMessage(user, '发帖、评论、点赞或收藏')
+                : '完成 Hajimi 认证后可以发帖、评论、点赞和收藏；未认证账号可以浏览和体验项目。');
             return;
         }
 
@@ -477,7 +481,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                             <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🔐</div>
                             <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '10px', color: '#2d3436' }}>Join the conversation!</h3>
                             <p style={{ color: '#636e72', marginBottom: '25px', lineHeight: 1.6 }}>
-                                Create an account and complete Hajimi verification to post, like, comment, and save discussions.
+                                Create an account to browse the Hallway. Student interaction unlocks after Hajimi verification.
                             </p>
                             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                                 <button
@@ -652,14 +656,14 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                     >
                         <Avatar value={displayUser?.avatar} emoji={displayUser?.avatar_emoji} theme={displayUser?.avatar_theme} fallback="✍️" size={48} style={{ fontSize: '1.5rem', border: '2px solid white' }} />
                         <div style={{ flex: 1, padding: '12px 20px', borderRadius: '20px', background: 'rgba(255,255,255,0.6)', color: '#636e72', fontWeight: 500 }}>
-                            {user ? canCreatePost ? `Share your thoughts, ${user.username}...` : '完成 Hajimi 认证后可以互动和发帖' : 'Sign in to share your thoughts...'}
+                            {user ? canCreatePost ? `Share your thoughts, ${user.username}...` : isReadOnlyUser ? '参观账号可以浏览内容，互动暂不开放' : '完成 Hajimi 认证后可以互动和发帖' : 'Sign in to share your thoughts...'}
                         </div>
                         <div style={{ width: '40px', height: '40px', background: '#a29bfe', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>{canCreatePost ? '✒️' : '✅'}</div>
                     </div>
                     {createError && (
                         <div className="forum-verification-callout" style={{ marginBottom: '30px' }}>
                             <span>{createError}</span>
-                            <button type="button" onClick={() => router.push('/profile')}>去认证</button>
+                            <button type="button" onClick={() => router.push(isReadOnlyUser ? '/functions' : '/profile')}>{isReadOnlyUser ? '体验项目' : '去认证'}</button>
                         </div>
                     )}
                 </>

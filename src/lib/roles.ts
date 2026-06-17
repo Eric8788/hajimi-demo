@@ -1,8 +1,10 @@
+import { normalizeUserRole } from './access';
+
 export const STAFF_ROLES = new Set(['teacher', 'admin']);
 export const ADMIN_ROLES = new Set(['admin']);
 
 function normalizeRole(role?: string | null) {
-    return (role || '').toLowerCase();
+    return normalizeUserRole(role);
 }
 
 export function isStaffRole(role?: string | null) {

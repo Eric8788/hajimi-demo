@@ -1,6 +1,8 @@
 import type { User } from './db';
 
-export type BadgeId = 'admin' | 'teacher' | 'student' | 'verified' | 'creator' | 'ai_club';
+import { normalizeUserRole } from './access';
+
+export type BadgeId = 'admin' | 'teacher' | 'student' | 'parent' | 'visitor' | 'verified' | 'creator' | 'ai_club';
 
 export type BadgeUser = Pick<User, 'role' | 'username' | 'is_creator' | 'badge_preferences' | 'verification_status'>;
 
@@ -39,6 +41,20 @@ export const BADGE_DEFINITIONS: Record<BadgeId, BadgeDefinition> = {
         title: '学生',
         tone: { bg: 'rgba(0, 184, 148, 0.15)', border: '1px solid rgba(0, 184, 148, 0.4)', color: '#00b894' },
     },
+    parent: {
+        id: 'parent',
+        emoji: '👪',
+        label: '家长',
+        title: '家长参观账号',
+        tone: { bg: 'rgba(253, 121, 168, 0.14)', border: '1px solid rgba(253, 121, 168, 0.36)', color: '#b83b6c' },
+    },
+    visitor: {
+        id: 'visitor',
+        emoji: '🎟️',
+        label: '访客',
+        title: '访客参观账号',
+        tone: { bg: 'rgba(99, 110, 114, 0.12)', border: '1px solid rgba(99, 110, 114, 0.28)', color: '#636e72' },
+    },
     verified: {
         id: 'verified',
         emoji: '✅',
@@ -74,7 +90,7 @@ export const BADGE_DEFINITIONS: Record<BadgeId, BadgeDefinition> = {
 
 const AI_CLUB_USERNAMES = new Set(['eric', 'alberty', 'p1tter', '1ming', '🥚1ming', 'cooka', 'jackz', 'luna1919810']);
 const VALID_BADGE_IDS = new Set<BadgeId>(Object.keys(BADGE_DEFINITIONS) as BadgeId[]);
-const DEFAULT_BADGE_ORDER: BadgeId[] = ['admin', 'teacher', 'student', 'verified', 'ai_club', 'creator'];
+const DEFAULT_BADGE_ORDER: BadgeId[] = ['admin', 'teacher', 'student', 'parent', 'visitor', 'verified', 'ai_club', 'creator'];
 
 function normalizeUsername(username?: string | null) {
     return (username || '').trim().toLowerCase();
@@ -100,10 +116,10 @@ export function normalizeBadgePreferences(value?: string[] | null): BadgeId[] {
 }
 
 export function getAvailableBadges(user: BadgeUser): BadgeDefinition[] {
-    const role = (user.role || 'student').toLowerCase() as BadgeId;
+    const role = normalizeUserRole(user.role) as BadgeId;
     const ids = new Set<BadgeId>();
 
-    if (role === 'admin' || role === 'teacher') {
+    if (role === 'admin' || role === 'teacher' || role === 'parent' || role === 'visitor') {
         ids.add(role);
     } else {
         ids.add('student');

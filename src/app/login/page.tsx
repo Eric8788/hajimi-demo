@@ -27,7 +27,7 @@ export default function LoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [inviteCode, setInviteCode] = useState('');
+    const [registrationRole, setRegistrationRole] = useState<'student' | 'parent' | 'visitor'>('parent');
     const [verificationEnabled, setVerificationEnabled] = useState(false);
     const [verificationType, setVerificationType] = useState<'student' | 'teacher'>('student');
     const [verifiedName, setVerifiedName] = useState('');
@@ -69,14 +69,14 @@ export default function LoginPage() {
                     password,
                     confirmPassword,
                     isRegister,
-                    inviteCode,
+                    role: isRegister ? registrationRole : undefined,
                     bio: isRegister ? bio : undefined,
                     avatar: isRegister ? {
                         useDefault: !avatarEmoji.trim(),
                         emoji: avatarEmoji,
                         theme: avatarTheme,
                     } : undefined,
-                    verification: isRegister && verificationEnabled ? {
+                    verification: isRegister && registrationRole === 'student' && verificationEnabled ? {
                         enabled: true,
                         type: verificationType,
                         name: verifiedName,
@@ -90,9 +90,10 @@ export default function LoginPage() {
             const data = await res.json().catch(() => ({ error: 'Login failed. Please try again.' }));
 
             if (res.ok) {
-                router.replace('/dashboard');
+                const nextPath = data.role === 'parent' || data.role === 'visitor' ? '/functions' : '/dashboard';
+                router.replace(nextPath);
                 window.setTimeout(() => {
-                    window.location.assign('/dashboard');
+                    window.location.assign(nextPath);
                 }, 1200);
                 return;
             }
@@ -117,7 +118,7 @@ export default function LoginPage() {
                     {isRegister ? 'Join Hajimi' : 'Welcome Back'}
                 </h1>
                 <p style={{ textAlign: 'center', marginBottom: '30px', color: '#888' }}>
-                    {isRegister ? 'Start your high school adventure' : 'Login to your account'}
+                    {isRegister ? 'Graduation showcase access' : 'Login to your account'}
                 </p>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -139,20 +140,38 @@ export default function LoginPage() {
                     </div>
 
                     {isRegister && (
-                        <div>
-                            <input
-                                type="text"
-                                value={inviteCode}
-                                onChange={(e) => setInviteCode(e.target.value)}
-                                required
-                                className="glass-input"
-                                placeholder="Invite code"
-                                autoComplete="off"
-                            />
+                        <div className="auth-role-card">
+                            <div className="auth-role-card-head">
+                                <strong>选择身份</strong>
+                                <p>毕业典礼开放注册中。家长和访客可以浏览论坛、打开项目体验，但不能参与互动。</p>
+                            </div>
+                            <div className="auth-role-grid" role="radiogroup" aria-label="注册身份">
+                                {[
+                                    { id: 'parent', label: '家长', note: '参观浏览 · 项目体验' },
+                                    { id: 'visitor', label: '访客', note: '公开浏览 · 项目体验' },
+                                    { id: 'student', label: '学生', note: '认证后可互动' },
+                                ].map(option => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={registrationRole === option.id}
+                                        className={registrationRole === option.id ? 'is-active' : ''}
+                                        onClick={() => {
+                                            const nextRole = option.id as 'student' | 'parent' | 'visitor';
+                                            setRegistrationRole(nextRole);
+                                            if (nextRole !== 'student') setVerificationEnabled(false);
+                                        }}
+                                    >
+                                        <strong>{option.label}</strong>
+                                        <span>{option.note}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
 
-                    {isRegister && (
+                    {isRegister && registrationRole === 'student' && (
                         <div className="auth-verification-card">
                             <label className="auth-verification-toggle">
                                 <input
@@ -162,7 +181,7 @@ export default function LoginPage() {
                                 />
                                 <span>提交 Hajimi 认证（可跳过）</span>
                             </label>
-                            <p>认证通过后可以互动、发帖并进入 Hall of Fame；Name 指学校常用名/英文名，不会公开展示。</p>
+                            <p>学生认证通过后可以互动、发帖并进入 Hall of Fame；Name 指学校常用名/英文名，不会公开展示。</p>
                             {verificationEnabled && (
                                 <div className="auth-verification-fields">
                                     <div className="auth-verification-tabs">
@@ -329,8 +348,8 @@ export default function LoginPage() {
                             onClick={() => {
                                 setIsRegister(!isRegister);
                                 setError('');
-                                setInviteCode('');
                                 setConfirmPassword('');
+                                setRegistrationRole('parent');
                                 setVerificationEnabled(false);
                                 setVerifiedName('');
                                 setVerifiedGrade('G10');
@@ -465,6 +484,62 @@ export default function LoginPage() {
             gap: 10px;
             margin-top: 14px;
           }
+          .auth-role-card {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.48);
+            border: 1px solid rgba(108,92,231,0.16);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+            display: grid;
+            gap: 12px;
+          }
+          .auth-role-card-head strong {
+            display: block;
+            color: #2d3436;
+            font-size: 0.95rem;
+            margin-bottom: 5px;
+          }
+          .auth-role-card-head p {
+            margin: 0;
+            color: #636e72;
+            font-size: 0.78rem;
+            line-height: 1.45;
+            font-weight: 650;
+          }
+          .auth-role-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+          }
+          .auth-role-grid button {
+            border: 1px solid rgba(108,92,231,0.14);
+            border-radius: 14px;
+            background: rgba(255,255,255,0.62);
+            color: #636e72;
+            padding: 10px 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+          }
+          .auth-role-grid button strong,
+          .auth-role-grid button span {
+            display: block;
+          }
+          .auth-role-grid button strong {
+            color: #2d3436;
+            font-size: 0.9rem;
+            margin-bottom: 3px;
+          }
+          .auth-role-grid button span {
+            font-size: 0.7rem;
+            line-height: 1.35;
+            font-weight: 750;
+          }
+          .auth-role-grid button.is-active {
+            border-color: rgba(108,92,231,0.42);
+            background: linear-gradient(135deg, rgba(162,155,254,0.28), rgba(255,255,255,0.86));
+            box-shadow: 0 10px 22px rgba(108,92,231,0.12);
+          }
           .auth-avatar-card {
             padding: 16px;
             border-radius: 18px;
@@ -579,6 +654,9 @@ export default function LoginPage() {
           .glass-input {
             padding: 14px;
             font-size: 0.95rem;
+          }
+          .auth-role-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>

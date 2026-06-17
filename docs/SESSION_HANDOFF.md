@@ -26,7 +26,9 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
   - `5` uploads per user per rolling 24 hours
   - `30` total uploads per user
 - The composer auto-compresses oversized JPEG/PNG/WebP images before upload.
-- Registration is invite-gated.
+- Registration is open without invite codes for graduation ceremony promotion.
+- Registration supports `student`, `parent`, and `visitor` roles.
+- Parent/visitor accounts are read-only: they can browse Hallway and open Function Hall projects, but cannot post, comment, like, bookmark, rate, tip, submit projects, check in, redeem tokens, or use Cyber Oracle.
 - Password policy for new accounts is active:
   - at least `8` characters
   - uppercase
@@ -61,7 +63,6 @@ Production and Preview should have:
 
 ```env
 BLOB_READ_WRITE_TOKEN=...
-HAJIMI_INVITE_CODE=...
 DASHSCOPE_API_KEY=...      # optional, powers dashboard Cyber Oracle AI reading
 SILICONFLOW_API_KEY=...    # optional fallback provider for Cyber Oracle
 ZENMUX_API_KEY=...         # optional, AI Tabletop-aligned Oracle provider
@@ -72,21 +73,16 @@ HAJIMI_VERIFICATION_PEPPER=... # recommended, hashes optional student IDs for Ha
 
 Important:
 
-- Invite codes are compared as exact strings.
-- `HAJIMI_INVITE_CODE` is the preferred unified year-group code. Legacy `HAJIMI_STUDENT_INVITE_CODE` and `HAJIMI_TEACHER_INVITE_CODE` are still accepted as transition fallbacks but no longer decide student/teacher identity.
-- The code must be in the Vercel variable `Value`, not in `Note`.
-- After changing invite codes, redeploy Production before testing registration again.
-- Hajimi verification is optional at registration but required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, and leaderboard visibility.
+- Invite codes are not required by `POST /api/auth` in the graduation ceremony mode.
+- Legacy invite-code environment variables may remain set, but they are not used by the current registration flow.
+- Hajimi verification is optional at student registration but required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, token redemption, Cyber Oracle, and leaderboard visibility. Parent/visitor roles remain read-only regardless of verification status.
 - Verification `Name` means school common/preferred name, not legal name. Public pages never show Name, student ID, or subject.
 - Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows Hub `热度榜` / `星级榜` views based on capped effective opens, verified unique players, and ratings.
 - Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider order is custom `HAJIMI_ORACLE_API_*`, then ZenMux, DashScope, SiliconFlow, and optional Tokendance; provider failures try the next configured provider, then use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks
 
-- Vercel's environment variable UI is easy to misread. Users often put the invite code in `Note` instead of `Value`.
-- `Invalid invite code` usually means one of these:
-  - the typed code does not exactly match the configured code
-  - the code was changed but Production was not redeployed yet
+- Parent/visitor accounts intentionally cannot interact. If a parent reports that comments, ratings, saved projects, or H币 features are blocked, that is expected behavior.
 - Vercel "Visit" from a deployment page may open a Vercel deployment URL; the official public domain is still `https://hajimi.ericproject.xyz`.
 - Local `npm run dev` can still be affected by Chinese-path issues noted in the ecosystem doc.
 

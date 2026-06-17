@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 import { getSession } from '@/lib/auth';
+import { getUserById } from '@/lib/db';
+import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 
 const SILICONFLOW_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const DASHSCOPE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
@@ -204,6 +206,11 @@ export async function POST(request: Request) {
     }
 
     try {
+        const user = await getUserById(Number(session.userId));
+        if (isReadOnlyRole(user?.role)) {
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '使用 Cyber Oracle') }, { status: 403 });
+        }
+
         const body = await request.json();
         const rawCards: unknown[] = Array.isArray(body?.cards) ? body.cards : [];
         const cards: OracleCard[] = rawCards.filter(isOracleCard).slice(0, 3);
@@ -291,6 +298,16 @@ export async function GET() {
     const session = await getSession();
     if (!session) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await getUserById(Number(session.userId));
+    if (isReadOnlyRole(user?.role)) {
+        return NextResponse.json({
+            remaining: 0,
+            limit: DAILY_ORACLE_LIMIT,
+            readonly: true,
+            message: getInteractionBlockedMessage(user, '使用 Cyber Oracle'),
+        });
     }
 
     const usedToday = await getTodayOracleUsage(session.userId);

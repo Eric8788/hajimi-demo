@@ -10,6 +10,7 @@ export default function CheckInButton() {
     const [loading, setLoading] = useState(true);
     const [buttonText, setButtonText] = useState('Check In');
     const [xpBurst, setXpBurst] = useState(0);
+    const [isReadOnly, setIsReadOnly] = useState(false);
 
     useEffect(() => {
         let isActive = true;
@@ -22,7 +23,9 @@ export default function CheckInButton() {
                     setCheckedIn(true);
                     setButtonText('Signed In');
                 } else if (data.verified === false) {
-                    setButtonText('认证后签到');
+                    const readonly = String(data.message || '').includes('账号');
+                    setIsReadOnly(readonly);
+                    setButtonText(readonly ? '参观账号' : '认证后签到');
                 }
             })
             .catch(() => {
@@ -55,7 +58,9 @@ export default function CheckInButton() {
                 const alreadyChecked = data.error === 'Already checked in today';
                 setCheckedIn(alreadyChecked);
                 const needsVerification = res.status === 403;
-                setButtonText(alreadyChecked ? 'Signed In' : needsVerification ? '认证后签到' : data.error || 'Could not sign in');
+                const readonly = needsVerification && String(data.error || '').includes('账号');
+                setIsReadOnly(readonly);
+                setButtonText(alreadyChecked ? 'Signed In' : readonly ? '参观账号' : needsVerification ? '认证后签到' : data.error || 'Could not sign in');
             }
         } catch {
             setButtonText('Try again');
@@ -67,7 +72,7 @@ export default function CheckInButton() {
     return (
         <button
             onClick={handleCheckIn}
-            disabled={checkedIn || loading}
+            disabled={checkedIn || loading || isReadOnly}
             className={`btn btn-primary checkin-button ${checkedIn ? 'is-complete' : 'is-ready'}`}
             style={{ 
                 minWidth: '180px',

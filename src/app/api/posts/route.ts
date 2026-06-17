@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { getPosts, createPostWithAttachments, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
 import { isStaffRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage } from '@/lib/access';
 import { del, put } from '@vercel/blob';
 import { cachedServerValue, clearServerCache } from '@/lib/serverCache';
 
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
         }
 
         if (!isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以发帖。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '发帖') }, { status: 403 });
         }
 
         const formData = await request.formData();
@@ -201,7 +202,7 @@ export async function PATCH(request: Request) {
         }
 
         if (!isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以编辑帖子。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '编辑帖子') }, { status: 403 });
         }
 
         const body = await request.json();

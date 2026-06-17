@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
+import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { del, put } from '@vercel/blob';
 import { clearServerCache } from '@/lib/serverCache';
 
@@ -102,7 +103,10 @@ export async function POST(request: Request) {
         const parentCommentId = formData?.get('parentCommentId') || body?.parentCommentId;
         const interactionActions = new Set(['like', 'comment', 'bookmark', 'like_comment']);
         if (interactionActions.has(action) && !isVerifiedAccount(user)) {
-            return NextResponse.json({ error: '完成 Hajimi 认证后可以互动。' }, { status: 403 });
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '互动') }, { status: 403 });
+        }
+        if ((action === 'delete_post' || action === 'delete_comment') && isReadOnlyRole(user.role)) {
+            return NextResponse.json({ error: getInteractionBlockedMessage(user, '管理互动内容') }, { status: 403 });
         }
 
         if (action === 'like') {

@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
 import Shell from '@/components/Shell';
 import ProjectGrid from '@/components/ProjectGrid';
+import { canUseMemberInteractions } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function Page() {
                 </div>
 
                 {/* Project Grid with filters */}
-                <ProjectGrid user={user} canSubmitProjects={user?.verification_status === 'verified'} />
+                <ProjectGrid user={user} canSubmitProjects={canUseMemberInteractions(user)} />
 
             </div>
         </Shell>

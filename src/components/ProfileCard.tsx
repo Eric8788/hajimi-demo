@@ -16,6 +16,7 @@ import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avata
 import { clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getPostPrimaryAttachmentUrl } from '@/lib/forumAttachments';
+import { getReadOnlyRoleLabel, isReadOnlyRole } from '@/lib/access';
 
 function loadAvatarImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -90,6 +91,8 @@ function getRoleLabel(user: User) {
     const role = (user.role || 'student').toLowerCase();
     if (role === 'admin') return '管理员';
     if (role === 'teacher') return '老师';
+    if (role === 'parent') return '家长';
+    if (role === 'visitor') return '访客';
     return '学生';
 }
 
@@ -445,7 +448,10 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         { value: 'month', label: '本月' },
         { value: 'custom', label: '自定义' },
     ];
-    const verificationCopy = verificationStatus === 'verified'
+    const isReadOnlyUser = isReadOnlyRole(user.role);
+    const verificationCopy = isReadOnlyUser
+        ? `${getReadOnlyRoleLabel(user.role)}可以浏览公开内容并体验 Function Hall 项目，互动、发帖、打赏和项目投稿不会开放。`
+        : verificationStatus === 'verified'
         ? '已认证，具备互动、发帖、榜单和项目申请权益。'
         : verificationStatus === 'pending'
             ? '认证正在审核中，审核通过后会自动解锁互动、发帖、榜单和项目申请。'
@@ -1463,14 +1469,14 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
 
                 <section className="profile-verification-editor">
                     <div className="profile-section-heading">
-                        <h3>Hajimi 认证</h3>
+                        <h3>{isReadOnlyUser ? '参观账号权限' : 'Hajimi 认证'}</h3>
                         <p>{verificationCopy}</p>
                     </div>
-                    <div className={`profile-verification-status is-${verificationStatus}`}>
-                        <strong>{verificationStatus === 'verified' ? '已认证' : verificationStatus === 'pending' ? '审核中' : verificationStatus === 'rejected' ? '需重新提交' : '未认证'}</strong>
-                        <span>Name、年级/科目和学号信息仅管理员审核可见，主页不会公开。</span>
+                    <div className={`profile-verification-status is-${isReadOnlyUser ? 'pending' : verificationStatus}`}>
+                        <strong>{isReadOnlyUser ? getReadOnlyRoleLabel(user.role) : verificationStatus === 'verified' ? '已认证' : verificationStatus === 'pending' ? '审核中' : verificationStatus === 'rejected' ? '需重新提交' : '未认证'}</strong>
+                        <span>{isReadOnlyUser ? '这是毕业典礼参观身份：可浏览、可体验项目，不能参与互动。' : 'Name、年级/科目和学号信息仅管理员审核可见，主页不会公开。'}</span>
                     </div>
-                    {(verificationStatus === 'unverified' || verificationStatus === 'rejected') && (
+                    {!isReadOnlyUser && (verificationStatus === 'unverified' || verificationStatus === 'rejected') && (
                         <div className="profile-verification-form">
                             <label className="profile-field-label">
                                 Name
