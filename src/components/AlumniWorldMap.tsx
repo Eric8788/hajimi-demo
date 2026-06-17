@@ -118,25 +118,6 @@ const SCHOOL_FOCUS_RULES: Partial<Record<AlumniRegionId, {
   australia: { width: 96, height: 68 },
   europe: { width: 96, height: 68 },
 };
-const SCHOOL_LOGO_SOURCES: Record<string, string> = {
-  Cardiff: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cardiff%20University%20(logo).svg',
-  Duke: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke%20Athletics%20logo.svg',
-  HKU: 'https://www.hku.hk/assets/img/hku-115.svg',
-  IC: 'https://commons.wikimedia.org/wiki/Special:FilePath/Logo_for_Imperial_College_London.svg',
-  KCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/King%27s_College_London_logo.svg',
-  Northeastern: 'https://commons.wikimedia.org/wiki/Special:FilePath/Northeastern_University_wordmark.svg',
-  Oxford: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Oxford.svg',
-  PCP: 'https://www.sju.edu/themes/custom/sju/images/sju_wordmark_horz_color.svg',
-  UBC: 'https://commons.wikimedia.org/wiki/Special:FilePath/British%20columbia%20ca%20univ%20logo.svg',
-  'UC Davis': 'https://commons.wikimedia.org/wiki/Special:FilePath/UC%20Davis%20wordmark.svg',
-  UCL: 'https://commons.wikimedia.org/wiki/Special:FilePath/UCL_Logo,_plain_background.svg',
-  UCSD: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20California%2C%20San%20Diego%20logo.svg',
-  UIUC: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Illinois%20at%20Urbana%E2%80%93Champaign%20logo.svg',
-  'UNC-Chapel Hill': 'https://commons.wikimedia.org/wiki/Special:FilePath/North%20Carolina%20Tar%20Heels%20logo.svg',
-  USC: 'https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Southern%20California%20logo.svg',
-  USYD: 'https://www.sydney.edu.au/content/dam/icons/logos/logo-usyd-dark.svg',
-  'UW Seattle': 'https://commons.wikimedia.org/wiki/Special:FilePath/Washington%20Huskies%20logo.svg',
-};
 const SCHOOL_MAP_FAN_OUT: Record<string, { x: number; y: number }> = {
   Duke: { x: -1.4, y: -1.2 },
   IC: { x: -0.8, y: 0.8 },
@@ -147,11 +128,11 @@ const SCHOOL_MAP_FAN_OUT: Record<string, { x: number; y: number }> = {
   UCSD: { x: 0.35, y: 0.25 },
 };
 function getSchoolLogoUrl(contact: AlumniContact) {
-  return SCHOOL_LOGO_SOURCES[contact.universityAbbr] ?? contact.logoUrl;
+  return contact.mapLogoUrl;
 }
 
 function getMapSchoolLogoUrl(contact: AlumniContact) {
-  return contact.logoUrl;
+  return contact.mapLogoUrl;
 }
 
 type AlumniMapPoint = {
@@ -928,13 +909,18 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
   const x = point.x;
   const y = point.y;
   const markerScale = Math.max(0.28, Math.min(1, viewBoxWidth / WORLD_VIEW_BOX.width));
-  const ringRadius = 34 * markerScale;
-  const coreRadius = 16 * markerScale;
+  const coreRadius = 18 * markerScale;
   const countOffsetY = 4 * markerScale;
-  const labelOffsetY = 55 * markerScale;
+  const labelTextWidth = Math.max(region.label.length * 20 * markerScale, 42 * markerScale);
+  const labelBoxWidth = coreRadius * 2 + 18 * markerScale + labelTextWidth;
+  const labelBoxHeight = Math.max(coreRadius * 2 + 8 * markerScale, 28 * markerScale);
+  const labelX = x - coreRadius - 4 * markerScale;
+  const labelY = y - labelBoxHeight / 2;
+  const labelTextX = x + coreRadius + 9 * markerScale + labelTextWidth / 2;
+  const labelTextY = y + 7 * markerScale;
   const countFontSize = 17 * markerScale;
   const labelFontSize = 20 * markerScale;
-  const hitRadius = Math.max(ringRadius * 1.16, coreRadius + 8 * markerScale);
+  const hitRadius = coreRadius + 18 * markerScale;
 
   return (
     <g
@@ -965,7 +951,14 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
       }}
     >
       <circle className="alumni-region-cluster-hit-area" cx={x} cy={y} r={hitRadius} fill="transparent" />
-      <circle className="alumni-region-cluster-ring" cx={x} cy={y} r={ringRadius} fill={region.fill} stroke={region.color} />
+      <rect
+        className="alumni-region-cluster-label-backdrop"
+        x={labelX}
+        y={labelY}
+        width={labelBoxWidth}
+        height={labelBoxHeight}
+        rx={labelBoxHeight / 2}
+      />
       <circle className="alumni-region-cluster-core" cx={x} cy={y} r={coreRadius} fill={region.color} />
       <text
         className="alumni-region-cluster-count"
@@ -977,9 +970,9 @@ function RegionCluster({ region, isHovered, onSelect, onHover, viewBoxWidth }: R
       </text>
       <text
         className="alumni-region-cluster-label"
-        x={x}
-        y={y + labelOffsetY}
-        style={{ fontSize: `${labelFontSize}px`, strokeWidth: `${5 * markerScale}px` }}
+        x={labelTextX}
+        y={labelTextY}
+        style={{ fontSize: `${labelFontSize}px`, strokeWidth: `${3 * markerScale}px` }}
       >
         {region.label}
       </text>
@@ -1008,7 +1001,7 @@ function AlumniPoint({
 }: AlumniPointProps) {
   const pointerStartedOnPinRef = useRef(false);
   const baseViewBoxWidth = viewBoxWidth ?? getRegionFocusViewBox(region).width;
-  const logoSize = Math.max(region.id === 'hong-kong' ? 8.5 : 2.2, Math.min(34, baseViewBoxWidth * 0.034));
+  const logoSize = Math.max(region.id === 'hong-kong' ? 8.5 : 3.2, Math.min(38, baseViewBoxWidth * 0.044));
   const hitSize = logoSize * 1.5;
   const countFontSize = Math.max(1.55, logoSize * 0.24);
   const countBadgeRadius = logoSize * 0.24;

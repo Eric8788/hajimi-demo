@@ -7849,8 +7849,8 @@ textarea:hover,
   pointer-events: all;
 }
 
-.alumni-region-cluster-ring,
-.alumni-region-cluster-core {
+.alumni-region-cluster-core,
+.alumni-region-cluster-label-backdrop {
   pointer-events: none;
   transform-origin: center;
   transform-box: fill-box;
@@ -7879,13 +7879,16 @@ textarea:hover,
   filter: drop-shadow(0 2px 5px rgba(31, 41, 55, 0.14));
 }
 
-.alumni-region-cluster-ring {
-  opacity: 0.72;
-  stroke-width: 2.2;
-}
-
 .alumni-region-cluster-core {
   opacity: 0.96;
+  filter: drop-shadow(0 8px 14px rgba(31, 41, 55, 0.14));
+}
+
+.alumni-region-cluster-label-backdrop {
+  fill: rgba(255, 255, 255, 0.86);
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 7px 12px rgba(31, 41, 55, 0.12));
 }
 
 .alumni-region-cluster-count,
@@ -7899,30 +7902,30 @@ textarea:hover,
 
 .alumni-region-cluster-count {
   fill: white;
-  stroke: rgba(0, 0, 0, 0.16);
-  stroke-width: 1.2;
+  stroke: none;
   font-size: 17px;
   font-weight: 950;
 }
 
 .alumni-region-cluster-label {
   fill: #1f2937;
-  stroke-width: 5;
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 3;
   font-size: 20px;
   font-weight: 950;
-}
-
-.alumni-region-cluster:hover .alumni-region-cluster-ring,
-.alumni-region-cluster.is-hovered .alumni-region-cluster-ring,
-.alumni-region-cluster:focus-visible .alumni-region-cluster-ring {
-  transform: scale(1.18);
-  opacity: 1;
 }
 
 .alumni-region-cluster:hover .alumni-region-cluster-core,
 .alumni-region-cluster.is-hovered .alumni-region-cluster-core,
 .alumni-region-cluster:focus-visible .alumni-region-cluster-core {
   transform: scale(1.08);
+}
+
+.alumni-region-cluster:hover .alumni-region-cluster-label-backdrop,
+.alumni-region-cluster.is-hovered .alumni-region-cluster-label-backdrop,
+.alumni-region-cluster:focus-visible .alumni-region-cluster-label-backdrop {
+  transform: scale(1.03);
+  opacity: 1;
 }
 
 .alumni-city-pin-logo {

@@ -32,6 +32,7 @@ export type AlumniContact = {
   avatarId: string;
   contactMethods: AlumniContactMethod[];
   logoUrl: string;
+  mapLogoUrl: string;
   mapPoint: {
     x: number;
     y: number;
@@ -107,7 +108,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'Jerryme034' },
           { label: 'Instagram', value: 'Jeremy_Mayuk', href: 'https://www.instagram.com/Jeremy_Mayuk/' },
         ],
-        logoUrl: '/alumni-logos/ucsd.svg',
+        logoUrl: '/alumni-logos/official/ucsd-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/ucsd-seal-pin.png',
         mapPoint: { x: 169.6, y: 362.8, labelDx: 9, labelDy: 18 },
       },
       {
@@ -130,7 +132,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'dharry0128' },
           { label: 'Instagram', value: 'harry.dzh666', href: 'https://www.instagram.com/harry.dzh666/' },
         ],
-        logoUrl: '/alumni-logos/duke.svg',
+        logoUrl: '/alumni-logos/official/duke-university-seal.png',
+        mapLogoUrl: '/alumni-logos/display/duke-university-seal-pin.png',
         mapPoint: { x: 269.6, y: 359.3, labelDx: 8, labelDy: -10 },
       },
       {
@@ -153,7 +156,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'chewy_zhang' },
           { label: 'Instagram', value: 'chewy_zhang', href: 'https://www.instagram.com/chewy_zhang/' },
         ],
-        logoUrl: '/alumni-logos/uiuc.svg',
+        logoUrl: '/alumni-logos/official/uiuc-university-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/uiuc-university-seal-pin.png',
         mapPoint: { x: 244.7, y: 345.4, labelDx: 9, labelDy: -10 },
       },
       {
@@ -175,7 +179,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'Neogz_25423' },
         ],
-        logoUrl: '/alumni-logos/uw-seattle.svg',
+        logoUrl: '/alumni-logos/official/uw-seattle-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/uw-seattle-seal-pin.png',
         mapPoint: { x: 153.9, y: 317.4, labelDx: -12, labelDy: -12 },
       },
       {
@@ -198,7 +203,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'imnotjt0' },
           { label: 'Instagram', value: 'imnotjimmyt', href: 'https://www.instagram.com/imnotjimmyt/' },
         ],
-        logoUrl: '/alumni-logos/unc-chapel-hill.svg',
+        logoUrl: '/alumni-logos/official/unc-seal.jpg',
+        mapLogoUrl: '/alumni-logos/display/unc-seal-pin.png',
         mapPoint: { x: 269.2, y: 359.6, labelDx: -38, labelDy: 16 },
       },
       {
@@ -221,7 +227,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'sarahshi2015' },
           { label: 'Instagram', value: 'sar4hyr', href: 'https://www.instagram.com/sar4hyr/' },
         ],
-        logoUrl: '/alumni-logos/pcp.svg',
+        logoUrl: '/alumni-logos/official/pcp-sju-crest.jpg',
+        mapLogoUrl: '/alumni-logos/display/pcp-sju-crest-pin.png',
         mapPoint: { x: 280.2, y: 341.4, labelDx: 10, labelDy: -12 },
       },
       {
@@ -244,7 +251,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'Kvd0701' },
           { label: 'Instagram', value: 'keineyo', href: 'https://www.instagram.com/keineyo/' },
         ],
-        logoUrl: '/alumni-logos/uc-davis.svg',
+        logoUrl: '/alumni-logos/official/uc-davis-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/uc-davis-seal-pin.png',
         mapPoint: { x: 157.8, y: 344.8, labelDx: -30, labelDy: -10 },
       },
       {
@@ -267,7 +275,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '微信', value: 'Viccc_F' },
           { label: 'Instagram', value: '@vicccctor_f', href: 'https://www.instagram.com/vicccctor_f/' },
         ],
-        logoUrl: '/alumni-logos/usc.svg',
+        logoUrl: '/alumni-logos/official/usc-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/usc-seal-pin.png',
         mapPoint: { x: 167.2, y: 358.8, labelDx: -18, labelDy: 16 },
       },
       {
@@ -289,7 +298,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'szh22ss' },
         ],
-        logoUrl: '/alumni-logos/uiuc.svg',
+        logoUrl: '/alumni-logos/official/uiuc-university-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/uiuc-university-seal-pin.png',
         mapPoint: { x: 244.7, y: 345.4, labelDx: 9, labelDy: -10 },
       },
       {
@@ -311,7 +321,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '联系方式', value: 'ywj13715216077' },
         ],
-        logoUrl: '/alumni-logos/northeastern.svg',
+        logoUrl: '/alumni-logos/official/northeastern-seal.png',
+        mapLogoUrl: '/alumni-logos/display/northeastern-seal-pin.png',
         mapPoint: { x: 290.2, y: 333.8, labelDx: 12, labelDy: -12 },
       },
       {
@@ -333,7 +344,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'Tony075803' },
         ],
-        logoUrl: '/alumni-logos/unc-chapel-hill.svg',
+        logoUrl: '/alumni-logos/official/unc-seal.jpg',
+        mapLogoUrl: '/alumni-logos/display/unc-seal-pin.png',
         mapPoint: { x: 269.2, y: 359.6, labelDx: -38, labelDy: 16 },
       },
       {
@@ -355,7 +367,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'MeandoA1' },
         ],
-        logoUrl: '/alumni-logos/uiuc.svg',
+        logoUrl: '/alumni-logos/official/uiuc-university-seal.svg',
+        mapLogoUrl: '/alumni-logos/display/uiuc-university-seal-pin.png',
         mapPoint: { x: 244.7, y: 345.4, labelDx: 9, labelDy: -10 },
       },
     ],
@@ -395,7 +408,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'BBBH94lingsi88' },
         ],
-        logoUrl: '/alumni-logos/ubc.svg',
+        logoUrl: '/alumni-logos/official/ubc-coat-of-arms.svg',
+        mapLogoUrl: '/alumni-logos/display/ubc-coat-of-arms-pin.png',
         mapPoint: { x: 151.3, y: 310.9, labelDx: 10, labelDy: -10 },
       },
     ],
@@ -435,7 +449,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'r323922' },
         ],
-        logoUrl: '/alumni-logos/ic.svg',
+        logoUrl: '/alumni-logos/official/imperial-college-london-crest.png',
+        mapLogoUrl: '/alumni-logos/display/imperial-college-london-crest-pin.png',
         mapPoint: { x: 478.8, y: 302.2, labelDx: -18, labelDy: 18 },
       },
       {
@@ -457,7 +472,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'EX33550336' },
         ],
-        logoUrl: '/alumni-logos/ucl.svg',
+        logoUrl: '/alumni-logos/official/ucl-logo.png',
+        mapLogoUrl: '/alumni-logos/display/ucl-logo-pin.png',
         mapPoint: { x: 479.6, y: 301.5, labelDx: 16, labelDy: -14 },
       },
       {
@@ -479,7 +495,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: 'Instagram', value: 'moana_256', href: 'https://www.instagram.com/moana_256/' },
         ],
-        logoUrl: '/alumni-logos/cardiff.svg',
+        logoUrl: '/alumni-logos/official/cardiff-university-logo.svg',
+        mapLogoUrl: '/alumni-logos/display/cardiff-university-logo-pin.png',
         mapPoint: { x: 471.5, y: 301.7, labelDx: -28, labelDy: 15 },
       },
       {
@@ -501,7 +518,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'PatrickMOD' },
         ],
-        logoUrl: '/alumni-logos/oxford.svg',
+        logoUrl: '/alumni-logos/official/oxford-coat-of-arms.svg',
+        mapLogoUrl: '/alumni-logos/display/oxford-coat-of-arms-pin.png',
         mapPoint: { x: 476.6, y: 300.5, labelDx: 18, labelDy: 14 },
       },
       {
@@ -523,7 +541,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'Totti_su' },
         ],
-        logoUrl: '/alumni-logos/oxford.svg',
+        logoUrl: '/alumni-logos/official/oxford-coat-of-arms.svg',
+        mapLogoUrl: '/alumni-logos/display/oxford-coat-of-arms-pin.png',
         mapPoint: { x: 476.6, y: 300.5, labelDx: 18, labelDy: 14 },
       },
       {
@@ -545,7 +564,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'Xx-rzx-xX' },
         ],
-        logoUrl: '/alumni-logos/kcl.svg',
+        logoUrl: '/alumni-logos/official/kcl-red-box-logo.jpg',
+        mapLogoUrl: '/alumni-logos/display/kcl-red-box-logo-pin.png',
         mapPoint: { x: 481.1, y: 302.5, labelDx: 18, labelDy: 18 },
       },
     ],
@@ -584,7 +604,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
           { label: '电话', value: '+86-17302669221', href: 'tel:+8617302669221' },
           { label: '电话', value: '+825-69439984', href: 'tel:+82569439984' },
         ],
-        logoUrl: '/alumni-logos/hku.svg',
+        logoUrl: '/alumni-logos/official/hku-shield-logo.jpg',
+        mapLogoUrl: '/alumni-logos/display/hku-shield-logo-pin.png',
         mapPoint: { x: 783.6, y: 400.4, labelDx: -30, labelDy: -12 },
       },
       {
@@ -606,7 +627,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信 / 电话', value: '13714960337', href: 'tel:+8613714960337' },
         ],
-        logoUrl: '/alumni-logos/hku.svg',
+        logoUrl: '/alumni-logos/official/hku-shield-logo.jpg',
+        mapLogoUrl: '/alumni-logos/display/hku-shield-logo-pin.png',
         mapPoint: { x: 783.6, y: 400.4, labelDx: -30, labelDy: -12 },
       },
     ],
@@ -660,7 +682,8 @@ export const ALUMNI_REGIONS: AlumniRegion[] = [
         contactMethods: [
           { label: '微信', value: 'Ajshbsaajn' },
         ],
-        logoUrl: '/alumni-logos/usyd.svg',
+        logoUrl: '/alumni-logos/official/usyd-logo-dark.svg',
+        mapLogoUrl: '/alumni-logos/display/usyd-logo-dark-pin.png',
         mapPoint: { x: 883.2, y: 558.5, labelDx: 14, labelDy: -12 },
       },
     ],
