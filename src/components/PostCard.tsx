@@ -90,13 +90,17 @@ function formatPostDate(value: Date | string) {
     }).format(new Date(value));
 }
 
-function formatExactTime(value: Date | string, action: '发帖' | '回复') {
+function formatShortDateTime(value: Date | string, action: '发帖' | '回复') {
+    const date = new Intl.DateTimeFormat('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+    }).format(new Date(value));
     const time = new Intl.DateTimeFormat('zh-CN', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
     }).format(new Date(value));
-    return `${time} ${action}`;
+    return `${date} ${time} ${action}`;
 }
 
 function pickFeaturedComment(comments: Comment[]) {
@@ -699,7 +703,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         <span>{featuredComment.author_name}</span>
                         <UserBadges user={featuredCommentBadgeUser} compact iconOnly />
                         <small suppressHydrationWarning className="inline-exact-time-chip featured-comment-time-chip">
-                            {formatExactTime(featuredComment.created_at, '回复')}
+                            {formatShortDateTime(featuredComment.created_at, '回复')}
                         </small>
                     </div>
                     {featuredComment.reply_author_name && (
@@ -785,7 +789,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     </div>
                     <div suppressHydrationWarning className="post-time-hover" style={{ fontSize: '0.8rem', opacity: 0.6 }}>
                         <span>{formatPostDate(post.created_at)}</span>
-                        <span className="inline-exact-time-chip post-exact-time-chip">{formatExactTime(post.created_at, '发帖')}</span>
+                        <span className="inline-exact-time-chip post-exact-time-chip">{formatShortDateTime(post.created_at, '发帖')}</span>
                         {displayUpdatedAt && <span> · edited</span>}
                     </div>
                 </div>
@@ -1030,13 +1034,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         exit={{ height: 0, opacity: 0 }}
                         style={{ overflow: 'hidden' }}
                     >
-                        <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
+                        <div className="post-comments-panel">
                             {featuredCommentPreview}
 
                             {showComments && commentsLoaded && comments.length > 0 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px', maxHeight: '300px', overflowY: 'auto' }}>
+                                <div className="post-comments-list">
                                     {visibleComments.map(c => (
-                                        <div key={c.id} id={`post-${post.id}-comment-${c.id}`} className="comment-row-time-hover" style={{ display: 'flex', gap: '10px' }}>
+                                        <div key={c.id} id={`post-${post.id}-comment-${c.id}`} className="comment-row-time-hover comment-row">
                                             <button
                                                 type="button"
                                                 className="avatar-link-button comment-avatar-button"
@@ -1045,9 +1049,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                             >
                                                 <Avatar value={c.author_avatar} emoji={c.author_avatar_emoji} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
                                             </button>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                            <div className="comment-main">
+                                                <div className="comment-header-line">
+                                                    <div className="comment-author-line">
                                                         <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</span>
                                                         <UserBadges
                                                             user={{
@@ -1061,10 +1065,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                             iconOnly
                                                         />
                                                         <span suppressHydrationWarning className="inline-exact-time-chip comment-exact-time-chip">
-                                                            {formatExactTime(c.created_at, '回复')}
+                                                            {formatShortDateTime(c.created_at, '回复')}
                                                         </span>
                                                     </div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#b2bec3', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <div className="comment-actions-line">
                                                         {c.likes > 0 && <span>{c.likes} likes</span>}
                                                         <motion.button
                                                             onClick={() => handleCommentLike(c.id)}
@@ -1141,7 +1145,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                     >
-                        <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '12px', padding: '15px', marginTop: '15px' }}>
+                        <div className="post-comments-panel">
                             <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>No comments yet.</div>
                             {commentComposer}
                         </div>
