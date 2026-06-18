@@ -10466,7 +10466,7 @@ html *::after {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: clamp(180px, 34vh, 300px);
+  max-height: clamp(180px, 34vh, 300px);
   margin-bottom: 15px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -10790,7 +10790,7 @@ html *::after {
   }
 
   .post-comments-list {
-    height: clamp(190px, 42vh, 320px);
+    max-height: clamp(190px, 42vh, 320px);
   }
 
   .comment-header-line {
