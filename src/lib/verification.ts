@@ -1,11 +1,11 @@
 import { canUseMemberInteractions } from './access';
+import { STUDENT_GRADES, STUDENT_GRADE_COPY, type StudentGrade } from './grades';
+
+export { STUDENT_GRADES, STUDENT_GRADE_COPY };
+export type { StudentGrade };
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type VerificationType = 'student' | 'teacher';
-
-export const STUDENT_GRADES = ['G10', 'G11', 'G12', 'G13'] as const;
-
-export type StudentGrade = (typeof STUDENT_GRADES)[number];
 
 export type VerificationInput = {
     type?: VerificationType;
@@ -57,9 +57,9 @@ export async function buildVerificationDraft(payload: VerificationInput, fallbac
     }
 
     if (requestedType === 'student') {
-        const grade = normalizeText(payload.grade, 4).toUpperCase();
+        const grade = normalizeText(payload.grade, 8).toUpperCase();
         if (!STUDENT_GRADES.includes(grade as StudentGrade)) {
-            return { ok: false, error: '学生年级请选择 G10-G13。' };
+            return { ok: false, error: `学生身份请选择 ${STUDENT_GRADE_COPY}。` };
         }
 
         const studentId = normalizeStudentId(payload.studentId);

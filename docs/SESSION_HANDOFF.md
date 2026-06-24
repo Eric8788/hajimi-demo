@@ -27,8 +27,10 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
   - `30` total uploads per user
 - The composer auto-compresses oversized JPEG/PNG/WebP images before upload.
 - Registration is open without invite codes for graduation ceremony promotion.
-- Registration supports `student`, `parent`, and `visitor` roles.
-- Parent/visitor accounts are read-only: they can browse Hallway and open Function Hall projects, but cannot post, comment, like, bookmark, rate, tip, submit projects, check in, redeem tokens, or use Cyber Oracle.
+- Registration supports `student`, `teacher`, `parent`, and `visitor` identities.
+- Student and teacher registration requires verification details up front. Student-permission applicants submit Name, G7-G13 / 毕业生 identity, and optional student ID; teacher applicants submit Name and subject. Teacher applicants are not granted `teacher` staff permissions until admin approval.
+- Registration is presented as a 3-step wizard: identity, account/verification details, then password plus optional avatar/profile.
+- Parent/visitor accounts share the same read-only permissions: they can browse Hallway and open Function Hall projects, but cannot post, comment, like, bookmark, rate, tip, submit projects, check in, redeem tokens, or use Cyber Oracle.
 - Password policy for new accounts is active:
   - at least `8` characters
   - uppercase
@@ -75,7 +77,7 @@ Important:
 
 - Invite codes are not required by `POST /api/auth` in the graduation ceremony mode.
 - Legacy invite-code environment variables may remain set, but they are not used by the current registration flow.
-- Hajimi verification is optional at student registration but required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, token redemption, Cyber Oracle, and leaderboard visibility. Parent/visitor roles remain read-only regardless of verification status.
+- Hajimi verification is required during student/teacher registration and remains required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, token redemption, Cyber Oracle, and leaderboard visibility. Parent/visitor roles remain read-only regardless of verification status.
 - Verification `Name` means school common/preferred name, not legal name. Public pages never show Name, student ID, or subject.
 - Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows Hub `热度榜` / `星级榜` views based on capped effective opens, verified unique players, and ratings.
 - Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider order is custom `HAJIMI_ORACLE_API_*`, then ZenMux, DashScope, SiliconFlow, and optional Tokendance; provider failures try the next configured provider, then use a server fallback and still count once a reading is returned.

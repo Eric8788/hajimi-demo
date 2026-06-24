@@ -5,6 +5,7 @@ import type { AdminAuditEvent, AdminUserDetail, AdminUserSummary, AccountStatus 
 import type { VerificationStatus, VerificationType } from '@/lib/verification';
 import { formatHajimiId } from '@/lib/hajimiId';
 import Avatar from './Avatar';
+import { STUDENT_GRADES } from '@/lib/grades';
 
 type UserFilter = 'all' | VerificationStatus | 'disabled';
 
@@ -360,10 +361,9 @@ export default function AdminUsersPanel() {
                                                 <label>
                                                     <span>年级</span>
                                                     <select className="glass-input" value={form.verified_grade} onChange={event => setForm(current => ({ ...current, verified_grade: event.target.value }))}>
-                                                        <option value="G10">G10</option>
-                                                        <option value="G11">G11</option>
-                                                        <option value="G12">G12</option>
-                                                        <option value="G13">G13</option>
+                                                        {STUDENT_GRADES.map(grade => (
+                                                            <option key={grade} value={grade}>{grade}</option>
+                                                        ))}
                                                     </select>
                                                 </label>
                                                 <label>

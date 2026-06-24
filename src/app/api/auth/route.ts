@@ -5,12 +5,15 @@ import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPo
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { buildVerificationDraft } from '@/lib/verification';
 import { normalizeAvatarEmoji, normalizeAvatarThemeId } from '@/lib/avatarThemes';
-import { normalizeUserRole, type UserRole } from '@/lib/access';
+import { normalizeUserRole } from '@/lib/access';
 import bcrypt from 'bcryptjs';
 
-function normalizeRegistrationRole(value: unknown): UserRole {
+type RegistrationRole = 'student' | 'teacher' | 'parent' | 'visitor';
+
+function normalizeRegistrationRole(value: unknown): RegistrationRole {
     const role = normalizeUserRole(String(value || 'student'));
-    return role === 'parent' || role === 'visitor' ? role : 'student';
+    if (role === 'teacher' || role === 'parent' || role === 'visitor') return role;
+    return 'student';
 }
 
 export async function POST(request: Request) {
@@ -20,7 +23,7 @@ export async function POST(request: Request) {
         const { password, isRegister } = body;
 
         if (!username || !password) {
-            return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+            return NextResponse.json({ error: '请填写用户名和密码。' }, { status: 400 });
         }
 
         if (isRegister && !validateUsername(username)) {
@@ -39,13 +42,20 @@ export async function POST(request: Request) {
 
         if (isRegister) {
             if (user) {
-                return NextResponse.json({ error: 'User already exists' }, { status: 409 });
+                return NextResponse.json({ error: '这个用户名已经被使用。' }, { status: 409 });
             }
 
             const registrationRole = normalizeRegistrationRole(body.role);
-            const shouldSubmitVerification = registrationRole === 'student' && Boolean(body.verification?.enabled);
-            const verificationResult = shouldSubmitVerification
-                ? await buildVerificationDraft(body.verification)
+            const requiresVerification = registrationRole === 'student' || registrationRole === 'teacher';
+            const storedRole = registrationRole === 'parent' || registrationRole === 'visitor' ? registrationRole : 'student';
+            const verificationResult = requiresVerification
+                ? await buildVerificationDraft(
+                    {
+                        ...body.verification,
+                        type: registrationRole === 'teacher' ? 'teacher' : 'student',
+                    },
+                    registrationRole === 'teacher' ? 'teacher' : 'student',
+                )
                 : null;
 
             if (verificationResult && !verificationResult.ok) {
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
             const userId = await createUser(
                 username,
                 hashedPassword,
-                registrationRole,
+                storedRole,
                 verificationResult?.ok ? verificationResult.draft : null,
                 avatarSelection,
                 { bio: body.bio },
@@ -71,20 +81,20 @@ export async function POST(request: Request) {
         } else {
             // Login
             if (!user || !user.password_hash) {
-                return NextResponse.json({ error: 'User not found' }, { status: 404 });
+                return NextResponse.json({ error: '没有找到这个账号。' }, { status: 404 });
             }
             if (user.account_status === 'disabled') {
                 return NextResponse.json({ error: '该账号已被管理员停用，请联系 AI Club 管理员。' }, { status: 403 });
             }
             const isValid = await bcrypt.compare(password, user.password_hash);
             if (!isValid) {
-                return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
+                return NextResponse.json({ error: '密码不正确。' }, { status: 401 });
             }
             await createSession(user.id);
             return NextResponse.json({ success: true, role: user.role });
         }
     } catch (err) {
         console.error(err);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: '服务器暂时无法处理，请稍后再试。' }, { status: 500 });
     }
 }

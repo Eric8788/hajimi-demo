@@ -21,7 +21,7 @@ Hajimi is a comprehensive, gamified student community and project hub built for 
 ## 3. Core Architecture & Routing
 The app uses Next.js App Router (`src/app/`).
 - `/` **(Landing Page):** Public, SEO-friendly marketing page. Shows trending posts and generic club info.
-- `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`. Graduation ceremony registration is open without invite codes; users choose student, parent, or visitor identity.
+- `/login` **(Auth Page):** Custom login/register page. Uses `POST /api/auth`. Graduation ceremony registration is open without invite codes; users choose student, teacher, parent, or visitor identity through a 3-step wizard: identity, account/verification details, then password plus optional avatar/profile. Student/teacher registration requires verification details; teacher applicants remain non-staff until admin approval.
 - `/dashboard` **(Protected):** The user's personalized homepage. Contains:
   - **Welcome Widget:** Daily insight and Check-in button.
   - **Beta Test Mission:** Quick entry points for trying Function Hall and opening the pinned feedback announcement.
@@ -33,7 +33,7 @@ The app uses Next.js App Router (`src/app/`).
   - Announcement posts behave like pinned posts in the main feed; beta feedback is collected as comments under Eric's announcement.
   - Normal posts support custom hashtags; `announcement` is the only reserved staff-only tag.
   - Non-logged-in users can browse and read all posts.
-  - Registered but unverified users can browse, but cannot post, comment, like, bookmark, or earn check-in points. Parent/visitor accounts are always read-only: they can browse and open projects, but cannot participate in forum/project interactions. Interaction requires `verification_status = 'verified'` and a non-read-only role.
+  - Registered but unverified users can browse, but cannot post, comment, like, bookmark, or earn check-in points. Parent/visitor accounts share the same read-only permissions: they can browse and open projects, but cannot participate in forum/project interactions. Interaction requires `verification_status = 'verified'` and a non-read-only role.
   - **Action Interceptor Pattern:** Clicking "Like", "Comment", "Save", or "New Post" without permission triggers a localized login/verification prompt instead of a hard redirect.
 - `/functions` **(Function Hall - Public):** 
   - Replaces the legacy "AI Club Hub".
@@ -83,7 +83,7 @@ Database interactions are handled via standard SQL functions.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
 
-*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is currently open without invite codes for the graduation ceremony. Parent and visitor accounts are stored in `users.role` and remain read-only even if logged in. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification uses optional registration/profile forms and admin review for student/teacher accounts. The `Name` field is school common/preferred name, not legal name. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
+*Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is currently open without invite codes for the graduation ceremony. Parent and visitor accounts are stored in `users.role` and remain read-only even if logged in. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification is required during student/teacher registration and can still be submitted from profile settings for older unverified accounts. Student-permission applicants submit Name, G7-G13 / 毕业生 identity, and optional student ID; teachers submit Name and subject. Teacher applicants are stored without staff permissions until admin approval promotes them to `teacher`. The `Name` field is school common/preferred name, not legal name. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
 
 ## 6. Important Workflows for AI Assistants
 1. **Adding or updating a student project:**
@@ -93,7 +93,7 @@ Database interactions are handled via standard SQL functions.
    - Always check session via `const session = await getSession();` at the top of the Server Component.
    - Redirect to `/login` if `!session`.
    - Wrap the page in `<Shell user={user}>` to render the sidebar navigation.
-   - Keep the `student` / `parent` / `visitor` registration roles and read-only guardrails in `src/lib/access.ts` aligned with API checks.
+   - Keep the `student` / `teacher` / `parent` / `visitor` registration identities and read-only guardrails in `src/lib/access.ts` aligned with API checks.
 3. **Adding new APIs:**
    - Put them in `src/app/api/.../route.ts`. 
    - Parse session cookies securely using `getSession()`.
