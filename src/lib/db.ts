@@ -2390,9 +2390,8 @@ export async function getComments(postId: number, userId?: number) {
       LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
       WHERE comments.post_id = ${postId}
       ORDER BY
-        comments.likes DESC,
-        (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = comments.id) DESC,
-        comments.created_at DESC
+        comments.created_at ASC,
+        comments.id ASC
   `;
     return rows as Comment[];
 }
