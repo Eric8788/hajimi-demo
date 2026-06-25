@@ -9,6 +9,18 @@ import ProjectCoverStudio from './ProjectCoverStudio';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
+import {
+    getHubDisplayName,
+    getHubRankingCopy,
+    getHubStats,
+    getProjectCommentCount,
+    HUB_LEADERBOARD_TABS,
+    HUB_RANKING_MODES,
+    rankHubProjects,
+    recordProjectOpen,
+    type HubLeaderboardWindow,
+    type HubRankingMode,
+} from '@/lib/hubRankings';
 
 const TAG_COLORS: Record<string, string> = {
     Game: '#6c5ce7',
@@ -27,25 +39,6 @@ const TAG_EMOJIS: Record<string, string> = {
     Game: '🎮', Tool: '🛠️', AI: '🤖', Multiplayer: '👥', 
     Simulation: '🌍', Visual: '👁️', Finance: '💰', 
     Narrative: '📖', Sailing: '⛵', Classroom: '🏫'
-};
-
-const HUB_LEADERBOARD_TABS = [
-    { id: 'today', label: '今日' },
-    { id: 'week', label: '本周' },
-    { id: 'month', label: '本月' },
-] as const;
-
-const HUB_RANKING_MODES = [
-    { id: 'heat', label: '热度榜' },
-    { id: 'rating', label: '星级榜' },
-] as const;
-
-type HubLeaderboardWindow = (typeof HUB_LEADERBOARD_TABS)[number]['id'];
-type HubRankingMode = (typeof HUB_RANKING_MODES)[number]['id'];
-
-type HubLeaderboardStats = {
-    uniquePlayers: number;
-    effectiveOpens: number;
 };
 
 type SpotlightKind = 'submit' | 'rewards' | 'galgame' | 'vocab' | 'cpaper' | 'ocean';
@@ -80,22 +73,6 @@ type SubmissionDraft = {
     type: 'new_project' | 'new_version';
     project?: HubProject;
 };
-
-function recordProjectOpen(projectId: number | string) {
-    const payload = JSON.stringify({ projectId });
-
-    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-        const blob = new Blob([payload], { type: 'application/json' });
-        if (navigator.sendBeacon('/api/projects/open', blob)) return;
-    }
-
-    void fetch('/api/projects/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-        keepalive: true,
-    }).catch(() => {});
-}
 
 function getSpotlightKind(project: any): SpotlightKind | null {
     const fingerprint = `${project.title || ''} ${project.url || ''}`.toLowerCase();
@@ -336,10 +313,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
     if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading functions...</div>;
 
-    const getDisplayName = (name: string) => {
-        if (!name) return 'Unknown';
-        return name.toLowerCase() === 'eric' ? 'AI Club' : name;
-    };
+    const getDisplayName = getHubDisplayName;
 
     const getSpotlightCopy = (project: any): HubSpotlightCopy | null => {
         const kind = getSpotlightKind(project);
@@ -455,72 +429,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         document.getElementById('hub-project-showcase')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const getHubStats = (project: any): HubLeaderboardStats => {
-        if (hubLeaderboardWindow === 'month') {
-            return {
-                uniquePlayers: Number(project.unique_open_count_month || 0),
-                effectiveOpens: Number(project.effective_open_count_month ?? project.open_count_month ?? 0),
-            };
-        }
-
-        if (hubLeaderboardWindow === 'week') {
-            return {
-                uniquePlayers: Number(project.unique_open_count_week || 0),
-                effectiveOpens: Number(project.effective_open_count_week ?? project.open_count_week ?? 0),
-            };
-        }
-
-        return {
-            uniquePlayers: Number(project.unique_open_count_today || 0),
-            effectiveOpens: Number(project.effective_open_count_today ?? project.open_count_today ?? 0),
-        };
-    };
-
-    const compareTitles = (a: any, b: any) => String(a.title).localeCompare(String(b.title));
-    const getProjectCommentCount = (project: HubProject) => Number(project.commentCount ?? project.comment_count ?? 0);
-
-    const compareByHeat = (a: any, b: any) => {
-        const statsA = getHubStats(a);
-        const statsB = getHubStats(b);
-
-        return statsB.uniquePlayers - statsA.uniquePlayers
-            || Number(b.rating || 0) - Number(a.rating || 0)
-            || getProjectCommentCount(b) - getProjectCommentCount(a)
-            || statsB.effectiveOpens - statsA.effectiveOpens
-            || Number(b.rating_count || 0) - Number(a.rating_count || 0)
-            || compareTitles(a, b);
-    };
-
-    const compareByRatingBoard = (a: any, b: any) => {
-        const statsA = getHubStats(a);
-        const statsB = getHubStats(b);
-
-        return Number(b.rating || 0) - Number(a.rating || 0)
-            || getProjectCommentCount(b) - getProjectCommentCount(a)
-            || Number(b.rating_count || 0) - Number(a.rating_count || 0)
-            || statsB.uniquePlayers - statsA.uniquePlayers
-            || statsB.effectiveOpens - statsA.effectiveOpens
-            || compareTitles(a, b);
-    };
-
-    const hubLeaderboard = [...projects]
-        .filter(project => project.status === 'live')
-        .sort(hubRankingMode === 'rating' ? compareByRatingBoard : compareByHeat)
-        .slice(0, 5);
-
-    const hubRankingCopy = hubRankingMode === 'rating'
-        ? {
-            title: '⭐ 星级榜',
-            intro: '按累计星级和评分人数排序，同时展示当前窗口体验数据。',
-            tooltipTitle: '星级榜规则',
-            tooltip: '先看星级，同星级看评论数，再看评分人数；日/周/月只切换体验数据。',
-        }
-        : {
-            title: '🔥 项目热度榜',
-            intro: '按体验人数、星级和有效进入排序。',
-            tooltipTitle: '热度榜规则',
-            tooltip: '先看体验人数，同人数看星级和评论数，再看有效进入。每人每天最多 3 次有效进入。',
-        };
+    const hubLeaderboard = rankHubProjects(projects, hubRankingMode, hubLeaderboardWindow, 5);
+    const hubRankingCopy = getHubRankingCopy(hubRankingMode);
+    const hubLeaderboardHref = `/leaderboard?tab=hub&mode=${hubRankingMode}&window=${hubLeaderboardWindow}`;
 
     const filtered = projects.filter(p => {
         const tagMatch = selectedTag === 'all' || p.tags.includes(selectedTag);
@@ -953,6 +864,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                             </div>
                         </div>
                         <div className="hub-leaderboard-controls">
+                            <a className="hub-leaderboard-view-all" href={hubLeaderboardHref}>
+                                完整榜单
+                            </a>
                             <div className="hub-leaderboard-mode-tabs" aria-label="Hub ranking mode">
                                 {HUB_RANKING_MODES.map(mode => (
                                     <button
@@ -981,7 +895,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                     </div>
                     <div className="hub-leaderboard-list">
                         {hubLeaderboard.map((project, index) => {
-                            const stats = getHubStats(project);
+                            const stats = getHubStats(project, hubLeaderboardWindow);
                             return (
                                 <a
                                     key={project.id}
@@ -998,7 +912,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                                         <small>by {getDisplayName(project.author_name || project.author || '')}</small>
                                     </span>
                                     <span className="hub-leaderboard-meta">
-                                        {stats.uniquePlayers} 人体验 · {stats.effectiveOpens} 次有效进入 · ⭐ {Number(project.rating || 0).toFixed(1)} · 💬 {getProjectCommentCount(project)}
+                                        {hubRankingMode === 'heat'
+                                            ? `${stats.uniquePlayers} 人体验 · ${stats.effectiveOpens} 次有效进入`
+                                            : `⭐ ${Number(project.rating || 0).toFixed(1)} · 💬 ${getProjectCommentCount(project)}`}
                                     </span>
                                 </a>
                             );

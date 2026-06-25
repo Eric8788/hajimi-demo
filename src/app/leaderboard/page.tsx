@@ -1,13 +1,26 @@
 import { getSession } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
 import Shell from '@/components/Shell';
-import LeaderboardWidget from '@/components/LeaderboardWidget';
+import LeaderboardTabs from '@/components/LeaderboardTabs';
+import type { HubLeaderboardWindow, HubRankingMode } from '@/lib/hubRankings';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Page() {
+type LeaderboardSearchParams = {
+    tab?: string;
+    mode?: string;
+    window?: string;
+};
+
+export default async function Page({ searchParams }: { searchParams?: Promise<LeaderboardSearchParams> }) {
     const session = await getSession();
     const user = session ? await getUserById(Number(session.userId)) : null;
+    const params = searchParams ? await searchParams : {};
+    const initialTab = params.tab === 'hub' ? 'hub' : 'members';
+    const hubMode: HubRankingMode = params.mode === 'rating' ? 'rating' : 'heat';
+    const hubWindow: HubLeaderboardWindow = params.window === 'today' || params.window === 'week' || params.window === 'month'
+        ? params.window
+        : 'month';
 
     return (
         <Shell user={user}>
@@ -16,11 +29,11 @@ export default async function Page() {
                     <div>
                         <span>AI Club Rankings</span>
                         <h1>🏆 Hall of Fame</h1>
-                        <p>记录大家在 Hajimi 里的活跃贡献。Hub 项目热度榜请前往 Function Hall 查看。</p>
+                        <p>这里集中查看成员 XP 和 Hub 项目榜单；Function Hall 只保留前五预览，完整排行在 Rank 里展开。</p>
                     </div>
                 </div>
 
-                <LeaderboardWidget limit={30} showViewAll={false} />
+                <LeaderboardTabs initialTab={initialTab} defaultHubMode={hubMode} defaultHubWindow={hubWindow} />
             </section>
         </Shell>
     );
