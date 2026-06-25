@@ -67,6 +67,7 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
     const [reviewSummary, setReviewSummary] = useState<AdminReviewSummary | null>(null);
     const [reviewHistory, setReviewHistory] = useState<AdminAuditEvent[]>([]);
     const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+    const [activityTabCount, setActivityTabCount] = useState(initialUnreadCount);
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<NotificationTab>('activity');
 
@@ -88,7 +89,10 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
             ? data.reviewSummary as AdminReviewSummary
             : null;
 
-        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+        const nextNotifications = Array.isArray(data.notifications) ? data.notifications : [];
+
+        setNotifications(nextNotifications);
+        setActivityTabCount(Math.max(nextNotifications.length, nextUnreadCount));
         setUnreadCount(nextUnreadCount);
         setReviewSummary(nextReviewSummary);
         setReviewHistory(Array.isArray(data.reviewHistory) ? data.reviewHistory : []);
@@ -103,6 +107,7 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
 
     useEffect(() => {
         setUnreadCount(initialUnreadCount);
+        setActivityTabCount(current => Math.max(current, initialUnreadCount));
     }, [initialUnreadCount]);
 
     useEffect(() => {
@@ -146,6 +151,7 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
 
         if (nextOpen) {
             setActiveTab(hasReviewTasks || reviewHistory.length > 0 ? 'review' : 'activity');
+            await loadNotifications();
             await markActivityRead();
         }
     };
@@ -359,7 +365,7 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
                                     审核 {reviewCount > 0 ? reviewCount : ''}
                                 </button>
                                 <button type="button" className={activeTab === 'activity' ? 'is-active' : ''} onClick={() => setActiveTab('activity')}>
-                                    互动 {notifications.length > 0 ? notifications.length : ''}
+                                    互动 {activityTabCount > 0 ? activityTabCount : ''}
                                 </button>
                                 <button type="button" className={activeTab === 'all' ? 'is-active' : ''} onClick={() => setActiveTab('all')}>
                                     全部
