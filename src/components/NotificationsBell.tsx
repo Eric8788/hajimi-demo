@@ -60,7 +60,13 @@ function formatNotificationTime(value: Date | string | null | undefined) {
     return new Date(value).toLocaleString();
 }
 
-export default function NotificationsBell({ initialUnreadCount = 0 }: { initialUnreadCount?: number }) {
+export default function NotificationsBell({
+    initialUnreadCount = 0,
+    shortLabel,
+}: {
+    initialUnreadCount?: number;
+    shortLabel?: string;
+}) {
     const router = useRouter();
     const popoverRef = useRef<HTMLDivElement | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -305,6 +311,7 @@ export default function NotificationsBell({ initialUnreadCount = 0 }: { initialU
                 }}
             >
                 🔔
+                {shortLabel && <span className="sidebar-bottom-short-label">{shortLabel}</span>}
                 {displayCount > 0 && (
                     <span
                         style={{
