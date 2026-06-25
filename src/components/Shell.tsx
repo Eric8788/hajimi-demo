@@ -268,7 +268,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                         {formatCompactNumber(Number(displayUser.points || 0))} XP · 🪙 {formatCompactNumber(coinBalance)}
                                     </span>
                                 </span>
-                                <span className="sidebar-bottom-short-label">Me</span>
                             </button>
                             <div className="sidebar-quick-actions" aria-label="Account shortcuts">
                                 <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" />
@@ -295,7 +294,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     title="Settings"
                                 >
                                     <span aria-hidden="true">⚙️</span>
-                                    <span className="sidebar-action-label">Settings</span>
+                                    <span className="sidebar-action-label">Set</span>
                                 </button>
                             </div>
                             <div className="sidebar-collapsed-actions" aria-label="Collapsed account shortcuts">
@@ -329,7 +328,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     <span className="sidebar-user-status">{getUserStatusLabel(null)}</span>
                                     <span className="sidebar-user-balance">XP -- · 🪙 --</span>
                                 </span>
-                                <span className="sidebar-bottom-short-label">Me</span>
                             </button>
                             <div className="sidebar-collapsed-actions" aria-label="Collapsed guest shortcuts">
                                 <button

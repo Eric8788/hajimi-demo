@@ -267,7 +267,7 @@
 .sidebar-quick-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
 }
 
@@ -278,6 +278,7 @@
 .sidebar-quick-actions > div {
   flex: 1 1 0;
   min-width: 0;
+  width: 100%;
   margin-bottom: 0 !important;
 }
 
@@ -285,6 +286,24 @@
   width: 100% !important;
   height: 42px !important;
   border-radius: 16px !important;
+  min-width: 0;
+  gap: 4px !important;
+  font-family: inherit !important;
+  font-size: 0.98rem !important;
+  line-height: 1 !important;
+  padding: 0 4px !important;
+}
+
+.sidebar-quick-actions .notification-trigger .sidebar-bottom-short-label {
+  display: inline-block;
+  max-width: calc(100% - 22px);
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-expanded .notification-popover {
@@ -303,10 +322,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 4px;
   font-family: inherit;
-  font-size: 1.02rem;
-  padding: 0;
+  font-size: 0.98rem;
+  line-height: 1;
+  overflow: hidden;
+  padding: 0 4px;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(108,92,231,0.1);
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
@@ -330,8 +351,14 @@
 }
 
 .sidebar-action-label {
-  font-size: 0.72rem;
+  display: block;
+  max-width: calc(100% - 22px);
+  overflow: hidden;
+  font-size: 0.68rem;
   font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-user-card {

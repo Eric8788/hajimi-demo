@@ -112,8 +112,12 @@ export default function NotificationsBell({
     }, []);
 
     useEffect(() => {
-        setUnreadCount(initialUnreadCount);
-        setActivityTabCount(current => Math.max(current, initialUnreadCount));
+        const syncTimer = window.setTimeout(() => {
+            setUnreadCount(initialUnreadCount);
+            setActivityTabCount(current => Math.max(current, initialUnreadCount));
+        }, 0);
+
+        return () => window.clearTimeout(syncTimer);
     }, [initialUnreadCount]);
 
     useEffect(() => {
@@ -310,6 +314,7 @@ export default function NotificationsBell({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    fontFamily: 'inherit',
                     fontSize: '1.15rem',
                     cursor: 'pointer',
                     boxShadow: displayCount > 0 ? '0 8px 18px rgba(253, 121, 168, 0.24)' : 'none',
