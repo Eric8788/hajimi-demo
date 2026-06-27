@@ -7,7 +7,6 @@ import Link from 'next/link';
 import TarotGame from '@/components/TarotGame';
 import { getRecentPostHighlights } from '@/lib/db';
 import LeaderboardWidget from '@/components/LeaderboardWidget';
-import Avatar from '@/components/Avatar';
 import DashboardAlumniPreview from '@/components/DashboardAlumniPreview';
 import DashboardPromoCarousel from '@/components/DashboardPromoCarousel';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
@@ -213,11 +212,9 @@ export default async function DashboardPage() {
 
         {/* Welcome Banner */}
         <SpotlightCard className="glass-card full-width dashboard-welcome-card" spotlightColor="rgba(108, 92, 231, 0.16)">
-          <div className="dashboard-cat-mascot" aria-hidden="true" style={{ left: '-20px', opacity: 0.35 }} />
-          
           <div className="dashboard-welcome-content">
-            <Avatar value={user.avatar} theme={user.avatar_theme} size={64} />
-            <div>
+            <div className="dashboard-cat-mascot" aria-hidden="true" />
+            <div className="dashboard-welcome-copy">
               <h2 className="dashboard-welcome-title">{greeting.title}</h2>
               <p className="dashboard-welcome-insight">{greeting.insight}</p>
             </div>
