@@ -337,6 +337,8 @@ export default function PostTextComposer({
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const richEditorRef = useRef<HTMLDivElement | null>(null);
     const savedRichRangeRef = useRef<Range | null>(null);
+    const isSelectingWithPointerRef = useRef(false);
+    const toolbarFrameRef = useRef<number | null>(null);
     const activeFormat = normalizePostContentFormat(format);
     const canSwitchFormat = !!onFormatChange;
     const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
@@ -409,6 +411,26 @@ export default function PostTextComposer({
         });
     }, [activeFormat]);
 
+    const scheduleFloatingToolbar = useCallback(() => {
+        if (toolbarFrameRef.current !== null) {
+            window.cancelAnimationFrame(toolbarFrameRef.current);
+        }
+
+        toolbarFrameRef.current = window.requestAnimationFrame(() => {
+            toolbarFrameRef.current = null;
+            updateFloatingToolbar();
+        });
+    }, [updateFloatingToolbar]);
+
+    const handleRichPointerDown = () => {
+        isSelectingWithPointerRef.current = true;
+        if (toolbarFrameRef.current !== null) {
+            window.cancelAnimationFrame(toolbarFrameRef.current);
+            toolbarFrameRef.current = null;
+        }
+        setFloatingToolbar(null);
+    };
+
     useEffect(() => {
         if (activeFormat !== 'markdown') return;
         const editor = richEditorRef.current;
@@ -423,9 +445,24 @@ export default function PostTextComposer({
     useEffect(() => {
         if (activeFormat !== 'markdown') return;
 
-        document.addEventListener('selectionchange', updateFloatingToolbar);
-        return () => document.removeEventListener('selectionchange', updateFloatingToolbar);
-    }, [activeFormat, updateFloatingToolbar]);
+        const finishPointerSelection = () => {
+            if (!isSelectingWithPointerRef.current) return;
+            isSelectingWithPointerRef.current = false;
+            scheduleFloatingToolbar();
+        };
+
+        document.addEventListener('pointerup', finishPointerSelection);
+        document.addEventListener('pointercancel', finishPointerSelection);
+
+        return () => {
+            document.removeEventListener('pointerup', finishPointerSelection);
+            document.removeEventListener('pointercancel', finishPointerSelection);
+            if (toolbarFrameRef.current !== null) {
+                window.cancelAnimationFrame(toolbarFrameRef.current);
+                toolbarFrameRef.current = null;
+            }
+        };
+    }, [activeFormat, scheduleFloatingToolbar]);
 
     const openLinkPopover = () => {
         if (activeFormat === 'markdown') {
@@ -466,7 +503,7 @@ export default function PostTextComposer({
             if (restoreRange(savedRichRangeRef.current)) {
                 document.execCommand('createLink', false, href);
                 updateFromRichEditor();
-                window.requestAnimationFrame(updateFloatingToolbar);
+                scheduleFloatingToolbar();
             }
             setIsLinkPopoverOpen(false);
             setLinkValue('');
@@ -510,7 +547,7 @@ export default function PostTextComposer({
         const pastedHtml = markdownToEditorHtml(pastedText);
         document.execCommand('insertHTML', false, pastedHtml || escapeHtml(pastedText));
         updateFromRichEditor();
-        window.requestAnimationFrame(updateFloatingToolbar);
+        scheduleFloatingToolbar();
     };
 
     const applyRichCommand = (command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'insertUnorderedList' | 'h2' | 'p' | 'blockquote' | 'pre' | 'code' | 'link') => {
@@ -548,7 +585,7 @@ export default function PostTextComposer({
         }
 
         updateFromRichEditor();
-        window.requestAnimationFrame(updateFloatingToolbar);
+        scheduleFloatingToolbar();
     };
 
     const handleToolbarMouseDown = (event: MouseEvent<HTMLDivElement>) => {
@@ -635,8 +672,8 @@ export default function PostTextComposer({
                         data-placeholder={placeholder}
                         onInput={updateFromRichEditor}
                         onPaste={handleRichPaste}
-                        onMouseUp={() => window.requestAnimationFrame(updateFloatingToolbar)}
-                        onKeyUp={() => window.requestAnimationFrame(updateFloatingToolbar)}
+                        onPointerDown={handleRichPointerDown}
+                        onKeyUp={scheduleFloatingToolbar}
                         onFocus={() => {
                             const editor = richEditorRef.current;
                             if (editor && !editor.innerHTML && value) {
