@@ -37,6 +37,7 @@ type PostTextComposerProps = {
     placeholder?: string;
     rows?: number;
     disabled?: boolean;
+    maxLength?: number;
 };
 
 const INLINE_MARKDOWN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
@@ -348,11 +349,11 @@ function restoreRange(range: Range | null) {
 export default function PostTextComposer({
     value,
     onChange,
-    format = 'plain',
-    onFormatChange,
+    format = 'markdown',
     placeholder = 'Share an update, question, or resource...',
     rows = 5,
     disabled = false,
+    maxLength,
 }: PostTextComposerProps) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const richEditorRef = useRef<HTMLDivElement | null>(null);
@@ -363,7 +364,6 @@ export default function PostTextComposer({
     const toolbarFrameRef = useRef<number | null>(null);
     const linkPreviewHideTimerRef = useRef<number | null>(null);
     const activeFormat = normalizePostContentFormat(format);
-    const canSwitchFormat = !!onFormatChange;
     const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
     const [linkPopoverMode, setLinkPopoverMode] = useState<LinkPopoverMode>('insert');
     const [linkTextValue, setLinkTextValue] = useState('');
@@ -371,8 +371,12 @@ export default function PostTextComposer({
     const [linkError, setLinkError] = useState('');
     const [savedSelection, setSavedSelection] = useState<TextSelection>({ start: 0, end: 0 });
     const [floatingToolbar, setFloatingToolbar] = useState<FloatingToolbarPosition | null>(null);
+    const [blockToolbarTop, setBlockToolbarTop] = useState(10);
     const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
     const [linkPopoverPosition, setLinkPopoverPosition] = useState<FloatingToolbarPosition | null>(null);
+    const clampValue = useCallback((nextValue: string) => (
+        typeof maxLength === 'number' ? nextValue.slice(0, maxLength) : nextValue
+    ), [maxLength]);
 
     const rememberSelection = () => {
         const textarea = textareaRef.current;
@@ -396,8 +400,13 @@ export default function PostTextComposer({
             return;
         }
 
-        onChange(editorHtmlToMarkdown(editor));
-    }, [onChange]);
+        const rawValue = editorHtmlToMarkdown(editor);
+        const nextValue = clampValue(rawValue);
+        if (nextValue !== rawValue) {
+            editor.innerHTML = markdownToEditorHtml(nextValue);
+        }
+        onChange(nextValue);
+    }, [clampValue, onChange]);
 
     const updateFloatingToolbar = useCallback(() => {
         const editor = richEditorRef.current;
@@ -669,7 +678,7 @@ export default function PostTextComposer({
         const selectedText = value.slice(selection.start, selection.end);
         const label = resolveLabel(selectedText);
         const insertion = `[${label}](${href})`;
-        const nextValue = `${value.slice(0, selection.start)}${insertion}${value.slice(selection.end)}`;
+        const nextValue = clampValue(`${value.slice(0, selection.start)}${insertion}${value.slice(selection.end)}`);
 
         onChange(nextValue);
         closeLinkPopover();
@@ -678,7 +687,7 @@ export default function PostTextComposer({
             const textarea = textareaRef.current;
             if (!textarea) return;
 
-            const caret = selection.start + insertion.length;
+            const caret = Math.min(selection.start + insertion.length, nextValue.length);
             textarea.focus();
             textarea.setSelectionRange(caret, caret);
         });
@@ -706,6 +715,14 @@ export default function PostTextComposer({
         if (disabled || isLinkPopoverOpen) return;
         const anchor = getClosestAnchor(event.target);
         if (anchor) showLinkPreview(anchor);
+    };
+
+    const handleRichMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+        const wrapperRect = richEditorRef.current?.closest('.post-rich-editor-wrap')?.getBoundingClientRect();
+        if (!wrapperRect) return;
+
+        const nextTop = Math.max(10, Math.min(event.clientY - wrapperRect.top - 15, wrapperRect.height - 38));
+        setBlockToolbarTop(nextTop);
     };
 
     const handleRichMouseLeave = (event: MouseEvent<HTMLDivElement>) => {
@@ -766,50 +783,6 @@ export default function PostTextComposer({
 
     return (
         <div className="post-text-composer">
-            <div className="post-text-toolbar" aria-label="Post formatting tools">
-                {canSwitchFormat && (
-                    <div className="post-format-toggle" aria-label="Post content mode">
-                        <button
-                            type="button"
-                            className={activeFormat === 'plain' ? 'is-active' : ''}
-                            onClick={() => {
-                                onFormatChange?.('plain');
-                                setFloatingToolbar(null);
-                            }}
-                            disabled={disabled}
-                        >
-                            Plain
-                        </button>
-                        <button
-                            type="button"
-                            className={activeFormat === 'markdown' ? 'is-active' : ''}
-                            onClick={() => onFormatChange?.('markdown')}
-                            disabled={disabled}
-                        >
-                            Markdown
-                        </button>
-                    </div>
-                )}
-                {activeFormat === 'plain' && (
-                    <button
-                        type="button"
-                        className="post-text-tool"
-                        onMouseDown={event => event.preventDefault()}
-                        onClick={openLinkPopover}
-                        disabled={disabled}
-                        title="Insert link"
-                        aria-label="Insert link"
-                    >
-                        Link
-                    </button>
-                )}
-                <span>
-                    {activeFormat === 'markdown'
-                        ? 'Paste Markdown to auto-format. Select text to edit styling.'
-                        : 'Select text, insert a link, and a domain is enough.'}
-                </span>
-            </div>
-
             {activeFormat === 'markdown' && linkPreview && (
                 <div
                     className="post-link-preview"
@@ -836,6 +809,20 @@ export default function PostTextComposer({
 
             {activeFormat === 'markdown' ? (
                 <div className="post-rich-editor-wrap">
+                    <div
+                        className="post-block-toolbar"
+                        style={{ top: blockToolbarTop }}
+                        onMouseDown={handleToolbarMouseDown}
+                        role="toolbar"
+                        aria-label="Current line formatting"
+                    >
+                        <button type="button" onClick={() => applyRichCommand('p')} title="Paragraph">T</button>
+                        <button type="button" onClick={() => applyRichCommand('h2')} title="Heading">H2</button>
+                        <button type="button" onClick={() => applyRichCommand('insertUnorderedList')} title="List">List</button>
+                        <button type="button" onClick={() => applyRichCommand('blockquote')} title="Quote">Quote</button>
+                        <button type="button" onClick={() => applyRichCommand('pre')} title="Code block">Code</button>
+                        <button type="button" onClick={() => applyRichCommand('link')} title="Link">Link</button>
+                    </div>
                     {floatingToolbar && (
                         <div
                             className="post-selection-toolbar"
@@ -870,6 +857,7 @@ export default function PostTextComposer({
                         onPaste={handleRichPaste}
                         onPointerDown={handleRichPointerDown}
                         onMouseOver={handleRichMouseOver}
+                        onMouseMove={handleRichMouseMove}
                         onMouseOut={handleRichMouseLeave}
                         onClick={handleRichClick}
                         onKeyUp={scheduleFloatingToolbar}
@@ -896,11 +884,12 @@ export default function PostTextComposer({
                     ref={textareaRef}
                     placeholder={placeholder}
                     value={value}
-                    onChange={event => onChange(event.target.value)}
+                    onChange={event => onChange(clampValue(event.target.value))}
                     onSelect={rememberSelection}
                     onKeyDown={handlePlainKeyDown}
                     rows={rows}
                     disabled={disabled}
+                    maxLength={maxLength}
                     className="glass-input post-text-input"
                 />
             )}

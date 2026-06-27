@@ -8,6 +8,8 @@ import { User, type Article, type Post, type ProfileAnalytics, type ProfileAnaly
 import Avatar from './Avatar';
 import BadgePill from './BadgePill';
 import UserBadges from './UserBadges';
+import PostTextComposer from './PostTextComposer';
+import PostContentRenderer from './PostContentRenderer';
 import { getAvailableBadges, normalizeBadgePreferences, type BadgeId } from '@/lib/badges';
 import { formatHajimiId } from '@/lib/hajimiId';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
@@ -58,9 +60,30 @@ function stripMarkdownLinks(text: string) {
     return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1');
 }
 
+function stripMarkdownSyntax(text: string) {
+    return stripMarkdownLinks(text)
+        .replace(/```[\s\S]*?```/g, match => match.replace(/```/g, ''))
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^>\s?/gm, '')
+        .replace(/^\s*[-*]\s+/gm, '')
+        .replace(/^\s*\d+[.)]\s+/gm, '')
+        .replace(/[*_`~]/g, '');
+}
+
 function getPreviewText(text?: string | null, max = 118) {
-    const compact = stripMarkdownLinks(text || '').replace(/\s+/g, ' ').trim();
+    const compact = stripMarkdownSyntax(text || '').replace(/\s+/g, ' ').trim();
     return compact.length > max ? `${compact.slice(0, max)}...` : compact;
+}
+
+function getPostPreviewMarkdown(post: Post, max: number) {
+    const compact = String(post.content || '')
+        .replace(/\r\n?/g, '\n')
+        .split('\n')
+        .map(line => line.replace(/[ \t]+/g, ' ').trim())
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    return compact.length > max ? `${compact.slice(0, max).trimEnd()}...` : compact;
 }
 
 function estimateReadMinutes(text?: string | null) {
@@ -1216,7 +1239,12 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                 <div>
                                     <span>{getTagLabel(featuredPost.tag)}</span>
                                     <h3>{featuredPost.title}</h3>
-                                    <p>{getPreviewText(featuredPost.content, 170)}</p>
+                                    <PostContentRenderer
+                                        content={getPostPreviewMarkdown(featuredPost, 170)}
+                                        format={featuredPost.content_format}
+                                        className="profile-post-preview"
+                                        disableLinks
+                                    />
                                     <div className="profile-post-meta">
                                         <span>{formatDate(featuredPost.created_at)}</span>
                                         <span>{estimateReadMinutes(featuredPost.content)} min read</span>
@@ -1283,14 +1311,13 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                         placeholder="\u6807\u9898"
                                         required
                                     />
-                                    <textarea
-                                        className="glass-input profile-article-content-input"
+                                    <PostTextComposer
                                         value={articleContent}
-                                        onChange={event => setArticleContent(event.target.value)}
-                                        maxLength={12000}
+                                        onChange={setArticleContent}
+                                        format="markdown"
                                         placeholder="\u6b63\u6587"
                                         rows={10}
-                                        required
+                                        maxLength={12000}
                                     />
                                     <div className="profile-article-composer-row">
                                         <input
@@ -1329,7 +1356,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                     <Link key={article.id} href={`/articles/${article.id}`} className="profile-article-list-item">
                                         <div>
                                             <h4>{article.title}</h4>
-                                            <p>{article.excerpt || getPreviewText(article.content, 126)}</p>
+                                            <p>{getPreviewText(article.excerpt || article.content, 126)}</p>
                                             <div className="profile-post-meta">
                                                 <span>{getTagLabel(article.tag)}</span>
                                                 <span>{formatDate(article.created_at)}</span>
@@ -1376,7 +1403,12 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                     {getProfilePostImage(post) && <img src={getImageDisplayUrl(getProfilePostImage(post))} alt="" />}
                                     <div>
                                         <h4>{post.title}</h4>
-                                        <p>{getPreviewText(post.content, 96)}</p>
+                                        <PostContentRenderer
+                                            content={getPostPreviewMarkdown(post, 96)}
+                                            format={post.content_format}
+                                            className="profile-post-preview"
+                                            disableLinks
+                                        />
                                         <div className="profile-post-meta">
                                             <span>{getTagLabel(post.tag)}</span>
                                             <span>{formatDate(post.created_at)}</span>

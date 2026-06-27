@@ -21,6 +21,11 @@ type PostContentRendererProps = {
     content: string;
     format?: PostContentFormat | string | null;
     className?: string;
+    disableLinks?: boolean;
+};
+
+type RenderInlineOptions = {
+    disableLinks?: boolean;
 };
 
 function safeExternalUrl(url: string) {
@@ -32,7 +37,7 @@ function safeExternalUrl(url: string) {
     }
 }
 
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
+function renderInline(text: string, keyPrefix: string, options: RenderInlineOptions = {}): ReactNode[] {
     const parts: ReactNode[] = [];
     let lastIndex = 0;
 
@@ -49,11 +54,11 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
         if (href) {
             const label = match[2] || autoHref || href;
-            parts.push(
+            parts.push(options.disableLinks ? label : (
                 <a key={`${keyPrefix}-${matchIndex}`} href={href} target="_blank" rel="noopener noreferrer" className="post-rich-link">
                     {label}
                 </a>
-            );
+            ));
         } else if (rawText.startsWith('`') && rawText.endsWith('`')) {
             parts.push(<code key={`${keyPrefix}-${matchIndex}`}>{rawText.slice(1, -1)}</code>);
         } else if (rawText.startsWith('**') && rawText.endsWith('**')) {
@@ -74,12 +79,12 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     return parts;
 }
 
-function renderPlainText(text: string) {
+function renderPlainText(text: string, options: RenderInlineOptions = {}) {
     const lines = text.split('\n');
 
     return lines.map((line, lineIndex) => (
         <span key={lineIndex}>
-            {renderInline(line, `plain-${lineIndex}`)}
+            {renderInline(line, `plain-${lineIndex}`, options)}
             {lineIndex < lines.length - 1 && <br />}
         </span>
     ));
@@ -198,11 +203,11 @@ function parseMarkdown(text: string): MarkdownBlock[] {
     return blocks;
 }
 
-function renderMarkdown(text: string) {
+function renderMarkdown(text: string, options: RenderInlineOptions = {}) {
     return parseMarkdown(text).map((block, index) => {
         if (block.type === 'heading') {
             const HeadingTag = `h${block.level}` as 'h2' | 'h3' | 'h4';
-            return <HeadingTag key={index}>{renderInline(block.text, `heading-${index}`)}</HeadingTag>;
+            return <HeadingTag key={index}>{renderInline(block.text, `heading-${index}`, options)}</HeadingTag>;
         }
 
         if (block.type === 'paragraph') {
@@ -210,7 +215,7 @@ function renderMarkdown(text: string) {
                 <p key={index}>
                     {block.lines.map((line, lineIndex) => (
                         <span key={lineIndex}>
-                            {renderInline(line, `paragraph-${index}-${lineIndex}`)}
+                            {renderInline(line, `paragraph-${index}-${lineIndex}`, options)}
                             {lineIndex < block.lines.length - 1 && <br />}
                         </span>
                     ))}
@@ -223,7 +228,7 @@ function renderMarkdown(text: string) {
                 <blockquote key={index}>
                     {block.lines.map((line, lineIndex) => (
                         <span key={lineIndex}>
-                            {renderInline(line, `quote-${index}-${lineIndex}`)}
+                            {renderInline(line, `quote-${index}-${lineIndex}`, options)}
                             {lineIndex < block.lines.length - 1 && <br />}
                         </span>
                     ))}
@@ -244,7 +249,7 @@ function renderMarkdown(text: string) {
             return (
                 <ListTag key={index}>
                     {block.items.map((item, itemIndex) => (
-                        <li key={itemIndex}>{renderInline(item, `list-${index}-${itemIndex}`)}</li>
+                        <li key={itemIndex}>{renderInline(item, `list-${index}-${itemIndex}`, options)}</li>
                     ))}
                 </ListTag>
             );
@@ -254,13 +259,15 @@ function renderMarkdown(text: string) {
     });
 }
 
-export default function PostContentRenderer({ content, format, className = '' }: PostContentRendererProps) {
+export default function PostContentRenderer({ content, format, className = '', disableLinks = false }: PostContentRendererProps) {
     const normalizedFormat = normalizePostContentFormat(format);
     const rendererClassName = `post-content-renderer is-${normalizedFormat}${className ? ` ${className}` : ''}`;
 
     return (
         <div className={rendererClassName}>
-            {normalizedFormat === 'markdown' ? renderMarkdown(content) : renderPlainText(content)}
+            {normalizedFormat === 'markdown'
+                ? renderMarkdown(content, { disableLinks })
+                : renderPlainText(content, { disableLinks })}
         </div>
     );
 }

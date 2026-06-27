@@ -86,7 +86,7 @@ export default function ForumFeed({
     const [selectedTag, setSelectedTag] = useState<string>('all');
     const [newTitle, setNewTitle] = useState('');
     const [newContent, setNewContent] = useState('');
-    const [newContentFormat, setNewContentFormat] = useState<PostContentFormat>('plain');
+    const [newContentFormat, setNewContentFormat] = useState<PostContentFormat>('markdown');
     const [newTag, setNewTag] = useState('general');
     const [files, setFiles] = useState<ComposerImage[]>([]);
     const filesRef = useRef<ComposerImage[]>([]);
@@ -153,7 +153,7 @@ export default function ForumFeed({
             if (!hasDraft && !loading && !isPreparingImage && composerRef.current && !composerRef.current.contains(target)) {
                 setNewTitle('');
                 setNewContent('');
-                setNewContentFormat('plain');
+                setNewContentFormat('markdown');
                 setNewTag('general');
                 setFiles(current => {
                     current.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -371,7 +371,7 @@ export default function ForumFeed({
     const resetComposer = () => {
         setNewTitle('');
         setNewContent('');
-        setNewContentFormat('plain');
+        setNewContentFormat('markdown');
         setNewTag('general');
         setFiles(current => {
             current.forEach(item => URL.revokeObjectURL(item.previewUrl));

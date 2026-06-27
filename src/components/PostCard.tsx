@@ -419,7 +419,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const startEditing = () => {
         setEditTitle(displayTitle);
         setEditContent(displayContent);
-        setEditContentFormat(displayContentFormat);
+        setEditContentFormat('markdown');
         setEditTag(displayTag);
         setEditError('');
         setIsEditing(true);

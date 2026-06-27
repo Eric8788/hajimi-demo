@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Shell from '@/components/Shell';
 import Avatar from '@/components/Avatar';
 import UserBadges from '@/components/UserBadges';
+import PostContentRenderer from '@/components/PostContentRenderer';
 import { getSession } from '@/lib/auth';
 import { getArticleById, getUserById, type User } from '@/lib/db';
 
@@ -17,6 +18,19 @@ function formatDate(value?: Date | string | null) {
 
 function estimateReadMinutes(text: string) {
     return Math.max(1, Math.ceil(text.replace(/\s+/g, '').length / 420));
+}
+
+function stripMarkdownSyntax(text: string) {
+    return text
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+        .replace(/```[\s\S]*?```/g, match => match.replace(/```/g, ''))
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^>\s?/gm, '')
+        .replace(/^\s*[-*]\s+/gm, '')
+        .replace(/^\s*\d+[.)]\s+/gm, '')
+        .replace(/[*_`~]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function getSafeUser(user: User | null) {
@@ -65,7 +79,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
                         </div>
                     </div>
                     <h1>{article.title}</h1>
-                    {article.excerpt && <p>{article.excerpt}</p>}
+                    {article.excerpt && <p>{stripMarkdownSyntax(article.excerpt)}</p>}
                     <div className="article-read-actions">
                         <Link href={viewer?.id === article.author_id ? '/profile' : `/profile/${article.author_id}`}>
                             {'\u4f5c\u8005\u4e3b\u9875'}
@@ -79,11 +93,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
                 </header>
 
                 <section className="article-read-body glass-panel">
-                    {article.content.split(/\n{2,}/).map((paragraph, index) => (
-                        <p key={`${index}-${paragraph.slice(0, 12)}`}>
-                            {paragraph}
-                        </p>
-                    ))}
+                    <PostContentRenderer content={article.content} format="markdown" className="article-read-content" />
                 </section>
             </article>
         </Shell>
