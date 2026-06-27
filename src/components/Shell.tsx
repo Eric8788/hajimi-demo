@@ -11,7 +11,7 @@ import { isAdminRole } from '@/lib/roles';
 import { isReadOnlyRole } from '@/lib/access';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 
-const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet'];
+const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet', '/settings'];
 const SIDEBAR_STORAGE_KEY = 'hajimi-sidebar-expanded';
 
 function getRoleLabel(role?: string | null) {
@@ -287,11 +287,12 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 )}
                                 <button
                                     type="button"
-                                    className={`sidebar-settings-button sidebar-settings-action ${pathname === '/profile' ? 'is-active' : ''}`}
-                                    onClick={() => navigateTo('/profile')}
-                                    onPointerEnter={() => prefetchPath('/profile')}
-                                    onFocus={() => prefetchPath('/profile')}
+                                    className={`sidebar-settings-button sidebar-settings-action ${pathname === '/settings' ? 'is-active' : ''}`}
+                                    onClick={() => navigateTo('/settings')}
+                                    onPointerEnter={() => prefetchPath('/settings')}
+                                    onFocus={() => prefetchPath('/settings')}
                                     title="Settings"
+                                    aria-current={pathname === '/settings' ? 'page' : undefined}
                                 >
                                     <span aria-hidden="true">⚙️</span>
                                     <span className="sidebar-action-label">Set</span>
@@ -301,11 +302,12 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" />
                                 <button
                                     type="button"
-                                    className={`sidebar-settings-button sidebar-settings-action ${pathname === '/profile' ? 'is-active' : ''}`}
-                                    onClick={() => navigateTo('/profile')}
-                                    onPointerEnter={() => prefetchPath('/profile')}
-                                    onFocus={() => prefetchPath('/profile')}
+                                    className={`sidebar-settings-button sidebar-settings-action ${pathname === '/settings' ? 'is-active' : ''}`}
+                                    onClick={() => navigateTo('/settings')}
+                                    onPointerEnter={() => prefetchPath('/settings')}
+                                    onFocus={() => prefetchPath('/settings')}
                                     title="Settings"
+                                    aria-current={pathname === '/settings' ? 'page' : undefined}
                                 >
                                     <span aria-hidden="true">⚙️</span>
                                     <span className="sidebar-bottom-short-label">Set</span>

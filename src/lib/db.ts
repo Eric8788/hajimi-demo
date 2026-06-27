@@ -367,7 +367,7 @@ export interface Notification {
     id: number;
     recipient_id: number;
     actor_id: number;
-    type: 'post_like' | 'post_bookmark' | 'comment_like';
+    type: 'post_like' | 'post_bookmark' | 'comment_like' | 'post_comment' | 'comment_reply';
     post_id?: number | null;
     comment_id?: number | null;
     read_at?: Date | null;
@@ -378,6 +378,7 @@ export interface Notification {
     actor_avatar_theme?: string | null;
     post_title?: string;
     comment_content?: string | null;
+    target_comment_content?: string | null;
 }
 
 export interface AdminReviewTask {
@@ -2532,11 +2533,13 @@ export async function createComment(authorId: number, postId: number, content: s
         replyToId = rows[0]?.id ?? null;
     }
 
-    await sql`
+    const { rows } = await sql<{ id: number }>`
     INSERT INTO comments (author_id, post_id, content, parent_comment_id, attachment_url)
     VALUES (${authorId}, ${postId}, ${content}, ${replyToId}, ${attachmentUrl || ''})
+    RETURNING id
   `;
     await addPoints(authorId, 5);
+    return rows[0]?.id;
 }
 
 export async function togglePostLike(userId: number, postId: number): Promise<boolean> {
@@ -4376,6 +4379,46 @@ export async function createCommentLikeNotification(actorId: number, commentId: 
     });
 }
 
+export async function createCommentNotification(actorId: number, newCommentId: number) {
+    const { rows } = await sql<{ post_id: number; post_author_id: number; parent_comment_id: number | null; parent_author_id: number | null }>`
+      SELECT
+        comments.post_id,
+        posts.author_id as post_author_id,
+        comments.parent_comment_id,
+        parent_comments.author_id as parent_author_id
+      FROM comments
+      JOIN posts ON posts.id = comments.post_id
+      LEFT JOIN comments parent_comments ON parent_comments.id = comments.parent_comment_id
+      WHERE comments.id = ${newCommentId}
+      LIMIT 1
+    `;
+
+    const comment = rows[0];
+    if (!comment) return;
+
+    if (comment.parent_comment_id && comment.parent_author_id) {
+        await createNotification({
+            recipientId: comment.parent_author_id,
+            actorId,
+            type: 'comment_reply',
+            postId: comment.post_id,
+            commentId: newCommentId,
+        });
+
+        if (comment.post_author_id === comment.parent_author_id) {
+            return;
+        }
+    }
+
+    await createNotification({
+        recipientId: comment.post_author_id,
+        actorId,
+        type: 'post_comment',
+        postId: comment.post_id,
+        commentId: newCommentId,
+    });
+}
+
 export async function getNotifications(userId: number) {
     if (shouldAutoEnsureReadSchema()) {
         await ensureNotificationsTable();
@@ -4387,11 +4430,13 @@ export async function getNotifications(userId: number) {
         users.avatar_emoji as actor_avatar_emoji,
         users.avatar_theme as actor_avatar_theme,
         posts.title as post_title,
-        comments.content as comment_content
+        comments.content as comment_content,
+        parent_comments.content as target_comment_content
       FROM notifications
       JOIN users ON notifications.actor_id = users.id
       LEFT JOIN posts ON notifications.post_id = posts.id
       LEFT JOIN comments ON notifications.comment_id = comments.id
+      LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
       WHERE notifications.recipient_id = ${userId}
       ORDER BY notifications.created_at DESC
       LIMIT 20

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
+import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, createCommentNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -132,7 +132,10 @@ export async function POST(request: Request) {
 
             try {
                 attachmentUrl = await uploadCommentAttachment(userId, files[0] || null);
-                await createComment(userId, postId, commentText, parentCommentId ? Number(parentCommentId) : null, attachmentUrl);
+                const newCommentId = await createComment(userId, postId, commentText, parentCommentId ? Number(parentCommentId) : null, attachmentUrl);
+                if (newCommentId) {
+                    await createCommentNotification(userId, newCommentId);
+                }
             } catch (error) {
                 if (attachmentUrl) {
                     await deleteBlobUrls([attachmentUrl]);

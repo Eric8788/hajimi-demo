@@ -6896,17 +6896,23 @@ textarea:hover,
 }
 
 .wallet-page,
+.account-settings-page,
 .admin-coins-page {
   max-width: 1120px;
   margin: 0 auto;
 }
 
-.wallet-hero {
+.wallet-hero,
+.account-settings-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 22px;
   align-items: center;
   min-height: 156px;
+}
+
+.account-settings-page .profile-settings-panel {
+  margin: 18px 0 0;
 }
 
 .wallet-hero-balance {

@@ -20,6 +20,14 @@ function notificationText(notification: Notification) {
         return `${actor} saved ${title}`;
     }
 
+    if (notification.type === 'post_comment') {
+        return `${actor} commented on ${title}`;
+    }
+
+    if (notification.type === 'comment_reply') {
+        return `${actor} replied to your comment`;
+    }
+
     return `${actor} liked your comment`;
 }
 
@@ -30,7 +38,7 @@ function shortNotificationPreview(text?: string | null) {
 }
 
 function notificationHref(notification: Notification) {
-    if (notification.type === 'comment_like' && notification.post_id && notification.comment_id) {
+    if ((notification.type === 'comment_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && notification.post_id && notification.comment_id) {
         return `/resources#post-${notification.post_id}-comment-${notification.comment_id}`;
     }
 
@@ -46,6 +54,20 @@ function notificationPreview(notification: Notification) {
         const commentPreview = shortNotificationPreview(notification.comment_content);
         if (commentPreview) return `“${commentPreview}”`;
         if (notification.post_title) return `in 「${notification.post_title}」`;
+    }
+
+    if (notification.type === 'post_comment') {
+        const newCommentPreview = shortNotificationPreview(notification.comment_content);
+        if (newCommentPreview) return `New comment: “${newCommentPreview}”`;
+        if (notification.post_title) return `on 「${notification.post_title}」`;
+    }
+
+    if (notification.type === 'comment_reply') {
+        const replyPreview = shortNotificationPreview(notification.comment_content);
+        const targetPreview = shortNotificationPreview(notification.target_comment_content);
+        if (replyPreview && targetPreview) return `Reply: “${replyPreview}” to “${targetPreview}”`;
+        if (replyPreview) return `Reply: “${replyPreview}”`;
+        if (targetPreview) return `On your comment: “${targetPreview}”`;
     }
 
     return '';
@@ -251,7 +273,7 @@ export default function NotificationsBell({
         if (notifications.length === 0) {
             return (
                 <div className="notification-empty">
-                    Likes, saves and comment likes will show up here.
+                    Likes, saves, comments and replies will show up here.
                 </div>
             );
         }
