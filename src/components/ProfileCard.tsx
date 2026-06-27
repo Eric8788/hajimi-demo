@@ -1,10 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MutableRefObject, type PointerEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, type Post, type ProfileAnalytics, type ProfileAnalyticsDay, type Project } from '@/lib/db';
+import { User, type Article, type Post, type ProfileAnalytics, type ProfileAnalyticsDay, type Project } from '@/lib/db';
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
 import { formatHajimiId } from '@/lib/hajimiId';
@@ -64,6 +64,7 @@ type ProfileCardProps = {
     readOnly?: boolean;
     posts?: Post[];
     projects?: Project[];
+    articles?: Article[];
     analytics?: ProfileAnalytics;
     analyticsLoading?: boolean;
 };
@@ -155,7 +156,7 @@ function getPieSliceOffset(startAngle: number, endAngle: number, distance = 8) {
     };
 }
 
-export default function ProfilePage({ user, readOnly = false, posts = [], projects = [], analytics, analyticsLoading = false }: ProfileCardProps) {
+export default function ProfilePage({ user, readOnly = false, posts = [], projects = [], articles = [], analytics, analyticsLoading = false }: ProfileCardProps) {
     const router = useRouter();
     const trendChartRef = useRef<HTMLDivElement | null>(null);
     const trendHoverLineRef = useRef<HTMLSpanElement | null>(null);
@@ -170,6 +171,15 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
     const [activeContributionIndex, setActiveContributionIndex] = useState<number | null>(null);
+    const [articleList, setArticleList] = useState<Article[]>(articles);
+    const [isWritingArticle, setIsWritingArticle] = useState(false);
+    const [articleTitle, setArticleTitle] = useState('');
+    const [articleContent, setArticleContent] = useState('');
+    const [articleTag, setArticleTag] = useState('general');
+    const [shareArticleToForum, setShareArticleToForum] = useState(true);
+    const [articleSubmitting, setArticleSubmitting] = useState(false);
+    const [articleError, setArticleError] = useState('');
+    const [articleMessage, setArticleMessage] = useState('');
 
     const totalXp = Number(analytics?.visibleXp ?? user.points ?? 0);
     const displayLevel = Number(analytics?.displayLevel ?? Math.max(Number(user.level || 1), Math.floor(Math.sqrt(totalXp / 50)) + 1));
@@ -181,16 +191,19 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const xpToNext = analytics?.xpToNext ?? xpForNextLevel - totalXp;
     const profileImage = user.profile_image || '';
     const hajimiId = formatHajimiId(user.id);
-    const featuredPost = posts[0];
-    const recentPosts = posts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
+    const forumPosts = posts.filter(post => post.type !== 'article');
+    const featuredPost = forumPosts[0];
+    const recentPosts = forumPosts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
     const heroIntro = user.bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
-    const hasContent = posts.length > 0 || projects.length > 0 || profileImage || user.bio;
-    const postInteractionTotal = Number(analytics?.postInteractionTotal ?? posts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0));
+    const hasContent = forumPosts.length > 0 || articleList.length > 0 || projects.length > 0 || profileImage || user.bio;
+    const articleCharCount = articleContent.trim().length;
+    const postInteractionTotal = Number(analytics?.postInteractionTotal ?? forumPosts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0));
     const projectOpenTotal = Number(analytics?.projectOpenTotal ?? projects.reduce((sum, project) => sum + Number(project.open_count_total || 0), 0));
     const projectRatingCount = projects.reduce((sum, project) => sum + Number(project.rating_count || 0), 0);
     const creatorScore = Number(analytics?.creatorScore ?? Math.min(99, Math.round(
         projects.length * 12
-        + posts.length * 3
+        + forumPosts.length * 3
+        + articleList.length * 4
         + postInteractionTotal * 1.4
         + projectOpenTotal * 0.08
         + projectRatingCount * 2,
@@ -350,7 +363,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const topProjects = [...projects]
         .sort((a, b) => Number(b.open_count_total || 0) - Number(a.open_count_total || 0) || Number(b.rating_count || 0) - Number(a.rating_count || 0))
         .slice(0, 3);
-    const topPosts = [...posts]
+    const topPosts = [...forumPosts]
         .sort((a, b) => (Number(b.likes || 0) + Number(b.comment_count || 0)) - (Number(a.likes || 0) + Number(a.comment_count || 0)))
         .slice(0, 2);
     const rangeOptions: Array<{ value: AnalyticsRange; label: string }> = [
@@ -362,7 +375,17 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const activities = useMemo(() => {
         const items: { id: string; icon: string; title: string; meta: string; href?: string }[] = [];
 
-        posts.slice(0, 3).forEach(post => {
+        articleList.slice(0, 2).forEach(article => {
+            items.push({
+                id: `article-${article.id}`,
+                icon: '文',
+                title: `发布长文《${article.title}》`,
+                meta: formatDate(article.created_at) || '最近',
+                href: `/articles/${article.id}`,
+            });
+        });
+
+        forumPosts.slice(0, 3).forEach(post => {
             items.push({
                 id: `post-${post.id}`,
                 icon: '✍️',
@@ -390,7 +413,11 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         }
 
         return items.slice(0, 5);
-    }, [posts, projects, user.streak_count]);
+    }, [articleList, forumPosts, projects, user.streak_count]);
+
+    useEffect(() => {
+        setArticleList(articles);
+    }, [articles]);
 
     useEffect(() => () => {
         if (trendFrameRef.current) window.cancelAnimationFrame(trendFrameRef.current);
@@ -466,6 +493,53 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const hideContributionTooltip = () => {
         setActiveContributionIndex(null);
         hideTooltip(contributionTooltipRef.current, contributionFrameRef);
+    };
+
+    const handleCreateArticle = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const title = articleTitle.trim();
+        const content = articleContent.trim();
+        const tag = articleTag.trim().replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24) || 'general';
+
+        if (!title) {
+            setArticleError('请先写一个标题。');
+            return;
+        }
+
+        if (content.replace(/\s+/g, '').length < 20) {
+            setArticleError('长文正文至少需要 20 个字。');
+            return;
+        }
+
+        setArticleSubmitting(true);
+        setArticleError('');
+        setArticleMessage('');
+
+        const res = await fetch('/api/articles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title,
+                content,
+                tag,
+                shareToForum: shareArticleToForum,
+            }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data?.articleId) {
+            setArticleTitle('');
+            setArticleContent('');
+            setArticleTag('general');
+            setArticleMessage(shareArticleToForum ? '已发布，Forum 里也会出现卡片入口。' : '已发布到个人主页。');
+            router.refresh();
+            router.push(`/articles/${data.articleId}`);
+            return;
+        }
+
+        setArticleError(data?.error || '发布失败，请稍后再试。');
+        setArticleSubmitting(false);
     };
 
     const renderHero = () => {
@@ -883,7 +957,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <div className="profile-stat-grid">
                             <div><strong>Lv.{displayLevel}</strong><span>Level</span></div>
                             <div><strong>{formatNumber(totalXp)}</strong><span>XP</span></div>
-                            <div><strong>{posts.length}</strong><span>Posts</span></div>
+                            <div><strong>{forumPosts.length}</strong><span>Posts</span></div>
                             <div><strong>{projects.length}</strong><span>Projects</span></div>
                         </div>
                         <div className="profile-level-progress" aria-label={`Level progress ${progressPercent}%`}>
@@ -950,7 +1024,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                     <div className="profile-post-meta">
                                         <span>Personal note</span>
                                         <span>{projects.length} projects</span>
-                                        <span>{posts.length} posts</span>
+                                        <span>{forumPosts.length} posts</span>
                                     </div>
                                 </div>
                             </div>
@@ -960,6 +1034,99 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             <div className="profile-feed-label">Featured Post</div>
                             <h3>{readOnly ? '还没有置顶内容' : '写下你的第一篇主页内容'}</h3>
                             <p>{readOnly ? '这个主页还在生长中。' : '去 Forum 发第一篇帖子后，它会自动出现在这里。'}</p>
+                        </section>
+                    )}
+
+                    {(!readOnly || articleList.length > 0) && (
+                        <section className="profile-feed-section profile-article-section">
+                            <div className="profile-feed-heading">
+                                <div>
+                                    <span>Articles</span>
+                                    <h3>{'\u4e3b\u9875\u957f\u6587'}</h3>
+                                </div>
+                                {!readOnly && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsWritingArticle(current => !current);
+                                            setArticleError('');
+                                            setArticleMessage('');
+                                        }}
+                                    >
+                                        {isWritingArticle ? '\u6536\u8d77' : '\u5199\u957f\u6587'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {!readOnly && isWritingArticle && (
+                                <form className="profile-article-composer" onSubmit={handleCreateArticle}>
+                                    <input
+                                        className="glass-input"
+                                        value={articleTitle}
+                                        onChange={event => setArticleTitle(event.target.value)}
+                                        maxLength={120}
+                                        placeholder="\u6807\u9898"
+                                        required
+                                    />
+                                    <textarea
+                                        className="glass-input profile-article-content-input"
+                                        value={articleContent}
+                                        onChange={event => setArticleContent(event.target.value)}
+                                        maxLength={12000}
+                                        placeholder="\u6b63\u6587"
+                                        rows={10}
+                                        required
+                                    />
+                                    <div className="profile-article-composer-row">
+                                        <input
+                                            className="glass-input"
+                                            value={articleTag}
+                                            onChange={event => setArticleTag(event.target.value)}
+                                            maxLength={24}
+                                            placeholder="\u6807\u7b7e"
+                                            aria-label="Article tag"
+                                        />
+                                        <span>{articleCharCount}/12000</span>
+                                    </div>
+                                    <label className="profile-article-forum-toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={shareArticleToForum}
+                                            onChange={event => setShareArticleToForum(event.target.checked)}
+                                        />
+                                        <span>{'\u540c\u6b65\u5230 Forum \u4f5c\u4e3a\u5361\u7247'}</span>
+                                    </label>
+                                    {(articleError || articleMessage) && (
+                                        <div className={`profile-article-message${articleError ? ' is-error' : ''}`}>
+                                            {articleError || articleMessage}
+                                        </div>
+                                    )}
+                                    <div className="profile-article-actions">
+                                        <button type="submit" className="btn btn-primary" disabled={articleSubmitting}>
+                                            {articleSubmitting ? '\u53d1\u5e03\u4e2d...' : '\u53d1\u5e03\u957f\u6587'}
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+
+                            <div className="profile-article-list">
+                                {articleList.length > 0 ? articleList.map(article => (
+                                    <Link key={article.id} href={`/articles/${article.id}`} className="profile-article-list-item">
+                                        <div>
+                                            <h4>{article.title}</h4>
+                                            <p>{article.excerpt || getPreviewText(article.content, 126)}</p>
+                                            <div className="profile-post-meta">
+                                                <span>{getTagLabel(article.tag)}</span>
+                                                <span>{formatDate(article.created_at)}</span>
+                                                <span>{estimateReadMinutes(article.content)} min read</span>
+                                            </div>
+                                        </div>
+                                        <strong>{'\u9605\u8bfb\u5168\u6587'}</strong>
+                                    </Link>
+                                )) : (
+                                    <div className="profile-empty-row">{readOnly ? '\u6682\u65e0\u4e3b\u9875\u957f\u6587\u3002' : '\u8fd8\u6ca1\u6709\u957f\u6587\u3002'}</div>
+                                )}
+                            </div>
                         </section>
                     )}
 

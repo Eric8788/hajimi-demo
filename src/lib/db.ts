@@ -299,6 +299,7 @@ export type ProjectSubmissionInput = {
 export interface Post {
     id: number;
     author_id: number;
+    article_id?: number | null;
     title: string;
     content: string;
     content_format?: PostContentFormat;
@@ -327,6 +328,25 @@ export interface PostPage {
     posts: Post[];
     hasMore: boolean;
     nextOffset: number;
+}
+
+export interface Article {
+    id: number;
+    author_id: number;
+    title: string;
+    excerpt: string | null;
+    content: string;
+    tag: string;
+    forum_post_id?: number | null;
+    created_at: Date;
+    updated_at?: Date | null;
+    author_name?: string;
+    author_avatar?: string | null;
+    author_avatar_emoji?: string | null;
+    author_avatar_theme?: string | null;
+    author_role?: string | null;
+    author_badge_preferences?: string[] | null;
+    author_verification_status?: VerificationStatus | null;
 }
 
 export interface Comment {
@@ -2222,6 +2242,7 @@ export async function doCheckIn(userId: number) {
 
 let forumEnhancementsReady: Promise<void> | null = null;
 let bookmarksTableReady: Promise<void> | null = null;
+let articlesTableReady: Promise<void> | null = null;
 
 async function ensureForumEnhancements() {
     if (!forumEnhancementsReady) {
@@ -2229,6 +2250,7 @@ async function ensureForumEnhancements() {
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS attachment_urls JSONB DEFAULT '[]'::jsonb`;
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS content_format TEXT DEFAULT 'plain'`;
+            await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS article_id INTEGER`;
             await sql`UPDATE posts SET content_format = 'plain' WHERE content_format IS NULL OR content_format NOT IN ('plain', 'markdown')`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS attachment_url TEXT`;
@@ -2244,6 +2266,36 @@ async function ensureForumEnhancements() {
     }
 
     return forumEnhancementsReady;
+}
+
+async function ensureArticlesTable() {
+    if (!articlesTableReady) {
+        articlesTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS articles (
+                id SERIAL PRIMARY KEY,
+                author_id INTEGER NOT NULL REFERENCES users(id),
+                title TEXT NOT NULL,
+                excerpt TEXT,
+                content TEXT NOT NULL,
+                tag TEXT DEFAULT 'general',
+                forum_post_id INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE
+              );
+            `;
+            await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS excerpt TEXT`;
+            await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS tag TEXT DEFAULT 'general'`;
+            await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS forum_post_id INTEGER`;
+            await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
+            await ensureForumEnhancements();
+        })().catch(error => {
+            articlesTableReady = null;
+            throw error;
+        });
+    }
+
+    return articlesTableReady;
 }
 
 async function ensureBookmarksTable() {
@@ -2274,7 +2326,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
     }
 
     const { rows } = await sql`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
+      SELECT posts.id, posts.author_id, posts.article_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
       CASE
         WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
         WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
@@ -2367,7 +2419,7 @@ export async function getPostsPage(
     const safeLimit = Math.min(Math.max(Math.floor(Number(options.limit) || 15), 1), 30);
     const safeOffset = Math.max(Math.floor(Number(options.offset) || 0), 0);
     const { rows } = await sql<Post>`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
+      SELECT posts.id, posts.author_id, posts.article_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
       CASE
         WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
         WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
@@ -2455,7 +2507,7 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
     await ensureForumEnhancements();
 
     const { rows } = await sql`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
+      SELECT posts.id, posts.author_id, posts.article_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
       CASE
         WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
         WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
@@ -2568,6 +2620,114 @@ export async function createPostWithAttachments(authorId: number, title: string,
     }
 
     return rows[0]?.id;
+}
+
+function createArticleExcerpt(content: string, fallback = '') {
+    const compact = String(content || fallback || '').replace(/\s+/g, ' ').trim();
+    return compact.length > 180 ? `${compact.slice(0, 180)}...` : compact;
+}
+
+export async function getArticlesByAuthor(authorId: number, limit = 12) {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+    }
+    await ensureArticlesTable();
+
+    const { rows } = await sql<Article>`
+      SELECT
+        articles.id,
+        articles.author_id,
+        articles.title,
+        articles.excerpt,
+        articles.content,
+        articles.tag,
+        articles.forum_post_id,
+        articles.created_at,
+        articles.updated_at,
+        users.username as author_name,
+        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+        users.avatar_emoji as author_avatar_emoji,
+        users.avatar_theme as author_avatar_theme,
+        users.role as author_role,
+        users.badge_preferences as author_badge_preferences,
+        users.verification_status as author_verification_status
+      FROM articles
+      JOIN users ON articles.author_id = users.id
+      WHERE articles.author_id = ${authorId}
+      ORDER BY articles.created_at DESC
+      LIMIT ${limit}
+    `;
+
+    return rows;
+}
+
+export async function getArticleById(articleId: number) {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+    }
+    await ensureArticlesTable();
+
+    const { rows } = await sql<Article>`
+      SELECT
+        articles.id,
+        articles.author_id,
+        articles.title,
+        articles.excerpt,
+        articles.content,
+        articles.tag,
+        articles.forum_post_id,
+        articles.created_at,
+        articles.updated_at,
+        users.username as author_name,
+        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+        users.avatar_emoji as author_avatar_emoji,
+        users.avatar_theme as author_avatar_theme,
+        users.role as author_role,
+        users.badge_preferences as author_badge_preferences,
+        users.verification_status as author_verification_status
+      FROM articles
+      JOIN users ON articles.author_id = users.id
+      WHERE articles.id = ${articleId}
+      LIMIT 1
+    `;
+
+    return rows[0] || null;
+}
+
+export async function createArticle(authorId: number, title: string, content: string, tag = 'general', shareToForum = false) {
+    await ensureArticlesTable();
+    const excerpt = createArticleExcerpt(content, title);
+    const { rows } = await sql<{ id: number }>`
+      INSERT INTO articles (author_id, title, excerpt, content, tag)
+      VALUES (${authorId}, ${title}, ${excerpt}, ${content}, ${tag})
+      RETURNING id
+    `;
+    const articleId = rows[0]?.id;
+
+    if (!articleId) return null;
+
+    let forumPostId: number | null = null;
+    if (shareToForum) {
+        const forumContent = `${excerpt}\n\n${'\u9605\u8bfb\u5168\u6587'}\uff1a/articles/${articleId}`;
+        const { rows: postRows } = await sql<{ id: number }>`
+          INSERT INTO posts (author_id, article_id, title, content, content_format, type, tag, attachment_url, attachment_urls)
+          VALUES (${authorId}, ${articleId}, ${title}, ${forumContent}, 'plain', 'article', ${tag}, '', '[]'::jsonb)
+          RETURNING id
+        `;
+        forumPostId = postRows[0]?.id ?? null;
+
+        if (forumPostId) {
+            await sql`
+              UPDATE articles
+              SET forum_post_id = ${forumPostId}, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ${articleId}
+            `;
+        }
+    }
+
+    await addPoints(authorId, 10);
+
+    return { articleId, forumPostId };
 }
 
 export async function updatePost(userId: number, postId: number, title: string, content: string, tag: string, contentFormat: PostContentFormat = 'plain', canModerate = false): Promise<boolean> {
@@ -4742,6 +4902,7 @@ export async function initDB() {
       content TEXT NOT NULL,
       content_format TEXT DEFAULT 'plain',
       type TEXT DEFAULT 'text',
+      article_id INTEGER,
       tag TEXT DEFAULT 'general',
       attachment_url TEXT,
       attachment_urls JSONB DEFAULT '[]'::jsonb,
@@ -4763,6 +4924,7 @@ export async function initDB() {
   `;
 
     await ensureForumEnhancements();
+    await ensureArticlesTable();
 
     await sql`
     CREATE TABLE IF NOT EXISTS post_likes (

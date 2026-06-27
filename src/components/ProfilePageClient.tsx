@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import ProfileCard from './ProfileCard';
-import type { Post, ProfileAnalytics, Project, User } from '@/lib/db';
+import type { Article, Post, ProfileAnalytics, Project, User } from '@/lib/db';
 
 type ProfilePageClientProps = {
     user: User;
     posts: Post[];
     projects: Project[];
+    articles: Article[];
 };
 
-export default function ProfilePageClient({ user, posts, projects }: ProfilePageClientProps) {
+export default function ProfilePageClient({ user, posts, projects, articles }: ProfilePageClientProps) {
     const [analytics, setAnalytics] = useState<ProfileAnalytics | undefined>();
     const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
@@ -46,6 +47,7 @@ export default function ProfilePageClient({ user, posts, projects }: ProfilePage
             user={user}
             posts={posts}
             projects={projects}
+            articles={articles}
             analytics={analytics}
             analyticsLoading={analyticsLoading}
         />

@@ -31,6 +31,14 @@ function shortPreview(text?: string | null) {
     return compact.length > 80 ? `${compact.slice(0, 80)}...` : compact;
 }
 
+function articleCardPreview(text?: string | null) {
+    return shortPreview(
+        String(text || '')
+            .replace(/阅读全文[:：]\s*\/?articles\/\d+/gi, '')
+            .replace(/Read full article[:：]\s*\/?articles\/\d+/gi, ''),
+    );
+}
+
 function formatPostDate(value: Date | string) {
     return new Intl.DateTimeFormat('zh-CN', {
         month: 'short',
@@ -81,6 +89,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const canModerate = isAdminRole(currentUser?.role);
     const canDeletePost = !!currentUser && (post.author_id === currentUser.id || canModerate);
     const canEditPost = !!currentUser && post.author_id === currentUser.id;
+    const isArticleCard = post.type === 'article' && !!post.article_id;
     const [displayTitle, setDisplayTitle] = useState(post.title);
     const [displayContent, setDisplayContent] = useState(post.content);
     const [displayContentFormat, setDisplayContentFormat] = useState<PostContentFormat>(normalizePostContentFormat(post.content_format));
@@ -599,7 +608,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         verification_status: featuredComment.author_verification_status || undefined,
     } : null;
     const visibleComments = showComments ? comments : [];
-    const hasFeaturedPreview = !isEditing && !showComments && featuredComment && featuredCommentBadgeUser;
+    const hasFeaturedPreview = !isArticleCard && !isEditing && !showComments && featuredComment && featuredCommentBadgeUser;
     const commentComposer = canInteract ? (
         <form onSubmit={submitComment} className="comment-compose-form">
             {replyingTo && (
@@ -785,7 +794,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             </AnimatePresence>
                             {isBookmarked ? '⭐' : '☆'}
                         </motion.button>
-                        {canEditPost && (
+                        {canEditPost && !isArticleCard && (
                             <button
                                 onClick={startEditing}
                                 style={{
@@ -814,7 +823,28 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Content Body */}
             <div>
-                {isEditing ? (
+                {isArticleCard ? (
+                    <div className="forum-article-card">
+                        <span className="forum-article-card-mark">Article</span>
+                        <div className="forum-article-card-copy">
+                            <small>{'\u6765\u81ea\u4e2a\u4eba\u4e3b\u9875\u7684\u957f\u6587'}</small>
+                            <h3>{displayTitle}</h3>
+                            <p>{articleCardPreview(displayContent)}</p>
+                            <div className="forum-article-card-meta">
+                                <span>#{displayTag || 'general'}</span>
+                                <span>{formatPostDate(post.created_at)}</span>
+                                <span>{likes} likes</span>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            className="forum-article-open"
+                            onClick={() => router.push(`/articles/${post.article_id}`)}
+                        >
+                            {'\u9605\u8bfb\u5168\u6587'}
+                        </button>
+                    </div>
+                ) : isEditing ? (
                     <form onSubmit={saveEdit} className="post-edit-form">
                         <input
                             className="glass-input"
@@ -955,12 +985,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 </motion.button>
 
                 <button
-                    onClick={toggleComments}
+                    onClick={isArticleCard ? () => router.push(`/articles/${post.article_id}`) : toggleComments}
                     className="reaction-button"
                     style={{
                         position: 'relative',
                         background: 'none', border: 'none', cursor: 'pointer', color: '#636e72',
-                        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600
+                        display: isArticleCard ? 'none' : 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600
                     }}
                 >
                     <AnimatePresence>
@@ -989,7 +1019,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Comments Section (Always Rendered if Loaded) */}
             <AnimatePresence>
-                {(featuredCommentPreview || (showComments && commentsLoaded && comments.length > 0)) && (
+                {!isArticleCard && (featuredCommentPreview || (showComments && commentsLoaded && comments.length > 0)) && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -1102,7 +1132,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     </motion.div>
                 )}
                 {/* Always allow commenting even if no comments exist yet, if showComments is true */}
-                {showComments && comments.length === 0 && (
+                {!isArticleCard && showComments && comments.length === 0 && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
