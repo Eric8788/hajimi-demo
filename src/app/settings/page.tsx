@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import AccountSettingsPanel from '@/components/AccountSettingsPanel';
+import PublicProfileSettingsPanel from '@/components/PublicProfileSettingsPanel';
 import Shell from '@/components/Shell';
 import { getSession } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
@@ -19,11 +20,14 @@ export default async function SettingsPage() {
                 <div className="leaderboard-page-hero account-settings-hero">
                     <div>
                         <span>Settings</span>
-                        <h1>账号设置</h1>
-                        <p>管理登录、安全、认证与账号操作。公开主页内容请回到 Profile 使用 Edit 修改。</p>
+                        <h1>个人设置</h1>
+                        <p>统一管理公开主页、头像封面、badge、登录安全、Hajimi 认证和账号操作。</p>
                     </div>
                 </div>
-                <AccountSettingsPanel user={user} />
+                <div className="account-settings-sections">
+                    <PublicProfileSettingsPanel user={user} />
+                    <AccountSettingsPanel user={user} />
+                </div>
             </section>
         </Shell>
     );

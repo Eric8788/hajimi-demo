@@ -1,53 +1,15 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type MutableRefObject, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type PointerEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, type Post, type ProfileAnalytics, type ProfileAnalyticsDay, type Project } from '@/lib/db';
 import Avatar from './Avatar';
-import { getAvailableBadges, normalizeBadgePreferences, type BadgeId } from '@/lib/badges';
-import BadgePill from './BadgePill';
 import UserBadges from './UserBadges';
 import { formatHajimiId } from '@/lib/hajimiId';
-import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avatarThemes';
-import { clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getPostPrimaryAttachmentUrl } from '@/lib/forumAttachments';
-
-function loadAvatarImage(src: string) {
-    return new Promise<HTMLImageElement>((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject(new Error('Could not read avatar image'));
-        image.src = src;
-    });
-}
-
-function fileToDataUrl(file: File) {
-    return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = () => reject(new Error('Could not read this image.'));
-        reader.readAsDataURL(file);
-    });
-}
-
-async function compressProfileImage(file: File) {
-    const source = await fileToDataUrl(file);
-    const image = await loadAvatarImage(source);
-    const maxSize = 1200;
-    const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Could not prepare this image.');
-    context.drawImage(image, 0, 0, width, height);
-    return canvas.toDataURL('image/webp', 0.82);
-}
 
 function formatDate(value?: Date | string | null) {
     if (!value) return '';
@@ -195,25 +157,6 @@ function getPieSliceOffset(startAngle: number, endAngle: number, distance = 8) {
 
 export default function ProfilePage({ user, readOnly = false, posts = [], projects = [], analytics, analyticsLoading = false }: ProfileCardProps) {
     const router = useRouter();
-    const [bio, setBio] = useState(user.bio || '');
-    const [avatar, setAvatar] = useState(user.avatar || '😊');
-    const [avatarEmoji, setAvatarEmoji] = useState(user.avatar_emoji || user.avatar || '😊');
-    const [avatarTheme, setAvatarTheme] = useState<AvatarThemeId>((user.avatar_theme as AvatarThemeId) || 'lavender');
-    const [profileImage, setProfileImage] = useState(user.profile_image || '');
-    const [badgePreferences, setBadgePreferences] = useState<BadgeId[]>(normalizeBadgePreferences(user.badge_preferences));
-    const [isEditing, setIsEditing] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [avatarSource, setAvatarSource] = useState('');
-    const [avatarZoom, setAvatarZoom] = useState(1);
-    const [avatarOffsetX, setAvatarOffsetX] = useState(0);
-    const [avatarOffsetY, setAvatarOffsetY] = useState(0);
-    const [avatarError, setAvatarError] = useState('');
-    const [profileImageError, setProfileImageError] = useState('');
-    const [profileSaveError, setProfileSaveError] = useState('');
-    const [profileSaveMessage, setProfileSaveMessage] = useState('');
-    const dragState = useRef<{ pointerId: number | null; lastX: number; lastY: number }>({ pointerId: null, lastX: 0, lastY: 0 });
-    const avatarSettingsRef = useRef<HTMLElement | null>(null);
-    const avatarEmojiInputRef = useRef<HTMLInputElement | null>(null);
     const trendChartRef = useRef<HTMLDivElement | null>(null);
     const trendHoverLineRef = useRef<HTMLSpanElement | null>(null);
     const trendTooltipRef = useRef<HTMLDivElement | null>(null);
@@ -227,9 +170,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
     const [activeContributionIndex, setActiveContributionIndex] = useState<number | null>(null);
-    const [pendingAvatarFocus, setPendingAvatarFocus] = useState(false);
 
-    const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
     const totalXp = Number(analytics?.visibleXp ?? user.points ?? 0);
     const displayLevel = Number(analytics?.displayLevel ?? Math.max(Number(user.level || 1), Math.floor(Math.sqrt(totalXp / 50)) + 1));
     const xpForCurrentLevel = 50 * Math.pow(displayLevel - 1, 2);
@@ -238,21 +179,12 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const xpRequiredForLevel = xpForNextLevel - xpForCurrentLevel;
     const progressPercent = analytics?.progressPercent ?? Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
     const xpToNext = analytics?.xpToNext ?? xpForNextLevel - totalXp;
-    const savedProfile = useMemo(() => ({
-        bio: user.bio || '',
-        avatar: user.avatar || '😊',
-        avatarEmoji: user.avatar_emoji || user.avatar || '😊',
-        avatarTheme: (user.avatar_theme as AvatarThemeId) || 'lavender',
-        profileImage: user.profile_image || '',
-        badgePreferences: normalizeBadgePreferences(user.badge_preferences),
-    }), [user.avatar, user.avatar_emoji, user.avatar_theme, user.badge_preferences, user.bio, user.profile_image]);
-    const availableBadges = getAvailableBadges(user);
-    const profileUser = { ...user, avatar, avatar_emoji: avatarEmoji, avatar_theme: avatarTheme, bio, profile_image: profileImage, badge_preferences: badgePreferences };
+    const profileImage = user.profile_image || '';
     const hajimiId = formatHajimiId(user.id);
     const featuredPost = posts[0];
     const recentPosts = posts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
-    const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
-    const hasContent = posts.length > 0 || projects.length > 0 || profileImage || bio;
+    const heroIntro = user.bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
+    const hasContent = posts.length > 0 || projects.length > 0 || profileImage || user.bio;
     const postInteractionTotal = Number(analytics?.postInteractionTotal ?? posts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0));
     const projectOpenTotal = Number(analytics?.projectOpenTotal ?? projects.reduce((sum, project) => sum + Number(project.open_count_total || 0), 0));
     const projectRatingCount = projects.reduce((sum, project) => sum + Number(project.rating_count || 0), 0);
@@ -460,37 +392,6 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         return items.slice(0, 5);
     }, [posts, projects, user.streak_count]);
 
-    const toggleBadgePreference = (badgeId: BadgeId) => {
-        setBadgePreferences(current => {
-            if (current.includes(badgeId)) {
-                return current.filter(id => id !== badgeId);
-            }
-
-            return [...current, badgeId].slice(0, 3);
-        });
-    };
-
-    const hasProfileChanges = () => (
-        bio !== savedProfile.bio ||
-        avatar !== savedProfile.avatar ||
-        avatarEmoji !== savedProfile.avatarEmoji ||
-        avatarTheme !== savedProfile.avatarTheme ||
-        profileImage !== savedProfile.profileImage ||
-        JSON.stringify(badgePreferences) !== JSON.stringify(savedProfile.badgePreferences)
-    );
-
-    useEffect(() => {
-        if (!isEditing || !pendingAvatarFocus || readOnly) return;
-
-        const frameId = window.requestAnimationFrame(() => {
-            avatarSettingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            avatarEmojiInputRef.current?.focus({ preventScroll: true });
-            setPendingAvatarFocus(false);
-        });
-
-        return () => window.cancelAnimationFrame(frameId);
-    }, [isEditing, pendingAvatarFocus, readOnly]);
-
     useEffect(() => () => {
         if (trendFrameRef.current) window.cancelAnimationFrame(trendFrameRef.current);
         if (heatmapFrameRef.current) window.cancelAnimationFrame(heatmapFrameRef.current);
@@ -567,320 +468,48 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         hideTooltip(contributionTooltipRef.current, contributionFrameRef);
     };
 
-    const openAvatarEditor = () => {
-        if (readOnly) return;
-        setPendingAvatarFocus(true);
-        setIsEditing(true);
-    };
-
-    const handleCancelProfileEdit = () => {
-        setBio(savedProfile.bio);
-        setAvatar(savedProfile.avatar);
-        setAvatarEmoji(savedProfile.avatarEmoji);
-        setAvatarTheme(savedProfile.avatarTheme);
-        setProfileImage(savedProfile.profileImage);
-        setBadgePreferences(savedProfile.badgePreferences);
-        setAvatarSource('');
-        setAvatarError('');
-        setProfileImageError('');
-        setProfileSaveError('');
-        setProfileSaveMessage('');
-        setIsEditing(false);
-    };
-
-    const handleSavePublicProfile = async () => {
-        setProfileSaveError('');
-        setProfileSaveMessage('');
-
-        if (!hasProfileChanges()) {
-            setAvatarSource('');
-            setAvatarError('');
-            setProfileImageError('');
-            setIsEditing(false);
-            setProfileSaveMessage('没有新的修改，已回到主页。');
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            const res = await fetch('/api/profile', {
-                method: 'POST',
-                body: JSON.stringify({ bio, avatar, avatar_emoji: avatarEmoji, avatar_theme: avatarTheme, profile_image: profileImage, badge_preferences: badgePreferences }),
-            });
-            const data = await res.json().catch(() => null);
-
-            if (!res.ok || data?.error) {
-                setProfileSaveError(data?.error || '主页保存失败，请稍后再试。');
-                return;
-            }
-
-            clearCachedJson('avatars:');
-            setIsEditing(false);
-            setProfileSaveMessage('主页已更新。');
-            router.refresh();
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleAvatarFile = (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = '';
-        setAvatarError('');
-
-        if (!file) return;
-        if (!file.type.startsWith('image/')) {
-            setAvatarError('Please choose an image file.');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            setAvatarSource(String(reader.result || ''));
-            setAvatarZoom(1);
-            setAvatarOffsetX(0);
-            setAvatarOffsetY(0);
-        };
-        reader.onerror = () => setAvatarError('Could not read this image.');
-        reader.readAsDataURL(file);
-    };
-
-    const handleProfileImageFile = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = '';
-        setProfileImageError('');
-
-        if (!file) return;
-        if (!file.type.startsWith('image/')) {
-            setProfileImageError('Please choose an image file.');
-            return;
-        }
-        if (file.size > 8 * 1024 * 1024) {
-            setProfileImageError('Image must be 8 MB or smaller.');
-            return;
-        }
-
-        try {
-            setProfileImage(await compressProfileImage(file));
-        } catch {
-            setProfileImageError('Could not read this image. Try a smaller JPEG, PNG, or WebP file.');
-        }
-    };
-
-    const clampAvatarOffset = (value: number) => Math.max(-120, Math.min(120, value));
-
-    const handleAvatarDragStart = (event: PointerEvent<HTMLDivElement>) => {
-        if (!avatarSource) return;
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        dragState.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
-    };
-
-    const handleAvatarDragMove = (event: PointerEvent<HTMLDivElement>) => {
-        if (!avatarSource || dragState.current.pointerId !== event.pointerId) return;
-
-        const dx = event.clientX - dragState.current.lastX;
-        const dy = event.clientY - dragState.current.lastY;
-        dragState.current.lastX = event.clientX;
-        dragState.current.lastY = event.clientY;
-        setAvatarOffsetX(value => clampAvatarOffset(value + dx * 1.6));
-        setAvatarOffsetY(value => clampAvatarOffset(value + dy * 1.6));
-    };
-
-    const handleAvatarDragEnd = (event: PointerEvent<HTMLDivElement>) => {
-        if (dragState.current.pointerId !== event.pointerId) return;
-        dragState.current.pointerId = null;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-            event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-    };
-
-    const applyCroppedAvatar = async () => {
-        if (!avatarSource) return;
-        setAvatarError('');
-
-        try {
-            const image = await loadAvatarImage(avatarSource);
-            const canvas = document.createElement('canvas');
-            const size = 256;
-            canvas.width = size;
-            canvas.height = size;
-            const context = canvas.getContext('2d');
-            if (!context) throw new Error('Could not crop avatar');
-
-            context.clearRect(0, 0, size, size);
-            const baseScale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
-            const scale = baseScale * avatarZoom;
-            const width = image.naturalWidth * scale;
-            const height = image.naturalHeight * scale;
-            const x = (size - width) / 2 + avatarOffsetX;
-            const y = (size - height) / 2 + avatarOffsetY;
-
-            context.drawImage(image, x, y, width, height);
-            setAvatar(canvas.toDataURL('image/webp', 0.86));
-            setAvatarSource('');
-        } catch {
-            setAvatarError('Could not crop this image. Try another one.');
-        }
-    };
-
-    const renderAvatarEditor = (placement: 'hero' | 'panel' = 'panel') => (
-        <section className={`profile-avatar-settings profile-inline-editor${placement === 'hero' ? ' is-hero-avatar-editor' : ''}`} ref={avatarSettingsRef}>
-            <div className="profile-section-heading">
-                <h3>头像</h3>
-                <p>上传裁剪图片，或继续使用 emoji 头像。</p>
-            </div>
-            <div className="profile-avatar-editor-row">
-                <div
-                    className={`profile-avatar-frame ${avatarSource ? 'is-draggable' : ''}`}
-                    onPointerDown={handleAvatarDragStart}
-                    onPointerMove={handleAvatarDragMove}
-                    onPointerUp={handleAvatarDragEnd}
-                    onPointerCancel={handleAvatarDragEnd}
-                >
-                    {avatarSource ? (
-                        <img
-                            src={avatarSource}
-                            alt="Avatar crop preview"
-                            className="profile-avatar-crop-preview"
-                            style={{ transform: `translate(${avatarOffsetX * 0.62}px, ${avatarOffsetY * 0.62}px) scale(${avatarZoom})` }}
-                        />
-                    ) : (
-                        <Avatar value={avatar} fallback="😊" size={116} style={{ fontSize: '3.6rem' }} />
-                    )}
-                </div>
-                <div className="profile-avatar-editor">
-                    <label className="btn profile-avatar-upload">
-                        Upload image
-                        <input type="file" accept="image/*" onChange={handleAvatarFile} />
-                    </label>
-                    <input
-                        ref={avatarEmojiInputRef}
-                        value={avatarSource || avatarIsImage ? '' : avatar}
-                        onChange={e => setAvatar(e.target.value)}
-                        placeholder="Or emoji"
-                        className="glass-input"
-                        maxLength={4}
-                    />
-                    <div className="profile-avatar-inline-selects">
-                        <select value={avatarEmoji} onChange={e => { setAvatarEmoji(e.target.value); setAvatar(e.target.value); }} className="glass-input">
-                            {AVATAR_EMOJIS.map(emoji => (
-                                <option key={emoji} value={emoji}>{emoji}</option>
-                            ))}
-                        </select>
-                        <select value={avatarTheme} onChange={e => setAvatarTheme(e.target.value as AvatarThemeId)} className="glass-input">
-                            {AVATAR_THEME_IDS.map(theme => (
-                                <option key={theme} value={theme}>{theme}</option>
-                            ))}
-                        </select>
-                    </div>
-                    {avatarSource && (
-                        <div className="profile-avatar-crop-controls">
-                            <label>
-                                Zoom
-                                <input type="range" min="1" max="2.2" step="0.05" value={avatarZoom} onChange={e => setAvatarZoom(Number(e.target.value))} />
-                            </label>
-                            <div className="profile-editor-button-row">
-                                <button type="button" className="btn btn-primary" onClick={applyCroppedAvatar}>Use crop</button>
-                                <button type="button" className="btn profile-secondary-button" onClick={() => setAvatarSource('')}>Cancel image</button>
-                            </div>
-                        </div>
-                    )}
-                    {avatarSource && <div className="profile-avatar-drag-hint">Drag avatar to reposition</div>}
-                    {avatarError && <div className="profile-avatar-error">{avatarError}</div>}
-                </div>
-            </div>
-        </section>
-    );
-
     const renderHero = () => {
-        const canEditAvatar = !readOnly;
         const avatarContent = (
-            <Avatar value={avatar} fallback="😊" size={104} style={{ fontSize: '3.2rem' }} />
+            <Avatar
+                value={user.avatar}
+                emoji={user.avatar_emoji}
+                theme={user.avatar_theme}
+                fallback="😊"
+                size={104}
+                style={{ fontSize: '3.2rem' }}
+            />
         );
 
         return (
-        <section className={`profile-hero${isEditing && !readOnly ? ' is-editing' : ''}${profileImage ? ' has-profile-image' : ' is-default-banner'}`}>
+        <section className={`profile-hero${profileImage ? ' has-profile-image' : ' is-default-banner'}`}>
             <div className="profile-hero-media">
                 {profileImage ? (
-                    <img src={profileImage} alt={`${user.username}'s banner`} />
+                    <img src={getImageDisplayUrl(profileImage)} alt={`${user.username}'s banner`} />
                 ) : (
                     <div className="profile-hero-gradient" />
                 )}
             </div>
             <div className="profile-hero-shade" />
-            {isEditing && !readOnly && (
-                <div className="profile-hero-media-actions">
-                    <label className="profile-hero-button profile-hero-file-button">
-                        更换封面
-                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleProfileImageFile} />
-                    </label>
-                    {profileImage && (
-                        <button type="button" className="profile-hero-button" onClick={() => setProfileImage('')}>
-                            移除封面
-                        </button>
-                    )}
-                    {profileImageError && <span className="profile-hero-media-error">{profileImageError}</span>}
-                </div>
-            )}
             <div className="profile-hero-content">
-                {isEditing && !readOnly ? (
-                    <div className="profile-hero-avatar-editor-shell">
-                        {renderAvatarEditor('hero')}
-                    </div>
-                ) : canEditAvatar ? (
-                    <button type="button" className="profile-hero-avatar profile-hero-avatar-button" onClick={openAvatarEditor} aria-label="编辑头像">
-                        {avatarContent}
-                        <span className="profile-hero-avatar-hint">Edit</span>
-                    </button>
-                ) : (
-                    <div className="profile-hero-avatar">
-                        {avatarContent}
-                    </div>
-                )}
+                <div className="profile-hero-avatar">
+                    {avatarContent}
+                </div>
                 <div className="profile-hero-copy">
                     <div className="profile-hero-name-row">
                         <h2>{user.username}</h2>
-                        <UserBadges user={profileUser} />
+                        <UserBadges user={user} />
                     </div>
                     <p className="profile-hero-subtitle">{getRoleLabel(user)} · Hajimi ID {hajimiId}</p>
-                    {isEditing && !readOnly ? (
-                        <textarea
-                            value={bio}
-                            onChange={e => setBio(e.target.value)}
-                            placeholder="写一段主页介绍：最近在做什么、擅长什么、想认识什么同学。"
-                            className="glass-input profile-hero-bio-input"
-                            rows={3}
-                        />
-                    ) : (
-                        <p className="profile-hero-bio">{getPreviewText(heroIntro, 150)}</p>
-                    )}
+                    <p className="profile-hero-bio">{getPreviewText(heroIntro, 150)}</p>
                 </div>
                 {!readOnly && (
-                <div className="profile-hero-actions">
-                    {isEditing ? (
-                        <>
-                            <button type="button" className="profile-hero-button is-primary" onClick={handleSavePublicProfile} disabled={loading}>
-                                {loading ? '保存中' : '保存'}
-                            </button>
-                            <button type="button" className="profile-hero-button" onClick={handleCancelProfileEdit}>
-                                取消
-                            </button>
-                        </>
-                    ) : (
-                        <button type="button" className="profile-hero-button is-primary" onClick={() => setIsEditing(true)}>
+                    <div className="profile-hero-actions">
+                        <button type="button" className="profile-hero-button is-primary" onClick={() => router.push('/settings')}>
                             Edit
                         </button>
-                    )}
-                </div>
+                    </div>
                 )}
             </div>
-            {isEditing && !readOnly && (
-                <div className="profile-hero-edit-dock">
-                    {renderBadgeEditor()}
-                </div>
-            )}
         </section>
         );
     };
@@ -1235,42 +864,9 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         </section>
     );
 
-    const renderBadgeEditor = () => (
-        <section className="profile-badge-editor profile-inline-editor">
-            <div className="profile-section-heading">
-                <h3>主页 badge</h3>
-                <p>最多显示 3 个；管理员、老师、认证等身份仍会保留。</p>
-            </div>
-            <div className="profile-badge-options">
-                {availableBadges.map(badge => {
-                    const active = badgePreferences.includes(badge.id);
-                    const disabled = !active && badgePreferences.length >= 3;
-
-                    return (
-                        <button
-                            key={badge.id}
-                            type="button"
-                            className={`profile-badge-option${active ? ' is-active' : ''}`}
-                            onClick={() => toggleBadgePreference(badge.id)}
-                            disabled={disabled}
-                        >
-                            <BadgePill badge={badge} compact />
-                            <span>{active ? '显示中' : disabled ? '已满' : '显示'}</span>
-                        </button>
-                    );
-                })}
-            </div>
-        </section>
-    );
-
     return (
-        <div className={`profile-home${isEditing && !readOnly ? ' is-editing' : ''}`}>
+        <div className="profile-home">
             {renderHero()}
-            {!readOnly && (profileSaveError || profileSaveMessage) && (
-                <div className={`profile-save-toast ${profileSaveError ? 'is-error' : 'is-success'}`}>
-                    {profileSaveError || profileSaveMessage}
-                </div>
-            )}
             <div className="profile-home-grid">
                 <aside className="profile-home-sidebar">
                     <section className="profile-side-section">
@@ -1340,7 +936,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                 </div>
                             </Link>
                         </section>
-                    ) : (profileImage || bio) ? (
+                    ) : (profileImage || user.bio) ? (
                         <section className="profile-featured-post">
                             <div className="profile-feed-label">Profile Note</div>
                             <div className="profile-featured-content">

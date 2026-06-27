@@ -153,7 +153,7 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                 <div>
                     <span>Private Settings</span>
                     <h3>账号与认证</h3>
-                    <p>这里的信息只用于登录、安全和认证审核，不会出现在公开主页。公开主页资料请回到 Profile 使用 Edit 修改。</p>
+                    <p>这里的信息只用于登录、安全和认证审核，不会出现在公开主页。</p>
                 </div>
             </div>
 
@@ -161,8 +161,8 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                 <section className="profile-account-editor">
                     <div className="profile-account-head">
                         <div>
-                            <h4>账号设置</h4>
-                            <p>公开身份仍然只展示昵称和 Hajimi ID。</p>
+                            <h4>登录与安全</h4>
+                            <p>修改登录昵称或更新密码；公开主页显示内容在上方管理。</p>
                         </div>
                         <span>{hajimiId}</span>
                     </div>
@@ -269,12 +269,18 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
             </div>
 
             <div className="profile-danger-actions">
-                <button type="button" onClick={handleLogout} className="btn profile-logout-button" disabled={dangerLoading}>
-                    退出账号 / Log out
-                </button>
-                <button type="button" onClick={handleDeleteAccount} className="profile-delete-button" disabled={dangerLoading}>
-                    Delete My Account
-                </button>
+                <div>
+                    <strong>账号操作</strong>
+                    <span>退出登录或永久删除账号。</span>
+                </div>
+                <div className="profile-danger-button-row">
+                    <button type="button" onClick={handleLogout} className="btn profile-logout-button" disabled={dangerLoading}>
+                        退出账号 / Log out
+                    </button>
+                    <button type="button" onClick={handleDeleteAccount} className="profile-delete-button" disabled={dangerLoading}>
+                        Delete My Account
+                    </button>
+                </div>
             </div>
         </section>
     );
