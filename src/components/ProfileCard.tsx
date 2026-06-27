@@ -1,15 +1,51 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MutableRefObject, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, type Article, type Post, type ProfileAnalytics, type ProfileAnalyticsDay, type Project } from '@/lib/db';
 import Avatar from './Avatar';
+import BadgePill from './BadgePill';
 import UserBadges from './UserBadges';
+import { getAvailableBadges, normalizeBadgePreferences, type BadgeId } from '@/lib/badges';
 import { formatHajimiId } from '@/lib/hajimiId';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getPostPrimaryAttachmentUrl } from '@/lib/forumAttachments';
+
+function loadProfileImage(src: string) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Could not read image'));
+        image.src = src;
+    });
+}
+
+function fileToDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Could not read this image.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function compressProfileImage(file: File) {
+    const source = await fileToDataUrl(file);
+    const image = await loadProfileImage(source);
+    const maxSize = 1200;
+    const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Could not prepare this image.');
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL('image/webp', 0.82);
+}
 
 function formatDate(value?: Date | string | null) {
     if (!value) return '';
@@ -180,6 +216,14 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const [articleSubmitting, setArticleSubmitting] = useState(false);
     const [articleError, setArticleError] = useState('');
     const [articleMessage, setArticleMessage] = useState('');
+    const [bio, setBio] = useState(user.bio || '');
+    const [profileImage, setProfileImage] = useState(user.profile_image || '');
+    const [badgePreferences, setBadgePreferences] = useState<BadgeId[]>(normalizeBadgePreferences(user.badge_preferences));
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [profileImageError, setProfileImageError] = useState('');
+    const [profileSaveError, setProfileSaveError] = useState('');
+    const [profileSaveMessage, setProfileSaveMessage] = useState('');
+    const [profileSaving, setProfileSaving] = useState(false);
 
     const totalXp = Number(analytics?.visibleXp ?? user.points ?? 0);
     const displayLevel = Number(analytics?.displayLevel ?? Math.max(Number(user.level || 1), Math.floor(Math.sqrt(totalXp / 50)) + 1));
@@ -189,13 +233,12 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const xpRequiredForLevel = xpForNextLevel - xpForCurrentLevel;
     const progressPercent = analytics?.progressPercent ?? Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
     const xpToNext = analytics?.xpToNext ?? xpForNextLevel - totalXp;
-    const profileImage = user.profile_image || '';
     const hajimiId = formatHajimiId(user.id);
     const forumPosts = posts.filter(post => post.type !== 'article');
     const featuredPost = forumPosts[0];
     const recentPosts = forumPosts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
-    const heroIntro = user.bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
-    const hasContent = forumPosts.length > 0 || articleList.length > 0 || projects.length > 0 || profileImage || user.bio;
+    const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
+    const hasContent = forumPosts.length > 0 || articleList.length > 0 || projects.length > 0 || profileImage || bio;
     const articleCharCount = articleContent.trim().length;
     const postInteractionTotal = Number(analytics?.postInteractionTotal ?? forumPosts.reduce((sum, post) => sum + Number(post.likes || 0) + Number(post.comment_count || 0), 0));
     const projectOpenTotal = Number(analytics?.projectOpenTotal ?? projects.reduce((sum, project) => sum + Number(project.open_count_total || 0), 0));
@@ -372,6 +415,18 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         { value: 'month', label: '本月' },
         { value: 'custom', label: '自定义' },
     ];
+    const availableBadges = getAvailableBadges(user);
+    const profileUser = useMemo(() => ({
+        ...user,
+        bio,
+        profile_image: profileImage,
+        badge_preferences: badgePreferences,
+    }), [badgePreferences, bio, profileImage, user]);
+    const savedProfile = useMemo(() => ({
+        bio: user.bio || '',
+        profileImage: user.profile_image || '',
+        badgePreferences: normalizeBadgePreferences(user.badge_preferences),
+    }), [user.badge_preferences, user.bio, user.profile_image]);
     const activities = useMemo(() => {
         const items: { id: string; icon: string; title: string; meta: string; href?: string }[] = [];
 
@@ -495,6 +550,89 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         hideTooltip(contributionTooltipRef.current, contributionFrameRef);
     };
 
+    const hasProfileChanges = () => (
+        bio !== savedProfile.bio ||
+        profileImage !== savedProfile.profileImage ||
+        JSON.stringify(badgePreferences) !== JSON.stringify(savedProfile.badgePreferences)
+    );
+
+    const handleCancelProfileEdit = () => {
+        setBio(savedProfile.bio);
+        setProfileImage(savedProfile.profileImage);
+        setBadgePreferences(savedProfile.badgePreferences);
+        setProfileImageError('');
+        setProfileSaveError('');
+        setProfileSaveMessage('');
+        setIsEditingProfile(false);
+    };
+
+    const handleProfileImageFile = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        setProfileImageError('');
+
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setProfileImageError('Please choose an image file.');
+            return;
+        }
+        if (file.size > 8 * 1024 * 1024) {
+            setProfileImageError('Image must be 8 MB or smaller.');
+            return;
+        }
+
+        try {
+            setProfileImage(await compressProfileImage(file));
+        } catch {
+            setProfileImageError('Could not read this image. Try a smaller JPEG, PNG, or WebP file.');
+        }
+    };
+
+    const toggleBadgePreference = (badgeId: BadgeId) => {
+        setBadgePreferences(current => {
+            if (current.includes(badgeId)) {
+                return current.filter(id => id !== badgeId);
+            }
+
+            return [...current, badgeId].slice(0, 3);
+        });
+    };
+
+    const handleSavePublicProfile = async () => {
+        setProfileSaveError('');
+        setProfileSaveMessage('');
+
+        if (!hasProfileChanges()) {
+            setIsEditingProfile(false);
+            setProfileSaveMessage('没有新的主页修改。');
+            return;
+        }
+
+        setProfileSaving(true);
+        try {
+            const res = await fetch('/api/profile', {
+                method: 'POST',
+                body: JSON.stringify({
+                    bio,
+                    profile_image: profileImage,
+                    badge_preferences: badgePreferences,
+                }),
+            });
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok || data?.error) {
+                setProfileSaveError(data?.error || '主页保存失败，请稍后再试。');
+                return;
+            }
+
+            setIsEditingProfile(false);
+            setProfileSaveMessage('主页已更新。');
+            router.refresh();
+        } finally {
+            setProfileSaving(false);
+        }
+    };
+
     const handleCreateArticle = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const title = articleTitle.trim();
@@ -554,8 +692,10 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
             />
         );
 
+        const heroClassName = `profile-hero${profileImage ? ' has-profile-image' : ' is-default-banner'}${isEditingProfile && !readOnly ? ' is-inline-editing' : ''}`;
+
         return (
-        <section className={`profile-hero${profileImage ? ' has-profile-image' : ' is-default-banner'}`}>
+        <section className={heroClassName}>
             <div className="profile-hero-media">
                 {profileImage ? (
                     <img src={getImageDisplayUrl(profileImage)} alt={`${user.username}'s banner`} />
@@ -564,6 +704,20 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 )}
             </div>
             <div className="profile-hero-shade" />
+            {isEditingProfile && !readOnly && (
+                <div className="profile-hero-media-actions">
+                    <label className="profile-hero-button profile-hero-file-button">
+                        Upload cover
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleProfileImageFile} />
+                    </label>
+                    {profileImage && (
+                        <button type="button" className="profile-hero-button" onClick={() => setProfileImage('')}>
+                            Remove cover
+                        </button>
+                    )}
+                    {profileImageError && <div className="profile-hero-media-error">{profileImageError}</div>}
+                </div>
+            )}
             <div className="profile-hero-content">
                 <div className="profile-hero-avatar">
                     {avatarContent}
@@ -571,16 +725,77 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                 <div className="profile-hero-copy">
                     <div className="profile-hero-name-row">
                         <h2>{user.username}</h2>
-                        <UserBadges user={user} />
+                        <UserBadges user={profileUser} />
                     </div>
                     <p className="profile-hero-subtitle">{getRoleLabel(user)} · Hajimi ID {hajimiId}</p>
-                    <p className="profile-hero-bio">{getPreviewText(heroIntro, 150)}</p>
+                    {isEditingProfile && !readOnly ? (
+                        <>
+                            <label className="profile-hero-inline-label">
+                                Signature
+                                <textarea
+                                    value={bio}
+                                    onChange={event => setBio(event.target.value)}
+                                    placeholder="Write a short signature for your profile."
+                                    className="glass-input profile-hero-bio-input"
+                                    rows={3}
+                                />
+                            </label>
+                            <div className="profile-hero-inline-badges">
+                                <span>Badges</span>
+                                <div className="profile-badge-options">
+                                    {availableBadges.map(badge => {
+                                        const active = badgePreferences.includes(badge.id);
+                                        const disabled = !active && badgePreferences.length >= 3;
+
+                                        return (
+                                            <button
+                                                key={badge.id}
+                                                type="button"
+                                                className={`profile-badge-option${active ? ' is-active' : ''}`}
+                                                onClick={() => toggleBadgePreference(badge.id)}
+                                                disabled={disabled}
+                                            >
+                                                <BadgePill badge={badge} compact />
+                                                <span>{active ? 'Shown' : disabled ? 'Full' : 'Show'}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            {(profileSaveError || profileSaveMessage) && (
+                                <div className={`profile-hero-save-status ${profileSaveError ? 'is-error' : 'is-success'}`}>
+                                    {profileSaveError || profileSaveMessage}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <p className="profile-hero-bio">{getPreviewText(heroIntro, 150)}</p>
+                    )}
                 </div>
                 {!readOnly && (
                     <div className="profile-hero-actions">
-                        <button type="button" className="profile-hero-button is-primary" onClick={() => router.push('/settings')}>
-                            Edit
-                        </button>
+                        {isEditingProfile ? (
+                            <>
+                                <button type="button" className="profile-hero-button" onClick={handleCancelProfileEdit} disabled={profileSaving}>
+                                    Cancel
+                                </button>
+                                <button type="button" className="profile-hero-button is-primary" onClick={handleSavePublicProfile} disabled={profileSaving}>
+                                    {profileSaving ? 'Saving...' : 'Save'}
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className="profile-hero-button is-primary"
+                                onClick={() => {
+                                    setProfileSaveError('');
+                                    setProfileSaveMessage('');
+                                    setIsEditingProfile(true);
+                                }}
+                            >
+                                Edit
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

@@ -4039,6 +4039,74 @@ textarea:hover,
   background: rgba(255,255,255,0.94);
 }
 
+.profile-hero.is-inline-editing {
+  overflow: hidden;
+}
+
+.profile-hero.is-inline-editing .profile-hero-content {
+  align-items: center;
+}
+
+.profile-hero.is-inline-editing .profile-hero-actions {
+  flex-wrap: wrap;
+}
+
+.profile-hero-inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  color: #636e72;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.profile-hero.has-profile-image .profile-hero-inline-label,
+.profile-hero.has-profile-image .profile-hero-inline-badges > span {
+  color: rgba(255,255,255,0.86);
+}
+
+.profile-hero-inline-badges {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.profile-hero-inline-badges > span {
+  color: #636e72;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.profile-hero-inline-badges .profile-badge-options {
+  gap: 8px;
+}
+
+.profile-hero-inline-badges .profile-badge-option {
+  padding: 7px 9px;
+  background: rgba(255,255,255,0.82);
+}
+
+.profile-hero-save-status {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.profile-hero-save-status.is-success {
+  color: #00a884;
+  background: rgba(0,184,148,0.12);
+  border: 1px solid rgba(0,184,148,0.24);
+}
+
+.profile-hero-save-status.is-error {
+  color: #d63031;
+  background: rgba(255,118,117,0.14);
+  border: 1px solid rgba(255,118,117,0.26);
+}
+
 .profile-hero-edit-dock {
   position: relative;
   z-index: 3;
@@ -5950,6 +6018,7 @@ textarea:hover,
   .profile-home-grid,
   .profile-settings-grid,
   .settings-public-profile-grid,
+  .settings-basic-profile-grid,
   .profile-analytics-overview-grid,
   .profile-analytics-grid,
   .profile-contribution-pie-wrap {
@@ -7507,6 +7576,33 @@ textarea:hover,
   grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
   gap: 16px;
   align-items: start;
+}
+
+.settings-basic-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.88fr) minmax(0, 1.12fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.settings-basic-profile-panel .profile-avatar-settings,
+.settings-basic-profile-panel .settings-profile-field-card {
+  min-width: 0;
+  height: 100%;
+}
+
+.settings-basic-profile-panel .profile-avatar-editor-row {
+  align-items: start;
+}
+
+.settings-basic-profile-panel .settings-profile-field-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.settings-basic-profile-panel .profile-field-label {
+  gap: 8px;
 }
 
 .settings-profile-preview,
