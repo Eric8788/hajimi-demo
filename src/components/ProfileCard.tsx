@@ -715,7 +715,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
             />
         );
 
-        const heroClassName = `profile-hero${profileImage ? ' has-profile-image' : ' is-default-banner'}${isEditingProfile && !readOnly ? ' is-inline-editing' : ''}`;
+        const heroClassName = `profile-hero${profileImage ? ' has-profile-image' : ' is-default-banner'}${isEditingProfile && !readOnly ? ' is-editing is-inline-editing' : ''}`;
 
         return (
         <section className={heroClassName}>
@@ -1177,7 +1177,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     );
 
     return (
-        <div className="profile-home">
+        <div className={`profile-home${isEditingProfile && !readOnly ? ' is-editing' : ''}`}>
             {renderHero()}
             <div className="profile-home-grid">
                 <aside className="profile-home-sidebar">
