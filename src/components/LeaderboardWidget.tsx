@@ -7,6 +7,8 @@ import { User } from '@/lib/db';
 import UserBadges from './UserBadges';
 import { cachedJson } from '@/lib/clientJsonCache';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
+import AnimatedNumber from '@/components/reactbits/AnimatedNumber';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
 const PODIUM_LABELS = ['🥇', '🥈', '🥉'];
 const WINDOW_TABS = [
@@ -86,14 +88,14 @@ export default function LeaderboardWidget({
 
     if (loading) {
         return (
-            <div className="glass-card full-width leaderboard-card leaderboard-card-loading">
+            <SpotlightCard className="glass-card full-width leaderboard-card leaderboard-card-loading" spotlightColor="rgba(108, 92, 231, 0.14)">
                 <p>Loading Hall of Fame...</p>
-            </div>
+            </SpotlightCard>
         );
     }
 
     return (
-        <div className="glass-card full-width leaderboard-card">
+        <SpotlightCard className="glass-card full-width leaderboard-card" spotlightColor="rgba(253, 121, 168, 0.16)">
             <div className="leaderboard-head">
                 <button type="button" className="leaderboard-title-button" onClick={() => router.push('/leaderboard')}>
                     <h3>🏆 Hall of Fame</h3>
@@ -146,7 +148,7 @@ export default function LeaderboardWidget({
                             </div>
                         </div>
                         <div className="leaderboard-score">
-                            <span>{user.points}</span>
+                            <AnimatedNumber value={user.points} />
                             <small>XP</small>
                         </div>
                     </div>
@@ -156,6 +158,6 @@ export default function LeaderboardWidget({
                     <p className="leaderboard-empty">{error || 'No students in the hall yet.'}</p>
                 )}
             </div>
-        </div>
+        </SpotlightCard>
     );
 }

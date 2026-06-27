@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import type { CoinWalletOverview } from '@/lib/db';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { clearCachedJsonKey, setCachedJson } from '@/lib/clientJsonCache';
+import AnimatedNumber from '@/components/reactbits/AnimatedNumber';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
 const COIN_BALANCE_CACHE_KEY = 'coins:wallet-balance';
 const COIN_BALANCE_CACHE_TTL_MS = 60000;
@@ -106,11 +108,11 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
 
     return (
         <div className="wallet-grid">
-            <section className="glass-panel wallet-card wallet-balance-card">
+            <SpotlightCard className="glass-panel wallet-card wallet-balance-card" spotlightColor="rgba(108, 92, 231, 0.2)">
                 <span>Available</span>
-                <strong>{overview.wallet.balance.toLocaleString()} H币</strong>
-                <p>累计获得 {overview.wallet.earned_total.toLocaleString()} · 已消费/冻结 {overview.wallet.spent_total.toLocaleString()}</p>
-            </section>
+                <strong><AnimatedNumber value={overview.wallet.balance} /> H币</strong>
+                <p>累计获得 <AnimatedNumber value={overview.wallet.earned_total} /> · 已消费/冻结 <AnimatedNumber value={overview.wallet.spent_total} /></p>
+            </SpotlightCard>
 
             <form className="glass-panel wallet-card wallet-redemption-card" onSubmit={submitRedemption}>
                 <div className="wallet-section-head">

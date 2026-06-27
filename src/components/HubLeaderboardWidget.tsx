@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import type { Project } from '@/lib/db';
 import { cachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
+import AnimatedNumber from '@/components/reactbits/AnimatedNumber';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
 import {
     getHubDisplayName,
     getHubRankingCopy,
@@ -25,12 +27,6 @@ type HubLeaderboardProject = Project & {
 function isValidCoverUrl(url: unknown) {
     if (typeof url !== 'string') return false;
     return /^https?:\/\//i.test(url.trim());
-}
-
-function formatNumber(value: unknown) {
-    const numberValue = Number(value || 0);
-    if (!Number.isFinite(numberValue)) return '0';
-    return new Intl.NumberFormat('zh-CN').format(Math.max(0, Math.round(numberValue)));
 }
 
 export default function HubLeaderboardWidget({
@@ -93,14 +89,14 @@ export default function HubLeaderboardWidget({
 
     if (loading) {
         return (
-            <div className="glass-card full-width leaderboard-card leaderboard-card-loading">
+            <SpotlightCard className="glass-card full-width leaderboard-card leaderboard-card-loading" spotlightColor="rgba(55, 198, 208, 0.14)">
                 <p>Loading Hub Rankings...</p>
-            </div>
+            </SpotlightCard>
         );
     }
 
     return (
-        <div className="glass-card full-width leaderboard-card hub-rank-card">
+        <SpotlightCard className="glass-card full-width leaderboard-card hub-rank-card" spotlightColor="rgba(55, 198, 208, 0.18)">
             <div className="leaderboard-head hub-rank-head">
                 <div className="leaderboard-title-button hub-rank-title">
                     <h3>{rankingCopy.title}</h3>
@@ -173,13 +169,13 @@ export default function HubLeaderboardWidget({
                             <div className="hub-rank-metrics">
                                 {rankingMode === 'heat' ? (
                                     <>
-                                        <span><b>{formatNumber(stats.uniquePlayers)}</b> 人体验</span>
-                                        <span><b>{formatNumber(stats.effectiveOpens)}</b> 次有效进入</span>
+                                        <span><b><AnimatedNumber value={stats.uniquePlayers} /></b> 人体验</span>
+                                        <span><b><AnimatedNumber value={stats.effectiveOpens} /></b> 次有效进入</span>
                                     </>
                                 ) : (
                                     <>
-                                        <span><b>⭐ {Number(project.rating || 0).toFixed(1)}</b> {formatNumber(project.rating_count)} 评分</span>
-                                        <span><b>💬 {formatNumber(commentCount)}</b> 评论</span>
+                                        <span><b>⭐ {Number(project.rating || 0).toFixed(1)}</b> <AnimatedNumber value={project.rating_count} /> 评分</span>
+                                        <span><b>💬 <AnimatedNumber value={commentCount} /></b> 评论</span>
                                     </>
                                 )}
                             </div>
@@ -191,6 +187,6 @@ export default function HubLeaderboardWidget({
                     <p className="leaderboard-empty">{error || 'Hub 项目榜暂时还没有可展示项目。'}</p>
                 )}
             </div>
-        </div>
+        </SpotlightCard>
     );
 }

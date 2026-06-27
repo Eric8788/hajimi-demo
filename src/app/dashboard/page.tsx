@@ -10,6 +10,7 @@ import LeaderboardWidget from '@/components/LeaderboardWidget';
 import Avatar from '@/components/Avatar';
 import DashboardAlumniPreview from '@/components/DashboardAlumniPreview';
 import DashboardPromoCarousel from '@/components/DashboardPromoCarousel';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
 type DashboardGreeting = {
   title: string;
@@ -211,7 +212,7 @@ export default async function DashboardPage() {
       <section className="main-view dashboard-page">
 
         {/* Welcome Banner */}
-        <div className="glass-card full-width dashboard-welcome-card">
+        <SpotlightCard className="glass-card full-width dashboard-welcome-card" spotlightColor="rgba(108, 92, 231, 0.16)">
           <div className="dashboard-cat-mascot" aria-hidden="true" style={{ left: '-20px', opacity: 0.35 }} />
           
           <div className="dashboard-welcome-content">
@@ -225,7 +226,7 @@ export default async function DashboardPage() {
           <div className="dashboard-checkin-slot">
             <CheckInButton />
           </div>
-        </div>
+        </SpotlightCard>
 
         <DashboardPromoCarousel userRole={user.role} />
 
