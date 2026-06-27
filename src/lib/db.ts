@@ -2,6 +2,7 @@ import { db, sql, type VercelPoolClient } from '@vercel/postgres';
 import { hashStudentId, STUDENT_GRADES, type VerificationStatus, type VerificationType, type VerificationDraft } from './verification';
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 import { normalizeUsernameInput, validateUsername } from './accountValidation';
+import { normalizePostContentFormat, type PostContentFormat } from './forumContent';
 
 const AUTO_ENSURE_READ_SCHEMA = process.env.HAJIMI_AUTO_ENSURE_ON_READ === '1' || process.env.NODE_ENV !== 'production';
 
@@ -300,6 +301,7 @@ export interface Post {
     author_id: number;
     title: string;
     content: string;
+    content_format?: PostContentFormat;
     type: string;
     tag: string;
     attachment_url?: string;
@@ -2177,6 +2179,8 @@ async function ensureForumEnhancements() {
         forumEnhancementsReady = (async () => {
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE`;
             await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS attachment_urls JSONB DEFAULT '[]'::jsonb`;
+            await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS content_format TEXT DEFAULT 'plain'`;
+            await sql`UPDATE posts SET content_format = 'plain' WHERE content_format IS NULL OR content_format NOT IN ('plain', 'markdown')`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS attachment_url TEXT`;
             await sql`ALTER TABLE IF EXISTS post_likes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
@@ -2218,7 +2222,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
     await ensureForumEnhancements();
 
     const { rows } = await sql`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url,
+      SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
       CASE
         WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
         WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
@@ -2333,7 +2337,7 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
     await ensureForumEnhancements();
 
     const { rows } = await sql`
-      SELECT posts.id, posts.author_id, posts.title, posts.content, posts.type, posts.tag, posts.attachment_url,
+      SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
       CASE
         WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
         WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
@@ -2397,12 +2401,13 @@ export async function getComments(postId: number, userId?: number) {
     return rows as Comment[];
 }
 
-export async function createPost(authorId: number, title: string, content: string, type: string = 'text', attachmentUrl: string = '', tag: string = 'general') {
+export async function createPost(authorId: number, title: string, content: string, type: string = 'text', attachmentUrl: string = '', tag: string = 'general', contentFormat: PostContentFormat = 'plain') {
     await ensureForumEnhancements();
     const attachmentUrls = attachmentUrl ? [attachmentUrl] : [];
+    const normalizedContentFormat = normalizePostContentFormat(contentFormat);
     const { rows } = await sql`
-    INSERT INTO posts (author_id, title, content, type, attachment_url, attachment_urls, tag)
-    VALUES (${authorId}, ${title}, ${content}, ${type}, ${attachmentUrl}, ${JSON.stringify(attachmentUrls)}::jsonb, ${tag})
+    INSERT INTO posts (author_id, title, content, content_format, type, attachment_url, attachment_urls, tag)
+    VALUES (${authorId}, ${title}, ${content}, ${normalizedContentFormat}, ${type}, ${attachmentUrl}, ${JSON.stringify(attachmentUrls)}::jsonb, ${tag})
     RETURNING id
   `;
     const { rows: postCountRows } = await sql<{ post_count: number }>`
@@ -2421,13 +2426,14 @@ export async function createPost(authorId: number, title: string, content: strin
     return rows[0]?.id;
 }
 
-export async function createPostWithAttachments(authorId: number, title: string, content: string, type: string = 'text', attachmentUrls: string[] = [], tag: string = 'general') {
+export async function createPostWithAttachments(authorId: number, title: string, content: string, type: string = 'text', attachmentUrls: string[] = [], tag: string = 'general', contentFormat: PostContentFormat = 'plain') {
     await ensureForumEnhancements();
     const cleanAttachmentUrls = attachmentUrls.map(url => String(url || '').trim()).filter(Boolean);
     const firstAttachmentUrl = cleanAttachmentUrls[0] || '';
+    const normalizedContentFormat = normalizePostContentFormat(contentFormat);
     const { rows } = await sql`
-    INSERT INTO posts (author_id, title, content, type, attachment_url, attachment_urls, tag)
-    VALUES (${authorId}, ${title}, ${content}, ${type}, ${firstAttachmentUrl}, ${JSON.stringify(cleanAttachmentUrls)}::jsonb, ${tag})
+    INSERT INTO posts (author_id, title, content, content_format, type, attachment_url, attachment_urls, tag)
+    VALUES (${authorId}, ${title}, ${content}, ${normalizedContentFormat}, ${type}, ${firstAttachmentUrl}, ${JSON.stringify(cleanAttachmentUrls)}::jsonb, ${tag})
     RETURNING id
   `;
     const { rows: postCountRows } = await sql<{ post_count: number }>`
@@ -2446,8 +2452,9 @@ export async function createPostWithAttachments(authorId: number, title: string,
     return rows[0]?.id;
 }
 
-export async function updatePost(userId: number, postId: number, title: string, content: string, tag: string, canModerate = false): Promise<boolean> {
+export async function updatePost(userId: number, postId: number, title: string, content: string, tag: string, contentFormat: PostContentFormat = 'plain', canModerate = false): Promise<boolean> {
     await ensureForumEnhancements();
+    const normalizedContentFormat = normalizePostContentFormat(contentFormat);
 
     const { rows } = await sql<{ author_id: number }>`
       SELECT author_id
@@ -2460,7 +2467,7 @@ export async function updatePost(userId: number, postId: number, title: string, 
 
     await sql`
       UPDATE posts
-      SET title = ${title}, content = ${content}, tag = ${tag}, updated_at = CURRENT_TIMESTAMP
+      SET title = ${title}, content = ${content}, content_format = ${normalizedContentFormat}, tag = ${tag}, updated_at = CURRENT_TIMESTAMP
       WHERE id = ${postId}
     `;
 
@@ -4609,6 +4616,7 @@ export async function initDB() {
       author_id INTEGER NOT NULL REFERENCES users(id),
       title TEXT NOT NULL,
       content TEXT NOT NULL,
+      content_format TEXT DEFAULT 'plain',
       type TEXT DEFAULT 'text',
       tag TEXT DEFAULT 'general',
       attachment_url TEXT,

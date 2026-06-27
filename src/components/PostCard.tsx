@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useCallback, useState, useEffect, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
@@ -11,6 +11,7 @@ import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole 
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
 import PostTextComposer from './PostTextComposer';
+import PostContentRenderer from './PostContentRenderer';
 import { clearCachedJson } from '@/lib/clientJsonCache';
 import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
@@ -22,61 +23,7 @@ import {
     FORUM_COMPRESSIBLE_IMAGE_TYPES,
     MAX_FORUM_IMAGE_SIZE,
 } from '@/lib/clientImageUpload';
-
-const LINK_PATTERN = /\[([^\]]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g;
-
-function safeExternalUrl(url: string) {
-    try {
-        const parsed = new URL(url);
-        return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : '';
-    } catch {
-        return '';
-    }
-}
-
-function renderRichText(text: string) {
-    const lines = text.split('\n');
-
-    return lines.map((line, lineIndex) => {
-        const parts: ReactNode[] = [];
-        let lastIndex = 0;
-
-        for (const match of line.matchAll(LINK_PATTERN)) {
-            const matchIndex = match.index ?? 0;
-            if (matchIndex > lastIndex) {
-                parts.push(line.slice(lastIndex, matchIndex));
-            }
-
-            const rawHref = match[2] || match[3] || '';
-            const label = match[1] || match[3] || rawHref;
-            const href = safeExternalUrl(rawHref);
-            const rawText = match[0];
-
-            if (href) {
-                parts.push(
-                    <a key={`${lineIndex}-${matchIndex}`} href={href} target="_blank" rel="noopener noreferrer" className="post-rich-link">
-                        {label}
-                    </a>
-                );
-            } else {
-                parts.push(rawText);
-            }
-
-            lastIndex = matchIndex + rawText.length;
-        }
-
-        if (lastIndex < line.length) {
-            parts.push(line.slice(lastIndex));
-        }
-
-        return (
-            <span key={lineIndex}>
-                {parts}
-                {lineIndex < lines.length - 1 && <br />}
-            </span>
-        );
-    });
-}
+import { normalizePostContentFormat, type PostContentFormat } from '@/lib/forumContent';
 
 function shortPreview(text?: string | null) {
     if (!text) return '';
@@ -136,6 +83,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const canEditPost = !!currentUser && post.author_id === currentUser.id;
     const [displayTitle, setDisplayTitle] = useState(post.title);
     const [displayContent, setDisplayContent] = useState(post.content);
+    const [displayContentFormat, setDisplayContentFormat] = useState<PostContentFormat>(normalizePostContentFormat(post.content_format));
     const [displayTag, setDisplayTag] = useState(post.tag || 'general');
     const [displayUpdatedAt, setDisplayUpdatedAt] = useState<Date | string | undefined>(post.updated_at);
     const [featuredComment, setFeaturedComment] = useState(post.featured_comment ?? null);
@@ -171,6 +119,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState(post.title);
     const [editContent, setEditContent] = useState(post.content);
+    const [editContentFormat, setEditContentFormat] = useState<PostContentFormat>(normalizePostContentFormat(post.content_format));
     const [editTag, setEditTag] = useState(post.tag || 'general');
     const [savingEdit, setSavingEdit] = useState(false);
     const [editError, setEditError] = useState('');
@@ -263,14 +212,16 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     useEffect(() => {
         setDisplayTitle(post.title);
         setDisplayContent(post.content);
+        setDisplayContentFormat(normalizePostContentFormat(post.content_format));
         setDisplayTag(post.tag || 'general');
         setDisplayUpdatedAt(post.updated_at);
         setEditTitle(post.title);
         setEditContent(post.content);
+        setEditContentFormat(normalizePostContentFormat(post.content_format));
         setEditTag(post.tag || 'general');
         setCommentCount(post.comment_count || 0);
         setFeaturedComment(post.featured_comment ?? null);
-    }, [post.comment_count, post.content, post.featured_comment, post.tag, post.title, post.updated_at]);
+    }, [post.comment_count, post.content, post.content_format, post.featured_comment, post.tag, post.title, post.updated_at]);
 
     // Lock Body Scroll when Modal is Open
     useEffect(() => {
@@ -459,6 +410,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const startEditing = () => {
         setEditTitle(displayTitle);
         setEditContent(displayContent);
+        setEditContentFormat(displayContentFormat);
         setEditTag(displayTag);
         setEditError('');
         setIsEditing(true);
@@ -487,6 +439,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 postId: post.id,
                 title: editTitle,
                 content: editContent,
+                contentFormat: editContentFormat,
                 tag: editTag,
             }),
         });
@@ -495,6 +448,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             clearCachedJson('posts:');
             setDisplayTitle(editTitle.trim());
             setDisplayContent(editContent.trim());
+            setDisplayContentFormat(editContentFormat);
             setDisplayTag(editTag.trim().replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24) || 'general');
             setDisplayUpdatedAt(new Date());
             setIsEditing(false);
@@ -714,7 +668,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         </div>
                     )}
                     <div className="comment-content-line">
-                        {featuredComment.content && <span>{renderRichText(shortPreview(featuredComment.content))}</span>}
+                        {featuredComment.content && <PostContentRenderer content={shortPreview(featuredComment.content)} format="plain" />}
                         {featuredComment.attachment_url && (
                             <button
                                 type="button"
@@ -869,7 +823,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             maxLength={80}
                             required
                         />
-                        <PostTextComposer value={editContent} onChange={setEditContent} rows={6} />
+                        <PostTextComposer
+                            value={editContent}
+                            onChange={setEditContent}
+                            format={editContentFormat}
+                            onFormatChange={setEditContentFormat}
+                            rows={6}
+                        />
                         <div className="post-edit-helper">
                             <span>Links: select text and enter a domain like www.baidu.com</span>
                             <input
@@ -901,7 +861,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 lineHeight: '1.6',
                                 color: '#4a4a4a'
                             }}>
-                                <p style={{ whiteSpace: 'pre-wrap' }}>{renderRichText(displayContent)}</p>
+                                <PostContentRenderer content={displayContent} format={displayContentFormat} />
                                 {/* Fade Out Overlay if truncated */}
                                 {!expanded && displayContent.length > 150 && (
                                     <div style={{
@@ -1118,7 +1078,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                                     </div>
                                                 )}
                                                 <div className="comment-content-line" style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>
-                                                    {c.content && <span>{renderRichText(c.content)}</span>}
+                                                    {c.content && <PostContentRenderer content={c.content} format="plain" />}
                                                     {c.attachment_url && (
                                                         <button
                                                             type="button"

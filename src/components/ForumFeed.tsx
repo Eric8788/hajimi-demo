@@ -19,6 +19,7 @@ import {
     FORUM_COMPRESSIBLE_IMAGE_TYPES,
     MAX_FORUM_IMAGE_SIZE,
 } from '@/lib/clientImageUpload';
+import type { PostContentFormat } from '@/lib/forumContent';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -62,6 +63,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [selectedTag, setSelectedTag] = useState<string>('all');
     const [newTitle, setNewTitle] = useState('');
     const [newContent, setNewContent] = useState('');
+    const [newContentFormat, setNewContentFormat] = useState<PostContentFormat>('plain');
     const [newTag, setNewTag] = useState('general');
     const [files, setFiles] = useState<ComposerImage[]>([]);
     const filesRef = useRef<ComposerImage[]>([]);
@@ -123,6 +125,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
             if (!hasDraft && !loading && !isPreparingImage && composerRef.current && !composerRef.current.contains(target)) {
                 setNewTitle('');
                 setNewContent('');
+                setNewContentFormat('plain');
                 setNewTag('general');
                 setFiles(current => {
                     current.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -274,6 +277,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const resetComposer = () => {
         setNewTitle('');
         setNewContent('');
+        setNewContentFormat('plain');
         setNewTag('general');
         setFiles(current => {
             current.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -320,6 +324,7 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         const formData = new FormData();
         formData.append('title', newTitle);
         formData.append('content', newContent);
+        formData.append('contentFormat', newContentFormat);
         formData.append('tag', newTag.trim() || 'general');
         if (files.length > 0) {
             files.forEach(item => formData.append('files', item.file));
@@ -684,7 +689,12 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
                                 required
                                 style={{ fontWeight: 'bold', fontSize: '1.02rem' }}
                             />
-                            <PostTextComposer value={newContent} onChange={setNewContent} />
+                            <PostTextComposer
+                                value={newContent}
+                                onChange={setNewContent}
+                                format={newContentFormat}
+                                onFormatChange={setNewContentFormat}
+                            />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <label style={{ fontSize: '0.9rem', color: '#636e72', fontWeight: 700 }}>Hashtag（可选）</label>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

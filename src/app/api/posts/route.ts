@@ -6,6 +6,7 @@ import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage } from '@/lib/access';
 import { del, put } from '@vercel/blob';
 import { cachedServerValue, clearServerCache } from '@/lib/serverCache';
+import { normalizePostContentFormat } from '@/lib/forumContent';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
 const MAX_POST_ATTACHMENTS = 3;
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
         const formData = await request.formData();
         const title = String(formData.get('title') || '').trim();
         const content = String(formData.get('content') || '').trim();
+        const contentFormat = normalizePostContentFormat(formData.get('contentFormat'));
         let type = 'text';
         const tag = normalizeHashtag(formData.get('tag'));
         const files = getPostFiles(formData);
@@ -175,7 +177,7 @@ export async function POST(request: Request) {
         }
 
         try {
-            await createPostWithAttachments(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrls, tag);
+            await createPostWithAttachments(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrls, tag, contentFormat);
         } catch (error) {
             await cleanupUploadedBlobs(attachmentUrls);
             throw error;
@@ -209,6 +211,7 @@ export async function PATCH(request: Request) {
         const postId = Number(body.postId);
         const title = String(body.title || '').trim();
         const content = String(body.content || '').trim();
+        const contentFormat = normalizePostContentFormat(body.contentFormat);
         const tag = normalizeHashtag(body.tag || 'general');
 
         if (!postId || !title) {
@@ -223,7 +226,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Hashtags can use letters, numbers, Chinese characters, underscores, or hyphens' }, { status: 400 });
         }
 
-        const updated = await updatePost(userId, postId, title.slice(0, MAX_TITLE_LENGTH), content, tag);
+        const updated = await updatePost(userId, postId, title.slice(0, MAX_TITLE_LENGTH), content, tag, contentFormat);
         if (!updated) {
             return NextResponse.json({ error: 'Cannot edit post' }, { status: 403 });
         }

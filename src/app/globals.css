@@ -10572,6 +10572,105 @@ html *::after {
   border-bottom-color: rgba(0, 184, 148, 0.38);
 }
 
+.post-content-renderer {
+  overflow-wrap: anywhere;
+}
+
+.post-content-renderer > :first-child {
+  margin-top: 0;
+}
+
+.post-content-renderer > :last-child {
+  margin-bottom: 0;
+}
+
+.post-content-renderer.is-plain {
+  white-space: pre-wrap;
+}
+
+.post-content-renderer.is-markdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.post-content-renderer.is-markdown p {
+  margin: 0;
+}
+
+.post-content-renderer.is-markdown h2,
+.post-content-renderer.is-markdown h3,
+.post-content-renderer.is-markdown h4 {
+  margin: 0.18rem 0 0;
+  color: #2d3436;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.post-content-renderer.is-markdown h2 {
+  font-size: 1.16rem;
+}
+
+.post-content-renderer.is-markdown h3 {
+  font-size: 1.06rem;
+}
+
+.post-content-renderer.is-markdown h4 {
+  font-size: 0.98rem;
+}
+
+.post-content-renderer.is-markdown ul,
+.post-content-renderer.is-markdown ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.post-content-renderer.is-markdown li + li {
+  margin-top: 0.28rem;
+}
+
+.post-content-renderer.is-markdown blockquote {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 3px solid rgba(108,92,231,0.45);
+  border-radius: 0 12px 12px 0;
+  color: #4f5d64;
+  background: rgba(108,92,231,0.08);
+}
+
+.post-content-renderer.is-markdown code {
+  padding: 0.08rem 0.32rem;
+  border-radius: 6px;
+  color: #4f3bbd;
+  background: rgba(108,92,231,0.12);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+.post-content-renderer.is-markdown pre {
+  margin: 0;
+  padding: 0.82rem 0.95rem;
+  border-radius: 12px;
+  color: #f8f7ff;
+  background: #263238;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.post-content-renderer.is-markdown pre code {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.post-content-renderer.is-markdown hr {
+  width: 100%;
+  height: 1px;
+  margin: 0.2rem 0;
+  border: 0;
+  background: rgba(45,52,54,0.12);
+}
+
 .post-text-composer {
   position: relative;
   display: flex;
@@ -10582,6 +10681,7 @@ html *::after {
 .post-text-toolbar {
   min-height: 34px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 9px;
@@ -10593,9 +10693,44 @@ html *::after {
   font-weight: 700;
 }
 
+.post-format-toggle {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(108,92,231,0.12);
+}
+
+.post-format-toggle button,
+.post-preview-toggle {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #636e72;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.post-format-toggle button.is-active,
+.post-preview-toggle {
+  color: #fff;
+  background: linear-gradient(135deg, #8bd3dd, #6c5ce7);
+  box-shadow: 0 8px 18px rgba(108,92,231,0.14);
+}
+
+.post-format-toggle button:disabled,
+.post-preview-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .post-text-tool {
-  width: 28px;
+  min-width: 28px;
   height: 28px;
+  padding: 0 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10606,6 +10741,7 @@ html *::after {
   font-size: 0.95rem;
   cursor: pointer;
   transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  font-weight: 900;
 }
 
 .post-text-tool:hover,
@@ -10624,6 +10760,21 @@ html *::after {
 .post-text-input {
   resize: vertical;
   line-height: 1.55;
+}
+
+.post-markdown-preview {
+  min-height: 210px;
+  padding: 13px 14px;
+  border: 1px solid rgba(108,92,231,0.16);
+  border-radius: 16px;
+  color: #4a4a4a;
+  background: rgba(255,255,255,0.62);
+}
+
+.post-markdown-preview-empty {
+  color: #8a9296;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .post-link-popover {
@@ -10903,6 +11054,11 @@ html *::after {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.comment-content-line .post-content-renderer {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
 .comment-image-thumb {
