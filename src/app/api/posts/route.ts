@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getPosts, createPostWithAttachments, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
+import { getPosts, getPostsPage, createPostWithAttachments, updatePost, countAttachmentsByUser, countRecentAttachmentsByUser, getUserById } from '@/lib/db';
 import { isStaffRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage } from '@/lib/access';
@@ -67,10 +67,33 @@ export async function GET(request: Request) {
     const sort = (searchParams.get('sort') || 'time') as 'time' | 'heat' | 'likes';
     const filter = (searchParams.get('filter') || 'all') as 'all' | 'saved';
     const tag = searchParams.get('tag') || undefined;
+    const paged = searchParams.get('page') === '1';
+    const requestedLimit = Number(searchParams.get('limit') || 15);
+    const requestedOffset = Number(searchParams.get('offset') || 0);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 30) : 15;
+    const offset = Number.isFinite(requestedOffset) ? Math.max(Math.floor(requestedOffset), 0) : 0;
     const session = await getSession();
 
     try {
         const isPublicList = !session && filter === 'all';
+        if (paged) {
+            const page = isPublicList
+                ? await cachedServerValue(
+                    `posts:public-page:${sort}:${filter}:${tag || 'all'}:${limit}:${offset}`,
+                    30_000,
+                    () => getPostsPage(sort, undefined, filter, tag, { limit, offset }),
+                )
+                : await getPostsPage(sort, session ? Number(session.userId) : undefined, filter, tag, { limit, offset });
+
+            return NextResponse.json(page, {
+                headers: {
+                    'Cache-Control': isPublicList
+                        ? 'public, max-age=15, s-maxage=30, stale-while-revalidate=90'
+                        : 'private, no-cache, no-store, max-age=0, must-revalidate',
+                },
+            });
+        }
+
         const posts = isPublicList
             ? await cachedServerValue(
                 `posts:public:${sort}:${filter}:${tag || 'all'}`,

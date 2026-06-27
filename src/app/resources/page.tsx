@@ -1,6 +1,5 @@
 import { getSession } from '@/lib/auth';
-import { getUserById, type User } from '@/lib/db';
-import { Post } from '@/lib/db';
+import { getUserById, type PostPage, type User } from '@/lib/db';
 import Shell from '@/components/Shell';
 import ForumFeed from '@/components/ForumFeed';
 
@@ -19,10 +18,10 @@ export default async function Page() {
     const user = session ? await getUserById(Number(session.userId)) : null;
     const safeUser = getForumSafeUser(user);
 
-    let initialPosts: Post[] = [];
+    let initialPage: PostPage = { posts: [], hasMore: false, nextOffset: 0 };
     try {
-        const { getPosts } = await import('@/lib/db');
-        initialPosts = await getPosts('time', safeUser?.id);
+        const { getPostsPage } = await import('@/lib/db');
+        initialPage = await getPostsPage('time', safeUser?.id, 'all', undefined, { limit: 15, offset: 0 });
     } catch (err) {
         console.error(err);
     }
@@ -35,7 +34,7 @@ export default async function Page() {
                     <p style={{ opacity: 0.7 }}>Share resources, ask questions, or just hang out.</p>
                 </div>
 
-                <ForumFeed user={safeUser} initialPosts={initialPosts} />
+                <ForumFeed user={safeUser} initialPosts={initialPage.posts} initialHasMore={initialPage.hasMore} initialNextOffset={initialPage.nextOffset} />
             </div>
         </Shell>
     );

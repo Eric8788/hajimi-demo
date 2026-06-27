@@ -3,6 +3,14 @@
 import { useMemo, useState } from 'react';
 import type { CoinWalletOverview } from '@/lib/db';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
+import { clearCachedJsonKey, setCachedJson } from '@/lib/clientJsonCache';
+
+const COIN_BALANCE_CACHE_KEY = 'coins:wallet-balance';
+const COIN_BALANCE_CACHE_TTL_MS = 60000;
+
+function scopedCoinBalanceCacheKey(userId?: number | string | null) {
+    return `${COIN_BALANCE_CACHE_KEY}:${userId || 'guest'}`;
+}
 
 function formatTime(value: Date | string | null | undefined) {
     if (!value) return '';
@@ -38,12 +46,19 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
     const [submitting, setSubmitting] = useState(false);
 
     const visibleTransactions = useMemo(() => overview.transactions.slice(0, 30), [overview.transactions]);
+    const coinBalanceCacheKey = scopedCoinBalanceCacheKey(overview.wallet.user_id);
 
     const refreshWallet = async () => {
+        clearCachedJsonKey(coinBalanceCacheKey);
         const res = await fetch('/api/coins/wallet', { cache: 'no-store' });
         if (!res.ok) throw new Error('Wallet refresh failed');
         const data = await res.json();
         setOverview(data);
+        const nextBalance = Number(data?.wallet?.balance);
+        if (Number.isFinite(nextBalance)) {
+            setCachedJson(coinBalanceCacheKey, { wallet: { balance: nextBalance } }, COIN_BALANCE_CACHE_TTL_MS);
+            window.dispatchEvent(new CustomEvent('hajimi-wallet-balance', { detail: { balance: nextBalance } }));
+        }
     };
 
     const submitRedemption = async (event: React.FormEvent) => {

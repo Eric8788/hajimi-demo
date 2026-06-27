@@ -323,6 +323,12 @@ export interface Post {
     featured_comment?: FeaturedComment | null;
 }
 
+export interface PostPage {
+    posts: Post[];
+    hasMore: boolean;
+    nextOffset: number;
+}
+
 export interface Comment {
     id: number;
     post_id: number;
@@ -799,6 +805,32 @@ export async function getCoinWallet(userId: number): Promise<CoinWallet> {
     }
 }
 
+export async function getCoinWalletBalance(userId: number): Promise<CoinWallet> {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureCoinTables();
+    }
+
+    const { rows } = await sql<CoinWallet>`
+      SELECT
+        users.id as user_id,
+        COALESCE(coin_wallets.balance, 0)::int as balance,
+        COALESCE(coin_wallets.earned_total, 0)::int as earned_total,
+        COALESCE(coin_wallets.spent_total, 0)::int as spent_total,
+        COALESCE(coin_wallets.created_at, users.created_at) as created_at,
+        COALESCE(coin_wallets.updated_at, users.created_at) as updated_at
+      FROM users
+      LEFT JOIN coin_wallets ON coin_wallets.user_id = users.id
+      WHERE users.id = ${userId}
+      LIMIT 1
+    `;
+
+    if (!rows[0]) {
+        throw new Error('User not found');
+    }
+
+    return normalizeCoinWallet(rows[0]);
+}
+
 export async function getCoinWalletOverview(userId: number): Promise<CoinWalletOverview> {
     await ensureCoinTables();
 
@@ -1219,6 +1251,21 @@ export async function getUserById(id: number): Promise<User | null> {
     return rows[0] || null;
 }
 
+export async function getUserAccountRole(userId: number): Promise<{ role: string; account_status: AccountStatus } | null> {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureAdminAccountEnhancements();
+    }
+
+    const { rows } = await sql<{ role: string; account_status: AccountStatus }>`
+      SELECT role, COALESCE(account_status, 'active') as account_status
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+
+    return rows[0] || null;
+}
+
 export async function getPublicAvatars(userIds: number[]): Promise<PublicAvatar[]> {
     const ids = Array.from(new Set(userIds.map(id => Math.floor(Number(id))).filter(id => Number.isFinite(id) && id > 0))).slice(0, 80);
     if (ids.length === 0) return [];
@@ -1589,7 +1636,9 @@ export async function deleteUser(id: number) {
 }
 
 export async function isUserSessionActive(userId: number) {
-    await ensureUserProfileEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+    }
 
     const { rows } = await sql<{ account_status: string | null }>`
       SELECT COALESCE(account_status, 'active') as account_status
@@ -2184,6 +2233,9 @@ async function ensureForumEnhancements() {
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_comment_id INTEGER REFERENCES comments(id) ON DELETE SET NULL`;
             await sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS attachment_url TEXT`;
             await sql`ALTER TABLE IF EXISTS post_likes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_posts_tag_created ON posts(tag, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_posts_likes_created ON posts(likes DESC, created_at DESC)`;
+            await sql`CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_id, created_at ASC, id ASC)`;
             await ensureBookmarksTable();
         })().catch(error => {
             forumEnhancementsReady = null;
@@ -2218,8 +2270,8 @@ async function ensureBookmarksTable() {
 export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
     }
-    await ensureForumEnhancements();
 
     const { rows } = await sql`
       SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
@@ -2298,6 +2350,72 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
   `;
 
     return rows as Post[];
+}
+
+export async function getPostsPage(
+    sort: 'time' | 'heat' | 'likes' = 'time',
+    userId?: number,
+    filter: 'all' | 'saved' = 'all',
+    tag?: string,
+    options: { limit?: number; offset?: number } = {},
+): Promise<PostPage> {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+        await ensureForumEnhancements();
+    }
+
+    const safeLimit = Math.min(Math.max(Math.floor(Number(options.limit) || 15), 1), 30);
+    const safeOffset = Math.max(Math.floor(Number(options.offset) || 0), 0);
+    const { rows } = await sql<Post>`
+      SELECT posts.id, posts.author_id, posts.title, posts.content, COALESCE(posts.content_format, 'plain') as content_format, posts.type, posts.tag, posts.attachment_url,
+      CASE
+        WHEN jsonb_array_length(COALESCE(posts.attachment_urls, '[]'::jsonb)) > 0 THEN posts.attachment_urls
+        WHEN posts.attachment_url IS NOT NULL AND posts.attachment_url != '' THEN jsonb_build_array(posts.attachment_url)
+        ELSE '[]'::jsonb
+      END as attachment_urls,
+      posts.likes, posts.created_at, posts.updated_at,
+      users.username as author_name,
+      CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+      users.avatar_emoji as author_avatar_emoji,
+      users.role as author_role,
+      users.avatar_theme as author_avatar_theme,
+      users.badge_preferences as author_badge_preferences,
+      users.verification_status as author_verification_status,
+      (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
+      (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
+      NULL::json as featured_comment,
+      CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
+        EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
+      ELSE false END as is_bookmarked,
+      CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
+        EXISTS(SELECT 1 FROM post_likes WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
+      ELSE false END as has_liked
+      FROM posts
+      JOIN users ON posts.author_id = users.id
+      WHERE
+        (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
+        AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
+      ORDER BY
+        CASE WHEN ${tag ?? 'all'} = 'all' AND posts.tag = 'announcement' THEN 0 ELSE 1 END ASC,
+        CASE WHEN ${sort} = 'likes' THEN posts.likes END DESC,
+        CASE WHEN ${sort} = 'heat' THEN (
+          (
+            posts.likes * 2
+            + (SELECT COUNT(*) FROM comments WHERE post_id = posts.id) * 3
+            + (SELECT COUNT(*) FROM bookmarks WHERE post_id = posts.id) * 2
+          ) / POWER(GREATEST(EXTRACT(EPOCH FROM (NOW() - posts.created_at)) / 3600 + 2, 2), 0.35)
+        ) END DESC,
+        posts.created_at DESC
+      LIMIT ${safeLimit + 1}
+      OFFSET ${safeOffset}
+    `;
+
+    const posts = rows.slice(0, safeLimit) as Post[];
+    return {
+        posts,
+        hasMore: rows.length > safeLimit,
+        nextOffset: safeOffset + posts.length,
+    };
 }
 
 export async function getRecentPostHighlights(limit = 2) {
@@ -4302,6 +4420,12 @@ async function ensureNotificationsTable() {
             await sql`
               CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx
               ON notifications (recipient_id, created_at DESC);
+            `;
+
+            await sql`
+              CREATE INDEX IF NOT EXISTS notifications_unread_recipient_idx
+              ON notifications (recipient_id)
+              WHERE read_at IS NULL;
             `;
         })().catch(error => {
             notificationsTableReady = null;

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getAdminAuditHistory, getAdminReviewSummary, getNotifications, getUnreadNotificationCount, getUserById, markNotificationsRead } from '@/lib/db';
+import { getAdminAuditHistory, getAdminReviewSummary, getNotifications, getUnreadNotificationCount, getUserAccountRole, markNotificationsRead } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 
 export async function GET(request: Request) {
@@ -23,12 +23,12 @@ export async function GET(request: Request) {
             });
         }
 
-        const [user, notifications, unreadCount] = await Promise.all([
-            getUserById(userId),
+        const [account, notifications, unreadCount] = await Promise.all([
+            getUserAccountRole(userId),
             getNotifications(userId),
             getUnreadNotificationCount(userId),
         ]);
-        const isAdmin = user && isAdminRole(user.role);
+        const isAdmin = account && account.account_status !== 'disabled' && isAdminRole(account.role);
         const [reviewSummary, reviewHistory] = isAdmin
             ? await Promise.all([
                 getAdminReviewSummary(),

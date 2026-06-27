@@ -4,9 +4,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminAuditEvent, AdminReviewSummary, AdminReviewTask, Notification } from '@/lib/db';
+import { cachedJson, clearCachedJsonKey, getCachedJson, setCachedJson } from '@/lib/clientJsonCache';
 import Avatar from './Avatar';
 
 type NotificationTab = 'review' | 'activity' | 'all';
+type NotificationsResponse = {
+    notifications?: Notification[];
+    unreadCount?: number;
+    reviewSummary?: AdminReviewSummary | null;
+    reviewHistory?: AdminAuditEvent[];
+};
+
+const NOTIFICATIONS_CACHE_KEY = 'notifications:details';
+const NOTIFICATIONS_CACHE_TTL_MS = 60000;
+
+function scopedNotificationsCacheKey(userId?: number | string | null) {
+    return `${NOTIFICATIONS_CACHE_KEY}:${userId || 'guest'}`;
+}
 
 function notificationText(notification: Notification) {
     const actor = notification.actor_name || 'Someone';
@@ -85,18 +99,23 @@ function formatNotificationTime(value: Date | string | null | undefined) {
 export default function NotificationsBell({
     initialUnreadCount = 0,
     shortLabel,
+    userId,
 }: {
     initialUnreadCount?: number;
     shortLabel?: string;
+    userId?: number | string | null;
 }) {
     const router = useRouter();
     const popoverRef = useRef<HTMLDivElement | null>(null);
+    const latestPayloadRef = useRef<NotificationsResponse | null>(null);
+    const notificationsCacheKey = scopedNotificationsCacheKey(userId);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [reviewSummary, setReviewSummary] = useState<AdminReviewSummary | null>(null);
     const [reviewHistory, setReviewHistory] = useState<AdminAuditEvent[]>([]);
     const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
     const [activityTabCount, setActivityTabCount] = useState(initialUnreadCount);
     const [isOpen, setIsOpen] = useState(false);
+    const [hasLoadedDetails, setHasLoadedDetails] = useState(false);
     const [activeTab, setActiveTab] = useState<NotificationTab>('activity');
 
     const reviewCount = reviewSummary?.totalCount ?? 0;
@@ -107,11 +126,8 @@ export default function NotificationsBell({
         [reviewHistory.length, reviewSummary],
     );
 
-    const loadNotifications = useCallback(async () => {
-        const res = await fetch('/api/notifications', { cache: 'no-store' });
-        if (!res.ok) return;
-
-        const data = await res.json();
+    const applyNotificationsPayload = useCallback((data: NotificationsResponse) => {
+        latestPayloadRef.current = data;
         const nextUnreadCount = Number(data.unreadCount || 0);
         const nextReviewSummary = data.reviewSummary && typeof data.reviewSummary === 'object'
             ? data.reviewSummary as AdminReviewSummary
@@ -124,6 +140,7 @@ export default function NotificationsBell({
         setUnreadCount(nextUnreadCount);
         setReviewSummary(nextReviewSummary);
         setReviewHistory(Array.isArray(data.reviewHistory) ? data.reviewHistory : []);
+        setHasLoadedDetails(true);
         setActiveTab(current => {
             const hasReviewSurface = Boolean(nextReviewSummary) || (Array.isArray(data.reviewHistory) && data.reviewHistory.length > 0);
             if (!hasReviewSurface && current !== 'activity') return 'activity';
@@ -132,6 +149,22 @@ export default function NotificationsBell({
         });
         window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: nextUnreadCount } }));
     }, []);
+
+    const loadNotifications = useCallback(async (options: { force?: boolean } = {}) => {
+        if (options.force) clearCachedJsonKey(notificationsCacheKey);
+
+        try {
+            const data = await cachedJson<NotificationsResponse>(
+                notificationsCacheKey,
+                '/api/notifications',
+                NOTIFICATIONS_CACHE_TTL_MS,
+                { cache: 'no-store' },
+            );
+            applyNotificationsPayload(data);
+        } catch (error) {
+            console.warn('Notifications unavailable:', error);
+        }
+    }, [applyNotificationsPayload, notificationsCacheKey]);
 
     useEffect(() => {
         const syncTimer = window.setTimeout(() => {
@@ -143,18 +176,15 @@ export default function NotificationsBell({
     }, [initialUnreadCount]);
 
     useEffect(() => {
-        const initialLoad = window.setTimeout(loadNotifications, 3600);
-        const interval = window.setInterval(loadNotifications, 45000);
-
-        const handleRefresh = () => loadNotifications();
+        const handleRefresh = () => {
+            if (isOpen || hasLoadedDetails) void loadNotifications({ force: true });
+        };
         window.addEventListener('hajimi-notifications-refresh', handleRefresh);
 
         return () => {
-            window.clearTimeout(initialLoad);
-            window.clearInterval(interval);
             window.removeEventListener('hajimi-notifications-refresh', handleRefresh);
         };
-    }, [loadNotifications]);
+    }, [hasLoadedDetails, isOpen, loadNotifications]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -170,9 +200,25 @@ export default function NotificationsBell({
     }, [isOpen]);
 
     const markActivityRead = async () => {
-        if (unreadCount <= 0) return;
+        const unreadToMark = Math.max(unreadCount, Number(latestPayloadRef.current?.unreadCount || 0));
+        if (unreadToMark <= 0) return;
         setUnreadCount(0);
-        setNotifications(current => current.map(item => ({ ...item, read_at: item.read_at || new Date() })));
+        const readAt = new Date();
+        setNotifications(current => current.map(item => ({ ...item, read_at: item.read_at || readAt })));
+        if (latestPayloadRef.current) {
+            const readPayload: NotificationsResponse = {
+                ...latestPayloadRef.current,
+                unreadCount: 0,
+                notifications: latestPayloadRef.current.notifications?.map(item => ({
+                    ...item,
+                    read_at: item.read_at || readAt,
+                })),
+            };
+            latestPayloadRef.current = readPayload;
+            setCachedJson(notificationsCacheKey, readPayload, NOTIFICATIONS_CACHE_TTL_MS);
+        } else {
+            clearCachedJsonKey(notificationsCacheKey);
+        }
         window.dispatchEvent(new CustomEvent('hajimi-notifications-count', { detail: { unreadCount: 0 } }));
         await fetch('/api/notifications', { method: 'PATCH' });
     };
@@ -183,7 +229,9 @@ export default function NotificationsBell({
 
         if (nextOpen) {
             setActiveTab(hasReviewTasks || reviewHistory.length > 0 ? 'review' : 'activity');
-            await loadNotifications();
+            const cachedPayload = getCachedJson<NotificationsResponse>(notificationsCacheKey);
+            if (cachedPayload) applyNotificationsPayload(cachedPayload);
+            await loadNotifications({ force: unreadCount > 0 || !cachedPayload });
             await markActivityRead();
         }
     };

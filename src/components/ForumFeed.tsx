@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, type ChangeEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef, type ChangeEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Post, User } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostCard from './PostCard';
@@ -38,6 +38,7 @@ const CUSTOM_TAG_SUGGESTIONS = [
 ];
 
 const MAX_POST_IMAGE_COUNT = 3;
+const FORUM_PAGE_SIZE = 15;
 
 type ComposerImage = {
     id: string;
@@ -46,7 +47,29 @@ type ComposerImage = {
     status: string;
 };
 
-export default function ForumFeed({ user, initialPosts }: { user: User | null, initialPosts: Post[] }) {
+type PostsPageResponse = {
+    posts?: Post[];
+    hasMore?: boolean;
+    nextOffset?: number;
+};
+
+function getHashPostId() {
+    if (typeof window === 'undefined' || !window.location.hash) return null;
+    const match = window.location.hash.match(/^#post-(\d+)/);
+    return match ? Number(match[1]) : null;
+}
+
+export default function ForumFeed({
+    user,
+    initialPosts,
+    initialHasMore = false,
+    initialNextOffset = initialPosts.length,
+}: {
+    user: User | null;
+    initialPosts: Post[];
+    initialHasMore?: boolean;
+    initialNextOffset?: number;
+}) {
     const router = useRouter();
     const composerRef = useRef<HTMLFormElement | null>(null);
     const canPostAnnouncement = isStaffRole(user?.role);
@@ -70,6 +93,11 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
     const [fileStatus, setFileStatus] = useState('');
     const [isPreparingImage, setIsPreparingImage] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [isFeedLoading, setIsFeedLoading] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMorePosts, setHasMorePosts] = useState(initialHasMore);
+    const [nextOffset, setNextOffset] = useState(initialNextOffset);
+    const [feedError, setFeedError] = useState('');
     const [createError, setCreateError] = useState('');
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -203,35 +231,101 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
         };
     }, [avatarIdsKey, user]);
 
-    const fetchPosts = async (sort: string = sortType, filter: string = filterType, tag: string = selectedTag) => {
+    const fetchPostsPage = useCallback(async ({
+        sort = sortType,
+        filter = filterType,
+        tag = selectedTag,
+        offset = 0,
+        append = false,
+    }: {
+        sort?: string;
+        filter?: string;
+        tag?: string;
+        offset?: number;
+        append?: boolean;
+    } = {}) => {
         const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
-        const url = `/api/posts?sort=${sort}&filter=${filter}${tagParam}`;
-        const data = await cachedJson<Post[]>(
-            `posts:${user?.id || 'guest'}:${sort}:${filter}:${tag}`,
-            url,
-            user ? 15_000 : 45_000,
-            { cache: user ? 'no-store' : 'default' },
-        );
-        setPosts(data);
-    };
+        const url = `/api/posts?sort=${sort}&filter=${filter}${tagParam}&page=1&limit=${FORUM_PAGE_SIZE}&offset=${offset}`;
+        const cacheKey = `posts:${user?.id || 'guest'}:${sort}:${filter}:${tag}:${offset}`;
+
+        if (append) setIsLoadingMore(true);
+        else setIsFeedLoading(true);
+        setFeedError('');
+
+        try {
+            const data = await cachedJson<PostsPageResponse>(
+                cacheKey,
+                url,
+                user ? 15_000 : 45_000,
+                { cache: user ? 'no-store' : 'default' },
+            );
+            const nextPosts = Array.isArray(data.posts) ? data.posts : [];
+            setPosts(current => {
+                if (!append) return nextPosts;
+                const seen = new Set(current.map(post => Number(post.id)));
+                return [...current, ...nextPosts.filter(post => !seen.has(Number(post.id)))];
+            });
+            setHasMorePosts(Boolean(data.hasMore));
+            setNextOffset(Number(data.nextOffset || offset + nextPosts.length));
+            return data;
+        } catch (error) {
+            console.warn('Forum posts unavailable:', error);
+            setFeedError('帖子暂时加载失败，请稍后再试。');
+            return { posts: [], hasMore: false, nextOffset: offset } satisfies PostsPageResponse;
+        } finally {
+            if (append) setIsLoadingMore(false);
+            else setIsFeedLoading(false);
+        }
+    }, [filterType, selectedTag, sortType, user?.id]);
 
     const handleSortChange = (type: 'time' | 'heat' | 'likes') => {
         setSortType(type);
         setFilterType('all');
-        fetchPosts(type, 'all', selectedTag);
+        setHasMorePosts(false);
+        setNextOffset(0);
+        void fetchPostsPage({ sort: type, filter: 'all', tag: selectedTag, offset: 0 });
     };
 
     const handleFilterChange = (filter: 'all' | 'saved') => {
         if (filter === 'saved' && requireLogin()) return;
         setFilterType(filter);
-        fetchPosts(sortType, filter, selectedTag);
+        setHasMorePosts(false);
+        setNextOffset(0);
+        void fetchPostsPage({ sort: sortType, filter, tag: selectedTag, offset: 0 });
     };
 
     const handleTagFilter = (tag: string) => {
         setSelectedTag(tag);
         setFilterType('all');
-        fetchPosts(sortType, 'all', tag);
+        setHasMorePosts(false);
+        setNextOffset(0);
+        void fetchPostsPage({ sort: sortType, filter: 'all', tag, offset: 0 });
     };
+
+    const loadMorePosts = () => {
+        if (!hasMorePosts || isLoadingMore || isFeedLoading) return;
+        void fetchPostsPage({
+            sort: sortType,
+            filter: filterType,
+            tag: selectedTag,
+            offset: nextOffset,
+            append: true,
+        });
+    };
+
+    useEffect(() => {
+        const targetPostId = getHashPostId();
+        if (!targetPostId || posts.some(post => Number(post.id) === targetPostId)) return;
+        if (!hasMorePosts || isLoadingMore || isFeedLoading) return;
+
+        void fetchPostsPage({
+            sort: sortType,
+            filter: filterType,
+            tag: selectedTag,
+            offset: nextOffset,
+            append: true,
+        });
+    }, [fetchPostsPage, filterType, hasMorePosts, isFeedLoading, isLoadingMore, nextOffset, posts, selectedTag, sortType]);
 
     const handleTagRailDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (event.button !== 0 || event.pointerType === 'touch') return;
@@ -344,7 +438,9 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
             clearCachedJson('posts:');
             resetComposer();
-            await fetchPosts();
+            setHasMorePosts(false);
+            setNextOffset(0);
+            await fetchPostsPage({ sort: sortType, filter: filterType, tag: selectedTag, offset: 0 });
         } finally {
             setLoading(false);
         }
@@ -764,9 +860,34 @@ export default function ForumFeed({ user, initialPosts }: { user: User | null, i
 
             {/* Feed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                {isFeedLoading && posts.length === 0 && (
+                    <div className="glass-card forum-feed-status">Loading posts...</div>
+                )}
                 {posts.map(post => (
                     <PostCard key={post.id} post={post} currentUser={displayUser} onDeleted={handlePostDeleted} onGuestAction={() => setShowLoginPrompt(true)} />
                 ))}
+                {feedError && (
+                    <div className="forum-verification-callout">
+                        <span>{feedError}</span>
+                        <button type="button" onClick={() => fetchPostsPage({ sort: sortType, filter: filterType, tag: selectedTag, offset: 0 })}>Retry</button>
+                    </div>
+                )}
+                {posts.length > 0 && (
+                    <div className="forum-feed-footer">
+                        {hasMorePosts ? (
+                            <button
+                                type="button"
+                                className="forum-load-more-button"
+                                onClick={loadMorePosts}
+                                disabled={isLoadingMore || isFeedLoading}
+                            >
+                                {isLoadingMore ? 'Loading...' : 'Load more posts'}
+                            </button>
+                        ) : (
+                            <span className="forum-feed-end">You are all caught up.</span>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

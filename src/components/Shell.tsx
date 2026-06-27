@@ -10,9 +10,18 @@ import Avatar from './Avatar';
 import { isAdminRole } from '@/lib/roles';
 import { isReadOnlyRole } from '@/lib/access';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
+import { cachedJson, clearCachedJsonKey, setCachedJson } from '@/lib/clientJsonCache';
 
-const PREFETCH_PATHS = ['/dashboard', '/resources', '/functions', '/alumni-map', '/leaderboard', '/profile', '/wallet', '/settings'];
 const SIDEBAR_STORAGE_KEY = 'hajimi-sidebar-expanded';
+const NOTIFICATION_COUNT_POLL_MS = 180000;
+const NOTIFICATION_COUNT_CACHE_KEY = 'notifications:count';
+const NOTIFICATION_COUNT_CACHE_TTL_MS = 30000;
+const SIDEBAR_WALLET_CACHE_KEY = 'coins:wallet-balance';
+const SIDEBAR_WALLET_CACHE_TTL_MS = 60000;
+
+function scopedCacheKey(prefix: string, userId?: number | string | null) {
+    return `${prefix}:${userId || 'guest'}`;
+}
 
 function getRoleLabel(role?: string | null) {
     const normalizedRole = String(role || '').toLowerCase();
@@ -80,14 +89,18 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
             return;
         }
 
+        const walletCacheKey = scopedCacheKey(SIDEBAR_WALLET_CACHE_KEY, displayUser.id);
         const controller = new AbortController();
         const scheduleIdle = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1600));
         const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
         const idleId = scheduleIdle(async () => {
             try {
-                const res = await fetch('/api/coins/wallet', { cache: 'no-store', signal: controller.signal });
-                if (!res.ok) return;
-                const data = await res.json();
+                const data = await cachedJson<{ wallet?: { balance?: number } }>(
+                    walletCacheKey,
+                    '/api/coins/wallet?mode=balance',
+                    SIDEBAR_WALLET_CACHE_TTL_MS,
+                    { cache: 'no-store', signal: controller.signal },
+                );
                 setCoinBalance(Number(data?.wallet?.balance ?? 0));
             } catch (error) {
                 if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -99,6 +112,24 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
             controller.abort();
             cancelIdle(idleId);
         };
+    }, [displayUser?.id]);
+
+    useEffect(() => {
+        if (!displayUser?.id) return;
+
+        const walletCacheKey = scopedCacheKey(SIDEBAR_WALLET_CACHE_KEY, displayUser.id);
+        const handleWalletBalance = (event: Event) => {
+            const customEvent = event as CustomEvent<{ balance?: number }>;
+            const balance = Number(customEvent.detail?.balance);
+            if (!Number.isFinite(balance)) return;
+
+            const normalizedBalance = Math.max(0, Math.round(balance));
+            setCoinBalance(normalizedBalance);
+            setCachedJson(walletCacheKey, { wallet: { balance: normalizedBalance } }, SIDEBAR_WALLET_CACHE_TTL_MS);
+        };
+
+        window.addEventListener('hajimi-wallet-balance', handleWalletBalance);
+        return () => window.removeEventListener('hajimi-wallet-balance', handleWalletBalance);
     }, [displayUser?.id]);
 
     useEffect(() => {
@@ -124,23 +155,37 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         };
     }, [user]);
 
-    const loadUnreadCount = useCallback(async () => {
+    const loadUnreadCount = useCallback(async (options: { force?: boolean } = {}) => {
         if (!user) {
             setUnreadCount(0);
             return;
         }
+        if (document.visibilityState === 'hidden') return;
 
-        const res = await fetch('/api/notifications?mode=count', { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = await res.json();
-        setUnreadCount(Number(data.unreadCount || 0));
+        try {
+            const notificationCountCacheKey = scopedCacheKey(NOTIFICATION_COUNT_CACHE_KEY, user.id);
+            if (options.force) clearCachedJsonKey(notificationCountCacheKey);
+            const data = await cachedJson<{ unreadCount?: number }>(
+                notificationCountCacheKey,
+                '/api/notifications?mode=count',
+                NOTIFICATION_COUNT_CACHE_TTL_MS,
+                { cache: 'no-store' },
+            );
+            setUnreadCount(Number(data.unreadCount || 0));
+        } catch (error) {
+            console.warn('Notification count unavailable:', error);
+        }
     }, [user]);
 
     useEffect(() => {
         const scheduleIdle = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1800));
         const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
-        const initialLoad = scheduleIdle(loadUnreadCount, { timeout: 2600 });
-        const interval = window.setInterval(loadUnreadCount, 45000);
+        const initialLoad = scheduleIdle(() => {
+            void loadUnreadCount();
+        }, { timeout: 2600 });
+        const interval = window.setInterval(() => {
+            void loadUnreadCount();
+        }, NOTIFICATION_COUNT_POLL_MS);
 
         const handleNotificationCount = (event: Event) => {
             const customEvent = event as CustomEvent<{ unreadCount?: number }>;
@@ -149,27 +194,22 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
             }
         };
 
-        const handleRefresh = () => loadUnreadCount();
+        const handleRefresh = () => loadUnreadCount({ force: true });
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') void loadUnreadCount({ force: true });
+        };
         window.addEventListener('hajimi-notifications-count', handleNotificationCount);
         window.addEventListener('hajimi-notifications-refresh', handleRefresh);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             cancelIdle(initialLoad);
             window.clearInterval(interval);
             window.removeEventListener('hajimi-notifications-count', handleNotificationCount);
             window.removeEventListener('hajimi-notifications-refresh', handleRefresh);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [loadUnreadCount]);
-
-    useEffect(() => {
-        const scheduleIdle = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 1600));
-        const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
-        const idleId = scheduleIdle(() => {
-            PREFETCH_PATHS.forEach(prefetchPath);
-        }, { timeout: 3000 });
-
-        return () => cancelIdle(idleId);
-    }, [prefetchPath]);
 
     const navigateTo = (path: string) => {
         if (path === pathname) return;
@@ -270,7 +310,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 </span>
                             </button>
                             <div className="sidebar-quick-actions" aria-label="Account shortcuts">
-                                <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" />
+                                <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" userId={displayUser.id} />
                                 {!isReadOnlyUser && (
                                     <button
                                         type="button"
@@ -299,7 +339,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 </button>
                             </div>
                             <div className="sidebar-collapsed-actions" aria-label="Collapsed account shortcuts">
-                                <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" />
+                                <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" userId={displayUser.id} />
                                 <button
                                     type="button"
                                     className={`sidebar-settings-button sidebar-settings-action ${pathname === '/settings' ? 'is-active' : ''}`}

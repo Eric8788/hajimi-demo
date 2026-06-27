@@ -61,6 +61,13 @@ type ProjectGridProps = {
     canSubmitProjects?: boolean;
 };
 
+const COIN_BALANCE_CACHE_KEY = 'coins:wallet-balance';
+const COIN_BALANCE_CACHE_TTL_MS = 60000;
+
+function scopedCoinBalanceCacheKey(userId?: number | string | null) {
+    return `${COIN_BALANCE_CACHE_KEY}:${userId || 'guest'}`;
+}
+
 type HubProject = Project & {
     author?: string;
     accentColor?: string;
@@ -227,16 +234,15 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
         const controller = new AbortController();
         let active = true;
+        const coinBalanceCacheKey = scopedCoinBalanceCacheKey(user.id);
         setCoinBalanceLoaded(false);
 
-        fetch('/api/coins/wallet', {
-            signal: controller.signal,
-            cache: 'no-store',
-        })
-            .then(res => {
-                if (!res.ok) throw new Error('Coin wallet request failed');
-                return res.json();
-            })
+        cachedJson<{ wallet?: { balance?: number } }>(
+            coinBalanceCacheKey,
+            '/api/coins/wallet?mode=balance',
+            COIN_BALANCE_CACHE_TTL_MS,
+            { signal: controller.signal, cache: 'no-store' },
+        )
             .then(data => {
                 if (!active) return;
                 setLocalCoinBalance(Math.max(0, Math.round(Number(data?.wallet?.balance || 0))));
@@ -472,7 +478,9 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     const handleTipSuccess = (coinBalance: number) => {
-        setLocalCoinBalance(Math.max(0, Math.round(Number(coinBalance || 0))));
+        const nextBalance = Math.max(0, Math.round(Number(coinBalance || 0)));
+        setLocalCoinBalance(nextBalance);
+        window.dispatchEvent(new CustomEvent('hajimi-wallet-balance', { detail: { balance: nextBalance } }));
     };
 
     const toggleSavedFilter = () => {
