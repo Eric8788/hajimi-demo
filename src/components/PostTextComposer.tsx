@@ -8,6 +8,7 @@ import {
     type ClipboardEvent,
     type KeyboardEvent,
     type MouseEvent,
+    type PointerEvent,
 } from 'react';
 import { normalizePostContentFormat, type PostContentFormat } from '@/lib/forumContent';
 
@@ -19,6 +20,13 @@ type TextSelection = {
 type FloatingToolbarPosition = {
     left: number;
     top: number;
+};
+
+type LinkPopoverMode = 'insert' | 'edit';
+
+type LinkPreview = FloatingToolbarPosition & {
+    href: string;
+    text: string;
 };
 
 type PostTextComposerProps = {
@@ -79,6 +87,18 @@ function safeExternalUrl(url: string) {
     } catch {
         return '';
     }
+}
+
+function getClosestAnchor(target: EventTarget | null) {
+    if (!(target instanceof Element)) return null;
+    const anchor = target.closest('a');
+    return anchor instanceof HTMLAnchorElement ? anchor : null;
+}
+
+function updateAnchorTarget(anchor: HTMLAnchorElement, href: string) {
+    anchor.setAttribute('href', href);
+    anchor.setAttribute('target', '_blank');
+    anchor.setAttribute('rel', 'noopener noreferrer');
 }
 
 function renderInlineMarkdown(text: string) {
@@ -337,15 +357,22 @@ export default function PostTextComposer({
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const richEditorRef = useRef<HTMLDivElement | null>(null);
     const savedRichRangeRef = useRef<Range | null>(null);
+    const activeRichAnchorRef = useRef<HTMLAnchorElement | null>(null);
+    const editingRichAnchorRef = useRef<HTMLAnchorElement | null>(null);
     const isSelectingWithPointerRef = useRef(false);
     const toolbarFrameRef = useRef<number | null>(null);
+    const linkPreviewHideTimerRef = useRef<number | null>(null);
     const activeFormat = normalizePostContentFormat(format);
     const canSwitchFormat = !!onFormatChange;
     const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
+    const [linkPopoverMode, setLinkPopoverMode] = useState<LinkPopoverMode>('insert');
+    const [linkTextValue, setLinkTextValue] = useState('');
     const [linkValue, setLinkValue] = useState('');
     const [linkError, setLinkError] = useState('');
     const [savedSelection, setSavedSelection] = useState<TextSelection>({ start: 0, end: 0 });
     const [floatingToolbar, setFloatingToolbar] = useState<FloatingToolbarPosition | null>(null);
+    const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+    const [linkPopoverPosition, setLinkPopoverPosition] = useState<FloatingToolbarPosition | null>(null);
 
     const rememberSelection = () => {
         const textarea = textareaRef.current;
@@ -422,13 +449,74 @@ export default function PostTextComposer({
         });
     }, [updateFloatingToolbar]);
 
-    const handleRichPointerDown = () => {
+    const clearLinkPreviewTimer = useCallback(() => {
+        if (linkPreviewHideTimerRef.current !== null) {
+            window.clearTimeout(linkPreviewHideTimerRef.current);
+            linkPreviewHideTimerRef.current = null;
+        }
+    }, []);
+
+    const scheduleLinkPreviewHide = useCallback(() => {
+        clearLinkPreviewTimer();
+        linkPreviewHideTimerRef.current = window.setTimeout(() => {
+            linkPreviewHideTimerRef.current = null;
+            if (!isLinkPopoverOpen) {
+                setLinkPreview(null);
+                activeRichAnchorRef.current = null;
+            }
+        }, 180);
+    }, [clearLinkPreviewTimer, isLinkPopoverOpen]);
+
+    const getComposerPosition = useCallback((rect: DOMRect, placement: 'above' | 'below' = 'above') => {
+        const composer = richEditorRef.current?.closest('.post-text-composer');
+        const composerRect = composer?.getBoundingClientRect();
+        if (!composerRect) return null;
+
+        if (placement === 'below') {
+            const popoverWidth = Math.min(460, Math.max(260, composerRect.width - 16));
+            return {
+                left: Math.max(8, Math.min(rect.left - composerRect.left, composerRect.width - popoverWidth - 8)),
+                top: Math.max(8, rect.bottom - composerRect.top + 10),
+            };
+        }
+
+        return {
+            left: Math.max(12, rect.left - composerRect.left + rect.width / 2),
+            top: Math.max(8, rect.top - composerRect.top - 42),
+        };
+    }, []);
+
+    const showLinkPreview = useCallback((anchor: HTMLAnchorElement) => {
+        const editor = richEditorRef.current;
+        if (!editor || !editor.contains(anchor) || activeFormat !== 'markdown') return;
+
+        const href = safeExternalUrl(anchor.getAttribute('href') || anchor.href);
+        if (!href) return;
+
+        const position = getComposerPosition(anchor.getBoundingClientRect(), 'above');
+        if (!position) return;
+
+        clearLinkPreviewTimer();
+        activeRichAnchorRef.current = anchor;
+        setFloatingToolbar(null);
+        setLinkPreview({
+            ...position,
+            href,
+            text: normalizeEditorText(anchor.textContent || '').trim(),
+        });
+    }, [activeFormat, clearLinkPreviewTimer, getComposerPosition]);
+
+    const handleRichPointerDown = (event: PointerEvent<HTMLDivElement>) => {
         isSelectingWithPointerRef.current = true;
         if (toolbarFrameRef.current !== null) {
             window.cancelAnimationFrame(toolbarFrameRef.current);
             toolbarFrameRef.current = null;
         }
         setFloatingToolbar(null);
+        if (!getClosestAnchor(event.target) && !isLinkPopoverOpen) {
+            setLinkPreview(null);
+            activeRichAnchorRef.current = null;
+        }
     };
 
     useEffect(() => {
@@ -464,25 +552,68 @@ export default function PostTextComposer({
         };
     }, [activeFormat, scheduleFloatingToolbar]);
 
+    useEffect(() => {
+        return () => clearLinkPreviewTimer();
+    }, [clearLinkPreviewTimer]);
+
     const openLinkPopover = () => {
+        clearLinkPreviewTimer();
+        setLinkPopoverMode('insert');
+        editingRichAnchorRef.current = null;
+        setFloatingToolbar(null);
+        setLinkPreview(null);
+
+        let nextLinkText = '';
+        let nextPosition: FloatingToolbarPosition | null = null;
+
         if (activeFormat === 'markdown') {
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-                savedRichRangeRef.current = selection.getRangeAt(0).cloneRange();
+                const range = selection.getRangeAt(0);
+                savedRichRangeRef.current = range.cloneRange();
+                nextLinkText = normalizeEditorText(selection.toString()).trim();
+                nextPosition = getComposerPosition(range.getBoundingClientRect(), 'below');
             }
         } else {
-            rememberSelection();
+            const selection = rememberSelection();
+            nextLinkText = normalizeEditorText(value.slice(selection.start, selection.end)).trim();
         }
 
         setLinkError('');
+        setLinkTextValue(nextLinkText);
         setLinkValue('');
+        setLinkPopoverPosition(nextPosition);
         setIsLinkPopoverOpen(true);
     };
 
-    const closeLinkPopover = () => {
+    const openEditLinkPopover = (anchor: HTMLAnchorElement) => {
+        const href = safeExternalUrl(anchor.getAttribute('href') || anchor.href);
+        if (!href) return;
+
+        clearLinkPreviewTimer();
+        const position = getComposerPosition(anchor.getBoundingClientRect(), 'below');
+        activeRichAnchorRef.current = anchor;
+        editingRichAnchorRef.current = anchor;
+        setFloatingToolbar(null);
+        setLinkPreview(null);
+        setLinkPopoverMode('edit');
+        setLinkTextValue(normalizeEditorText(anchor.textContent || '').trim());
+        setLinkValue(href);
+        setLinkError('');
+        setLinkPopoverPosition(position);
+        setIsLinkPopoverOpen(true);
+    };
+
+    const closeLinkPopover = (restoreFocus = true) => {
         setIsLinkPopoverOpen(false);
+        setLinkPopoverMode('insert');
         setLinkError('');
         setLinkValue('');
+        setLinkTextValue('');
+        setLinkPopoverPosition(null);
+        editingRichAnchorRef.current = null;
+
+        if (!restoreFocus) return;
 
         if (activeFormat === 'markdown') {
             richEditorRef.current?.focus();
@@ -498,29 +629,50 @@ export default function PostTextComposer({
             return;
         }
 
+        const resolveLabel = (fallback: string) => normalizeLinkLabel(linkTextValue || fallback || href);
+
         if (activeFormat === 'markdown') {
+            if (linkPopoverMode === 'edit' && editingRichAnchorRef.current) {
+                const anchor = editingRichAnchorRef.current;
+                const label = resolveLabel(anchor.textContent || href);
+                updateAnchorTarget(anchor, href);
+                anchor.textContent = label;
+                updateFromRichEditor();
+                closeLinkPopover();
+                return;
+            }
+
             richEditorRef.current?.focus();
             if (restoreRange(savedRichRangeRef.current)) {
-                document.execCommand('createLink', false, href);
+                const selection = window.getSelection();
+                if (selection && selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const anchor = document.createElement('a');
+                    updateAnchorTarget(anchor, href);
+                    anchor.textContent = resolveLabel(selection.toString());
+                    range.deleteContents();
+                    range.insertNode(anchor);
+
+                    const nextRange = document.createRange();
+                    nextRange.setStartAfter(anchor);
+                    nextRange.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(nextRange);
+                }
                 updateFromRichEditor();
-                scheduleFloatingToolbar();
             }
-            setIsLinkPopoverOpen(false);
-            setLinkValue('');
-            setLinkError('');
+            closeLinkPopover();
             return;
         }
 
         const selection = savedSelection;
         const selectedText = value.slice(selection.start, selection.end);
-        const label = normalizeLinkLabel(selectedText);
+        const label = resolveLabel(selectedText);
         const insertion = `[${label}](${href})`;
         const nextValue = `${value.slice(0, selection.start)}${insertion}${value.slice(selection.end)}`;
 
         onChange(nextValue);
-        setIsLinkPopoverOpen(false);
-        setLinkValue('');
-        setLinkError('');
+        closeLinkPopover();
 
         window.requestAnimationFrame(() => {
             const textarea = textareaRef.current;
@@ -548,6 +700,26 @@ export default function PostTextComposer({
         document.execCommand('insertHTML', false, pastedHtml || escapeHtml(pastedText));
         updateFromRichEditor();
         scheduleFloatingToolbar();
+    };
+
+    const handleRichMouseOver = (event: MouseEvent<HTMLDivElement>) => {
+        if (disabled || isLinkPopoverOpen) return;
+        const anchor = getClosestAnchor(event.target);
+        if (anchor) showLinkPreview(anchor);
+    };
+
+    const handleRichMouseLeave = (event: MouseEvent<HTMLDivElement>) => {
+        if (getClosestAnchor(event.target)) {
+            scheduleLinkPreviewHide();
+        }
+    };
+
+    const handleRichClick = (event: MouseEvent<HTMLDivElement>) => {
+        const anchor = getClosestAnchor(event.target);
+        if (!anchor) return;
+
+        event.preventDefault();
+        if (!disabled) showLinkPreview(anchor);
     };
 
     const applyRichCommand = (command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'insertUnorderedList' | 'h2' | 'p' | 'blockquote' | 'pre' | 'code' | 'link') => {
@@ -638,6 +810,30 @@ export default function PostTextComposer({
                 </span>
             </div>
 
+            {activeFormat === 'markdown' && linkPreview && (
+                <div
+                    className="post-link-preview"
+                    style={{ left: linkPreview.left, top: linkPreview.top }}
+                    onMouseEnter={clearLinkPreviewTimer}
+                    onMouseLeave={scheduleLinkPreviewHide}
+                    onMouseDown={event => event.preventDefault()}
+                    role="toolbar"
+                    aria-label="Link options"
+                >
+                    <span title={linkPreview.href}>{linkPreview.href}</span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const anchor = activeRichAnchorRef.current;
+                            if (anchor) openEditLinkPopover(anchor);
+                        }}
+                        disabled={disabled}
+                    >
+                        Edit
+                    </button>
+                </div>
+            )}
+
             {activeFormat === 'markdown' ? (
                 <div className="post-rich-editor-wrap">
                     {floatingToolbar && (
@@ -673,6 +869,9 @@ export default function PostTextComposer({
                         onInput={updateFromRichEditor}
                         onPaste={handleRichPaste}
                         onPointerDown={handleRichPointerDown}
+                        onMouseOver={handleRichMouseOver}
+                        onMouseOut={handleRichMouseLeave}
+                        onClick={handleRichClick}
                         onKeyUp={scheduleFloatingToolbar}
                         onFocus={() => {
                             const editor = richEditorRef.current;
@@ -686,6 +885,7 @@ export default function PostTextComposer({
                                 const composer = richEditorRef.current?.closest('.post-text-composer');
                                 if (!composer || !activeElement || !composer.contains(activeElement)) {
                                     setFloatingToolbar(null);
+                                    setLinkPreview(null);
                                 }
                             }, 120);
                         }}
@@ -706,11 +906,34 @@ export default function PostTextComposer({
             )}
 
             {isLinkPopoverOpen && (
-                <div className="post-link-popover">
+                <div
+                    className={`post-link-popover${linkPopoverPosition ? ' is-floating' : ''}`}
+                    style={linkPopoverPosition ? { left: linkPopoverPosition.left, top: linkPopoverPosition.top } : undefined}
+                >
+                    <label>
+                        Text
+                        <input
+                            autoFocus
+                            value={linkTextValue}
+                            onChange={event => {
+                                setLinkTextValue(event.target.value);
+                                setLinkError('');
+                            }}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    insertLink();
+                                }
+                                if (event.key === 'Escape') {
+                                    closeLinkPopover();
+                                }
+                            }}
+                            placeholder="Link text"
+                        />
+                    </label>
                     <label>
                         Link
                         <input
-                            autoFocus
                             value={linkValue}
                             onChange={event => {
                                 setLinkValue(event.target.value);
@@ -730,8 +953,8 @@ export default function PostTextComposer({
                     </label>
                     {linkError && <div className="post-link-error">{linkError}</div>}
                     <div className="post-link-actions">
-                        <button type="button" onClick={closeLinkPopover}>Cancel</button>
-                        <button type="button" onClick={insertLink}>Insert</button>
+                        <button type="button" onClick={() => closeLinkPopover()}>Cancel</button>
+                        <button type="button" onClick={insertLink}>{linkPopoverMode === 'edit' ? 'Save' : 'Insert'}</button>
                     </div>
                 </div>
             )}
