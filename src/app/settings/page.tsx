@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import AccountSettingsPanel from '@/components/AccountSettingsPanel';
 import PublicProfileSettingsPanel from '@/components/PublicProfileSettingsPanel';
 import Shell from '@/components/Shell';
 import { getSession } from '@/lib/auth';
@@ -20,11 +21,12 @@ export default async function SettingsPage() {
                     <div>
                         <span>Settings</span>
                         <h1>个人设置</h1>
-                        <p>这里仅保留头像、昵称和个性签名；个人主页的背景图与 badge 请在 Profile 页点击 Edit 调整。</p>
+                        <p>统一管理公开资料、头像、登录安全、Hajimi 认证、退出登录和账号操作。</p>
                     </div>
                 </div>
                 <div className="account-settings-sections">
                     <PublicProfileSettingsPanel user={user} />
+                    <AccountSettingsPanel user={user} />
                 </div>
             </section>
         </Shell>
