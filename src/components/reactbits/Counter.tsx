@@ -28,10 +28,10 @@ type CounterProps = {
 
 const DEFAULT_PLACES: CounterPlace[] = [100, 10, 1];
 const SPRING_CONFIG = {
-    stiffness: 30,
-    damping: 18,
-    mass: 1.35,
-    restDelta: 0.001,
+    stiffness: 92,
+    damping: 24,
+    mass: 0.78,
+    restDelta: 0.01,
 };
 
 function NumberColumn({ mv, number, height }: { mv: ReturnType<typeof useSpring>; number: number; height: number }) {
