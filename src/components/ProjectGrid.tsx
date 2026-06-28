@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ALL_TAGS, type ProjectTag } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,6 +40,20 @@ const TAG_EMOJIS: Record<string, string> = {
     Simulation: '🌍', Visual: '👁️', Finance: '💰', 
     Narrative: '📖', Sailing: '⛵', Classroom: '🏫'
 };
+
+const PROJECT_CARD_TILT_AMPLITUDE = 10;
+const PROJECT_CARD_TILT_SCALE = 1.025;
+
+function resetProjectCardTilt(element: HTMLElement | null) {
+    if (!element) return;
+
+    element.style.setProperty('--project-tilt-x', '0deg');
+    element.style.setProperty('--project-tilt-y', '0deg');
+    element.style.setProperty('--project-tilt-scale', '1');
+    element.style.setProperty('--project-spot-x', '50%');
+    element.style.setProperty('--project-spot-y', '50%');
+    element.style.setProperty('--project-caption-opacity', '0');
+}
 
 type SpotlightKind = 'submit' | 'rewards' | 'galgame' | 'vocab' | 'cpaper' | 'ocean';
 
@@ -1239,6 +1253,7 @@ function ProjectCard({
     const [customTipAmount, setCustomTipAmount] = useState('');
     const [tipPending, setTipPending] = useState(false);
     const [tipMessage, setTipMessage] = useState('');
+    const cardRef = useRef<HTMLDivElement>(null);
     const displayAuthor = project.author_name
         ? (project.author_name.toLowerCase() === 'eric' ? 'AI Club' : project.author_name)
         : (project.author?.toLowerCase() === 'eric' ? 'AI Club' : project.author);
@@ -1255,6 +1270,10 @@ function ProjectCard({
         setCoverFailed(false);
     }, [coverUrl]);
 
+    useEffect(() => {
+        if (isFlipped) resetProjectCardTilt(cardRef.current);
+    }, [isFlipped]);
+
     const openBack = () => {
         setIsFlipped(true);
         if (!hasLoadedComments) {
@@ -1266,6 +1285,35 @@ function ProjectCard({
         setIsFlipped(false);
         setInteractionMessage('');
         setHoverScore(0);
+    };
+
+    const handleCardPointerEnter = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!isLive || isFlipped || event.pointerType === 'touch') return;
+        event.currentTarget.style.setProperty('--project-tilt-scale', `${PROJECT_CARD_TILT_SCALE}`);
+    };
+
+    const handleCardPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!isLive || isFlipped || event.pointerType === 'touch') return;
+
+        const element = event.currentTarget;
+        const rect = element.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        const centeredX = offsetX - rect.width / 2;
+        const centeredY = offsetY - rect.height / 2;
+        const rotateY = (centeredX / (rect.width / 2)) * PROJECT_CARD_TILT_AMPLITUDE;
+        const rotateX = (centeredY / (rect.height / 2)) * -PROJECT_CARD_TILT_AMPLITUDE;
+
+        element.style.setProperty('--project-tilt-x', `${rotateX.toFixed(2)}deg`);
+        element.style.setProperty('--project-tilt-y', `${rotateY.toFixed(2)}deg`);
+        element.style.setProperty('--project-tilt-scale', `${PROJECT_CARD_TILT_SCALE}`);
+        element.style.setProperty('--project-spot-x', `${Math.max(0, Math.min(100, (offsetX / rect.width) * 100)).toFixed(1)}%`);
+        element.style.setProperty('--project-spot-y', `${Math.max(0, Math.min(100, (offsetY / rect.height) * 100)).toFixed(1)}%`);
+        element.style.setProperty('--project-caption-opacity', '1');
+    };
+
+    const handleCardPointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+        resetProjectCardTilt(event.currentTarget);
     };
 
     const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1545,6 +1593,7 @@ function ProjectCard({
 
     return (
         <div
+            ref={cardRef}
             className={`project-card-shell ${isFlipped ? 'is-flipped' : ''} ${isLive ? 'is-live' : 'is-soon'}`}
             role="button"
             tabIndex={0}
@@ -1552,8 +1601,21 @@ function ProjectCard({
             aria-pressed={isFlipped}
             onClick={openBack}
             onKeyDown={handleCardKeyDown}
-            style={{ '--project-accent-bg': project.accent_color || project.accentColor || 'rgba(255,255,255,0.58)' } as CSSProperties}
+            onPointerEnter={handleCardPointerEnter}
+            onPointerMove={handleCardPointerMove}
+            onPointerLeave={handleCardPointerLeave}
+            onPointerCancel={handleCardPointerLeave}
+            style={{
+                '--project-accent-bg': project.accent_color || project.accentColor || 'rgba(255,255,255,0.58)',
+                '--project-tilt-x': '0deg',
+                '--project-tilt-y': '0deg',
+                '--project-tilt-scale': 1,
+                '--project-spot-x': '50%',
+                '--project-spot-y': '50%',
+                '--project-caption-opacity': 0,
+            } as CSSProperties}
         >
+            <div className="project-card-tilt-frame">
             <div className="project-card-inner">
                 <article className="project-card-face project-card-front glass-panel" aria-hidden={isFlipped} inert={isFlipped ? true : undefined}>
                     <div className="project-card-cover" style={{ '--project-cover-accent': coverAccent } as CSSProperties}>
@@ -1861,6 +1923,10 @@ function ProjectCard({
                         </div>
                     </form>
                 </article>
+            </div>
+            <div className="project-card-floating-caption" aria-hidden="true">
+                {project.title}
+            </div>
             </div>
         </div>
     );

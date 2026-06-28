@@ -1214,6 +1214,12 @@ textarea:hover,
   position: relative;
   height: 470px;
   min-height: 470px;
+  --project-tilt-x: 0deg;
+  --project-tilt-y: 0deg;
+  --project-tilt-scale: 1;
+  --project-spot-x: 50%;
+  --project-spot-y: 50%;
+  --project-caption-opacity: 0;
   border: 0;
   border-radius: var(--radius-lg);
   background: transparent;
@@ -1230,9 +1236,39 @@ textarea:hover,
   box-shadow: 0 0 0 3px rgba(108,92,231,0.18), 0 22px 46px rgba(108,92,231,0.14);
 }
 
+.project-card-tilt-frame {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  transform: rotateX(var(--project-tilt-x)) rotateY(var(--project-tilt-y)) scale(var(--project-tilt-scale));
+  transform-style: preserve-3d;
+  transform-origin: center;
+  transition: transform 0.22s ease, filter 0.22s ease;
+  will-change: transform;
+}
+
+.project-card-tilt-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at var(--project-spot-x) var(--project-spot-y),
+      rgba(255,255,255,0.54),
+      rgba(255,255,255,0.16) 18%,
+      transparent 42%);
+  mix-blend-mode: screen;
+  opacity: var(--project-caption-opacity);
+  pointer-events: none;
+  transform: translateZ(38px);
+  transition: opacity 0.18s ease;
+}
+
 .project-card-inner {
   position: absolute;
   inset: 0;
+  z-index: 1;
   transform-style: preserve-3d;
   border-radius: var(--radius-lg);
   box-shadow: none;
@@ -1276,6 +1312,10 @@ textarea:hover,
     0 8px 24px rgba(108,92,231,0.05);
 }
 
+.project-card-shell.is-live:not(.is-flipped):hover .project-card-tilt-frame {
+  filter: drop-shadow(0 20px 34px rgba(24,44,39,0.08));
+}
+
 .project-card-shell.is-live:not(.is-flipped):hover .project-card-front {
   transform: none;
   box-shadow: none;
@@ -1288,6 +1328,11 @@ textarea:hover,
 
 .project-card-shell.is-flipped .project-card-inner {
   box-shadow: none;
+}
+
+.project-card-shell.is-flipped .project-card-tilt-frame {
+  filter: none;
+  transform: rotateX(0deg) rotateY(0deg) scale(1);
 }
 
 .project-card-shell.is-flipped:hover .project-card-front {
@@ -1313,8 +1358,48 @@ textarea:hover,
   transition-delay: 0s, 0s, 0s, 0s, 0s, 0.18s;
 }
 
+.project-card-floating-caption {
+  position: absolute;
+  left: var(--project-spot-x);
+  top: var(--project-spot-y);
+  z-index: 4;
+  max-width: calc(100% - 32px);
+  padding: 6px 11px;
+  border: 1px solid rgba(255,255,255,0.88);
+  border-radius: 9px;
+  color: #2d3436;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 12px 26px rgba(31,41,55,0.12);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.15;
+  opacity: var(--project-caption-opacity);
+  overflow: hidden;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translate(-50%, calc(-100% - 12px)) translateZ(60px);
+  transition: opacity 0.18s ease;
+  white-space: nowrap;
+}
+
+.project-card-shell.is-flipped .project-card-floating-caption {
+  display: none;
+}
+
 .project-card-shell.is-soon {
   opacity: 0.75;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .project-card-tilt-frame {
+    filter: none !important;
+    transform: none !important;
+  }
+
+  .project-card-tilt-frame::after,
+  .project-card-floating-caption {
+    display: none;
+  }
 }
 
 .project-card-cover {
@@ -12877,6 +12962,17 @@ html *::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .project-card-tilt-frame {
+    filter: none !important;
+    transform: none !important;
+    transition: none;
+  }
+
+  .project-card-tilt-frame::after,
+  .project-card-floating-caption {
+    display: none;
+  }
+
   .project-card-inner {
     transition: opacity 0.18s ease;
     transform: none !important;
