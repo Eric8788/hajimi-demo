@@ -464,6 +464,19 @@ function isRangeInsideNode(range: Range, node: Node) {
     return node.contains(range.startContainer) && node.contains(range.endContainer);
 }
 
+function getSelectionBlock(editor: HTMLElement, selection: Selection | null) {
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    return getClosestRichBlock(range.startContainer, editor);
+}
+
+function isRangeInsidePre(range: Range, editor: HTMLElement) {
+    const startBlock = getClosestRichBlock(range.startContainer, editor);
+    const endBlock = getClosestRichBlock(range.endContainer, editor);
+    return startBlock?.tagName.toLowerCase() === 'pre'
+        || endBlock?.tagName.toLowerCase() === 'pre';
+}
+
 function unwrapInlineCodeElement(code: HTMLElement) {
     const parent = code.parentNode;
     if (!parent) return false;
@@ -911,11 +924,22 @@ export default function PostTextComposer({
         }
 
         if (command === 'h2' || command === 'h3' || command === 'p' || command === 'blockquote' || command === 'pre') {
-            document.execCommand('formatBlock', false, command);
+            const selection = window.getSelection();
+            const activeBlock = getSelectionBlock(editor, selection);
+            const activeTag = activeBlock?.tagName.toLowerCase();
+            const nextBlock = activeTag === command && (command === 'blockquote' || command === 'pre')
+                ? 'p'
+                : command;
+            document.execCommand('formatBlock', false, nextBlock);
         } else if (command === 'code') {
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
                 const range = selection.getRangeAt(0);
+                if (isRangeInsidePre(range, editor)) {
+                    scheduleFloatingToolbar();
+                    return;
+                }
+
                 const selectedCode = getSelectedInlineCode(range, editor);
                 if (selectedCode && (isRangeInsideNode(range, selectedCode) || selectedCode.textContent === selection.toString())) {
                     unwrapInlineCodeElement(selectedCode);

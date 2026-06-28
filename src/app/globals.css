@@ -12271,12 +12271,12 @@ html *::after {
 
 .post-block-menu {
   position: absolute;
-  left: 0;
-  bottom: calc(100% + 8px);
+  left: 48px;
+  top: 0;
   display: grid;
-  grid-template-columns: repeat(6, minmax(28px, 1fr));
+  grid-template-columns: 1fr;
   gap: 4px;
-  width: 216px;
+  width: 42px;
   padding: 6px;
   border: 1px solid rgba(226,232,240,0.95);
   border-radius: 10px;
@@ -12284,18 +12284,18 @@ html *::after {
   box-shadow: 0 16px 34px rgba(15,23,42,0.14);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(5px) scale(0.98);
-  transform-origin: left bottom;
+  transform: translateX(-5px) scale(0.98);
+  transform-origin: left top;
   transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
 .post-block-menu::after {
   content: "";
   position: absolute;
-  left: 0;
-  top: 100%;
-  width: 48px;
-  height: 10px;
+  right: 100%;
+  top: 0;
+  width: 10px;
+  height: 100%;
 }
 
 .post-block-handle:hover + .post-block-menu,
@@ -12304,7 +12304,7 @@ html *::after {
 .post-block-menu:hover {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0) scale(1);
+  transform: translateX(0) scale(1);
 }
 
 .post-block-menu-button {
@@ -12892,7 +12892,7 @@ html *::after {
     top: 0;
     bottom: auto;
     left: 48px;
-    width: min(216px, calc(100vw - 78px));
+    width: 42px;
     transform-origin: left top;
   }
 
