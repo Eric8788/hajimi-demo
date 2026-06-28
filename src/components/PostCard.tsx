@@ -117,6 +117,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments] = useState<Comment[]>([]);
     const [commentsLoaded, setCommentsLoaded] = useState(false);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [commentsLoadError, setCommentsLoadError] = useState('');
     const [commentCount, setCommentCount] = useState(post.comment_count || 0);
     const [locationHash, setLocationHash] = useState('');
 
@@ -155,6 +157,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     }, [commentImage]);
 
     const loadComments = useCallback(async () => {
+        setCommentsLoading(true);
+        setCommentsLoadError('');
         try {
             const res = await fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' });
             const data = await res.json();
@@ -178,10 +182,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             console.error("Failed to load comments:", data);
         } catch (err) {
             console.error("Error loading comments:", err);
+        } finally {
+            setCommentsLoading(false);
         }
 
         setComments([]);
-        setCommentsLoaded(true);
+        setCommentsLoaded(false);
+        setCommentsLoadError('Could not load comments. Try again.');
         return [];
     }, [post.id]);
 
@@ -609,6 +616,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     } : null;
     const visibleComments = showComments ? comments : [];
     const hasFeaturedPreview = !isArticleCard && !isEditing && !showComments && featuredComment && featuredCommentBadgeUser;
+    const hasVisibleComments = showComments && commentsLoaded && comments.length > 0;
+    const hasCommentLoadingPlaceholder = showComments && commentsLoading && comments.length === 0;
+    const hasCommentError = showComments && !!commentsLoadError;
     const commentComposer = canInteract ? (
         <form onSubmit={submitComment} className="comment-compose-form">
             {replyingTo && (
@@ -1019,7 +1029,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Comments Section (Always Rendered if Loaded) */}
             <AnimatePresence>
-                {!isArticleCard && (featuredCommentPreview || (showComments && commentsLoaded && comments.length > 0)) && (
+                {!isArticleCard && (featuredCommentPreview || hasVisibleComments || hasCommentLoadingPlaceholder || hasCommentError) && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -1029,7 +1039,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         <div className="post-comments-panel">
                             {featuredCommentPreview}
 
-                            {showComments && commentsLoaded && comments.length > 0 && (
+                            {hasCommentLoadingPlaceholder && (
+                                <div style={{ opacity: 0.58, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>Loading comments...</div>
+                            )}
+
+                            {hasCommentError && (
+                                <div style={{ opacity: 0.65, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>{commentsLoadError}</div>
+                            )}
+
+                            {hasVisibleComments && (
                                 <div className="post-comments-list">
                                     {visibleComments.map(c => (
                                         <div key={c.id} id={`post-${post.id}-comment-${c.id}`} className="comment-row-time-hover comment-row">
@@ -1127,12 +1145,12 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             )}
 
                             {/* Comment Input - Only visible when fully expanded or if no comments yet */}
-                            {showComments && commentComposer}
+                            {showComments && !commentsLoading && commentComposer}
                         </div>
                     </motion.div>
                 )}
                 {/* Always allow commenting even if no comments exist yet, if showComments is true */}
-                {!isArticleCard && showComments && comments.length === 0 && (
+                {!isArticleCard && showComments && commentsLoaded && !commentsLoading && !commentsLoadError && comments.length === 0 && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}

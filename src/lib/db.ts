@@ -2435,7 +2435,7 @@ export async function getPostsPage(
       users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
-      NULL::json as featured_comment,
+      featured.featured_comment,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -2444,6 +2444,39 @@ export async function getPostsPage(
       ELSE false END as has_liked
       FROM posts
       JOIN users ON posts.author_id = users.id
+      LEFT JOIN LATERAL (
+        SELECT json_build_object(
+          'id', featured_comments.id,
+          'author_id', featured_comments.author_id,
+          'content', featured_comments.content,
+          'attachment_url', featured_comments.attachment_url,
+          'likes', featured_comments.likes,
+          'created_at', featured_comments.created_at,
+          'reply_author_name', parent_users.username,
+          'reply_content', parent_comments.content,
+          'author_name', comment_authors.username,
+          'author_avatar', CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END,
+          'author_avatar_emoji', comment_authors.avatar_emoji,
+          'author_avatar_theme', comment_authors.avatar_theme,
+          'author_role', comment_authors.role,
+          'author_is_creator', (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id),
+          'author_badge_preferences', comment_authors.badge_preferences,
+          'author_verification_status', comment_authors.verification_status,
+          'has_liked', CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
+            EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = featured_comments.id)
+          ELSE false END
+        ) as featured_comment
+        FROM comments featured_comments
+        JOIN users comment_authors ON featured_comments.author_id = comment_authors.id
+        LEFT JOIN comments parent_comments ON featured_comments.parent_comment_id = parent_comments.id
+        LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
+        WHERE featured_comments.post_id = posts.id
+        ORDER BY
+          featured_comments.likes DESC,
+          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = featured_comments.id) DESC,
+          featured_comments.created_at DESC
+        LIMIT 1
+      ) featured ON true
       WHERE
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
