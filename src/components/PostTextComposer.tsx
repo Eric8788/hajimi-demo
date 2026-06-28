@@ -110,6 +110,65 @@ function getClosestAnchor(target: EventTarget | null) {
     return anchor instanceof HTMLAnchorElement ? anchor : null;
 }
 
+function getClosestRichBlock(node: Node | null, editor: HTMLElement) {
+    const element = node instanceof Element
+        ? node
+        : node?.parentElement;
+    const block = element?.closest('p,h1,h2,h3,h4,li,blockquote,pre');
+    return block instanceof HTMLElement && editor.contains(block) ? block : null;
+}
+
+function getRangeFromPoint(document: Document, x: number, y: number) {
+    const documentWithCaret = document as Document & {
+        caretRangeFromPoint?: (x: number, y: number) => Range | null;
+        caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    };
+
+    if (documentWithCaret.caretRangeFromPoint) {
+        return documentWithCaret.caretRangeFromPoint(x, y);
+    }
+
+    const position = documentWithCaret.caretPositionFromPoint?.(x, y);
+    if (!position) return null;
+
+    const range = document.createRange();
+    range.setStart(position.offsetNode, position.offset);
+    range.collapse(true);
+    return range;
+}
+
+function getLineRectFromPoint(editor: HTMLElement, x: number, y: number) {
+    const range = getRangeFromPoint(editor.ownerDocument, x, y);
+    if (!range) return null;
+
+    const block = getClosestRichBlock(range.startContainer, editor);
+    if (!block) return null;
+
+    if (range.startContainer.nodeType === Node.TEXT_NODE) {
+        const textNode = range.startContainer;
+        const length = textNode.textContent?.length ?? 0;
+        if (length > 0) {
+            const offset = Math.min(range.startOffset, length - 1);
+            const probe = editor.ownerDocument.createRange();
+            probe.setStart(textNode, offset);
+            probe.setEnd(textNode, Math.min(length, offset + 1));
+            const rects = Array.from(probe.getClientRects()).filter(rect => rect.height > 0);
+            probe.detach();
+            if (rects.length > 0) {
+                const lineRect = rects.reduce((closest, rect) => (
+                    Math.abs(rect.top - y) < Math.abs(closest.top - y) ? rect : closest
+                ), rects[0]);
+                return y >= lineRect.top - 2 && y <= lineRect.bottom + 2 ? lineRect : null;
+            }
+        }
+    }
+
+    const blockRect = block.getBoundingClientRect();
+    return blockRect.height > 0 && y >= blockRect.top - 2 && y <= blockRect.bottom + 2
+        ? blockRect
+        : null;
+}
+
 function updateAnchorTarget(anchor: HTMLAnchorElement, href: string) {
     anchor.setAttribute('href', href);
     anchor.setAttribute('target', '_blank');
@@ -355,6 +414,43 @@ function restoreRange(range: Range | null) {
     if (!range) return false;
     const selection = window.getSelection();
     if (!selection) return false;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+}
+
+function getSelectedInlineCode(range: Range, editor: HTMLElement) {
+    const codes = Array.from(editor.querySelectorAll('code'))
+        .filter(code => !code.closest('pre') && range.intersectsNode(code));
+
+    return codes.length === 1 ? codes[0] : null;
+}
+
+function isRangeInsideNode(range: Range, node: Node) {
+    return node.contains(range.startContainer) && node.contains(range.endContainer);
+}
+
+function unwrapInlineCodeElement(code: HTMLElement) {
+    const parent = code.parentNode;
+    if (!parent) return false;
+
+    const unwrappedNodes = Array.from(code.childNodes);
+    if (unwrappedNodes.length === 0) {
+        code.remove();
+        return false;
+    }
+
+    for (const child of unwrappedNodes) {
+        parent.insertBefore(child, code);
+    }
+    code.remove();
+
+    const selection = window.getSelection();
+    if (!selection) return true;
+
+    const range = document.createRange();
+    range.setStartBefore(unwrappedNodes[0]);
+    range.setEndAfter(unwrappedNodes[unwrappedNodes.length - 1]);
     selection.removeAllRanges();
     selection.addRange(range);
     return true;
@@ -746,14 +842,10 @@ export default function PostTextComposer({
         const wrapperRect = editor?.closest('.post-rich-editor-wrap')?.getBoundingClientRect();
         if (!editor || !wrapperRect) return;
 
-        const target = event.target instanceof Element ? event.target : null;
-        const targetBlock = target?.closest('p,h1,h2,h3,h4,li,blockquote,pre');
-        const blockRect = targetBlock instanceof HTMLElement && editor.contains(targetBlock)
-            ? targetBlock.getBoundingClientRect()
-            : null;
-        const rawTop = blockRect
-            ? blockRect.top - wrapperRect.top + Math.max(0, (blockRect.height - 34) / 2)
-            : event.clientY - wrapperRect.top - 17;
+        const lineRect = getLineRectFromPoint(editor, event.clientX, event.clientY);
+        if (!lineRect) return;
+
+        const rawTop = lineRect.top - wrapperRect.top + Math.max(0, (lineRect.height - 34) / 2);
         const nextTop = Math.max(10, Math.min(rawTop, wrapperRect.height - 42));
         setBlockToolbarTop(nextTop);
     };
@@ -790,6 +882,14 @@ export default function PostTextComposer({
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
                 const range = selection.getRangeAt(0);
+                const selectedCode = getSelectedInlineCode(range, editor);
+                if (selectedCode && (isRangeInsideNode(range, selectedCode) || selectedCode.textContent === selection.toString())) {
+                    unwrapInlineCodeElement(selectedCode);
+                    updateFromRichEditor();
+                    scheduleFloatingToolbar();
+                    return;
+                }
+
                 const code = document.createElement('code');
                 try {
                     range.surroundContents(code);
