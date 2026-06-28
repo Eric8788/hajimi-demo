@@ -137,7 +137,41 @@ function getRangeFromPoint(document: Document, x: number, y: number) {
     return range;
 }
 
+function parseCssPixels(value: string, fallback: number) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getEditorGridLineRect(editor: HTMLElement, y: number) {
+    const editorRect = editor.getBoundingClientRect();
+    if (y < editorRect.top || y > editorRect.bottom) return null;
+
+    const styles = window.getComputedStyle(editor);
+    const paddingTop = parseCssPixels(styles.paddingTop, 0);
+    const paddingBottom = parseCssPixels(styles.paddingBottom, 0);
+    const fontSize = parseCssPixels(styles.fontSize, 16);
+    const lineHeight = parseCssPixels(styles.lineHeight, fontSize * 1.72);
+    const contentTop = editorRect.top + paddingTop;
+    const contentBottom = Math.max(contentTop, editorRect.bottom - paddingBottom);
+    if (y < contentTop - lineHeight / 2 || y > contentBottom + lineHeight / 2) return null;
+
+    const maxLineIndex = Math.max(0, Math.ceil((contentBottom - contentTop) / lineHeight) - 1);
+    const lineIndex = Math.max(0, Math.min(
+        Math.floor((y - contentTop) / lineHeight),
+        maxLineIndex
+    ));
+    const top = contentTop + lineIndex * lineHeight;
+
+    return {
+        top,
+        height: lineHeight,
+    };
+}
+
 function getLineRectFromPoint(editor: HTMLElement, x: number, y: number) {
+    const gridLineRect = getEditorGridLineRect(editor, y);
+    if (gridLineRect) return gridLineRect;
+
     const range = getRangeFromPoint(editor.ownerDocument, x, y);
     if (!range) return null;
 
