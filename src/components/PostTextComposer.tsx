@@ -20,9 +20,23 @@ type TextSelection = {
 type FloatingToolbarPosition = {
     left: number;
     top: number;
+    placement?: 'above' | 'below';
 };
 
 type LinkPopoverMode = 'insert' | 'edit';
+
+type RichCommand = 'bold'
+    | 'italic'
+    | 'underline'
+    | 'strikeThrough'
+    | 'insertUnorderedList'
+    | 'h2'
+    | 'h3'
+    | 'p'
+    | 'blockquote'
+    | 'pre'
+    | 'code'
+    | 'link';
 
 type LinkPreview = FloatingToolbarPosition & {
     href: string;
@@ -441,9 +455,19 @@ export default function PostTextComposer({
             return;
         }
 
+        const centerLeft = rect.left - wrapperRect.left + rect.width / 2;
+        const sidePadding = Math.min(176, Math.max(128, wrapperRect.width / 2));
+        const minLeft = Math.min(sidePadding, wrapperRect.width / 2);
+        const maxLeft = Math.max(minLeft, wrapperRect.width - minLeft);
+        const aboveTop = rect.top - wrapperRect.top - 48;
+        const placement = aboveTop < 8 ? 'below' : 'above';
+
         setFloatingToolbar({
-            left: Math.max(12, rect.left - wrapperRect.left + rect.width / 2),
-            top: Math.max(8, rect.top - wrapperRect.top - 48),
+            left: Math.min(maxLeft, Math.max(minLeft, centerLeft)),
+            top: placement === 'below'
+                ? Math.max(8, rect.bottom - wrapperRect.top + 10)
+                : Math.max(8, aboveTop),
+            placement,
         });
     }, [activeFormat]);
 
@@ -718,10 +742,19 @@ export default function PostTextComposer({
     };
 
     const handleRichMouseMove = (event: MouseEvent<HTMLDivElement>) => {
-        const wrapperRect = richEditorRef.current?.closest('.post-rich-editor-wrap')?.getBoundingClientRect();
-        if (!wrapperRect) return;
+        const editor = richEditorRef.current;
+        const wrapperRect = editor?.closest('.post-rich-editor-wrap')?.getBoundingClientRect();
+        if (!editor || !wrapperRect) return;
 
-        const nextTop = Math.max(10, Math.min(event.clientY - wrapperRect.top - 15, wrapperRect.height - 38));
+        const target = event.target instanceof Element ? event.target : null;
+        const targetBlock = target?.closest('p,h1,h2,h3,h4,li,blockquote,pre');
+        const blockRect = targetBlock instanceof HTMLElement && editor.contains(targetBlock)
+            ? targetBlock.getBoundingClientRect()
+            : null;
+        const rawTop = blockRect
+            ? blockRect.top - wrapperRect.top + Math.max(0, (blockRect.height - 34) / 2)
+            : event.clientY - wrapperRect.top - 17;
+        const nextTop = Math.max(10, Math.min(rawTop, wrapperRect.height - 42));
         setBlockToolbarTop(nextTop);
     };
 
@@ -739,7 +772,7 @@ export default function PostTextComposer({
         if (!disabled) showLinkPreview(anchor);
     };
 
-    const applyRichCommand = (command: 'bold' | 'italic' | 'underline' | 'strikeThrough' | 'insertUnorderedList' | 'h2' | 'p' | 'blockquote' | 'pre' | 'code' | 'link') => {
+    const applyRichCommand = (command: RichCommand) => {
         const editor = richEditorRef.current;
         if (!editor || disabled) return;
 
@@ -751,7 +784,7 @@ export default function PostTextComposer({
             return;
         }
 
-        if (command === 'h2' || command === 'p' || command === 'blockquote' || command === 'pre') {
+        if (command === 'h2' || command === 'h3' || command === 'p' || command === 'blockquote' || command === 'pre') {
             document.execCommand('formatBlock', false, command);
         } else if (command === 'code') {
             const selection = window.getSelection();
@@ -810,22 +843,44 @@ export default function PostTextComposer({
             {activeFormat === 'markdown' ? (
                 <div className="post-rich-editor-wrap">
                     <div
-                        className="post-block-toolbar"
+                        className={`post-block-toolbar${blockToolbarTop < 58 ? ' is-near-top' : ''}`}
                         style={{ top: blockToolbarTop }}
                         onMouseDown={handleToolbarMouseDown}
                         role="toolbar"
-                        aria-label="Current line formatting"
+                        aria-label="Block formatting"
                     >
-                        <button type="button" onClick={() => applyRichCommand('p')} title="Paragraph">T</button>
-                        <button type="button" onClick={() => applyRichCommand('h2')} title="Heading">H2</button>
-                        <button type="button" onClick={() => applyRichCommand('insertUnorderedList')} title="List">List</button>
-                        <button type="button" onClick={() => applyRichCommand('blockquote')} title="Quote">Quote</button>
-                        <button type="button" onClick={() => applyRichCommand('pre')} title="Code block">Code</button>
-                        <button type="button" onClick={() => applyRichCommand('link')} title="Link">Link</button>
+                        <button
+                            type="button"
+                            className="post-block-handle"
+                            title="Block tools"
+                            aria-label="Block tools"
+                            aria-haspopup="menu"
+                            onClick={() => richEditorRef.current?.focus()}
+                            disabled={disabled}
+                        >
+                            <span className="post-block-handle-type">T</span>
+                            <span className="post-block-grip" aria-hidden="true">
+                                <span />
+                                <span />
+                                <span />
+                                <span />
+                                <span />
+                                <span />
+                            </span>
+                        </button>
+                        <div className="post-block-menu" role="menu" aria-label="Block options">
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('p')} title="Paragraph" disabled={disabled}>T</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('h2')} title="Heading 2" disabled={disabled}>H2</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('h3')} title="Heading 3" disabled={disabled}>H3</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('insertUnorderedList')} title="List" disabled={disabled}>-</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('blockquote')} title="Quote" disabled={disabled}>&gt;</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('pre')} title="Code block" disabled={disabled}>{'{}'}</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('link')} title="Link" disabled={disabled}>[]</button>
+                        </div>
                     </div>
                     {floatingToolbar && (
                         <div
-                            className="post-selection-toolbar"
+                            className={`post-selection-toolbar${floatingToolbar.placement === 'below' ? ' is-below' : ''}`}
                             style={{ left: floatingToolbar.left, top: floatingToolbar.top }}
                             onMouseDown={handleToolbarMouseDown}
                             role="toolbar"
