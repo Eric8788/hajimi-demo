@@ -11981,6 +11981,7 @@ html *::after {
   margin: 0;
 }
 
+.post-content-renderer.is-markdown h1,
 .post-content-renderer.is-markdown h2,
 .post-content-renderer.is-markdown h3,
 .post-content-renderer.is-markdown h4 {
@@ -11988,6 +11989,10 @@ html *::after {
   color: #2d3436;
   line-height: 1.25;
   letter-spacing: 0;
+}
+
+.post-content-renderer.is-markdown h1 {
+  font-size: 1.3rem;
 }
 
 .post-content-renderer.is-markdown h2 {
@@ -12095,6 +12100,7 @@ html *::after {
 }
 
 .post-rich-editor p,
+.post-rich-editor h1,
 .post-rich-editor h2,
 .post-rich-editor h3,
 .post-rich-editor h4,
@@ -12106,12 +12112,17 @@ html *::after {
   margin-bottom: 0.9rem;
 }
 
+.post-rich-editor h1,
 .post-rich-editor h2,
 .post-rich-editor h3,
 .post-rich-editor h4 {
   color: #0f172a;
   line-height: 1.25;
   letter-spacing: 0;
+}
+
+.post-rich-editor h1 {
+  font-size: 1.3rem;
 }
 
 .post-rich-editor h2 {

@@ -55,6 +55,7 @@ type PostTextComposerProps = {
 };
 
 const INLINE_MARKDOWN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
+const BLOCK_TAGS = new Set(['address', 'article', 'aside', 'blockquote', 'div', 'dl', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'ul']);
 
 function normalizeLinkInput(value: string) {
     const trimmed = value.trim();
@@ -102,6 +103,17 @@ function safeExternalUrl(url: string) {
     } catch {
         return '';
     }
+}
+
+function looksLikeMarkdownSource(value: string) {
+    return value.replace(/\r\n?/g, '\n').split('\n').some(line => (
+        /^#{1,6}\s+\S/.test(line)
+        || /^\s*[-*]\s+\S/.test(line)
+        || /^\s*\d+[.)]\s+\S/.test(line)
+        || /^>\s?\S/.test(line)
+        || /^```/.test(line.trim())
+        || /^(-{3,}|\*{3,})$/.test(line.trim())
+    ));
 }
 
 function getClosestAnchor(target: EventTarget | null) {
@@ -209,6 +221,114 @@ function updateAnchorTarget(anchor: HTMLAnchorElement, href: string) {
     anchor.setAttribute('rel', 'noopener noreferrer');
 }
 
+function nodeHasBlockChild(node: Node) {
+    return Array.from(node.childNodes).some(child => (
+        child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName.toLowerCase())
+    ));
+}
+
+function renderClipboardInlineNode(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+        return escapeHtml(node.textContent || '');
+    }
+
+    if (!(node instanceof HTMLElement)) return '';
+
+    const tagName = node.tagName.toLowerCase();
+    const children = Array.from(node.childNodes).map(renderClipboardInlineNode).join('');
+
+    if (tagName === 'br') return '<br>';
+    if (tagName === 'strong' || tagName === 'b') return `<strong>${children}</strong>`;
+    if (tagName === 'em' || tagName === 'i') return `<em>${children}</em>`;
+    if (tagName === 'code' && node.closest('pre') === null) return `<code>${children}</code>`;
+    if (tagName === 'a') {
+        const href = safeExternalUrl(node.getAttribute('href') || '');
+        return href
+            ? `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${children || escapeHtml(href)}</a>`
+            : children;
+    }
+
+    return children;
+}
+
+function renderClipboardListItem(item: Element) {
+    const html = Array.from(item.childNodes)
+        .filter(child => !(child instanceof HTMLElement && (child.tagName.toLowerCase() === 'ul' || child.tagName.toLowerCase() === 'ol')))
+        .map(renderClipboardInlineNode)
+        .join('')
+        .trim();
+    return `<li>${html || escapeHtml(item.textContent || '')}</li>`;
+}
+
+function renderClipboardQuote(node: HTMLElement) {
+    const lines = Array.from(node.childNodes)
+        .map(child => {
+            if (child instanceof HTMLElement && BLOCK_TAGS.has(child.tagName.toLowerCase())) {
+                return renderClipboardInlineNode(child).trim();
+            }
+            return renderClipboardInlineNode(child).trim();
+        })
+        .filter(Boolean);
+
+    return `<blockquote>${lines.join('<br>') || renderClipboardInlineNode(node)}</blockquote>`;
+}
+
+function renderClipboardBlockNode(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent?.replace(/\s+/g, ' ').trim() || '';
+        return text ? `<p>${escapeHtml(text)}</p>` : '';
+    }
+
+    if (!(node instanceof HTMLElement)) return '';
+
+    const tagName = node.tagName.toLowerCase();
+
+    if (tagName === 'script' || tagName === 'style' || tagName === 'meta' || tagName === 'link') return '';
+
+    if (/^h[1-6]$/.test(tagName)) {
+        const level = Math.min(Math.max(Number(tagName.slice(1)), 1), 4);
+        return `<h${level}>${renderClipboardInlineNode(node)}</h${level}>`;
+    }
+
+    if (tagName === 'p') {
+        const content = renderClipboardInlineNode(node).trim();
+        return content ? `<p>${content}</p>` : '';
+    }
+
+    if (tagName === 'blockquote') {
+        return renderClipboardQuote(node);
+    }
+
+    if (tagName === 'pre') {
+        return `<pre><code>${escapeHtml((node.textContent || '').replace(/\n+$/g, ''))}</code></pre>`;
+    }
+
+    if (tagName === 'ul' || tagName === 'ol') {
+        const items = Array.from(node.children)
+            .filter(child => child.tagName.toLowerCase() === 'li')
+            .map(renderClipboardListItem)
+            .join('');
+        return items ? `<${tagName}>${items}</${tagName}>` : '';
+    }
+
+    if (tagName === 'hr') return '<hr>';
+
+    if (tagName === 'br') return '';
+
+    if (nodeHasBlockChild(node)) {
+        return Array.from(node.childNodes).map(renderClipboardBlockNode).join('');
+    }
+
+    const inline = renderClipboardInlineNode(node).trim();
+    return inline ? `<p>${inline}</p>` : '';
+}
+
+function clipboardHtmlToEditorHtml(html: string) {
+    if (!html.trim()) return '';
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    return Array.from(document.body.childNodes).map(renderClipboardBlockNode).join('');
+}
+
 function renderInlineMarkdown(text: string) {
     let html = '';
     let lastIndex = 0;
@@ -254,7 +374,8 @@ function markdownToEditorHtml(markdown: string) {
     let listItems: string[] = [];
     let isOrderedList = false;
     let quoteLines: string[] = [];
-    let codeLines: string[] | null = null;
+    let codeLines: string[] = [];
+    let codeFenceOpen = false;
 
     const flushParagraph = () => {
         if (paragraphLines.length === 0) return;
@@ -277,19 +398,21 @@ function markdownToEditorHtml(markdown: string) {
 
     for (const line of lines) {
         if (line.trim().startsWith('```')) {
-            if (codeLines) {
+            if (codeFenceOpen) {
                 htmlBlocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
-                codeLines = null;
+                codeLines = [];
+                codeFenceOpen = false;
             } else {
                 flushParagraph();
                 flushList();
                 flushQuote();
                 codeLines = [];
+                codeFenceOpen = true;
             }
             continue;
         }
 
-        if (codeLines) {
+        if (codeFenceOpen) {
             codeLines.push(line);
             continue;
         }
@@ -307,7 +430,7 @@ function markdownToEditorHtml(markdown: string) {
             flushParagraph();
             flushList();
             flushQuote();
-            const level = Math.min(Math.max(heading[1].length + 1, 2), 4);
+            const level = Math.min(Math.max(heading[1].length, 1), 4);
             htmlBlocks.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
             continue;
         }
@@ -348,7 +471,7 @@ function markdownToEditorHtml(markdown: string) {
         paragraphLines.push(trimmed);
     }
 
-    if (codeLines) {
+    if (codeFenceOpen) {
         htmlBlocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
     }
     flushParagraph();
@@ -869,11 +992,14 @@ export default function PostTextComposer({
 
     const handleRichPaste = (event: ClipboardEvent<HTMLDivElement>) => {
         const pastedText = event.clipboardData.getData('text/plain');
-        if (!pastedText) return;
+        const pastedHtml = event.clipboardData.getData('text/html');
+        if (!pastedText && !pastedHtml) return;
 
         event.preventDefault();
-        const pastedHtml = markdownToEditorHtml(pastedText);
-        document.execCommand('insertHTML', false, pastedHtml || escapeHtml(pastedText));
+        const nextHtml = pastedText && looksLikeMarkdownSource(pastedText)
+            ? markdownToEditorHtml(pastedText)
+            : clipboardHtmlToEditorHtml(pastedHtml) || markdownToEditorHtml(pastedText) || escapeHtml(pastedText);
+        document.execCommand('insertHTML', false, nextHtml);
         updateFromRichEditor();
         scheduleFloatingToolbar();
     };

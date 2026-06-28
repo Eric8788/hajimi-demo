@@ -10,7 +10,7 @@ type ListBlock = {
 };
 
 type MarkdownBlock =
-    | { type: 'heading'; level: 2 | 3 | 4; text: string }
+    | { type: 'heading'; level: 1 | 2 | 3 | 4; text: string }
     | { type: 'paragraph'; lines: string[] }
     | { type: 'quote'; lines: string[] }
     | { type: 'code'; text: string }
@@ -102,7 +102,8 @@ function parseMarkdown(text: string): MarkdownBlock[] {
     const lines = text.replace(/\r\n?/g, '\n').split('\n');
     let listBlock: ListBlock | null = null;
     let quoteLines: string[] = [];
-    let codeLines: string[] | null = null;
+    let codeLines: string[] = [];
+    let codeFenceOpen = false;
 
     const flushList = () => {
         if (!listBlock) return;
@@ -118,19 +119,21 @@ function parseMarkdown(text: string): MarkdownBlock[] {
 
     for (const line of lines) {
         if (line.trim().startsWith('```')) {
-            if (codeLines) {
+            if (codeFenceOpen) {
                 blocks.push({ type: 'code', text: codeLines.join('\n') });
-                codeLines = null;
+                codeLines = [];
+                codeFenceOpen = false;
             } else {
                 flushParagraph(blocks, paragraphLines);
                 flushList();
                 flushQuote();
                 codeLines = [];
+                codeFenceOpen = true;
             }
             continue;
         }
 
-        if (codeLines) {
+        if (codeFenceOpen) {
             codeLines.push(line);
             continue;
         }
@@ -151,7 +154,7 @@ function parseMarkdown(text: string): MarkdownBlock[] {
             flushQuote();
             blocks.push({
                 type: 'heading',
-                level: Math.min(Math.max(heading[1].length + 1, 2), 4) as 2 | 3 | 4,
+                level: Math.min(Math.max(heading[1].length, 1), 4) as 1 | 2 | 3 | 4,
                 text: heading[2].trim(),
             });
             continue;
@@ -193,7 +196,7 @@ function parseMarkdown(text: string): MarkdownBlock[] {
         paragraphLines.push(trimmed);
     }
 
-    if (codeLines) {
+    if (codeFenceOpen) {
         blocks.push({ type: 'code', text: codeLines.join('\n') });
     }
     flushParagraph(blocks, paragraphLines);
@@ -206,7 +209,7 @@ function parseMarkdown(text: string): MarkdownBlock[] {
 function renderMarkdown(text: string, options: RenderInlineOptions = {}) {
     return parseMarkdown(text).map((block, index) => {
         if (block.type === 'heading') {
-            const HeadingTag = `h${block.level}` as 'h2' | 'h3' | 'h4';
+            const HeadingTag = `h${block.level}` as 'h1' | 'h2' | 'h3' | 'h4';
             return <HeadingTag key={index}>{renderInline(block.text, `heading-${index}`, options)}</HeadingTag>;
         }
 
