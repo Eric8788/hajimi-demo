@@ -1,22 +1,61 @@
 import { getSession } from '@/lib/auth';
-import { getUserById } from '@/lib/db';
+import { getProjects, getUserById } from '@/lib/db';
+import { getImageDisplayUrl } from '@/lib/imageProxy';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PROJECTS } from '@/data/projects';
 import ParticleBackground from '@/components/ParticleBackground';
 import RotatingText from '@/components/reactbits/RotatingText';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import LogoLoop from '@/components/reactbits/LogoLoop';
 import { APP_RELEASE_DATE, APP_VERSION_LABEL } from '@/lib/app-version';
 
 export const dynamic = 'force-dynamic';
 
 const HERO_WORDS = ['Create', 'Build', 'Ship', 'Learn'];
+const STATIC_PROJECT_COVER_FALLBACKS: Record<string, string> = {
+  'ai-tabletop': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780278797507-de97e759-ddc4-4c97-9d9c-47e9ae9253a4-project-cover-1780278796290.webp',
+  'boxhead': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780278975996-be86a7e7-3873-4d44-ac0e-f1fa23bd86ac-project-cover-1780278975702.webp',
+  'cv-picker': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780279695272-503fee92-aafd-43d5-ac97-95de7a243440-project-cover-1780279694504.webp',
+  'prometheus': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780279131111-030fb9c6-1267-482f-bf8c-190f348bebb9-project-cover-1780279130838.webp',
+  'quant-panel': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780279181627-b1fb1d47-85a1-45f2-adc7-a3d338c8ad8e-project-cover-1780279180732.webp',
+  'sailer-2d': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780278905350-0630b955-c14a-47ce-9fc5-0623ad25d4c6-project-cover-1780278904734.webp',
+  'sailer-3d': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780279069095-7b1d3e8b-1e04-447d-af15-4bcae66a67a2-project-cover-1780279068519.webp',
+  'snake-io': 'https://ik6t1z18nrztogz9.public.blob.vercel-storage.com/project-covers/1/1780279765469-97376e0a-d7e9-40d3-8588-3db0881d27b7-project-cover-1780279764593.webp',
+  'vocab-runner-game': '/projects/vocab-runner-game/cover.svg',
+};
 
-function getProjectSpotlightColor(accentColor: string) {
-  return accentColor
-    .replace('0.2)', '0.46)')
-    .replace('0.18)', '0.42)')
-    .replace('0.16)', '0.38)');
+async function getLandingProjectLoopItems() {
+  try {
+    const projects = await getProjects();
+    if (projects.length > 0) {
+      return projects.map(project => ({
+        id: String(project.id),
+        title: project.title,
+        icon: project.emoji || 'AI',
+        eyebrow: project.author_name || 'AI Club',
+        meta: project.tags.slice(0, 2).join(' / '),
+        description: project.description,
+        coverSrc: getImageDisplayUrl(project.cover_url),
+        accentColor: project.accent_color,
+        href: project.url ?? '/functions',
+      }));
+    }
+  } catch (error) {
+    console.warn('Landing project covers unavailable, using static fallback:', error);
+  }
+
+  return PROJECTS.map(project => ({
+    id: project.id,
+    title: project.title,
+    icon: project.emoji || 'AI',
+    eyebrow: project.author,
+    meta: project.tags.slice(0, 2).join(' / '),
+    description: project.description,
+    coverSrc: getImageDisplayUrl(STATIC_PROJECT_COVER_FALLBACKS[project.id]),
+    accentColor: project.accentColor,
+    href: project.url ?? '/functions',
+  }));
 }
 
 export default async function LandingPage() {
@@ -26,7 +65,7 @@ export default async function LandingPage() {
     if (user) redirect('/dashboard');
   }
 
-  const marqueeProjects = [...PROJECTS, ...PROJECTS];
+  const projectLoopItems = await getLandingProjectLoopItems();
 
   return (
     <div className="hub-bg landing-page">
@@ -50,8 +89,6 @@ export default async function LandingPage() {
       </nav>
 
       <section className="landing-hero">
-        <div className="landing-hero-badge">AI Club Student Community</div>
-
         <h1 className="landing-hero-title" aria-label="Let's create together">
           <span className="landing-title-line landing-title-line-with-rotator">
             <span className="landing-gradient-copy">Let&apos;s</span>
@@ -88,28 +125,7 @@ export default async function LandingPage() {
           <h2>Project Showcase</h2>
         </div>
 
-        <div className="marquee-container landing-marquee">
-          <div className="marquee-content landing-marquee-content">
-            {marqueeProjects.map((project, idx) => (
-              <SpotlightCard
-                key={`${project.id}-${idx}`}
-                className="project-card landing-project-card"
-                spotlightColor={getProjectSpotlightColor(project.accentColor)}
-              >
-                <div className="landing-project-icon">{project.emoji || 'AI'}</div>
-                <div className="landing-project-copy">
-                  <span>{project.author}</span>
-                  <h4>{project.title}</h4>
-                  <p>{project.description}</p>
-                </div>
-                <div className="landing-project-footer">
-                  <span>{project.tags[0]}</span>
-                  <strong>{project.status === 'live' ? 'Live' : 'Soon'}</strong>
-                </div>
-              </SpotlightCard>
-            ))}
-          </div>
-        </div>
+        <LogoLoop items={projectLoopItems} className="landing-project-loop" speed={68} />
       </section>
 
       <section id="about" className="landing-info-grid">
