@@ -1,9 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import ParticleBackground from '@/components/ParticleBackground';
+import Stepper, { Step } from '@/components/reactbits/Stepper';
 import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from '@/lib/passwordPolicy';
 import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { AVATAR_EMOJIS, AVATAR_THEMES, AVATAR_THEME_IDS } from '@/lib/avatarThemes';
@@ -175,6 +176,43 @@ export default function LoginPage() {
         await submitAuth(cleanUsername);
     };
 
+    const handleRegisterStepChange = (step: number) => {
+        if (step < 1 || step > 3) return;
+        setError('');
+        setRegisterStep(step as RegisterStep);
+    };
+
+    const handleRegisterNextClick = (event: MouseEvent<HTMLButtonElement>) => {
+        setError('');
+        const cleanUsername = normalizeUsernameInput(username);
+
+        if (!validateRegisterStep(registerStep, cleanUsername)) {
+            event.preventDefault();
+            return;
+        }
+
+        if (registerStep === 3 && !validateRegisterStep(2, cleanUsername)) {
+            setRegisterStep(2);
+            event.preventDefault();
+        }
+    };
+
+    const handleRegisterFinalStep = () => {
+        void submitAuth(normalizeUsernameInput(username));
+    };
+
+    const renderRegisterStepIndicator = ({ step, currentStep }: { step: number; currentStep: number }) => {
+        const stateClass = currentStep === step ? 'is-current' : currentStep > step ? 'is-done' : '';
+        const stepMeta = REGISTER_STEPS[step - 1];
+
+        return (
+            <span className={`auth-step-indicator ${stateClass}`} aria-current={currentStep === step ? 'step' : undefined}>
+                <b>{step}</b>
+                {stepMeta?.label}
+            </span>
+        );
+    };
+
     return (
         <div className="auth-container">
             <ParticleBackground />
@@ -239,20 +277,30 @@ export default function LoginPage() {
                             </>
                         ) : (
                             <>
-                                <div className="auth-stepper" aria-label="注册步骤">
-                                    {REGISTER_STEPS.map(step => (
-                                        <span
-                                            key={step.id}
-                                            className={registerStep === step.id ? 'is-current' : registerStep > step.id ? 'is-done' : ''}
-                                            aria-current={registerStep === step.id ? 'step' : undefined}
-                                        >
-                                            <b>{step.id}</b>
-                                            {step.label}
-                                        </span>
-                                    ))}
-                                </div>
-
-                                {registerStep === 1 && (
+                                <Stepper
+                                    className="auth-reactbits-stepper"
+                                    currentStep={registerStep}
+                                    onStepChange={handleRegisterStepChange}
+                                    onFinalStepCompleted={handleRegisterFinalStep}
+                                    contentClassName="auth-register-stepper-content"
+                                    footerClassName="auth-register-stepper-footer"
+                                    backButtonText="上一步"
+                                    nextButtonText="下一步"
+                                    completeButtonText={isSubmitting ? '创建中...' : '完成注册'}
+                                    backButtonProps={{
+                                        className: 'auth-secondary-action',
+                                        disabled: isSubmitting,
+                                        onClick: () => setError(''),
+                                    }}
+                                    nextButtonProps={{
+                                        className: 'btn btn-primary auth-submit',
+                                        disabled: isSubmitting,
+                                        onClick: handleRegisterNextClick,
+                                    }}
+                                    disableStepIndicators
+                                    renderStepIndicator={renderRegisterStepIndicator}
+                                >
+                                    <Step>
                                     <div className="auth-section auth-role-step">
                                         <div className="auth-section-head">
                                             <strong>选择身份</strong>
@@ -275,10 +323,9 @@ export default function LoginPage() {
                                             ))}
                                         </div>
                                     </div>
-                                )}
+                                    </Step>
 
-                                {registerStep === 2 && (
-                                    <>
+                                    <Step>
                                         <label className="auth-field">
                                             <span>用户名</span>
                                             <input
@@ -360,11 +407,9 @@ export default function LoginPage() {
                                                 <p>无需提交认证。可以浏览论坛、打开项目体验；发帖、评论、点赞、收藏、打赏和兑换会保持关闭。</p>
                                             </div>
                                         )}
-                                    </>
-                                )}
+                                    </Step>
 
-                                {registerStep === 3 && (
-                                    <>
+                                    <Step>
                                         <div className="auth-section auth-profile-card">
                                             <div className="auth-avatar-row">
                                                 <div className="auth-avatar-preview" style={{ background: selectedAvatarTheme.background, color: selectedAvatarTheme.color }}>
@@ -476,30 +521,10 @@ export default function LoginPage() {
                                                 autoComplete="new-password"
                                             />
                                         </label>
-                                    </>
-                                )}
+                                    </Step>
+                                </Stepper>
 
                                 {error && <div className="auth-error">{error}</div>}
-
-                                <div className="auth-nav-row">
-                                    {registerStep > 1 ? (
-                                        <button
-                                            type="button"
-                                            className="auth-secondary-action"
-                                            onClick={() => {
-                                                setError('');
-                                                setRegisterStep((registerStep - 1) as RegisterStep);
-                                            }}
-                                        >
-                                            上一步
-                                        </button>
-                                    ) : (
-                                        <span className="auth-nav-spacer" />
-                                    )}
-                                    <button type="submit" className="btn btn-primary auth-submit" disabled={isSubmitting}>
-                                        {isSubmitting ? '创建中...' : registerStep < 3 ? '下一步' : '完成注册'}
-                                    </button>
-                                </div>
                             </>
                         )}
                     </form>
