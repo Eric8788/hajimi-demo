@@ -875,7 +875,6 @@ export default function PostTextComposer({
                             <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('insertUnorderedList')} title="List" disabled={disabled}>-</button>
                             <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('blockquote')} title="Quote" disabled={disabled}>&gt;</button>
                             <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('pre')} title="Code block" disabled={disabled}>{'{}'}</button>
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('link')} title="Link" disabled={disabled}>[]</button>
                         </div>
                     </div>
                     {floatingToolbar && (
@@ -886,18 +885,12 @@ export default function PostTextComposer({
                             role="toolbar"
                             aria-label="Selected text formatting"
                         >
-                            <button type="button" onClick={() => applyRichCommand('p')} title="Paragraph">T</button>
-                            <button type="button" onClick={() => applyRichCommand('h2')} title="Heading">H2</button>
+                            <button type="button" onClick={() => applyRichCommand('bold')} title="Bold" disabled={disabled}>B</button>
+                            <button type="button" onClick={() => applyRichCommand('italic')} title="Italic" disabled={disabled}>I</button>
+                            <button type="button" onClick={() => applyRichCommand('underline')} title="Underline" disabled={disabled}>U</button>
                             <span className="post-selection-divider" />
-                            <button type="button" onClick={() => applyRichCommand('bold')} title="Bold">B</button>
-                            <button type="button" onClick={() => applyRichCommand('italic')} title="Italic">I</button>
-                            <button type="button" onClick={() => applyRichCommand('underline')} title="Underline">U</button>
-                            <button type="button" onClick={() => applyRichCommand('code')} title="Inline code">{'{}'}</button>
-                            <button type="button" onClick={() => applyRichCommand('link')} title="Link">Link</button>
-                            <span className="post-selection-divider" />
-                            <button type="button" onClick={() => applyRichCommand('insertUnorderedList')} title="List">List</button>
-                            <button type="button" onClick={() => applyRichCommand('blockquote')} title="Quote">Quote</button>
-                            <button type="button" onClick={() => applyRichCommand('pre')} title="Code block">Code</button>
+                            <button type="button" onClick={() => applyRichCommand('code')} title="Inline code" disabled={disabled}>{'{}'}</button>
+                            <button type="button" onClick={() => applyRichCommand('link')} title="Link" disabled={disabled}>Link</button>
                         </div>
                     )}
                     <div

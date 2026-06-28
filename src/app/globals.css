@@ -12014,9 +12014,9 @@ html *::after {
   left: 0;
   bottom: calc(100% + 8px);
   display: grid;
-  grid-template-columns: repeat(7, minmax(28px, 1fr));
+  grid-template-columns: repeat(6, minmax(28px, 1fr));
   gap: 4px;
-  width: 252px;
+  width: 216px;
   padding: 6px;
   border: 1px solid rgba(226,232,240,0.95);
   border-radius: 10px;
@@ -12059,7 +12059,7 @@ html *::after {
   display: flex;
   align-items: center;
   gap: 2px;
-  max-width: calc(100% - 14px);
+  max-width: min(260px, calc(100% - 14px));
   padding: 5px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -12621,13 +12621,13 @@ html *::after {
     top: 0;
     bottom: auto;
     left: 48px;
-    width: min(252px, calc(100vw - 78px));
+    width: min(216px, calc(100vw - 78px));
     transform-origin: left top;
   }
 
   .post-selection-toolbar {
     left: 50% !important;
-    max-width: calc(100vw - 34px);
+    max-width: min(260px, calc(100vw - 34px));
   }
 
   .post-edit-helper {
