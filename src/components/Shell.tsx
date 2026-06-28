@@ -18,6 +18,29 @@ const NOTIFICATION_COUNT_CACHE_KEY = 'notifications:count';
 const NOTIFICATION_COUNT_CACHE_TTL_MS = 30000;
 const SIDEBAR_WALLET_CACHE_KEY = 'coins:wallet-balance';
 const SIDEBAR_WALLET_CACHE_TTL_MS = 60000;
+let sidebarExpandedPreference: boolean | null = null;
+
+function readStoredSidebarExpanded() {
+    try {
+        const savedPreference = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+        if (savedPreference === '0') return false;
+        if (savedPreference === '1') return true;
+    } catch {
+        return null;
+    }
+
+    return null;
+}
+
+function persistSidebarExpanded(isExpanded: boolean) {
+    sidebarExpandedPreference = isExpanded;
+
+    try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, isExpanded ? '1' : '0');
+    } catch {
+        // Keep the in-memory preference when storage is unavailable.
+    }
+}
 
 function scopedCacheKey(prefix: string, userId?: number | string | null) {
     return `${prefix}:${userId || 'guest'}`;
@@ -53,7 +76,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const [isPending, startTransition] = useTransition();
     const [unreadCount, setUnreadCount] = useState(0);
     const [pendingPath, setPendingPath] = useState('');
-    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => sidebarExpandedPreference ?? false);
     const [coinBalance, setCoinBalance] = useState<number | null>(null);
     const [hydratedUser, setHydratedUser] = useState<User | null>(user);
     const displayUser = hydratedUser || user;
@@ -78,9 +101,15 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     }, [user]);
 
     useEffect(() => {
-        const savedPreference = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-        if (savedPreference === '0') setIsSidebarExpanded(false);
-        if (savedPreference === '1') setIsSidebarExpanded(true);
+        const savedPreference = readStoredSidebarExpanded();
+        if (savedPreference === null) return;
+
+        sidebarExpandedPreference = savedPreference;
+        const frameId = window.requestAnimationFrame(() => {
+            setIsSidebarExpanded(savedPreference);
+        });
+
+        return () => window.cancelAnimationFrame(frameId);
     }, []);
 
     useEffect(() => {
@@ -226,7 +255,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const toggleSidebar = () => {
         setIsSidebarExpanded(current => {
             const nextValue = !current;
-            window.localStorage.setItem(SIDEBAR_STORAGE_KEY, nextValue ? '1' : '0');
+            persistSidebarExpanded(nextValue);
             return nextValue;
         });
     };
