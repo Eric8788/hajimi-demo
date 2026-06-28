@@ -53,7 +53,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
     const [isPending, startTransition] = useTransition();
     const [unreadCount, setUnreadCount] = useState(0);
     const [pendingPath, setPendingPath] = useState('');
-    const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
     const [coinBalance, setCoinBalance] = useState<number | null>(null);
     const [hydratedUser, setHydratedUser] = useState<User | null>(user);
     const displayUser = hydratedUser || user;
