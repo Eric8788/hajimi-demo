@@ -12352,7 +12352,7 @@ html *::after {
 .post-rich-editor ul,
 .post-rich-editor ol {
   margin-top: 0;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0;
 }
 
 .post-rich-editor h1,
@@ -12373,26 +12373,32 @@ html *::after {
 
 .post-rich-editor h1 {
   font-size: 1.3rem;
+  margin-bottom: 0.52rem;
 }
 
 .post-rich-editor h2 {
   font-size: 1.18rem;
+  margin-bottom: 0.48rem;
 }
 
 .post-rich-editor h3 {
   font-size: 1.08rem;
+  margin-bottom: 0.42rem;
 }
 
 .post-rich-editor h4 {
   font-size: 1rem;
+  margin-bottom: 0.38rem;
 }
 
 .post-rich-editor ul,
 .post-rich-editor ol {
+  margin-bottom: 0.62rem;
   padding-left: 1.3rem;
 }
 
 .post-rich-editor blockquote {
+  margin-bottom: 0.62rem;
   padding: 0.64rem 0.86rem;
   border-left: 3px solid #cbd5e1;
   color: #475569;
@@ -12410,6 +12416,7 @@ html *::after {
 }
 
 .post-rich-editor pre {
+  margin-bottom: 0.62rem;
   padding: 0.82rem 0.95rem;
   border-radius: 10px;
   color: #f8fafc;
