@@ -6,6 +6,7 @@ import {
     useRef,
     useState,
     type ClipboardEvent,
+    type FormEvent,
     type KeyboardEvent,
     type MouseEvent,
     type PointerEvent,
@@ -61,6 +62,8 @@ export type PostTextComposerApi = {
 
 const INLINE_MARKDOWN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
 const BLOCK_TAGS = new Set(['address', 'article', 'aside', 'blockquote', 'div', 'dl', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'ul']);
+const EDITOR_BLOCK_SELECTOR = 'p,h1,h2,h3,h4,li,blockquote,pre';
+const EDITOR_TOP_LEVEL_BLOCK_SELECTOR = 'p,h1,h2,h3,h4,blockquote,pre,ul,ol,hr';
 
 function normalizeLinkInput(value: string) {
     const trimmed = value.trim();
@@ -121,6 +124,13 @@ function looksLikeMarkdownSource(value: string) {
     ));
 }
 
+function textToPlainPasteHtml(value: string) {
+    const normalized = value.replace(/\r\n?/g, '\n');
+    return normalized.includes('\n')
+        ? markdownToEditorHtml(normalized)
+        : escapeHtml(normalized);
+}
+
 function getClosestAnchor(target: EventTarget | null) {
     if (!(target instanceof Element)) return null;
     const anchor = target.closest('a');
@@ -131,8 +141,51 @@ function getClosestRichBlock(node: Node | null, editor: HTMLElement) {
     const element = node instanceof Element
         ? node
         : node?.parentElement;
-    const block = element?.closest('p,h1,h2,h3,h4,li,blockquote,pre');
+    const block = element?.closest(EDITOR_BLOCK_SELECTOR);
     return block instanceof HTMLElement && editor.contains(block) ? block : null;
+}
+
+function getTopLevelEditorBlock(node: Node | null, editor: HTMLElement) {
+    const block = getClosestRichBlock(node, editor);
+    if (!block) return null;
+
+    if (block.tagName.toLowerCase() === 'li') {
+        const list = block.parentElement;
+        return list instanceof HTMLElement && list.parentElement === editor ? list : block;
+    }
+
+    let current: HTMLElement = block;
+    while (current.parentElement && current.parentElement !== editor) {
+        current = current.parentElement;
+    }
+
+    return current.parentElement === editor ? current : block;
+}
+
+function getAdjacentEditorBlock(block: HTMLElement, direction: 'previous' | 'next') {
+    const sibling = direction === 'previous' ? block.previousElementSibling : block.nextElementSibling;
+    return sibling instanceof HTMLElement && sibling.matches(EDITOR_TOP_LEVEL_BLOCK_SELECTOR) ? sibling : null;
+}
+
+function isBlockEffectivelyEmpty(block: HTMLElement) {
+    if (block.tagName.toLowerCase() === 'hr') return false;
+    return !normalizeEditorText(block.textContent || '').trim()
+        && block.querySelectorAll('img, hr').length === 0;
+}
+
+function isCaretAtBlockEdge(range: Range, block: HTMLElement, edge: 'start' | 'end') {
+    const probe = block.ownerDocument.createRange();
+    probe.selectNodeContents(block);
+
+    if (edge === 'start') {
+        probe.setEnd(range.startContainer, range.startOffset);
+    } else {
+        probe.setStart(range.startContainer, range.startOffset);
+    }
+
+    const isAtEdge = !normalizeEditorText(probe.toString()).trim();
+    probe.detach();
+    return isAtEdge;
 }
 
 function getRangeFromPoint(document: Document, x: number, y: number) {
@@ -593,6 +646,290 @@ function restoreRange(range: Range | null) {
     return true;
 }
 
+function selectionIsInsideEditor(selection: Selection | null, editor: HTMLElement) {
+    if (!selection || selection.rangeCount === 0) return false;
+    const range = selection.getRangeAt(0);
+    return editor.contains(range.startContainer) && editor.contains(range.endContainer);
+}
+
+function rangeCoversEditor(range: Range, editor: HTMLElement) {
+    const editorText = normalizeEditorText(editor.textContent || '').trim();
+    const selectedText = normalizeEditorText(range.toString()).trim();
+    if (editorText && selectedText === editorText) return true;
+
+    const probe = editor.ownerDocument.createRange();
+    probe.selectNodeContents(editor);
+    const covers = range.compareBoundaryPoints(Range.START_TO_START, probe) <= 0
+        && range.compareBoundaryPoints(Range.END_TO_END, probe) >= 0;
+    probe.detach();
+    return covers;
+}
+
+function htmlHasTopLevelEditorBlock(document: Document, html: string) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    return Array.from(template.content.childNodes).some(node => (
+        node instanceof HTMLElement && node.matches(EDITOR_TOP_LEVEL_BLOCK_SELECTOR)
+    ));
+}
+
+function singleParagraphInnerHtml(document: Document, html: string) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const meaningfulNodes = Array.from(template.content.childNodes).filter(node => (
+        node.nodeType !== Node.TEXT_NODE || !!normalizeEditorText(node.textContent || '').trim()
+    ));
+
+    if (meaningfulNodes.length !== 1) return null;
+    const onlyNode = meaningfulNodes[0];
+    return onlyNode instanceof HTMLElement && onlyNode.tagName.toLowerCase() === 'p'
+        ? onlyNode.innerHTML
+        : null;
+}
+
+function ensureEditorBlockHtml(document: Document, html: string) {
+    return htmlHasTopLevelEditorBlock(document, html) ? html : `<p>${html}</p>`;
+}
+
+function htmlToNodes(document: Document, html: string) {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    return Array.from(template.content.childNodes);
+}
+
+function nodeHasVisibleEditorContent(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+        return !!normalizeEditorText(node.textContent || '').trim();
+    }
+
+    if (!(node instanceof HTMLElement)) return false;
+    if (node.tagName.toLowerCase() === 'br') return false;
+    return !!normalizeEditorText(node.textContent || '').trim()
+        || node.querySelectorAll('img, hr').length > 0;
+}
+
+function placeCaretInNode(node: Node, edge: 'start' | 'end') {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const range = document.createRange();
+    if (node instanceof HTMLElement && node.tagName.toLowerCase() === 'hr') {
+        if (edge === 'start') {
+            range.setStartBefore(node);
+        } else {
+            range.setStartAfter(node);
+        }
+        range.collapse(true);
+    } else {
+        range.selectNodeContents(node);
+        range.collapse(edge === 'start');
+    }
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function placeCaretAfterInsertedNodes(nodes: Node[], editor: HTMLElement) {
+    const target = [...nodes].reverse().find(node => node.parentNode && nodeHasVisibleEditorContent(node));
+    if (target) {
+        placeCaretInNode(target, 'end');
+        return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function createSplitBlockShell(block: HTMLElement) {
+    const tagName = block.tagName.toLowerCase();
+    if (!['p', 'h1', 'h2', 'h3', 'h4', 'blockquote'].includes(tagName)) return null;
+    return block.ownerDocument.createElement(tagName);
+}
+
+function appendFragmentIfVisible(block: HTMLElement, fragment: DocumentFragment) {
+    if (!Array.from(fragment.childNodes).some(nodeHasVisibleEditorContent)) return false;
+    block.appendChild(fragment);
+    return true;
+}
+
+function splitBlockAroundRange(block: HTMLElement, range: Range, insertedNodes: Node[]) {
+    const shellBefore = createSplitBlockShell(block);
+    const shellAfter = createSplitBlockShell(block);
+    if (!shellBefore || !shellAfter) return false;
+
+    const beforeRange = block.ownerDocument.createRange();
+    beforeRange.selectNodeContents(block);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+
+    const afterRange = block.ownerDocument.createRange();
+    afterRange.selectNodeContents(block);
+    afterRange.setStart(range.endContainer, range.endOffset);
+
+    const replacements: Node[] = [];
+    if (appendFragmentIfVisible(shellBefore, beforeRange.cloneContents())) {
+        replacements.push(shellBefore);
+    }
+    replacements.push(...insertedNodes);
+    if (appendFragmentIfVisible(shellAfter, afterRange.cloneContents())) {
+        replacements.push(shellAfter);
+    }
+
+    beforeRange.detach();
+    afterRange.detach();
+
+    if (replacements.length === 0) return false;
+    block.replaceWith(...replacements);
+    return true;
+}
+
+function getSingleFullySelectedBlock(range: Range, editor: HTMLElement) {
+    const selectedText = normalizeEditorText(range.toString()).trim();
+    if (!selectedText) return null;
+
+    const startBlock = getTopLevelEditorBlock(range.startContainer, editor);
+    const endBlock = getTopLevelEditorBlock(range.endContainer, editor);
+    if (!startBlock || (endBlock && endBlock !== startBlock)) return null;
+
+    const blockText = normalizeEditorText(startBlock.textContent || '').trim();
+    return blockText && selectedText === blockText ? startBlock : null;
+}
+
+function removeBlockWithoutMerging(block: HTMLElement) {
+    const next = block.nextElementSibling instanceof HTMLElement ? block.nextElementSibling : null;
+    const previous = block.previousElementSibling instanceof HTMLElement ? block.previousElementSibling : null;
+    const editor = block.parentElement;
+
+    block.remove();
+
+    if (next) {
+        placeCaretInNode(next, 'start');
+    } else if (previous) {
+        placeCaretInNode(previous, 'end');
+    } else if (editor) {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+    }
+}
+
+function removeEmptyActiveBlockAfterDelete(editor: HTMLElement) {
+    const selection = window.getSelection();
+    const range = selectionIsInsideEditor(selection, editor) && selection?.rangeCount
+        ? selection.getRangeAt(0)
+        : null;
+    const activeBlock = range ? getTopLevelEditorBlock(range.startContainer, editor) : null;
+
+    if (activeBlock && activeBlock.parentElement === editor && isBlockEffectivelyEmpty(activeBlock)) {
+        removeBlockWithoutMerging(activeBlock);
+        return true;
+    }
+
+    const emptyTopLevelBlock = Array.from(editor.children).find(child => (
+        child instanceof HTMLElement
+        && child.matches(EDITOR_TOP_LEVEL_BLOCK_SELECTOR)
+        && isBlockEffectivelyEmpty(child)
+    ));
+
+    if (emptyTopLevelBlock instanceof HTMLElement) {
+        removeBlockWithoutMerging(emptyTopLevelBlock);
+        return true;
+    }
+
+    return false;
+}
+
+function insertInlineHtml(editor: HTMLElement, range: Range, html: string) {
+    const insertedNodes = htmlToNodes(editor.ownerDocument, html);
+    range.deleteContents();
+
+    const fragment = editor.ownerDocument.createDocumentFragment();
+    insertedNodes.forEach(node => fragment.appendChild(node));
+    range.insertNode(fragment);
+    placeCaretAfterInsertedNodes(insertedNodes, editor);
+}
+
+function insertBlockHtml(editor: HTMLElement, range: Range, html: string) {
+    const blockHtml = ensureEditorBlockHtml(editor.ownerDocument, html);
+    const insertedNodes = htmlToNodes(editor.ownerDocument, blockHtml);
+    const selectedBlock = getSingleFullySelectedBlock(range, editor);
+    const activeBlock = getTopLevelEditorBlock(range.startContainer, editor);
+
+    if (rangeCoversEditor(range, editor)) {
+        editor.innerHTML = blockHtml;
+        placeCaretAfterInsertedNodes(Array.from(editor.childNodes), editor);
+        return;
+    }
+
+    if (selectedBlock) {
+        selectedBlock.replaceWith(...insertedNodes);
+        placeCaretAfterInsertedNodes(insertedNodes, editor);
+        return;
+    }
+
+    if (activeBlock && isBlockEffectivelyEmpty(activeBlock)) {
+        activeBlock.replaceWith(...insertedNodes);
+        placeCaretAfterInsertedNodes(insertedNodes, editor);
+        return;
+    }
+
+    if (activeBlock && activeBlock.parentElement === editor) {
+        if (isCaretAtBlockEdge(range, activeBlock, 'start')) {
+            activeBlock.before(...insertedNodes);
+            placeCaretAfterInsertedNodes(insertedNodes, editor);
+            return;
+        }
+
+        if (isCaretAtBlockEdge(range, activeBlock, 'end')) {
+            activeBlock.after(...insertedNodes);
+            placeCaretAfterInsertedNodes(insertedNodes, editor);
+            return;
+        }
+
+        if (splitBlockAroundRange(activeBlock, range, insertedNodes)) {
+            placeCaretAfterInsertedNodes(insertedNodes, editor);
+            return;
+        }
+    }
+
+    insertInlineHtml(editor, range, blockHtml);
+}
+
+function insertPasteHtml(editor: HTMLElement, html: string, preferBlockInsertion: boolean) {
+    const selection = window.getSelection();
+    if (!selectionIsInsideEditor(selection, editor)) {
+        editor.focus();
+    }
+
+    const activeSelection = window.getSelection();
+    if (!selectionIsInsideEditor(activeSelection, editor) || !activeSelection?.rangeCount) {
+        const nodes = htmlToNodes(editor.ownerDocument, ensureEditorBlockHtml(editor.ownerDocument, html));
+        editor.append(...nodes);
+        placeCaretAfterInsertedNodes(nodes, editor);
+        return;
+    }
+
+    const range = activeSelection.getRangeAt(0);
+    const isWholeBlockSelection = !!getSingleFullySelectedBlock(range, editor);
+    const shouldInsertAsBlocks = preferBlockInsertion
+        || rangeCoversEditor(range, editor)
+        || isWholeBlockSelection
+        || !!(getTopLevelEditorBlock(range.startContainer, editor) && isBlockEffectivelyEmpty(getTopLevelEditorBlock(range.startContainer, editor) as HTMLElement));
+
+    if (shouldInsertAsBlocks) {
+        insertBlockHtml(editor, range, html);
+        return;
+    }
+
+    insertInlineHtml(editor, range, html);
+}
+
 function getSelectedInlineCode(range: Range, editor: HTMLElement) {
     const codes = Array.from(editor.querySelectorAll('code'))
         .filter(code => !code.closest('pre') && range.intersectsNode(code));
@@ -706,6 +1043,20 @@ export default function PostTextComposer({
         onChange(nextValue);
         return nextValue;
     }, [clampValue, onChange, value]);
+
+    const handleRichInput = (event: FormEvent<HTMLDivElement>) => {
+        const editor = richEditorRef.current;
+        const nativeEvent = event.nativeEvent as InputEvent;
+        if (!editor) return;
+
+        if (nativeEvent.inputType?.startsWith('delete') && removeEmptyActiveBlockAfterDelete(editor)) {
+            updateFromRichEditor();
+            scheduleFloatingToolbar();
+            return;
+        }
+
+        updateFromRichEditor();
+    };
 
     useEffect(() => {
         editorRef?.({ sync: updateFromRichEditor });
@@ -1014,16 +1365,106 @@ export default function PostTextComposer({
         }
     };
 
-    const handleRichPaste = (event: ClipboardEvent<HTMLDivElement>) => {
-        const pastedText = event.clipboardData.getData('text/plain');
-        const pastedHtml = event.clipboardData.getData('text/html');
-        if (!pastedText && !pastedHtml) return;
+    const handleRichKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (!((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a')) return;
+
+        const editor = richEditorRef.current;
+        if (!editor || disabled) return;
 
         event.preventDefault();
-        const nextHtml = pastedText && looksLikeMarkdownSource(pastedText)
+        const range = editor.ownerDocument.createRange();
+        range.selectNodeContents(editor);
+
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        savedRichRangeRef.current = range.cloneRange();
+        scheduleFloatingToolbar();
+    };
+
+    const handleRichBeforeInput = (event: FormEvent<HTMLDivElement>) => {
+        const editor = richEditorRef.current;
+        const nativeEvent = event.nativeEvent as InputEvent;
+        if (!editor || disabled || !nativeEvent.inputType?.startsWith('delete')) return;
+
+        const selection = window.getSelection();
+        if (!selectionIsInsideEditor(selection, editor) || !selection?.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const isBackwardDelete = nativeEvent.inputType === 'deleteContentBackward';
+        const isForwardDelete = nativeEvent.inputType === 'deleteContentForward';
+        if (!isBackwardDelete && !isForwardDelete && nativeEvent.inputType !== 'deleteByCut') return;
+
+        if (!range.collapsed) {
+            const selectedBlock = getSingleFullySelectedBlock(range, editor);
+            if (selectedBlock) {
+                event.preventDefault();
+                removeBlockWithoutMerging(selectedBlock);
+                updateFromRichEditor();
+                scheduleFloatingToolbar();
+            }
+            return;
+        }
+
+        const activeBlock = getTopLevelEditorBlock(range.startContainer, editor);
+        if (!activeBlock) return;
+
+        if (isBlockEffectivelyEmpty(activeBlock)) {
+            event.preventDefault();
+            removeBlockWithoutMerging(activeBlock);
+            updateFromRichEditor();
+            scheduleFloatingToolbar();
+            return;
+        }
+
+        if (isBackwardDelete && isCaretAtBlockEdge(range, activeBlock, 'start')) {
+            const previousBlock = getAdjacentEditorBlock(activeBlock, 'previous');
+            if (previousBlock && previousBlock.tagName !== activeBlock.tagName) {
+                event.preventDefault();
+                if (isBlockEffectivelyEmpty(previousBlock)) {
+                    previousBlock.remove();
+                    placeCaretInNode(activeBlock, 'start');
+                    updateFromRichEditor();
+                }
+                scheduleFloatingToolbar();
+            }
+            return;
+        }
+
+        if (isForwardDelete && isCaretAtBlockEdge(range, activeBlock, 'end')) {
+            const nextBlock = getAdjacentEditorBlock(activeBlock, 'next');
+            if (nextBlock && nextBlock.tagName !== activeBlock.tagName) {
+                event.preventDefault();
+                if (isBlockEffectivelyEmpty(nextBlock)) {
+                    nextBlock.remove();
+                    placeCaretInNode(activeBlock, 'end');
+                    updateFromRichEditor();
+                }
+                scheduleFloatingToolbar();
+            }
+        }
+    };
+
+    const handleRichPaste = (event: ClipboardEvent<HTMLDivElement>) => {
+        const editor = richEditorRef.current;
+        const pastedText = event.clipboardData.getData('text/plain');
+        const pastedHtml = event.clipboardData.getData('text/html');
+        if (!editor || (!pastedText && !pastedHtml)) return;
+
+        event.preventDefault();
+        const isMarkdownSource = !!pastedText && looksLikeMarkdownSource(pastedText);
+        const richHtml = isMarkdownSource ? '' : clipboardHtmlToEditorHtml(pastedHtml);
+        const blockLikePaste = isMarkdownSource
+            || pastedText.replace(/\r\n?/g, '\n').includes('\n')
+            || (!!richHtml && singleParagraphInnerHtml(editor.ownerDocument, richHtml) === null);
+        const nextHtml = isMarkdownSource
             ? markdownToEditorHtml(pastedText)
-            : clipboardHtmlToEditorHtml(pastedHtml) || markdownToEditorHtml(pastedText) || escapeHtml(pastedText);
-        document.execCommand('insertHTML', false, nextHtml);
+            : richHtml || textToPlainPasteHtml(pastedText);
+        const inlineHtml = blockLikePaste
+            ? nextHtml
+            : singleParagraphInnerHtml(editor.ownerDocument, nextHtml) ?? nextHtml;
+
+        insertPasteHtml(editor, inlineHtml, blockLikePaste);
         updateFromRichEditor();
         scheduleFloatingToolbar();
     };
@@ -1209,7 +1650,9 @@ export default function PostTextComposer({
                         role="textbox"
                         aria-multiline="true"
                         data-placeholder={placeholder}
-                        onInput={updateFromRichEditor}
+                        onBeforeInput={handleRichBeforeInput}
+                        onInput={handleRichInput}
+                        onKeyDown={handleRichKeyDown}
                         onPaste={handleRichPaste}
                         onPointerDown={handleRichPointerDown}
                         onMouseOver={handleRichMouseOver}
