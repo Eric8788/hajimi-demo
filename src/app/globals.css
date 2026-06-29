@@ -8534,9 +8534,8 @@ textarea:hover,
 }
 
 .wallet-transaction-row > span,
-.admin-coin-user-row em {
+.admin-coin-user-metrics {
   flex: 0 0 auto;
-  font-style: normal;
   font-weight: 950;
 }
 
@@ -8629,9 +8628,26 @@ textarea:hover,
   display: block;
 }
 
-.admin-coin-user-row em {
+.admin-coin-user-metrics {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
   color: #6c5ce7;
   white-space: nowrap;
+}
+
+.admin-coin-user-metrics strong {
+  color: #6c5ce7;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.admin-coin-user-metrics span {
+  display: block;
+  color: #8f96a3;
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-align: right;
 }
 
 .admin-coin-batch-toolbar {
@@ -8726,6 +8742,7 @@ textarea:hover,
 
 .admin-coin-target {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 12px;
@@ -8733,6 +8750,18 @@ textarea:hover,
   color: #2d3436;
   background: rgba(108,92,231,0.08);
   font-weight: 900;
+}
+
+.admin-coin-target div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-coin-target small {
+  color: #8f96a3;
+  font-size: 0.73rem;
+  font-weight: 850;
 }
 
 .admin-coin-target span {
@@ -9158,9 +9187,15 @@ textarea:hover,
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .admin-coin-user-row em {
+  .admin-coin-user-metrics {
     grid-column: 2;
     justify-self: start;
+    justify-items: start;
+  }
+
+  .admin-coin-user-metrics strong,
+  .admin-coin-user-metrics span {
+    text-align: left;
   }
 
   .admin-user-status {

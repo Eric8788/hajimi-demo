@@ -946,6 +946,10 @@ export async function getAdminCoinOverview(options: {
         role: string;
         verification_status: VerificationStatus;
         account_status: AccountStatus;
+        last_grant_amount: number | null;
+        last_grant_source_type: string | null;
+        last_grant_note: string | null;
+        last_grant_at: Date | string | null;
     }>[number]>`
       SELECT
         users.id as user_id,
@@ -957,9 +961,22 @@ export async function getAdminCoinOverview(options: {
         COALESCE(coin_wallets.earned_total, 0)::int as earned_total,
         COALESCE(coin_wallets.spent_total, 0)::int as spent_total,
         COALESCE(coin_wallets.created_at, users.created_at) as created_at,
-        COALESCE(coin_wallets.updated_at, users.created_at) as updated_at
+        COALESCE(coin_wallets.updated_at, users.created_at) as updated_at,
+        last_grant.amount::int as last_grant_amount,
+        last_grant.source_type as last_grant_source_type,
+        last_grant.note as last_grant_note,
+        last_grant.created_at as last_grant_at
       FROM users
       LEFT JOIN coin_wallets ON coin_wallets.user_id = users.id
+      LEFT JOIN LATERAL (
+        SELECT amount, source_type, note, created_at
+        FROM coin_transactions
+        WHERE coin_transactions.user_id = users.id
+          AND coin_transactions.type = 'grant'
+          AND coin_transactions.created_by IS NOT NULL
+        ORDER BY coin_transactions.created_at DESC, coin_transactions.id DESC
+        LIMIT 1
+      ) last_grant ON TRUE
       WHERE (
         ${query} = ''
         OR lower(users.username) LIKE ${`%${query}%`}
@@ -992,6 +1009,9 @@ export async function getAdminCoinOverview(options: {
             balance: Number(row.balance || 0),
             earned_total: Number(row.earned_total || 0),
             spent_total: Number(row.spent_total || 0),
+            last_grant_amount: row.last_grant_amount === null || row.last_grant_amount === undefined
+                ? null
+                : Number(row.last_grant_amount),
         })),
         redemptions: redemptionRows.map(normalizeCoinRedemption),
     };

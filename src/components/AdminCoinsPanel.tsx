@@ -9,6 +9,10 @@ type AdminCoinUser = CoinWallet & {
     role: string;
     verification_status: string;
     account_status?: string;
+    last_grant_amount?: number | null;
+    last_grant_source_type?: string | null;
+    last_grant_note?: string | null;
+    last_grant_at?: Date | string | null;
 };
 
 type AdminCoinOverview = {
@@ -41,6 +45,20 @@ function formatTime(value: Date | string | null | undefined) {
     return new Date(value).toLocaleString('zh-CN');
 }
 
+function formatCompactTime(value: Date | string | null | undefined) {
+    if (!value) return '';
+    return new Date(value).toLocaleDateString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function sourceLabel(value: string | null | undefined) {
+    return SOURCE_OPTIONS.find(option => option.value === value)?.label || value || '发放';
+}
+
 function statusLabel(status: string) {
     if (status === 'approved') return '已通过，待发 token';
     if (status === 'completed') return '已完成';
@@ -54,6 +72,11 @@ function userStatusLabel(user: AdminCoinUser) {
     if (user.verification_status === 'pending') return '待审核';
     if (user.verification_status === 'rejected') return '已拒绝';
     return '未认证';
+}
+
+function lastGrantLabel(user: AdminCoinUser) {
+    if (!user.last_grant_at || !user.last_grant_amount) return '暂无发放记录';
+    return `上次 +${Number(user.last_grant_amount).toLocaleString()} · ${formatCompactTime(user.last_grant_at)}`;
 }
 
 export default function AdminCoinsPanel({ initialOverview }: { initialOverview: AdminCoinOverview }) {
@@ -315,7 +338,15 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                                         <small>{formatHajimiId(user.user_id)} · {user.role} · {userStatusLabel(user)}</small>
                                     </span>
                                 </button>
-                                <em>{Number(user.balance || 0).toLocaleString()} H币</em>
+                                <div
+                                    className="admin-coin-user-metrics"
+                                    title={user.last_grant_at
+                                        ? `${sourceLabel(user.last_grant_source_type)}：+${Number(user.last_grant_amount || 0).toLocaleString()} H币 · ${formatTime(user.last_grant_at)}${user.last_grant_note ? ` · ${user.last_grant_note}` : ''}`
+                                        : '暂无管理员发放记录'}
+                                >
+                                    <strong>{Number(user.balance || 0).toLocaleString()} H币</strong>
+                                    <span>{lastGrantLabel(user)}</span>
+                                </div>
                             </article>
                         );
                     })}
@@ -331,7 +362,10 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                 </div>
                 {selectedUser ? (
                     <div className="admin-coin-target">
-                        <strong>{selectedUser.username}</strong>
+                        <div>
+                            <strong>{selectedUser.username}</strong>
+                            <small>{lastGrantLabel(selectedUser)}</small>
+                        </div>
                         <span>当前余额 {Number(selectedUser.balance || 0).toLocaleString()} H币</span>
                     </div>
                 ) : (
