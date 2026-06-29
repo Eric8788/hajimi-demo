@@ -5402,6 +5402,26 @@ textarea:hover,
   opacity: 1;
 }
 
+.profile-floating-tooltip.is-anchored {
+  min-width: auto;
+  max-width: 220px;
+  width: max-content;
+  transform: translate3d(0, 0, 0) translate(-50%, -100%);
+}
+
+.profile-floating-tooltip.is-anchored::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 9px;
+  height: 9px;
+  background: rgba(32,38,58,0.92);
+  border-right: 1px solid rgba(255,255,255,0.16);
+  border-bottom: 1px solid rgba(255,255,255,0.16);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
 .profile-overview-tooltip {
   z-index: 30;
 }
@@ -5576,6 +5596,11 @@ textarea:hover,
 
 .profile-heatmap-card {
   margin-top: 14px;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
 }
 
 .profile-heatmap-overview-card {
@@ -5590,17 +5615,22 @@ textarea:hover,
 
 .profile-heatmap {
   display: grid;
-  grid-template-columns: repeat(14, minmax(12px, 1fr));
-  gap: 7px;
-  margin-top: 10px;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 7px 6px;
+  width: min(420px, 86%);
+  max-width: 100%;
+  aspect-ratio: 15 / 2;
+  margin: 10px auto 0;
+  padding: 12px 0 2px;
+  filter: none;
 }
 
 .profile-heatmap-detail {
-  grid-template-columns: repeat(15, minmax(16px, 22px));
-  width: min(100%, fit-content);
-  margin: 14px auto 0;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  width: min(420px, 86%);
   justify-content: center;
-  gap: 7px;
 }
 
 .profile-heatmap-compact {
@@ -5610,18 +5640,20 @@ textarea:hover,
 
 .profile-heatmap span {
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 3px;
   background: rgba(108,92,231, calc(0.06 + var(--heat) * 0.13));
   cursor: help;
-  transition: transform 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+  border: 0;
+  box-shadow: none;
+  transition: transform 0.14s ease, filter 0.14s ease;
   will-change: transform;
 }
 
 .profile-heatmap-detail span {
-  width: 22px;
-  height: 22px;
+  width: 100%;
+  height: 100%;
   aspect-ratio: auto;
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
 .profile-heatmap-card .profile-heatmap-legend {
@@ -5633,10 +5665,10 @@ textarea:hover,
 }
 
 .profile-heatmap span:hover,
-.profile-heatmap span:focus-visible {
-  transform: scale(1.22);
-  background: rgba(55,198,208,0.5);
-  box-shadow: 0 10px 22px rgba(55,198,208,0.2);
+.profile-heatmap span:focus-visible,
+.profile-heatmap span.is-active {
+  transform: translateY(-4px);
+  filter: saturate(1.14) brightness(1.04);
   outline: none;
 }
 
@@ -5656,6 +5688,30 @@ textarea:hover,
   height: 13px;
   border-radius: 5px;
   background: rgba(108,92,231, calc(0.06 + var(--heat) * 0.13));
+}
+
+.profile-heatmap-legend i:nth-of-type(1) {
+  background: rgba(238, 241, 255, 0.72);
+}
+
+.profile-heatmap-legend i:nth-of-type(2) {
+  background: rgba(214, 219, 255, 0.82);
+}
+
+.profile-heatmap-legend i:nth-of-type(3) {
+  background: rgba(182, 188, 250, 0.86);
+}
+
+.profile-heatmap-legend i:nth-of-type(4) {
+  background: rgba(145, 137, 240, 0.9);
+}
+
+.profile-heatmap-legend i:nth-of-type(5) {
+  background: rgba(108, 92, 231, 0.92);
+}
+
+.profile-heatmap-legend i:nth-of-type(6) {
+  background: rgba(73, 58, 196, 0.94);
 }
 
 .profile-performance-list {
@@ -6620,8 +6676,8 @@ textarea:hover,
   }
 
   .profile-heatmap-detail {
-    grid-template-columns: repeat(7, minmax(18px, 1fr));
-    width: 100%;
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+    width: min(380px, 80vw);
   }
 
   .profile-editor-head {

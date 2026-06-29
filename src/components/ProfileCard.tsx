@@ -118,6 +118,8 @@ function formatNumber(value: number) {
     return new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value)));
 }
 
+const PROFILE_HEATMAP_DAYS = 30;
+
 type ProfileCardProps = {
     user: User;
     readOnly?: boolean;
@@ -327,7 +329,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const rangeProjectOpens = selectedRangeDays.reduce((sum, day) => sum + Number(day.projectOpens || 0), 0);
     const rangePostInteractions = selectedRangeDays.reduce((sum, day) => sum + Number(day.postInteractions || 0), 0);
     const rangeActivity = selectedRangeDays.reduce((sum, day) => sum + Number(day.value || 0), 0);
-    const monthlyOverviewDays = useMemo(() => getDateKeysBetween(monthStartKey, monthEndKey, 31).map(key => {
+    const heatmapOverviewDays = useMemo(() => getDateKeysBetween(shiftDateKey(todayKey, -(PROFILE_HEATMAP_DAYS - 1)), todayKey, PROFILE_HEATMAP_DAYS).map(key => {
         const day = sourceAnalyticsDays.get(key);
         return day || {
             key,
@@ -337,16 +339,16 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
             postInteractions: 0,
             value: 0,
         };
-    }), [monthEndKey, monthStartKey, sourceAnalyticsDays]);
+    }), [sourceAnalyticsDays, todayKey]);
     const overviewHeatmapCells = useMemo(() => {
-        const maxValue = Math.max(1, ...monthlyOverviewDays.map(day => Number(day.value || 0)));
-        return monthlyOverviewDays.map(day => ({
+        const maxValue = Math.max(1, ...heatmapOverviewDays.map(day => Number(day.value || 0)));
+        return heatmapOverviewDays.map(day => ({
             ...day,
             label: formatAnalyticsDateLabel(day.key),
             heat: Math.min(5, Math.ceil((Number(day.value || 0) / maxValue) * 5)),
             detail: `活跃 ${formatNumber(Number(day.value || 0))} · XP ${formatNumber(Number(day.xp || 0))} · 项目打开 ${formatNumber(Number(day.projectOpens || 0))} · 帖子互动 ${formatNumber(Number(day.postInteractions || 0))}`,
         }));
-    }, [monthlyOverviewDays]);
+    }, [heatmapOverviewDays]);
     const analyticsTrend = useMemo(() => {
         const points = selectedTrendPoints.length > 0
             ? selectedTrendPoints
@@ -530,7 +532,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
             window.cancelAnimationFrame(frameRef.current);
             frameRef.current = null;
         }
-        tooltip?.classList.remove('is-visible');
+        tooltip?.classList.remove('is-visible', 'is-anchored');
     };
 
     const handleTrendPointerMove = (event: PointerEvent<HTMLDivElement>) => {
@@ -556,7 +558,20 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     };
 
     const handleHeatmapPointerMove = (event: PointerEvent<HTMLElement>, cell: ProfileAnalyticsDay & { detail: string }) => {
-        positionTooltip(heatmapTooltipRef.current, heatmapFrameRef, event, `${cell.label}: ${cell.detail}`);
+        const tooltip = heatmapTooltipRef.current;
+        const parent = tooltip?.parentElement;
+        if (!tooltip || !parent) return;
+        const parentRect = parent.getBoundingClientRect();
+        const targetRect = event.currentTarget.getBoundingClientRect();
+        const x = targetRect.left - parentRect.left + targetRect.width / 2;
+        const y = targetRect.top - parentRect.top - 8;
+
+        tooltip.textContent = `${cell.label}: ${cell.detail}`;
+        tooltip.classList.add('is-visible', 'is-anchored');
+        if (heatmapFrameRef.current) window.cancelAnimationFrame(heatmapFrameRef.current);
+        heatmapFrameRef.current = window.requestAnimationFrame(() => {
+            tooltip.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`;
+        });
     };
 
     const showContributionTooltip = (event: PointerEvent<Element>, segment: typeof contributionSegments[number]) => {
