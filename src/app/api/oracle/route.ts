@@ -8,8 +8,8 @@ const SILICONFLOW_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const DASHSCOPE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 const ZENMUX_URL = 'https://zenmux.ai/api/v1/chat/completions';
 const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
-const PROVIDER_TIMEOUT_MS = 16000;
-const ORACLE_TOTAL_TIMEOUT_MS = 26000;
+const PROVIDER_TIMEOUT_MS = 45000;
+const ORACLE_TOTAL_TIMEOUT_MS = 55000;
 const DAILY_ORACLE_LIMIT = 3;
 
 type OracleCard = {
@@ -385,7 +385,10 @@ export async function POST(request: Request) {
                     ...responsePayloadMeta,
                 });
             } catch (error) {
-                console.error(`[oracle] ${config.provider} request failed, trying next provider`, error);
+                console.error(
+                    `[oracle] ${config.provider} request failed after ${Date.now() - oracleStartedAt}ms, trying next provider`,
+                    error,
+                );
             }
         }
 
