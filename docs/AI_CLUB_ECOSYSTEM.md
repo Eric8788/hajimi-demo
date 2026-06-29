@@ -139,7 +139,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/admin` | Admin | Admin console with review summary and recent history |
 | `/admin/users` | Admin | Member management, admin-only identity detail maintenance, account disable/restore |
 | `/admin/project-submissions` | Admin | Hub project/new-version application review |
-| `/admin/coins` | Admin | Manual H币 grants and token redemption review |
+| `/admin/coins` | Admin | Manual H币 grants, verified active member batch airdrops, and token redemption review |
 
 ---
 

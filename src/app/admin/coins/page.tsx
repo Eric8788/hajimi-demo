@@ -15,7 +15,7 @@ export default async function AdminCoinsPage() {
     if (!user) redirect('/login');
     if (!isAdminRole(user.role)) redirect('/dashboard');
 
-    const overview = await getAdminCoinOverview();
+    const overview = await getAdminCoinOverview({ verification: 'verified', accountStatus: 'active' });
 
     return (
         <Shell user={user}>
@@ -24,7 +24,7 @@ export default async function AdminCoinsPage() {
                     <div>
                         <span>Hajimi Coin Admin</span>
                         <h1>H币管理</h1>
-                        <p>人工发放 H币、记录预算来源，并审核创作者 token 兑换申请。H币独立于 XP，不影响等级和排行榜。</p>
+                        <p>筛选已认证成员、批量空投 H币、保留单用户手动发放，并审核创作者 token 兑换申请。H币独立于 XP，不影响等级和排行榜。</p>
                     </div>
                 </div>
                 <AdminCoinsPanel initialOverview={overview} />

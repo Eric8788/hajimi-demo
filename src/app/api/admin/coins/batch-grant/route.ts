@@ -1,0 +1,100 @@
+import { NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth';
+import { getUserById, grantCoinsBatchByAdmin } from '@/lib/db';
+import { isAdminRole } from '@/lib/roles';
+
+export const dynamic = 'force-dynamic';
+
+const ALLOWED_SOURCES = new Set([
+    'manual',
+    'verification_airdrop',
+    'project_publish_reward',
+    'version_publish_reward',
+    'monthly_award',
+    'teacher_bounty',
+    'content_award',
+]);
+
+function parsePositiveInteger(value: unknown) {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeTargetUserIds(value: unknown) {
+    if (!Array.isArray(value)) return [];
+    return Array.from(
+        new Set(
+            value
+                .map(parsePositiveInteger)
+                .filter((id): id is number => Boolean(id)),
+        ),
+    );
+}
+
+export async function POST(request: Request) {
+    try {
+        const session = await getSession();
+        if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        const admin = await getUserById(Number(session.userId));
+        if (!admin || !isAdminRole(admin.role)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const body = await request.json().catch(() => null);
+        const targetUserIds = normalizeTargetUserIds(body?.targetUserIds);
+        const amount = parsePositiveInteger(body?.amount);
+        const note = String(body?.note || '').trim();
+        const sourceType = ALLOWED_SOURCES.has(String(body?.sourceType || ''))
+            ? String(body?.sourceType)
+            : 'verification_airdrop';
+
+        if (targetUserIds.length === 0) {
+            return NextResponse.json({ error: '请先勾选要空投的已认证成员。' }, { status: 400 });
+        }
+        if (targetUserIds.length > 120) {
+            return NextResponse.json({ error: '一次最多批量发放 120 名成员。' }, { status: 400 });
+        }
+        if (!amount || amount > 10000) {
+            return NextResponse.json({ error: '空投数量需要是 1-10000 的整数。' }, { status: 400 });
+        }
+        if (note.length < 2) {
+            return NextResponse.json({ error: '批量空投必须填写备注。' }, { status: 400 });
+        }
+
+        const result = await grantCoinsBatchByAdmin({
+            adminId: Number(admin.id),
+            targetUserIds,
+            amount,
+            sourceType,
+            note,
+        });
+
+        return NextResponse.json({ success: true, ...result }, {
+            headers: { 'Cache-Control': 'no-store' },
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message === 'Invalid coin amount') {
+            return NextResponse.json({ error: '空投数量需要是 1-10000 的整数。' }, { status: 400 });
+        }
+        if (message === 'Coin grant note required') {
+            return NextResponse.json({ error: '批量空投必须填写备注。' }, { status: 400 });
+        }
+        if (message === 'Batch target users required') {
+            return NextResponse.json({ error: '请先勾选要空投的已认证成员。' }, { status: 400 });
+        }
+        if (message === 'Batch target limit exceeded') {
+            return NextResponse.json({ error: '一次最多批量发放 120 名成员。' }, { status: 400 });
+        }
+        if (message.startsWith('Batch target users missing:')) {
+            return NextResponse.json({ error: '部分成员不存在，请刷新列表后重试。' }, { status: 404 });
+        }
+        if (message.startsWith('Batch targets not eligible:')) {
+            return NextResponse.json({ error: '只能批量空投给已认证且未停用的成员，请刷新筛选结果后重试。' }, { status: 409 });
+        }
+
+        console.error('POST /api/admin/coins/batch-grant error:', error);
+        return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    }
+}

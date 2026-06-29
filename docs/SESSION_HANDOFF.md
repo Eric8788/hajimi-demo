@@ -57,7 +57,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
   - legacy `project_tips` remains historical XP tip data for analytics.
   - new Function Hall tips use H币 wallet transfers through `coin_wallets`, `coin_transactions`, and `coin_project_tips`.
   - `/wallet` shows H币 balance, ledger, and token redemption requests.
-  - `/admin/coins` supports manual H币 grants and token redemption review.
+  - `/admin/coins` supports manual H币 grants, verified active member batch airdrops, and token redemption review. Batch airdrops write per-user `coin_transactions` ledger rows and do not touch XP.
 
 ## 3. Required Environment Variables
 

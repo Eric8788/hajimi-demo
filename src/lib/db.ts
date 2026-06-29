@@ -641,6 +641,33 @@ async function createAdminAuditEvent(input: {
     `;
 }
 
+async function writeAdminAuditEventForClient(client: VercelPoolClient, input: {
+    actorId: number | null;
+    targetUserId?: number | null;
+    targetType: AdminAuditEvent['target_type'];
+    targetId?: number | null;
+    eventType: string;
+    summary: string;
+    details?: Record<string, unknown> | null;
+}) {
+    await ensureAdminAuditTable();
+
+    await client.sql`
+      INSERT INTO admin_audit_events (
+        actor_id, target_user_id, target_type, target_id, event_type, summary, details
+      )
+      VALUES (
+        ${input.actorId},
+        ${input.targetUserId ?? null},
+        ${input.targetType},
+        ${input.targetId ?? null},
+        ${input.eventType},
+        ${input.summary.trim().slice(0, 280) || input.eventType},
+        ${JSON.stringify(input.details || {})}::jsonb
+      )
+    `;
+}
+
 let coinTablesReady: Promise<void> | null = null;
 
 export async function ensureCoinTables() {
@@ -889,18 +916,38 @@ export async function getCoinWalletOverview(userId: number): Promise<CoinWalletO
     };
 }
 
-export async function getAdminCoinOverview(options: { query?: string; limit?: number } = {}) {
+export async function getAdminCoinOverview(options: {
+    query?: string;
+    limit?: number;
+    verification?: VerificationStatus | 'all';
+    accountStatus?: AccountStatus | 'all';
+} = {}) {
     await ensureCoinTables();
 
     const query = String(options.query || '').trim().toLowerCase().slice(0, 60);
     const safeLimit = Math.min(Math.max(Number(options.limit) || 80, 1), 120);
+    const verification = options.verification === 'pending'
+        || options.verification === 'verified'
+        || options.verification === 'rejected'
+        || options.verification === 'unverified'
+        ? options.verification
+        : 'all';
+    const accountStatus = options.accountStatus === 'disabled' || options.accountStatus === 'active'
+        ? options.accountStatus
+        : 'all';
 
-    const { rows: userRows } = await sql<Array<CoinWallet & { username: string; role: string; verification_status: VerificationStatus }>[number]>`
+    const { rows: userRows } = await sql<Array<CoinWallet & {
+        username: string;
+        role: string;
+        verification_status: VerificationStatus;
+        account_status: AccountStatus;
+    }>[number]>`
       SELECT
         users.id as user_id,
         users.username,
         users.role,
         users.verification_status,
+        COALESCE(users.account_status, 'active') as account_status,
         COALESCE(coin_wallets.balance, 0)::int as balance,
         COALESCE(coin_wallets.earned_total, 0)::int as earned_total,
         COALESCE(coin_wallets.spent_total, 0)::int as spent_total,
@@ -914,6 +961,8 @@ export async function getAdminCoinOverview(options: { query?: string; limit?: nu
         OR CAST(users.id AS TEXT) = ${query}
         OR lower(COALESCE(users.verified_name, '')) LIKE ${`%${query}%`}
       )
+        AND (${verification} = 'all' OR users.verification_status = ${verification})
+        AND (${accountStatus} = 'all' OR COALESCE(users.account_status, 'active') = ${accountStatus})
       ORDER BY COALESCE(coin_wallets.balance, 0) DESC, users.created_at DESC
       LIMIT ${safeLimit}
     `;
@@ -943,6 +992,21 @@ export async function getAdminCoinOverview(options: { query?: string; limit?: nu
     };
 }
 
+function normalizeCoinGrantInput(input: {
+    amount: unknown;
+    note: unknown;
+    sourceType: unknown;
+}) {
+    const amount = Math.floor(Number(input.amount));
+    const note = String(input.note || '').trim();
+    const sourceType = String(input.sourceType || 'manual').trim().slice(0, 80) || 'manual';
+
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
+    if (note.length < 2) throw new Error('Coin grant note required');
+
+    return { amount, note, sourceType };
+}
+
 export async function grantCoinsByAdmin(input: {
     adminId: number;
     targetUserId: number;
@@ -953,11 +1017,7 @@ export async function grantCoinsByAdmin(input: {
     await ensureCoinTables();
     await ensureAdminAuditTable();
 
-    const amount = Math.floor(Number(input.amount));
-    const note = String(input.note || '').trim();
-    const sourceType = String(input.sourceType || 'manual').trim().slice(0, 80) || 'manual';
-    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
-    if (note.length < 2) throw new Error('Coin grant note required');
+    const { amount, note, sourceType } = normalizeCoinGrantInput(input);
 
     const target = await getUserById(input.targetUserId);
     if (!target) throw new Error('Target user not found');
@@ -974,9 +1034,7 @@ export async function grantCoinsByAdmin(input: {
             note,
             createdBy: input.adminId,
         });
-        await client.sql`COMMIT`;
-
-        await createAdminAuditEvent({
+        await writeAdminAuditEventForClient(client, {
             actorId: input.adminId,
             targetUserId: input.targetUserId,
             targetType: 'coin',
@@ -990,8 +1048,146 @@ export async function grantCoinsByAdmin(input: {
                 balance_after: result.wallet.balance,
             },
         });
+        await client.sql`COMMIT`;
 
         return result;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function grantCoinsBatchByAdmin(input: {
+    adminId: number;
+    targetUserIds: number[];
+    amount: number;
+    sourceType: string;
+    note: string;
+}) {
+    await ensureCoinTables();
+    await ensureAdminAuditTable();
+
+    const { amount, note, sourceType } = normalizeCoinGrantInput(input);
+    const targetUserIds = Array.from(
+        new Set(
+            (Array.isArray(input.targetUserIds) ? input.targetUserIds : [])
+                .map(value => Math.floor(Number(value)))
+                .filter(value => Number.isInteger(value) && value > 0),
+        ),
+    );
+
+    if (targetUserIds.length === 0) throw new Error('Batch target users required');
+    if (targetUserIds.length > 120) throw new Error('Batch target limit exceeded');
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+
+        const { rows } = await client.query<{
+            id: number;
+            username: string;
+            verification_status: VerificationStatus | null;
+            account_status: AccountStatus | null;
+        }>(
+            `
+              SELECT
+                id,
+                username,
+                verification_status,
+                COALESCE(account_status, 'active') as account_status
+              FROM users
+              WHERE id = ANY($1::int[])
+              FOR UPDATE
+            `,
+            [targetUserIds],
+        );
+
+        const targets = rows.map(row => ({
+            id: Number(row.id),
+            username: row.username,
+            verification_status: row.verification_status,
+            account_status: normalizeAccountStatus(row.account_status),
+        }));
+        const targetMap = new Map(targets.map(target => [target.id, target]));
+        const missingIds = targetUserIds.filter(id => !targetMap.has(id));
+        if (missingIds.length > 0) {
+            throw new Error(`Batch target users missing:${missingIds.join(',')}`);
+        }
+
+        const orderedTargets = targetUserIds.map(id => targetMap.get(id)).filter(Boolean) as typeof targets;
+        const invalidTargets = orderedTargets.filter(target => (
+            target.verification_status !== 'verified'
+            || target.account_status !== 'active'
+        ));
+        if (invalidTargets.length > 0) {
+            throw new Error(`Batch targets not eligible:${invalidTargets.map(target => target.username).join(',')}`);
+        }
+
+        const results: Array<{
+            userId: number;
+            username: string;
+            transactionId: number;
+            balanceAfter: number;
+        }> = [];
+
+        for (const target of orderedTargets) {
+            await ensureCoinWalletForClient(client, target.id);
+            const result = await writeCoinTransactionForClient(client, {
+                userId: target.id,
+                amount,
+                type: 'grant',
+                sourceType,
+                note,
+                createdBy: input.adminId,
+            });
+            await writeAdminAuditEventForClient(client, {
+                actorId: input.adminId,
+                targetUserId: target.id,
+                targetType: 'coin',
+                targetId: result.transaction.id,
+                eventType: 'coin_batch_airdropped',
+                summary: `向 ${target.username} 批量空投 ${amount} H币`,
+                details: {
+                    amount,
+                    source_type: sourceType,
+                    note,
+                    batch_size: orderedTargets.length,
+                    balance_after: result.wallet.balance,
+                },
+            });
+            results.push({
+                userId: target.id,
+                username: target.username,
+                transactionId: result.transaction.id,
+                balanceAfter: result.wallet.balance,
+            });
+        }
+
+        await writeAdminAuditEventForClient(client, {
+            actorId: input.adminId,
+            targetType: 'coin',
+            eventType: 'coin_batch_airdrop_summary',
+            summary: `批量向 ${orderedTargets.length} 名已认证成员空投 ${amount} H币`,
+            details: {
+                amount_each: amount,
+                recipient_count: orderedTargets.length,
+                total_amount: orderedTargets.length * amount,
+                source_type: sourceType,
+                note,
+                recipient_ids: orderedTargets.map(target => target.id),
+            },
+        });
+
+        await client.sql`COMMIT`;
+
+        return {
+            recipientCount: orderedTargets.length,
+            totalAmount: orderedTargets.length * amount,
+            amountEach: amount,
+            recipients: results,
+        };
     } catch (error) {
         await client.sql`ROLLBACK`;
         throw error;

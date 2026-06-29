@@ -50,7 +50,8 @@ The app uses Next.js App Router (`src/app/`).
   - Shows the user's H币 wallet balance, recent ledger entries, and token redemption requests.
   - Users can submit token redemption requests with a minimum of 50 H币. Submitted requests immediately freeze the requested H币 through a `redemption_hold` ledger entry.
 - `/admin/coins` **(Admin):**
-  - Admins manually grant H币 with a required note and source type, and review token redemption requests.
+  - Admins manually grant H币 to one member, or filter `verification_status = 'verified'` active members, batch select them, and airdrop the same H币 amount with one source type and required note.
+  - Batch airdrops are all-or-nothing transactions: every recipient gets a `coin_transactions` grant ledger row and admin audit record; XP, levels, and leaderboards are not modified.
   - Approving a request marks it ready for token issuance; rejecting refunds frozen H币; completing records that token has been issued.
 - `/profile` **(Protected):**
   - Shows the public profile editor plus a Data Studio card after the featured content. The default overview focuses on the monthly participation heatmap; the detail view shows range tabs, KPIs, trend chart, contribution pie, project performance, and post interactions.

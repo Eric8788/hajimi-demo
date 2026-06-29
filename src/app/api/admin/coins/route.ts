@@ -5,6 +5,16 @@ import { isAdminRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
+function normalizeVerification(value: string | null) {
+    if (value === 'pending' || value === 'verified' || value === 'rejected' || value === 'unverified') return value;
+    return 'all';
+}
+
+function normalizeAccountStatus(value: string | null) {
+    if (value === 'active' || value === 'disabled') return value;
+    return 'all';
+}
+
 export async function GET(request: Request) {
     try {
         const session = await getSession();
@@ -18,6 +28,8 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const overview = await getAdminCoinOverview({
             query: searchParams.get('query') || '',
+            verification: normalizeVerification(searchParams.get('verification')),
+            accountStatus: normalizeAccountStatus(searchParams.get('accountStatus')),
             limit: Number(searchParams.get('limit') || 80),
         });
 

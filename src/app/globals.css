@@ -8348,6 +8348,7 @@ textarea:hover,
 .wallet-card,
 .admin-coins-users,
 .admin-coin-grant-panel,
+.admin-coin-batch-panel,
 .admin-coin-redemptions-panel {
   padding: 20px;
   border-radius: 24px;
@@ -8415,13 +8416,15 @@ textarea:hover,
 }
 
 .wallet-redemption-card,
-.admin-coin-grant-panel {
+.admin-coin-grant-panel,
+.admin-coin-batch-panel {
   display: grid;
   gap: 13px;
 }
 
 .wallet-redemption-card label,
-.admin-coin-grant-panel label {
+.admin-coin-grant-panel label,
+.admin-coin-batch-panel label {
   display: grid;
   gap: 7px;
   color: #636e72;
@@ -8430,13 +8433,15 @@ textarea:hover,
 }
 
 .wallet-redemption-card textarea,
-.admin-coin-grant-panel textarea {
+.admin-coin-grant-panel textarea,
+.admin-coin-batch-panel textarea {
   min-height: 98px;
   resize: vertical;
 }
 
 .wallet-redemption-card button,
 .admin-coin-grant-panel button,
+.admin-coin-batch-panel button,
 .admin-coin-redemption-actions button {
   border: 0;
   border-radius: 999px;
@@ -8450,6 +8455,7 @@ textarea:hover,
 
 .wallet-redemption-card button:disabled,
 .admin-coin-grant-panel button:disabled,
+.admin-coin-batch-panel button:disabled,
 .admin-coin-redemption-actions button:disabled {
   opacity: 0.52;
   cursor: not-allowed;
@@ -8563,10 +8569,15 @@ textarea:hover,
 }
 
 .admin-coins-users {
-  grid-row: span 2;
+  grid-row: span 3;
 }
 
 .admin-coin-user-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: stretch;
+  gap: 10px;
   width: 100%;
   border: 1px solid rgba(108,92,231,0.1);
   color: inherit;
@@ -8574,9 +8585,42 @@ textarea:hover,
   cursor: pointer;
 }
 
-.admin-coin-user-row.is-selected {
+.admin-coin-user-row.is-selected,
+.admin-coin-user-row.is-batch-selected {
   border-color: rgba(108,92,231,0.34);
   background: rgba(108,92,231,0.1);
+}
+
+.admin-coin-user-check {
+  display: grid;
+  place-items: center;
+}
+
+.admin-coin-user-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #6c5ce7;
+}
+
+.admin-coin-user-check input:disabled {
+  opacity: 0.38;
+}
+
+.admin-coin-user-main {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-coin-user-main:focus-visible {
+  outline: 2px solid rgba(108,92,231,0.34);
+  outline-offset: 4px;
+  border-radius: 12px;
 }
 
 .admin-coin-user-row span,
@@ -8587,6 +8631,97 @@ textarea:hover,
 
 .admin-coin-user-row em {
   color: #6c5ce7;
+  white-space: nowrap;
+}
+
+.admin-coin-batch-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(108,92,231,0.08);
+}
+
+.admin-coin-batch-toolbar div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-coin-batch-toolbar strong {
+  color: #2d3436;
+  font-size: 0.84rem;
+}
+
+.admin-coin-batch-toolbar span {
+  color: #8f96a3;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.admin-coin-batch-toolbar button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 10px;
+  color: #6c5ce7;
+  background: rgba(255,255,255,0.72);
+  font-weight: 950;
+}
+
+.admin-coin-batch-toolbar button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.admin-coin-batch-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-coin-batch-summary div {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(108,92,231,0.08);
+}
+
+.admin-coin-batch-summary span {
+  display: block;
+  color: #8f96a3;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.admin-coin-batch-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: #2d3436;
+  font-size: 1.08rem;
+}
+
+.admin-coin-batch-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.admin-coin-batch-preview span {
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.1);
+  font-size: 0.74rem;
+  font-weight: 950;
+}
+
+.admin-coin-batch-note {
+  margin: 0;
+  color: #636e72;
+  font-size: 0.82rem;
+  font-weight: 780;
+  line-height: 1.45;
 }
 
 .admin-coin-target {
@@ -9011,6 +9146,21 @@ textarea:hover,
 
   .admin-user-row {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .admin-coin-user-row,
+  .admin-coin-batch-summary,
+  .admin-coin-batch-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-coin-user-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .admin-coin-user-row em {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .admin-user-status {
