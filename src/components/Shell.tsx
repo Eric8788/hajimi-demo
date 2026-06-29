@@ -339,7 +339,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                 </span>
                             </button>
                             <div className="sidebar-quick-actions" aria-label="Account shortcuts">
-                                <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" userId={displayUser.id} />
+                                <NotificationsBell initialUnreadCount={unreadCount} userId={displayUser.id} />
                                 {!isReadOnlyUser && (
                                     <button
                                         type="button"
@@ -348,10 +348,10 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                         onPointerEnter={() => prefetchPath('/wallet')}
                                         onFocus={() => prefetchPath('/wallet')}
                                         title="Wallet"
+                                        aria-label="Wallet"
                                         aria-current={pathname === '/wallet' ? 'page' : undefined}
                                     >
                                         <span aria-hidden="true">💳</span>
-                                        <span className="sidebar-action-label">Wallet</span>
                                     </button>
                                 )}
                                 <button
@@ -361,14 +361,14 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     onPointerEnter={() => prefetchPath('/settings')}
                                     onFocus={() => prefetchPath('/settings')}
                                     title="Settings"
+                                    aria-label="Settings"
                                     aria-current={pathname === '/settings' ? 'page' : undefined}
                                 >
                                     <span aria-hidden="true">⚙️</span>
-                                    <span className="sidebar-action-label">Set</span>
                                 </button>
                             </div>
                             <div className="sidebar-collapsed-actions" aria-label="Collapsed account shortcuts">
-                                <NotificationsBell initialUnreadCount={unreadCount} shortLabel="Bell" userId={displayUser.id} />
+                                <NotificationsBell initialUnreadCount={unreadCount} userId={displayUser.id} />
                                 <button
                                     type="button"
                                     className={`sidebar-settings-button sidebar-settings-action ${pathname === '/settings' ? 'is-active' : ''}`}
@@ -376,10 +376,10 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     onPointerEnter={() => prefetchPath('/settings')}
                                     onFocus={() => prefetchPath('/settings')}
                                     title="Settings"
+                                    aria-label="Settings"
                                     aria-current={pathname === '/settings' ? 'page' : undefined}
                                 >
                                     <span aria-hidden="true">⚙️</span>
-                                    <span className="sidebar-bottom-short-label">Set</span>
                                 </button>
                             </div>
                         </div>
@@ -411,7 +411,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     aria-label="Log in to see notifications"
                                 >
                                     <span aria-hidden="true">🔔</span>
-                                    <span className="sidebar-bottom-short-label">Bell</span>
                                 </button>
                                 <button
                                     type="button"
@@ -423,7 +422,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     aria-label="Log in to open settings"
                                 >
                                     <span aria-hidden="true">⚙️</span>
-                                    <span className="sidebar-bottom-short-label">Set</span>
                                 </button>
                             </div>
                         </div>

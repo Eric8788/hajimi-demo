@@ -397,6 +397,7 @@ export default function NotificationsBell({
                 animate={displayCount > 0 ? { rotate: [0, -8, 8, -5, 0] } : { rotate: 0 }}
                 transition={{ duration: 0.45 }}
                 title="Notifications"
+                aria-label="Notifications"
                 style={{
                     width: '42px',
                     height: '42px',

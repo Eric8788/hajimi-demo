@@ -1035,6 +1035,30 @@ export default function PostTextComposer({
         typeof maxLength === 'number' ? nextValue.slice(0, maxLength) : nextValue
     ), [maxLength]);
 
+    const setBlockToolbarForBlock = useCallback((block: HTMLElement | null) => {
+        const editor = richEditorRef.current;
+        const wrapperRect = editor?.closest('.post-rich-editor-wrap')?.getBoundingClientRect();
+        if (!editor || !wrapperRect || !block || !editor.contains(block)) return false;
+
+        const blockRect = block.getBoundingClientRect();
+        if (blockRect.height <= 0) return false;
+
+        blockToolbarTargetRef.current = block;
+        const rawTop = blockRect.top - wrapperRect.top + Math.max(0, (Math.min(blockRect.height, 42) - 34) / 2);
+        const nextTop = Math.max(10, Math.min(rawTop, wrapperRect.height - 42));
+        setBlockToolbarTop(nextTop);
+        return true;
+    }, []);
+
+    const syncBlockToolbarToSelection = useCallback(() => {
+        const editor = richEditorRef.current;
+        const selection = window.getSelection();
+        if (!editor || !selectionIsInsideEditor(selection, editor) || !selection?.rangeCount) return false;
+
+        const range = selection.getRangeAt(0);
+        return setBlockToolbarForBlock(getTopLevelEditorBlock(range.startContainer, editor));
+    }, [setBlockToolbarForBlock]);
+
     const rememberSelection = () => {
         const textarea = textareaRef.current;
         if (!textarea) return savedSelection;
@@ -1073,11 +1097,13 @@ export default function PostTextComposer({
 
         if (nativeEvent.inputType?.startsWith('delete') && removeEmptyActiveBlockAfterDelete(editor)) {
             updateFromRichEditor();
+            window.requestAnimationFrame(syncBlockToolbarToSelection);
             scheduleFloatingToolbar();
             return;
         }
 
         updateFromRichEditor();
+        window.requestAnimationFrame(syncBlockToolbarToSelection);
     };
 
     useEffect(() => {
@@ -1503,9 +1529,7 @@ export default function PostTextComposer({
         if (!editor || !wrapperRect) return;
 
         const targetBlock = getTopLevelEditorBlockFromPoint(editor, event.clientX, event.clientY);
-        if (targetBlock) {
-            blockToolbarTargetRef.current = targetBlock;
-        }
+        if (setBlockToolbarForBlock(targetBlock)) return;
 
         const lineRect = getLineRectFromPoint(editor, event.clientX, event.clientY);
         if (!lineRect) return;
@@ -1523,7 +1547,10 @@ export default function PostTextComposer({
 
     const handleRichClick = (event: MouseEvent<HTMLDivElement>) => {
         const anchor = getClosestAnchor(event.target);
-        if (!anchor) return;
+        if (!anchor) {
+            window.requestAnimationFrame(syncBlockToolbarToSelection);
+            return;
+        }
 
         event.preventDefault();
         if (!disabled) showLinkPreview(anchor);
@@ -1696,12 +1723,16 @@ export default function PostTextComposer({
                         onMouseMove={handleRichMouseMove}
                         onMouseOut={handleRichMouseLeave}
                         onClick={handleRichClick}
-                        onKeyUp={scheduleFloatingToolbar}
+                        onKeyUp={() => {
+                            syncBlockToolbarToSelection();
+                            scheduleFloatingToolbar();
+                        }}
                         onFocus={() => {
                             const editor = richEditorRef.current;
                             if (editor && !editor.innerHTML && value) {
                                 editor.innerHTML = markdownToEditorHtml(value);
                             }
+                            window.requestAnimationFrame(syncBlockToolbarToSelection);
                         }}
                         onBlur={() => {
                             window.setTimeout(() => {
