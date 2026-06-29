@@ -7579,7 +7579,7 @@ textarea:hover,
 
 .hub-rank-row {
   display: grid;
-  grid-template-columns: 38px 54px minmax(0, 1fr) minmax(330px, auto);
+  grid-template-columns: 38px 54px minmax(0, 1fr) minmax(260px, auto);
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -7679,7 +7679,7 @@ textarea:hover,
 .hub-rank-metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   justify-content: flex-end;
   color: #636e72;
   font-size: 0.72rem;
@@ -7687,15 +7687,22 @@ textarea:hover,
 }
 
 .hub-rank-metrics span {
-  border-radius: 999px;
-  padding: 5px 8px;
-  background: rgba(255,255,255,0.66);
-  border: 1px solid rgba(108,92,231,0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   white-space: nowrap;
 }
 
 .hub-rank-metrics b {
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
   color: #2d3436;
+  background: rgba(255,255,255,0.58);
+  border: 1px solid rgba(108,92,231,0.08);
   font-weight: 950;
 }
 
