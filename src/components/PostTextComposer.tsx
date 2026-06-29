@@ -239,38 +239,42 @@ function getEditorGridLineRect(editor: HTMLElement, y: number) {
 }
 
 function getLineRectFromPoint(editor: HTMLElement, x: number, y: number) {
-    const gridLineRect = getEditorGridLineRect(editor, y);
-    if (gridLineRect) return gridLineRect;
-
     const range = getRangeFromPoint(editor.ownerDocument, x, y);
-    if (!range) return null;
+    if (range) {
+        const block = getClosestRichBlock(range.startContainer, editor);
+        if (block) {
+            if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                const textNode = range.startContainer;
+                const length = textNode.textContent?.length ?? 0;
+                if (length > 0) {
+                    const offset = Math.min(range.startOffset, length - 1);
+                    const probe = editor.ownerDocument.createRange();
+                    probe.setStart(textNode, offset);
+                    probe.setEnd(textNode, Math.min(length, offset + 1));
+                    const rects = Array.from(probe.getClientRects()).filter(rect => rect.height > 0);
+                    probe.detach();
+                    if (rects.length > 0) {
+                        const lineRect = rects.reduce((closest, rect) => (
+                            Math.abs(rect.top - y) < Math.abs(closest.top - y) ? rect : closest
+                        ), rects[0]);
+                        return y >= lineRect.top - 2 && y <= lineRect.bottom + 2 ? lineRect : null;
+                    }
+                }
+            }
 
-    const block = getClosestRichBlock(range.startContainer, editor);
-    if (!block) return null;
-
-    if (range.startContainer.nodeType === Node.TEXT_NODE) {
-        const textNode = range.startContainer;
-        const length = textNode.textContent?.length ?? 0;
-        if (length > 0) {
-            const offset = Math.min(range.startOffset, length - 1);
-            const probe = editor.ownerDocument.createRange();
-            probe.setStart(textNode, offset);
-            probe.setEnd(textNode, Math.min(length, offset + 1));
-            const rects = Array.from(probe.getClientRects()).filter(rect => rect.height > 0);
-            probe.detach();
-            if (rects.length > 0) {
-                const lineRect = rects.reduce((closest, rect) => (
-                    Math.abs(rect.top - y) < Math.abs(closest.top - y) ? rect : closest
-                ), rects[0]);
-                return y >= lineRect.top - 2 && y <= lineRect.bottom + 2 ? lineRect : null;
+            const blockRect = block.getBoundingClientRect();
+            if (blockRect.height > 0 && y >= blockRect.top - 2 && y <= blockRect.bottom + 2) {
+                return blockRect;
             }
         }
     }
 
-    const blockRect = block.getBoundingClientRect();
-    return blockRect.height > 0 && y >= blockRect.top - 2 && y <= blockRect.bottom + 2
-        ? blockRect
-        : null;
+    return getEditorGridLineRect(editor, y);
+}
+
+function getTopLevelEditorBlockFromPoint(editor: HTMLElement, x: number, y: number) {
+    const range = getRangeFromPoint(editor.ownerDocument, x, y);
+    return range ? getTopLevelEditorBlock(range.startContainer, editor) : null;
 }
 
 function updateAnchorTarget(anchor: HTMLAnchorElement, href: string) {
@@ -646,6 +650,17 @@ function restoreRange(range: Range | null) {
     return true;
 }
 
+function restoreBlockRange(block: HTMLElement) {
+    const selection = window.getSelection();
+    if (!selection) return false;
+
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+}
+
 function selectionIsInsideEditor(selection: Selection | null, editor: HTMLElement) {
     if (!selection || selection.rangeCount === 0) return false;
     const range = selection.getRangeAt(0);
@@ -980,6 +995,12 @@ function unwrapInlineCodeElement(code: HTMLElement) {
     return true;
 }
 
+function resetParagraphBlock(block: HTMLElement | null) {
+    if (!block || block.tagName.toLowerCase() !== 'p') return;
+    block.removeAttribute('style');
+    block.className = '';
+}
+
 export default function PostTextComposer({
     value,
     onChange,
@@ -998,6 +1019,7 @@ export default function PostTextComposer({
     const isSelectingWithPointerRef = useRef(false);
     const toolbarFrameRef = useRef<number | null>(null);
     const linkPreviewHideTimerRef = useRef<number | null>(null);
+    const blockToolbarTargetRef = useRef<HTMLElement | null>(null);
     const activeFormat = normalizePostContentFormat(format);
     const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
     const [linkPopoverMode, setLinkPopoverMode] = useState<LinkPopoverMode>('insert');
@@ -1480,6 +1502,11 @@ export default function PostTextComposer({
         const wrapperRect = editor?.closest('.post-rich-editor-wrap')?.getBoundingClientRect();
         if (!editor || !wrapperRect) return;
 
+        const targetBlock = getTopLevelEditorBlockFromPoint(editor, event.clientX, event.clientY);
+        if (targetBlock) {
+            blockToolbarTargetRef.current = targetBlock;
+        }
+
         const lineRect = getLineRectFromPoint(editor, event.clientX, event.clientY);
         if (!lineRect) return;
 
@@ -1502,12 +1529,19 @@ export default function PostTextComposer({
         if (!disabled) showLinkPreview(anchor);
     };
 
-    const applyRichCommand = (command: RichCommand) => {
+    const applyRichCommand = (command: RichCommand, options: { useBlockTarget?: boolean } = {}) => {
         const editor = richEditorRef.current;
         if (!editor || disabled) return;
 
         editor.focus();
-        restoreRange(savedRichRangeRef.current);
+        const targetBlock = blockToolbarTargetRef.current;
+        const restoredBlockTarget = !!options.useBlockTarget
+            && !!targetBlock
+            && editor.contains(targetBlock)
+            && restoreBlockRange(targetBlock);
+        if (!restoredBlockTarget) {
+            restoreRange(savedRichRangeRef.current);
+        }
 
         if (command === 'link') {
             openLinkPopover();
@@ -1522,6 +1556,9 @@ export default function PostTextComposer({
                 ? 'p'
                 : command;
             document.execCommand('formatBlock', false, nextBlock);
+            if (nextBlock === 'p') {
+                resetParagraphBlock(getSelectionBlock(editor, window.getSelection()));
+            }
         } else if (command === 'code') {
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
@@ -1618,12 +1655,12 @@ export default function PostTextComposer({
                             </span>
                         </button>
                         <div className="post-block-menu" role="menu" aria-label="Block options">
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('p')} title="Paragraph" disabled={disabled}>T</button>
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('h2')} title="Heading 2" disabled={disabled}>H2</button>
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('h3')} title="Heading 3" disabled={disabled}>H3</button>
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('insertUnorderedList')} title="List" disabled={disabled}>-</button>
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('blockquote')} title="Quote" disabled={disabled}>&gt;</button>
-                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('pre')} title="Code block" disabled={disabled}>{'{}'}</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('p', { useBlockTarget: true })} title="Paragraph" disabled={disabled}>T</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('h2', { useBlockTarget: true })} title="Heading 2" disabled={disabled}>H2</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('h3', { useBlockTarget: true })} title="Heading 3" disabled={disabled}>H3</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('insertUnorderedList', { useBlockTarget: true })} title="List" disabled={disabled}>-</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('blockquote', { useBlockTarget: true })} title="Quote" disabled={disabled}>&gt;</button>
+                            <button type="button" className="post-block-menu-button" role="menuitem" onClick={() => applyRichCommand('pre', { useBlockTarget: true })} title="Code block" disabled={disabled}>{'{}'}</button>
                         </div>
                     </div>
                     {floatingToolbar && (
