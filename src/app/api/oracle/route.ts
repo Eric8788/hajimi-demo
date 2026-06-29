@@ -7,6 +7,7 @@ import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 const SILICONFLOW_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const DASHSCOPE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 const ZENMUX_URL = 'https://zenmux.ai/api/v1/chat/completions';
+const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const PROVIDER_TIMEOUT_MS = 16000;
 const ORACLE_TOTAL_TIMEOUT_MS = 26000;
 const DAILY_ORACLE_LIMIT = 3;
@@ -18,14 +19,29 @@ type OracleCard = {
 };
 
 type OracleProviderConfig = {
-    provider: 'custom' | 'dashscope' | 'siliconflow' | 'zenmux' | 'tokendance';
+    provider: 'openai' | 'custom' | 'dashscope' | 'siliconflow' | 'zenmux' | 'tokendance';
     apiKey: string;
     apiUrl: string;
     model: string;
+    wireApi: 'chat_completions' | 'responses';
 };
 
 function env(name: string) {
     return process.env[name]?.trim() || '';
+}
+
+function isTruthy(value: string) {
+    return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
+function getWireApi(value: string): OracleProviderConfig['wireApi'] {
+    return value.toLowerCase() === 'responses' ? 'responses' : 'chat_completions';
+}
+
+function normalizeProviderUrl(url: string, wireApi: OracleProviderConfig['wireApi']) {
+    const trimmed = url.replace(/\/+$/, '');
+    if (/\/(chat\/completions|responses)$/.test(trimmed)) return trimmed;
+    return `${trimmed}/${wireApi === 'responses' ? 'responses' : 'chat/completions'}`;
 }
 
 function getTokendanceUrl() {
@@ -36,16 +52,31 @@ function getTokendanceUrl() {
 
 function getOracleConfigs(): OracleProviderConfig[] {
     const configs: OracleProviderConfig[] = [];
+
+    const openAIKey = env('OPENAI_API_KEY');
+    if (openAIKey) {
+        const wireApi = getWireApi(env('OPENAI_WIRE_API') || 'responses');
+        configs.push({
+            provider: 'openai',
+            apiKey: openAIKey,
+            apiUrl: normalizeProviderUrl(env('OPENAI_BASE_URL') || env('OPENAI_API_BASE') || OPENAI_DEFAULT_BASE_URL, wireApi),
+            model: env('OPENAI_MODEL') || env('HAJIMI_ORACLE_OPENAI_MODEL') || 'gpt-5.5',
+            wireApi,
+        });
+    }
+
     const customKey = env('HAJIMI_ORACLE_API_KEY');
     const customUrl = env('HAJIMI_ORACLE_API_URL');
     const customModel = env('HAJIMI_ORACLE_MODEL');
 
     if (customKey && customUrl && customModel) {
+        const wireApi = getWireApi(env('HAJIMI_ORACLE_WIRE_API'));
         configs.push({
             provider: 'custom',
             apiKey: customKey,
-            apiUrl: customUrl,
+            apiUrl: normalizeProviderUrl(customUrl, wireApi),
             model: customModel,
+            wireApi,
         });
     }
 
@@ -56,6 +87,7 @@ function getOracleConfigs(): OracleProviderConfig[] {
             apiKey: zenmuxKey,
             apiUrl: ZENMUX_URL,
             model: env('HAJIMI_ORACLE_ZENMUX_MODEL') || 'deepseek/deepseek-v3.2',
+            wireApi: 'chat_completions',
         });
     }
 
@@ -66,6 +98,7 @@ function getOracleConfigs(): OracleProviderConfig[] {
             apiKey: dashscopeKey,
             apiUrl: DASHSCOPE_URL,
             model: env('HAJIMI_ORACLE_DASHSCOPE_MODEL') || 'qwen-max',
+            wireApi: 'chat_completions',
         });
     }
 
@@ -76,6 +109,7 @@ function getOracleConfigs(): OracleProviderConfig[] {
             apiKey: siliconflowKey,
             apiUrl: SILICONFLOW_URL,
             model: env('HAJIMI_ORACLE_SILICONFLOW_MODEL') || 'deepseek-ai/DeepSeek-V3',
+            wireApi: 'chat_completions',
         });
     }
 
@@ -87,6 +121,7 @@ function getOracleConfigs(): OracleProviderConfig[] {
             apiKey: tokendanceKey,
             apiUrl: tokendanceUrl,
             model: env('HAJIMI_ORACLE_TOKENDANCE_MODEL') || 'deepseek-v3.2',
+            wireApi: 'chat_completions',
         });
     }
 
@@ -116,6 +151,61 @@ function sanitizeReading(text: string) {
         .slice(0, 900);
 }
 
+function extractResponsesText(data: unknown) {
+    if (!data || typeof data !== 'object') return '';
+    const payload = data as Record<string, unknown>;
+
+    if (typeof payload.output_text === 'string') {
+        return payload.output_text;
+    }
+
+    const output = payload.output;
+    if (!Array.isArray(output)) return '';
+
+    return output
+        .flatMap(item => {
+            if (!item || typeof item !== 'object') return [];
+            const outputItem = item as Record<string, unknown>;
+            if (typeof outputItem.text === 'string') return [outputItem.text];
+
+            const content = outputItem.content;
+            if (!Array.isArray(content)) return [];
+
+            return content.flatMap(part => {
+                if (!part || typeof part !== 'object') return [];
+                const contentPart = part as Record<string, unknown>;
+                return typeof contentPart.text === 'string' ? [contentPart.text] : [];
+            });
+        })
+        .join('\n')
+        .trim();
+}
+
+function extractChatCompletionText(data: unknown) {
+    if (!data || typeof data !== 'object') return '';
+    const choices = (data as Record<string, unknown>).choices;
+    if (!Array.isArray(choices)) return '';
+
+    const firstChoice = choices[0];
+    if (!firstChoice || typeof firstChoice !== 'object') return '';
+
+    const message = (firstChoice as Record<string, unknown>).message;
+    if (!message || typeof message !== 'object') return '';
+
+    const content = (message as Record<string, unknown>).content;
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+
+    return content
+        .flatMap(part => {
+            if (!part || typeof part !== 'object') return [];
+            const contentPart = part as Record<string, unknown>;
+            return typeof contentPart.text === 'string' ? [contentPart.text] : [];
+        })
+        .join('\n')
+        .trim();
+}
+
 function buildFallbackReading(cards: OracleCard[]) {
     const [past, present, future] = cards;
 
@@ -131,21 +221,35 @@ async function requestOracleReading(config: OracleProviderConfig, system: string
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+        const prompt = `抽到的牌如下：\n${userPrompt}\n请给出本次 Oracle Insight：先读出三张牌之间的张力，再给一个今天可以尝试的小行动。`;
+        const disableStorage = isTruthy(env('OPENAI_DISABLE_RESPONSE_STORAGE') || env('HAJIMI_ORACLE_DISABLE_RESPONSE_STORAGE'));
+        const reasoningEffort = env('OPENAI_REASONING_EFFORT') || env('MODEL_REASONING_EFFORT');
         const response = await fetch(config.apiUrl, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${config.apiKey}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                model: config.model,
-                temperature: 0.86,
-                max_tokens: 1100,
-                messages: [
-                    { role: 'system', content: system },
-                    { role: 'user', content: `抽到的牌如下：\n${userPrompt}\n请给出本次 Oracle Insight：先读出三张牌之间的张力，再给一个今天可以尝试的小行动。` },
-                ],
-            }),
+            body: JSON.stringify(
+                config.wireApi === 'responses'
+                    ? {
+                        model: config.model,
+                        instructions: system,
+                        input: prompt,
+                        max_output_tokens: 1100,
+                        ...(disableStorage ? { store: false } : {}),
+                        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+                    }
+                    : {
+                        model: config.model,
+                        temperature: 0.86,
+                        max_tokens: 1100,
+                        messages: [
+                            { role: 'system', content: system },
+                            { role: 'user', content: prompt },
+                        ],
+                    },
+            ),
             signal: controller.signal,
         });
 
@@ -154,7 +258,9 @@ async function requestOracleReading(config: OracleProviderConfig, system: string
         }
 
         const data = await response.json();
-        const content = data?.choices?.[0]?.message?.content;
+        const content = config.wireApi === 'responses'
+            ? extractResponsesText(data)
+            : extractChatCompletionText(data);
         if (typeof content !== 'string' || !content.trim()) {
             throw new Error(`${config.provider} returned an empty oracle reading`);
         }
