@@ -10,6 +10,44 @@ type TarotCard = {
     icon: string;
 };
 
+function formatOracleParagraphs(text: string, maxParagraphs = 3, softLength = 76) {
+    const normalized = text
+        .replace(/\r\n/g, '\n')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+    if (!normalized) return [];
+
+    const explicitParagraphs = normalized
+        .split(/\n{2,}/)
+        .map(paragraph => paragraph.trim())
+        .filter(Boolean);
+
+    if (explicitParagraphs.length > 1) {
+        return explicitParagraphs.slice(0, maxParagraphs);
+    }
+
+    const sentences = normalized
+        .split(/(?<=[。！？!?])/)
+        .map(sentence => sentence.trim())
+        .filter(Boolean);
+    const paragraphs: string[] = [];
+    let current = '';
+
+    for (const sentence of sentences) {
+        if (current && `${current}${sentence}`.length > softLength) {
+            paragraphs.push(current);
+            current = sentence;
+        } else {
+            current = `${current}${sentence}`;
+        }
+    }
+
+    if (current) paragraphs.push(current);
+    return (paragraphs.length ? paragraphs : [normalized]).slice(0, maxParagraphs);
+}
+
 const MAJOR_ARCANA: TarotCard[] = [
     { id: 0, name: 'The Fool', meaning: 'New beginnings, innocence, spontaneity.', icon: '🤡' },
     { id: 1, name: 'The Magician', meaning: 'Manifestation, resourcefulness, power.', icon: '🪄' },
@@ -41,9 +79,15 @@ export default function TarotGame() {
     const [isShuffling, setIsShuffling] = useState(false);
     const [isReading, setIsReading] = useState(false);
     const [reading, setReading] = useState('');
+    const [readingId, setReadingId] = useState<number | null>(null);
     const [remainingReadings, setRemainingReadings] = useState<number | null>(null);
     const [dailyLimit, setDailyLimit] = useState(3);
     const [limitMessage, setLimitMessage] = useState('');
+    const [followUpQuestion, setFollowUpQuestion] = useState('');
+    const [followUpAnswer, setFollowUpAnswer] = useState('');
+    const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+    const [followUpUsed, setFollowUpUsed] = useState(false);
+    const [followUpMessage, setFollowUpMessage] = useState('');
 
     useEffect(() => {
         let isMounted = true;
@@ -99,6 +143,11 @@ export default function TarotGame() {
             }
 
             setReading(data.reading.trim());
+            setReadingId(typeof data.readingId === 'number' ? data.readingId : null);
+            setFollowUpUsed(Boolean(data.followUpUsed));
+            setFollowUpQuestion('');
+            setFollowUpAnswer('');
+            setFollowUpMessage('');
             if (typeof data.remaining === 'number') {
                 setRemainingReadings(data.remaining);
             }
@@ -109,6 +158,11 @@ export default function TarotGame() {
         } catch (error) {
             console.warn('[tarot] oracle reading failed', error);
             setReading('');
+            setReadingId(null);
+            setFollowUpUsed(false);
+            setFollowUpQuestion('');
+            setFollowUpAnswer('');
+            setFollowUpMessage('');
             if (limitMessage === '') {
                 setLimitMessage('Oracle 暂时没有成功连接，请稍后再试。');
             }
@@ -127,6 +181,11 @@ export default function TarotGame() {
         setCards([null, null, null]);
         setFlipped([false, false, false]);
         setReading('');
+        setReadingId(null);
+        setFollowUpQuestion('');
+        setFollowUpAnswer('');
+        setFollowUpUsed(false);
+        setFollowUpMessage('');
         setLimitMessage('');
 
         // Draw 3 unique cards
@@ -156,7 +215,53 @@ export default function TarotGame() {
         }, 800);
     };
 
+    const askFollowUp = async () => {
+        const question = followUpQuestion.trim();
+        if (!readingId || followUpUsed || isFollowUpLoading) return;
+        if (question.length < 4) {
+            setFollowUpMessage('给水晶球一点更具体的线索吧。');
+            return;
+        }
+
+        setIsFollowUpLoading(true);
+        setFollowUpMessage('');
+        try {
+            const res = await fetch('/api/oracle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: 'followup',
+                    readingId,
+                    question,
+                }),
+            });
+            const data = await res.json();
+
+            if (res.status === 409) {
+                setFollowUpUsed(true);
+                setFollowUpMessage(data?.error || '这次 Reveal 的追问已经用过啦。');
+                return;
+            }
+
+            if (!res.ok || typeof data?.followUpAnswer !== 'string' || !data.followUpAnswer.trim()) {
+                throw new Error(data?.error || 'Oracle follow-up did not return an answer');
+            }
+
+            setFollowUpAnswer(data.followUpAnswer.trim());
+            setFollowUpUsed(true);
+            setFollowUpQuestion('');
+        } catch (error) {
+            console.warn('[tarot] oracle follow-up failed', error);
+            setFollowUpMessage('水晶球刚才没有听清，稍后再试一下。');
+        } finally {
+            setIsFollowUpLoading(false);
+        }
+    };
+
     const positions = ['Past', 'Present', 'Future'];
+    const readingParagraphs = formatOracleParagraphs(reading, 3, 76);
+    const followUpParagraphs = formatOracleParagraphs(followUpAnswer, 2, 68);
+    const canAskFollowUp = Boolean(reading && readingId && !followUpUsed);
 
     return (
         <div style={{ textAlign: 'center', padding: '20px' }}>
@@ -218,12 +323,74 @@ export default function TarotGame() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        style={{ maxWidth: '760px', margin: '0 auto 30px', padding: '22px 24px', background: 'rgba(162, 155, 254, 0.1)', borderRadius: '15px', border: '1px solid rgba(162, 155, 254, 0.3)' }}
+                        style={{ maxWidth: '700px', margin: '0 auto 30px', padding: '24px 28px', background: 'rgba(162, 155, 254, 0.1)', borderRadius: '15px', border: '1px solid rgba(162, 155, 254, 0.3)', textAlign: 'left' }}
                     >
-                        <h4 style={{ marginBottom: '10px', color: '#6c5ce7' }}>✨ Oracle&apos;s Insight</h4>
-                        <p style={{ lineHeight: '1.8', fontSize: '1.02rem', textAlign: 'left', whiteSpace: 'pre-wrap' }}>
-                            {isReading ? 'AI Oracle 正在解读这组三张牌...' : reading}
-                        </p>
+                        <h4 style={{ margin: '0 0 14px', color: '#6c5ce7', textAlign: 'center' }}>✨ Oracle&apos;s Insight</h4>
+                        {isReading ? (
+                            <p style={{ margin: 0, lineHeight: 1.8, fontSize: '1rem', color: '#5f6472' }}>AI Oracle 正在解读这组三张牌...</p>
+                        ) : (
+                            <div style={{ display: 'grid', gap: '10px' }}>
+                                {readingParagraphs.map((paragraph, index) => (
+                                    <p key={index} style={{ margin: 0, lineHeight: 1.75, fontSize: '0.98rem', color: '#566070', overflowWrap: 'anywhere' }}>
+                                        {paragraph}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+
+                        {(canAskFollowUp || followUpAnswer || isFollowUpLoading) && (
+                            <div style={{ marginTop: '20px', paddingTop: '18px', borderTop: '1px solid rgba(108, 92, 231, 0.18)' }}>
+                                {followUpAnswer && (
+                                    <div style={{ marginBottom: '16px', padding: '14px 16px', borderRadius: '12px', background: 'rgba(255,255,255,0.54)', border: '1px solid rgba(162,155,254,0.22)' }}>
+                                        <div style={{ marginBottom: '8px', color: '#6c5ce7', fontWeight: 800, textAlign: 'center' }}>🔮 水晶球回应</div>
+                                        <div style={{ display: 'grid', gap: '8px' }}>
+                                            {followUpParagraphs.map((paragraph, index) => (
+                                                <p key={index} style={{ margin: 0, lineHeight: 1.7, fontSize: '0.95rem', color: '#566070', overflowWrap: 'anywhere' }}>
+                                                    {paragraph}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {canAskFollowUp && (
+                                    <div style={{ display: 'grid', gap: '10px' }}>
+                                        <textarea
+                                            className="glass-input"
+                                            value={followUpQuestion}
+                                            onChange={event => setFollowUpQuestion(event.target.value)}
+                                            placeholder="告诉水晶球一个新的现实背景..."
+                                            rows={3}
+                                            maxLength={420}
+                                            style={{ resize: 'vertical', minHeight: '84px', lineHeight: 1.55 }}
+                                            disabled={isFollowUpLoading}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="btn"
+                                            onClick={askFollowUp}
+                                            disabled={isFollowUpLoading || followUpQuestion.trim().length < 4}
+                                            style={{
+                                                justifySelf: 'center',
+                                                minWidth: '150px',
+                                                padding: '10px 18px',
+                                                color: '#6c5ce7',
+                                                background: 'rgba(255,255,255,0.72)',
+                                                border: '1px solid rgba(108,92,231,0.24)',
+                                            }}
+                                        >
+                                            {isFollowUpLoading ? '水晶球凝视中...' : 'Ask Crystal Ball'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {followUpMessage && (
+                                    <div style={{ marginTop: '10px', textAlign: 'center', color: '#6c5ce7', fontWeight: 800 }}>
+                                        {followUpMessage}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
