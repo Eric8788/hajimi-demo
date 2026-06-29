@@ -395,9 +395,10 @@ export interface Notification {
     id: number;
     recipient_id: number;
     actor_id: number;
-    type: 'post_like' | 'post_bookmark' | 'comment_like' | 'post_comment' | 'comment_reply';
+    type: 'post_like' | 'post_bookmark' | 'comment_like' | 'post_comment' | 'comment_reply' | 'coin_grant' | 'coin_batch_airdrop';
     post_id?: number | null;
     comment_id?: number | null;
+    coin_transaction_id?: number | null;
     read_at?: Date | null;
     created_at: Date;
     actor_name?: string;
@@ -407,6 +408,10 @@ export interface Notification {
     post_title?: string;
     comment_content?: string | null;
     target_comment_content?: string | null;
+    coin_amount?: number | null;
+    coin_source_type?: string | null;
+    coin_note?: string | null;
+    coin_balance_after?: number | null;
 }
 
 export interface AdminReviewTask {
@@ -1048,6 +1053,12 @@ export async function grantCoinsByAdmin(input: {
                 balance_after: result.wallet.balance,
             },
         });
+        await writeNotificationForClient(client, {
+            recipientId: input.targetUserId,
+            actorId: input.adminId,
+            type: 'coin_grant',
+            coinTransactionId: result.transaction.id,
+        });
         await client.sql`COMMIT`;
 
         return result;
@@ -1156,6 +1167,12 @@ export async function grantCoinsBatchByAdmin(input: {
                     batch_size: orderedTargets.length,
                     balance_after: result.wallet.balance,
                 },
+            });
+            await writeNotificationForClient(client, {
+                recipientId: target.id,
+                actorId: input.adminId,
+                type: 'coin_batch_airdrop',
+                coinTransactionId: result.transaction.id,
             });
             results.push({
                 userId: target.id,
@@ -4801,10 +4818,12 @@ async function ensureNotificationsTable() {
                 type TEXT NOT NULL,
                 post_id INTEGER,
                 comment_id INTEGER,
+                coin_transaction_id INTEGER,
                 read_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
               );
             `;
+            await sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS coin_transaction_id INTEGER`;
 
             await sql`
               CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx
@@ -4815,6 +4834,12 @@ async function ensureNotificationsTable() {
               CREATE INDEX IF NOT EXISTS notifications_unread_recipient_idx
               ON notifications (recipient_id)
               WHERE read_at IS NULL;
+            `;
+
+            await sql`
+              CREATE INDEX IF NOT EXISTS notifications_coin_transaction_idx
+              ON notifications (coin_transaction_id)
+              WHERE coin_transaction_id IS NOT NULL;
             `;
         })().catch(error => {
             notificationsTableReady = null;
@@ -4831,6 +4856,7 @@ async function createNotification(input: {
     type: Notification['type'];
     postId?: number | null;
     commentId?: number | null;
+    coinTransactionId?: number | null;
 }) {
     if (!input.recipientId || input.recipientId === input.actorId) return;
 
@@ -4845,6 +4871,7 @@ async function createNotification(input: {
             AND type = ${input.type}
             AND post_id IS NOT DISTINCT FROM ${input.postId ?? null}
             AND comment_id IS NOT DISTINCT FROM ${input.commentId ?? null}
+            AND coin_transaction_id IS NOT DISTINCT FROM ${input.coinTransactionId ?? null}
             AND created_at >= NOW() - INTERVAL '6 hours'
           LIMIT 1
         `;
@@ -4852,12 +4879,38 @@ async function createNotification(input: {
         if (rows[0]) return;
 
         await sql`
-          INSERT INTO notifications (recipient_id, actor_id, type, post_id, comment_id)
-          VALUES (${input.recipientId}, ${input.actorId}, ${input.type}, ${input.postId ?? null}, ${input.commentId ?? null})
+          INSERT INTO notifications (recipient_id, actor_id, type, post_id, comment_id, coin_transaction_id)
+          VALUES (${input.recipientId}, ${input.actorId}, ${input.type}, ${input.postId ?? null}, ${input.commentId ?? null}, ${input.coinTransactionId ?? null})
         `;
     } catch (error) {
         console.warn('Notification write skipped:', error);
     }
+}
+
+async function writeNotificationForClient(client: VercelPoolClient, input: {
+    recipientId: number;
+    actorId: number;
+    type: Notification['type'];
+    postId?: number | null;
+    commentId?: number | null;
+    coinTransactionId?: number | null;
+}) {
+    if (!input.recipientId || input.recipientId === input.actorId) return;
+    await ensureNotificationsTable();
+
+    await client.sql`
+      INSERT INTO notifications (
+        recipient_id, actor_id, type, post_id, comment_id, coin_transaction_id
+      )
+      VALUES (
+        ${input.recipientId},
+        ${input.actorId},
+        ${input.type},
+        ${input.postId ?? null},
+        ${input.commentId ?? null},
+        ${input.coinTransactionId ?? null}
+      )
+    `;
 }
 
 export async function createPostInteractionNotification(actorId: number, postId: number, type: 'post_like' | 'post_bookmark') {
@@ -4951,12 +5004,17 @@ export async function getNotifications(userId: number) {
         users.avatar_theme as actor_avatar_theme,
         posts.title as post_title,
         comments.content as comment_content,
-        parent_comments.content as target_comment_content
+        parent_comments.content as target_comment_content,
+        coin_transactions.amount as coin_amount,
+        coin_transactions.source_type as coin_source_type,
+        coin_transactions.note as coin_note,
+        coin_transactions.balance_after as coin_balance_after
       FROM notifications
       JOIN users ON notifications.actor_id = users.id
       LEFT JOIN posts ON notifications.post_id = posts.id
       LEFT JOIN comments ON notifications.comment_id = comments.id
       LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
+      LEFT JOIN coin_transactions ON notifications.coin_transaction_id = coin_transactions.id
       WHERE notifications.recipient_id = ${userId}
       ORDER BY notifications.created_at DESC
       LIMIT 20

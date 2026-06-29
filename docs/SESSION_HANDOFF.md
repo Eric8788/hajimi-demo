@@ -47,7 +47,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Normal posts support custom hashtags. Starter suggestions include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`; `announcement` remains staff-only.
 - The Dashboard has a beta test mission card linking students to Function Hall and the pinned announcement flow.
 - Forum buttons now use a unified hover language, and post likes, post saves, and comment likes have small animation feedback.
-- The app has in-app notifications for post likes, post saves, and comment likes. Notifications are stored in the `notifications` table, created automatically if missing.
+- The app has in-app notifications for post likes, post saves, comment likes, and H币 admin grants/airdrops. Notifications are stored in the `notifications` table, created automatically if missing.
 - `Hot` ranking combines discussion, likes, saves, and recency; `Top` remains pure likes.
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
 - The UI review pass for `v0.2.0-beta.6` is live: the app logo and dashboard mascot now use Eric's supplied original PNG cat assets instead of the redrawn SVG version.
@@ -57,7 +57,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
   - legacy `project_tips` remains historical XP tip data for analytics.
   - new Function Hall tips use H币 wallet transfers through `coin_wallets`, `coin_transactions`, and `coin_project_tips`.
   - `/wallet` shows H币 balance, ledger, and token redemption requests.
-  - `/admin/coins` supports manual H币 grants, verified active member batch airdrops, and token redemption review. Batch airdrops write per-user `coin_transactions` ledger rows and do not touch XP.
+  - `/admin/coins` supports manual H币 grants, verified active member batch airdrops, and token redemption review. Grants and batch airdrops write per-user `coin_transactions` ledger rows, create recipient notifications, and do not touch XP.
 
 ## 3. Required Environment Variables
 

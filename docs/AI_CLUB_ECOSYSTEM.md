@@ -121,7 +121,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `coin_transactions` | H币 ledger rows with `amount`, `balance_after`, `type`, `source_type`, counterparty, note, and creator |
 | `coin_project_tips` | live H币 project tip log linking sender/recipient wallet transactions |
 | `coin_redemption_requests` | token redemption requests with `pending`, `approved`, `rejected`, `completed` statuses |
-| `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
+| `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `coin_transaction_id`, `read_at`, `created_at` |
 | `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
 | `project_submissions` | `author_id`, `submission_type`, `project_id`, `title`, `description`, `url`, `tags`, `status`, `reviewed_by`, `reviewed_at` |
 | `admin_audit_events` | `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at` |
@@ -139,7 +139,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/admin` | Admin | Admin console with review summary and recent history |
 | `/admin/users` | Admin | Member management, admin-only identity detail maintenance, account disable/restore |
 | `/admin/project-submissions` | Admin | Hub project/new-version application review |
-| `/admin/coins` | Admin | Manual H币 grants, verified active member batch airdrops, and token redemption review |
+| `/admin/coins` | Admin | Manual H币 grants, verified active member batch airdrops, recipient H币 notifications, and token redemption review |
 
 ---
 

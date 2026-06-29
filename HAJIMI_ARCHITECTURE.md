@@ -51,7 +51,7 @@ The app uses Next.js App Router (`src/app/`).
   - Users can submit token redemption requests with a minimum of 50 H币. Submitted requests immediately freeze the requested H币 through a `redemption_hold` ledger entry.
 - `/admin/coins` **(Admin):**
   - Admins manually grant H币 to one member, or filter `verification_status = 'verified'` active members, batch select them, and airdrop the same H币 amount with one source type and required note.
-  - Batch airdrops are all-or-nothing transactions: every recipient gets a `coin_transactions` grant ledger row and admin audit record; XP, levels, and leaderboards are not modified.
+  - Batch airdrops are all-or-nothing transactions: every recipient gets a `coin_transactions` grant ledger row, admin audit record, and in-app H币 notification; XP, levels, and leaderboards are not modified.
   - Approving a request marks it ready for token issuance; rejecting refunds frozen H币; completing records that token has been issued.
 - `/profile` **(Protected):**
   - Shows the public profile editor plus a Data Studio card after the featured content. The default overview focuses on the monthly participation heatmap; the detail view shows range tabs, KPIs, trend chart, contribution pie, project performance, and post interactions.
@@ -80,7 +80,7 @@ Database interactions are handled via standard SQL functions.
 - **`coin_project_tips`:** `id`, `project_id`, `sender_id`, `recipient_id`, `amount`, `sender_transaction_id`, `recipient_transaction_id`, `created_at`; live H币 project tip log.
 - **`coin_redemption_requests`:** `id`, `user_id`, `amount`, `status`, `requested_note`, `review_note`, `reviewed_by`, `reviewed_at`, `completed_at`, `created_at`; token redemption requests. Minimum amount is 50 H币.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
-- **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
+- **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `coin_transaction_id`, `read_at`, `created_at`.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
 

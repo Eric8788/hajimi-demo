@@ -26,6 +26,12 @@ function notificationText(notification: Notification) {
     const actor = notification.actor_name || 'Someone';
     const title = notification.post_title ? `「${notification.post_title}」` : 'your post';
 
+    if (notification.type === 'coin_grant' || notification.type === 'coin_batch_airdrop') {
+        const amount = Number(notification.coin_amount || 0).toLocaleString();
+        const action = notification.type === 'coin_batch_airdrop' ? '空投' : '发放';
+        return `${actor} 向你${action}了 ${amount} H币`;
+    }
+
     if (notification.type === 'post_like') {
         return `${actor} liked ${title}`;
     }
@@ -52,6 +58,10 @@ function shortNotificationPreview(text?: string | null) {
 }
 
 function notificationHref(notification: Notification) {
+    if (notification.type === 'coin_grant' || notification.type === 'coin_batch_airdrop') {
+        return '/wallet';
+    }
+
     if ((notification.type === 'comment_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && notification.post_id && notification.comment_id) {
         return `/resources#post-${notification.post_id}-comment-${notification.comment_id}`;
     }
@@ -64,6 +74,15 @@ function notificationHref(notification: Notification) {
 }
 
 function notificationPreview(notification: Notification) {
+    if (notification.type === 'coin_grant' || notification.type === 'coin_batch_airdrop') {
+        const parts = [];
+        if (notification.coin_note) parts.push(notification.coin_note);
+        if (notification.coin_balance_after !== null && notification.coin_balance_after !== undefined) {
+            parts.push(`余额 ${Number(notification.coin_balance_after || 0).toLocaleString()} H币`);
+        }
+        return parts.join(' · ');
+    }
+
     if (notification.type === 'comment_like') {
         const commentPreview = shortNotificationPreview(notification.comment_content);
         if (commentPreview) return `“${commentPreview}”`;
@@ -338,7 +357,11 @@ export default function NotificationsBell({
                             className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
                             onClick={() => goTo(notificationHref(notification))}
                         >
-                            <Avatar value={notification.actor_avatar} emoji={notification.actor_avatar_emoji} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
+                            {notification.type === 'coin_grant' || notification.type === 'coin_batch_airdrop' ? (
+                                <span className="notification-review-icon">H</span>
+                            ) : (
+                                <Avatar value={notification.actor_avatar} emoji={notification.actor_avatar_emoji} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
+                            )}
                             <span className="notification-copy">
                                 <span
                                     className="notification-message"
