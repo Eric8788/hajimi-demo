@@ -29,7 +29,7 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
     const [verificationMessage, setVerificationMessage] = useState('');
     const [settingsLoading, setSettingsLoading] = useState(false);
     const [verificationLoading, setVerificationLoading] = useState(false);
-    const [dangerLoading, setDangerLoading] = useState(false);
+    const [logoutLoading, setLogoutLoading] = useState(false);
 
     const hajimiId = formatHajimiId(user.id);
     const isReadOnlyUser = isReadOnlyRole(user.role);
@@ -127,24 +127,9 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
     };
 
     const handleLogout = async () => {
-        setDangerLoading(true);
+        setLogoutLoading(true);
         await fetch('/api/auth/logout', { method: 'POST' });
         window.location.href = '/login';
-    };
-
-    const handleDeleteAccount = async () => {
-        if (!confirm('WARNING: This will permanently delete your account and all your content (posts, comments, etc.). This action cannot be undone. Are you absolutely sure?')) {
-            return;
-        }
-
-        setDangerLoading(true);
-        const res = await fetch('/api/profile/delete', { method: 'POST' });
-        if (res.ok) {
-            window.location.href = '/';
-        } else {
-            alert('Failed to delete account');
-            setDangerLoading(false);
-        }
     };
 
     return (
@@ -271,14 +256,11 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
             <div className="profile-danger-actions">
                 <div>
                     <strong>账号操作</strong>
-                    <span>退出登录或永久删除账号。</span>
+                    <span>退出当前登录状态；账号停用或删除请联系管理员处理。</span>
                 </div>
                 <div className="profile-danger-button-row">
-                    <button type="button" onClick={handleLogout} className="btn profile-logout-button" disabled={dangerLoading}>
+                    <button type="button" onClick={handleLogout} className="btn profile-logout-button" disabled={logoutLoading}>
                         退出账号 / Log out
-                    </button>
-                    <button type="button" onClick={handleDeleteAccount} className="profile-delete-button" disabled={dangerLoading}>
-                        Delete My Account
                     </button>
                 </div>
             </div>

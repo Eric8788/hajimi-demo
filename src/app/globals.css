@@ -6435,17 +6435,6 @@ textarea:hover,
   border: 1px solid #ffd32a;
 }
 
-.profile-delete-button {
-  background: transparent;
-  color: #ff7675;
-  border: 1px solid #ff7675;
-  padding: 8px 15px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 850;
-}
-
 @media (max-width: 960px) {
   .profile-home-grid,
   .profile-settings-grid,

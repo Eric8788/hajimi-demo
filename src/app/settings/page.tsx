@@ -21,7 +21,7 @@ export default async function SettingsPage() {
                     <div>
                         <span>Settings</span>
                         <h1>个人设置</h1>
-                        <p>统一管理公开资料、头像、登录安全、Hajimi 认证、退出登录和账号操作。</p>
+                        <p>统一管理公开资料、头像、登录安全、Hajimi 认证和退出登录。</p>
                     </div>
                 </div>
                 <div className="account-settings-sections">
