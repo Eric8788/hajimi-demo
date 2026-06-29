@@ -995,10 +995,63 @@ function unwrapInlineCodeElement(code: HTMLElement) {
     return true;
 }
 
-function resetParagraphBlock(block: HTMLElement | null) {
-    if (!block || block.tagName.toLowerCase() !== 'p') return;
+function unwrapElement(element: Element) {
+    const parent = element.parentNode;
+    if (!parent) return;
+
+    while (element.firstChild) {
+        parent.insertBefore(element.firstChild, element);
+    }
+    element.remove();
+}
+
+function clearBlockStyleArtifacts(block: HTMLElement) {
     block.removeAttribute('style');
     block.className = '';
+    block.removeAttribute('align');
+    block.removeAttribute('dir');
+
+    block.querySelectorAll<HTMLElement>('[style], [class], [align], [dir]').forEach(element => {
+        element.removeAttribute('style');
+        element.className = '';
+        element.removeAttribute('align');
+        element.removeAttribute('dir');
+    });
+    block.querySelectorAll('font').forEach(unwrapElement);
+}
+
+function resetParagraphBlock(block: HTMLElement | null) {
+    if (!block || block.tagName.toLowerCase() !== 'p') return;
+    clearBlockStyleArtifacts(block);
+}
+
+function paragraphHtmlFromBlock(block: HTMLElement) {
+    if (block.tagName.toLowerCase() === 'pre') {
+        return escapeHtml(normalizeEditorText(block.textContent || '')).replace(/\n/g, '<br>');
+    }
+
+    return block.innerHTML || '<br>';
+}
+
+function replaceBlockWithCleanParagraph(block: HTMLElement | null, editor: HTMLElement) {
+    const targetBlock = block ? getTopLevelEditorBlock(block, editor) : null;
+    if (!targetBlock || targetBlock.parentElement !== editor) return null;
+
+    const tagName = targetBlock.tagName.toLowerCase();
+    if (!['p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre'].includes(tagName)) return null;
+
+    if (tagName === 'p') {
+        resetParagraphBlock(targetBlock);
+        placeCaretInNode(targetBlock, 'end');
+        return targetBlock;
+    }
+
+    const paragraph = editor.ownerDocument.createElement('p');
+    paragraph.innerHTML = paragraphHtmlFromBlock(targetBlock);
+    resetParagraphBlock(paragraph);
+    targetBlock.replaceWith(paragraph);
+    placeCaretInNode(paragraph, 'end');
+    return paragraph;
 }
 
 export default function PostTextComposer({
@@ -1582,6 +1635,15 @@ export default function PostTextComposer({
             const nextBlock = activeTag === command && (command === 'blockquote' || command === 'pre')
                 ? 'p'
                 : command;
+            if (nextBlock === 'p') {
+                const paragraph = replaceBlockWithCleanParagraph(activeBlock, editor);
+                if (paragraph) {
+                    updateFromRichEditor();
+                    setBlockToolbarForBlock(paragraph);
+                    scheduleFloatingToolbar();
+                    return;
+                }
+            }
             document.execCommand('formatBlock', false, nextBlock);
             if (nextBlock === 'p') {
                 resetParagraphBlock(getSelectionBlock(editor, window.getSelection()));
