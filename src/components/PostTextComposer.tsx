@@ -48,10 +48,15 @@ type PostTextComposerProps = {
     onChange: (value: string) => void;
     format?: PostContentFormat;
     onFormatChange?: (format: PostContentFormat) => void;
+    editorRef?: (api: PostTextComposerApi | null) => void;
     placeholder?: string;
     rows?: number;
     disabled?: boolean;
     maxLength?: number;
+};
+
+export type PostTextComposerApi = {
+    sync: () => string;
 };
 
 const INLINE_MARKDOWN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
@@ -485,6 +490,14 @@ function nodeChildrenToMarkdown(node: Node): string {
     return Array.from(node.childNodes).map(nodeToMarkdown).join('');
 }
 
+function nodeBlockChildrenToMarkdown(node: Node): string {
+    return Array.from(node.childNodes)
+        .map(blockToMarkdown)
+        .map(block => block.trim())
+        .filter(Boolean)
+        .join('\n\n');
+}
+
 function normalizeEditorText(value: string) {
     return value.replace(/\u00a0/g, ' ');
 }
@@ -550,6 +563,10 @@ function blockToMarkdown(node: Node): string {
             .join('\n');
     }
     if (tagName === 'hr') return '---';
+
+    if (nodeHasBlockChild(node)) {
+        return nodeBlockChildrenToMarkdown(node);
+    }
 
     return content;
 }
@@ -630,6 +647,7 @@ export default function PostTextComposer({
     value,
     onChange,
     format = 'markdown',
+    editorRef,
     placeholder = 'Share an update, question, or resource...',
     rows = 5,
     disabled = false,
@@ -672,12 +690,12 @@ export default function PostTextComposer({
 
     const updateFromRichEditor = useCallback(() => {
         const editor = richEditorRef.current;
-        if (!editor) return;
+        if (!editor) return value;
 
         if (!editor.textContent?.trim() && editor.querySelectorAll('img, hr').length === 0) {
             editor.innerHTML = '';
             onChange('');
-            return;
+            return '';
         }
 
         const rawValue = editorHtmlToMarkdown(editor);
@@ -686,7 +704,13 @@ export default function PostTextComposer({
             editor.innerHTML = markdownToEditorHtml(nextValue);
         }
         onChange(nextValue);
-    }, [clampValue, onChange]);
+        return nextValue;
+    }, [clampValue, onChange, value]);
+
+    useEffect(() => {
+        editorRef?.({ sync: updateFromRichEditor });
+        return () => editorRef?.(null);
+    }, [editorRef, updateFromRichEditor]);
 
     const updateFloatingToolbar = useCallback(() => {
         const editor = richEditorRef.current;

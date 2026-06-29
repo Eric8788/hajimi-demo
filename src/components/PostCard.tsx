@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useCallback, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useRef, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
@@ -10,7 +10,7 @@ import { isAdminRole } from '@/lib/roles';
 import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
-import PostTextComposer from './PostTextComposer';
+import PostTextComposer, { type PostTextComposerApi } from './PostTextComposer';
 import PostContentRenderer from './PostContentRenderer';
 import { clearCachedJson } from '@/lib/clientJsonCache';
 import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
@@ -135,6 +135,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [savingEdit, setSavingEdit] = useState(false);
     const [editError, setEditError] = useState('');
     const [interactionMessage, setInteractionMessage] = useState('');
+    const editComposerRef = useRef<PostTextComposerApi | null>(null);
 
     const postAttachmentUrls = getPostAttachmentUrls(post);
     const [imageModalUrls, setImageModalUrls] = useState<string[]>([]);
@@ -447,6 +448,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
         setSavingEdit(true);
         setEditError('');
+        const syncedContent = editComposerRef.current?.sync() ?? editContent;
+        const syncedContentFormat: PostContentFormat = 'markdown';
 
         const res = await fetch('/api/posts', {
             method: 'PATCH',
@@ -454,8 +457,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             body: JSON.stringify({
                 postId: post.id,
                 title: editTitle,
-                content: editContent,
-                contentFormat: editContentFormat,
+                content: syncedContent,
+                contentFormat: syncedContentFormat,
                 tag: editTag,
             }),
         });
@@ -463,8 +466,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         if (res.ok) {
             clearCachedJson('posts:');
             setDisplayTitle(editTitle.trim());
-            setDisplayContent(editContent.trim());
-            setDisplayContentFormat(editContentFormat);
+            setDisplayContent(syncedContent.trim());
+            setDisplayContentFormat(syncedContentFormat);
+            setEditContent(syncedContent.trim());
+            setEditContentFormat(syncedContentFormat);
             setDisplayTag(editTag.trim().replace(/^#+/, '').replace(/\s+/g, '').slice(0, 24) || 'general');
             setDisplayUpdatedAt(new Date());
             setIsEditing(false);
@@ -868,6 +873,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             onChange={setEditContent}
                             format={editContentFormat}
                             onFormatChange={setEditContentFormat}
+                            editorRef={api => {
+                                editComposerRef.current = api;
+                            }}
                             rows={6}
                         />
                         <div className="post-edit-helper">

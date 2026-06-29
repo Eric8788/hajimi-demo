@@ -11957,6 +11957,8 @@ html *::after {
 
 .post-content-renderer {
   overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.6;
 }
 
 .post-content-renderer > :first-child {
@@ -11974,7 +11976,7 @@ html *::after {
 .post-content-renderer.is-markdown {
   display: flex;
   flex-direction: column;
-  gap: 0.72rem;
+  gap: 0.62rem;
 }
 
 .post-content-renderer.is-markdown p {
@@ -11992,15 +11994,15 @@ html *::after {
 }
 
 .post-content-renderer.is-markdown h1 {
-  font-size: 1.3rem;
+  font-size: 1.12rem;
 }
 
 .post-content-renderer.is-markdown h2 {
-  font-size: 1.16rem;
+  font-size: 1rem;
 }
 
 .post-content-renderer.is-markdown h3 {
-  font-size: 1.06rem;
+  font-size: 0.94rem;
 }
 
 .post-content-renderer.is-markdown h4 {
