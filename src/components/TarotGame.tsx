@@ -81,7 +81,7 @@ export default function TarotGame() {
     const [reading, setReading] = useState('');
     const [readingId, setReadingId] = useState<number | null>(null);
     const [remainingReadings, setRemainingReadings] = useState<number | null>(null);
-    const [dailyLimit, setDailyLimit] = useState(3);
+    const [dailyLimit, setDailyLimit] = useState(5);
     const [limitMessage, setLimitMessage] = useState('');
     const [followUpQuestion, setFollowUpQuestion] = useState('');
     const [followUpAnswer, setFollowUpAnswer] = useState('');
@@ -259,8 +259,8 @@ export default function TarotGame() {
     };
 
     const positions = ['Past', 'Present', 'Future'];
-    const readingParagraphs = formatOracleParagraphs(reading, 4, 88);
-    const followUpParagraphs = formatOracleParagraphs(followUpAnswer, 3, 78);
+    const readingParagraphs = formatOracleParagraphs(reading, 3, 84);
+    const followUpParagraphs = formatOracleParagraphs(followUpAnswer, 2, 76);
     const canAskFollowUp = Boolean(reading && readingId && !followUpUsed);
 
     return (

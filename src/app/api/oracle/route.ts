@@ -10,7 +10,7 @@ const ZENMUX_URL = 'https://zenmux.ai/api/v1/chat/completions';
 const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const PROVIDER_TIMEOUT_MS = 45000;
 const ORACLE_TOTAL_TIMEOUT_MS = 55000;
-const DAILY_ORACLE_LIMIT = 3;
+const DAILY_ORACLE_LIMIT = 5;
 
 type OracleCard = {
     position: string;
@@ -270,10 +270,9 @@ function buildFallbackReading(cards: OracleCard[]) {
     const futureLabel = getCardLabel(future);
 
     return [
-        `这组三张牌不是在催你立刻做决定，而是在讲一个节奏：${pastLabel} 给出过去的底色，${presentLabel} 指出当下的张力，${futureLabel} 像未来传来的回声。`,
-        `过去位的 ${pastLabel} 代表${getCardMeaning(past)}。放到你的状态里，它像一个已经熟悉的反应方式：曾经帮你撑住场面，也可能让某些真实感受被放到后面。`,
-        `现在位的 ${presentLabel} 代表${getCardMeaning(present)}。它更像把灯打到眼前的问题上：不是责怪你，而是让你看见哪种期待、关系或计划正在牵动你。`,
-        `未来位的 ${futureLabel} 代表${getCardMeaning(future)}。它没有要求你变成另一个人，只是在提示：接下来会更适合顺着真正有回应感的方向走，而不是继续应付所有声音。`,
+        `${pastLabel} 带着${getCardMeaning(past)}的气息。水晶球先说句白话：过去那段你其实已经扛过一轮了，只是心里还没完全把它放下。`,
+        `${presentLabel} 的${getCardMeaning(present)}把灯一开，某个旧安排或旧期待里不稳的地方就露出来了。别慌，这不等于你搞砸了。`,
+        `到了 ${futureLabel}，${getCardMeaning(future)}慢慢浮上来。它像是在提醒：别急着证明自己，先看哪条路还让你愿意抬头。`,
     ].join('\n\n');
 }
 
@@ -281,8 +280,8 @@ function buildFallbackFollowUp(cards: OracleCard[], question: string) {
     const [past, present, future] = cards;
 
     return [
-        `把「${question}」放回牌面看，${getCardLabel(past)} 代表${getCardMeaning(past)}：它像是在指出，这个新信息触到了你原本熟悉的反应方式。`,
-        `${getCardLabel(present)} 的主题是${getCardMeaning(present)}，而 ${getCardLabel(future)} 代表${getCardMeaning(future)}。两张牌连起来看，重点不是立刻解决，而是重新分辨哪部分最值得认真听。`,
+        `把「${question}」放回牌面里，${getCardLabel(past)} 先碰到你的旧习惯：有些反应不是错，只是用太顺手了。`,
+        `${getCardLabel(present)} 和 ${getCardLabel(future)} 接在一起看，水晶球想说：先别急着判自己输，那点不安里可能有真正该听的声音。`,
     ].join('\n\n');
 }
 
@@ -452,17 +451,18 @@ async function createOracleFollowUp(userId: number, body: Record<string, unknown
         '你是 Hajimi 的水晶球追问助手。学生已经抽过三张塔罗牌，并刚刚提供了新的个人背景。',
         '请结合原始牌面、上一段解读和学生的新信息，给出一次追问回应。',
         '这只是反思和灵感，不要使用宿命论、恐吓、医疗、法律、投资等严肃建议。',
-        '输出 2-3 个短段落，每段 45-85 个中文字符，段落之间用空行分隔。',
-        '必须至少点名两张相关牌，格式使用“中文名（English Name）”，并说明这张牌此处代表什么。',
+        '输出 2 个短段落，每段 45-80 个中文字符，段落之间用空行分隔。',
+        '自然提到至少两张相关牌，格式使用“中文名（English Name）”，但不要写成定义题。',
         '不要复述完整原文，不要 Markdown 项目符号；不要用“做小实验、完成任务、打卡验证”作为固定收尾。',
-        '语气像温柔但清醒的 AI 朋友，可以给观察角度，但不要说教、不要命令学生。',
+        '水晶球要有一点自己的性格：说人话、说白话，像一个嘴上轻松但看得挺准的朋友。',
+        '语气顺一点，可以有一点俏皮和吐槽，但别油腻、别装大师、别端着；可以给观察角度，但不要说教、不要命令学生。',
     ].join('\n');
     const cardPrompt = cards.map(formatCardForPrompt).join('\n\n');
     const prompt = [
         `牌面：\n${cardPrompt}`,
         `上一段解读：\n${initialReading}`,
         `学生补充的新信息：\n${question}`,
-        '请给出水晶球追问回应：把新信息放回具体牌面里，解释牌义如何改变判断；结尾可以是温和提醒，但不要变成行动清单。',
+        '请给出水晶球追问回应：把新信息放回具体牌面里，用自然叙述回应，不要写成分析提纲或行动清单。',
     ].join('\n\n');
     const oracleStartedAt = Date.now();
     let answer = fallbackAnswer;
@@ -477,8 +477,8 @@ async function createOracleFollowUp(userId: number, body: Record<string, unknown
                 system,
                 prompt,
                 Math.min(PROVIDER_TIMEOUT_MS, remainingBudget),
-                520,
-                380,
+                420,
+                280,
             );
             break;
         } catch (error) {
@@ -556,14 +556,14 @@ export async function POST(request: Request) {
         const system = [
             '你是 Hajimi 的 Cyber Oracle。请用中文为高中 AI Club 学生生成一段有深度、温暖、有创意的塔罗解读。',
             '这只是反思和灵感，不要使用宿命论、恐吓、医疗、法律、投资等严肃建议。',
-            '输出 300-430 个中文字符，拆成 4 个短段落，段落之间用空行分隔。',
-            '第 1 段是总览：点出三张牌之间的关系，可以同时提到三张牌名。',
-            '第 2 段只讲 Past 牌，第 3 段只讲 Present 牌，第 4 段只讲 Future 牌。',
-            '每个单牌段落都必须包含：牌的中文名、英文名，说明“这张牌代表什么”，再结合学生常见处境解释。',
-            '使用“女皇（The Empress）”这种格式；不要只写英文牌名。',
+            '输出 180-260 个中文字符，拆成 3 个短段落，段落之间用空行分隔。',
+            '不要写小标题，不要出现“Past/Present/Future 的某牌”这种模板句。',
+            '三段按过去、现在、未来的顺序自然推进；每段轻轻带出一张牌的“中文名（English Name）”和牌义。',
+            '不要用“这张牌代表什么：”这种定义式写法；把牌义揉进句子里，像慢慢讲故事。',
             '不要把解读写成学习任务清单；少用“应该、必须、立刻”。禁止把“做小实验、打卡验证、完成一个任务”当固定结尾。',
             '可以结合高中学生常见场景：学习、社交、创作、社团项目、焦虑、拖延和自我期待。',
-            '语气要像一个懂学习、创作、社交和成长的 AI 朋友，具体、有画面，但不要装神秘、不要说教。',
+            '水晶球要有一点自己的性格：说人话、说白话，像一个嘴上轻松但看得挺准的朋友。',
+            '语气要流畅、具体、有画面，可以有一点俏皮和吐槽；不要太深奥、不要装神秘、不要说教。',
         ].join('\n');
         const userPrompt = cards
             .map(formatCardForPrompt)
@@ -576,14 +576,14 @@ export async function POST(request: Request) {
             if (remainingBudget < 2500) break;
 
             try {
-                const prompt = `抽到的牌如下：\n${userPrompt}\n\n请严格按 4 段输出：总览 / Past / Present / Future。每个单牌段落都要写出这张牌的中文名、英文名、核心代表含义，并结合具体情境解读。`;
+                const prompt = `抽到的牌如下：\n${userPrompt}\n\n请写成 3 段自然叙述：从过去到现在，再轻轻落到未来。每段带出一张牌的中英文名和牌义，但不要写成说明书。`;
                 const reading = await requestOracleText(
                     config,
                     system,
                     prompt,
                     Math.min(PROVIDER_TIMEOUT_MS, remainingBudget),
-                    900,
-                    720,
+                    620,
+                    460,
                 );
                 const readingId = await recordOracleReading(userId, cards, reading);
 
