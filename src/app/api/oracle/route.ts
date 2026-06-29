@@ -33,6 +33,36 @@ type OracleReadingRow = {
     follow_up_at: string | null;
 };
 
+type OracleCardInfo = {
+    zhName: string;
+    coreMeaning: string;
+};
+
+const CARD_INFO: Record<string, OracleCardInfo> = {
+    'The Fool': { zhName: '愚者', coreMeaning: '新的开始、自由、试探未知，也可能带着天真和冒险' },
+    'The Magician': { zhName: '魔术师', coreMeaning: '资源整合、主动创造、把想法变成现实' },
+    'The High Priestess': { zhName: '女祭司', coreMeaning: '直觉、隐藏的信息、安静观察和内在知识' },
+    'The Empress': { zhName: '女皇', coreMeaning: '滋养、创作、照顾关系，也提醒别让温柔变成过度消耗' },
+    'The Emperor': { zhName: '皇帝', coreMeaning: '秩序、边界、责任和稳定结构' },
+    'The Hierophant': { zhName: '教皇', coreMeaning: '传统、规则、学习体系和被认可的方法' },
+    'The Lovers': { zhName: '恋人', coreMeaning: '关系、选择、价值观对齐和真诚连接' },
+    'The Chariot': { zhName: '战车', coreMeaning: '意志、控制方向、推进和胜负心' },
+    Strength: { zhName: '力量', coreMeaning: '温柔的勇气、自我驯服、耐心和内在韧性' },
+    'The Hermit': { zhName: '隐者', coreMeaning: '独处、反省、寻找自己的判断和答案' },
+    'Wheel of Fortune': { zhName: '命运之轮', coreMeaning: '周期变化、机会转动、局势不完全由个人控制' },
+    Justice: { zhName: '正义', coreMeaning: '公平、因果、清晰判断和承担选择的后果' },
+    'The Hanged Man': { zhName: '倒吊人', coreMeaning: '暂停、换角度、放下旧执念和等待时机' },
+    Death: { zhName: '死神', coreMeaning: '结束、转化、告别旧阶段，为新状态腾位置' },
+    Temperance: { zhName: '节制', coreMeaning: '平衡、调和、耐心和不同需求之间的配比' },
+    'The Devil': { zhName: '恶魔', coreMeaning: '束缚、欲望、依赖、逃避和被看见的阴影' },
+    'The Tower': { zhName: '高塔', coreMeaning: '突变、崩塌、真相显露，也拆掉不稳的旧结构' },
+    'The Star': { zhName: '星星', coreMeaning: '希望、疗愈、信念恢复和长线愿景' },
+    'The Moon': { zhName: '月亮', coreMeaning: '不安、想象、模糊信息和潜意识里的担心' },
+    'The Sun': { zhName: '太阳', coreMeaning: '明朗、活力、成功感和被看见的快乐' },
+    Judgement: { zhName: '审判', coreMeaning: '召唤、复盘、觉醒、重新回应真正重要的事' },
+    'The World': { zhName: '世界', coreMeaning: '完成、整合、阶段收束和更大的视野' },
+};
+
 function env(name: string) {
     return process.env[name]?.trim() || '';
 }
@@ -147,6 +177,26 @@ function isOracleCard(value: unknown): value is OracleCard {
     );
 }
 
+function getCardInfo(card: OracleCard) {
+    return CARD_INFO[card.name] ?? {
+        zhName: card.name,
+        coreMeaning: card.meaning,
+    };
+}
+
+function getCardLabel(card: OracleCard) {
+    const info = getCardInfo(card);
+    return `${info.zhName}（${card.name}）`;
+}
+
+function getCardMeaning(card: OracleCard) {
+    return getCardInfo(card).coreMeaning;
+}
+
+function formatCardForPrompt(card: OracleCard) {
+    return `${card.position}: ${getCardLabel(card)}\n核心牌义：${getCardMeaning(card)}\n原始牌义：${card.meaning}`;
+}
+
 function sanitizeReading(text: string, maxLength = 620) {
     return text
         .replace(/^["'“”]+|["'“”]+$/g, '')
@@ -215,11 +265,15 @@ function extractChatCompletionText(data: unknown) {
 
 function buildFallbackReading(cards: OracleCard[]) {
     const [past, present, future] = cards;
+    const pastLabel = getCardLabel(past);
+    const presentLabel = getCardLabel(present);
+    const futureLabel = getCardLabel(future);
 
     return [
-        `过去的 ${past.name} 像一个旧模式：你可能习惯先压住情绪，或用“再等等”避开真正的问题。它保护过你，但现在有点耗能。`,
-        `现在的 ${present.name} 把焦点拉回当下：先分清你是在追真实目标，还是在回应别人的期待。把压力拆成一个可命名的小块。`,
-        `未来的 ${future.name} 给出今天的小实验：选一件 15 分钟内能完成的事，写下结果再行动。别等状态完美，先让自己动起来。`,
+        `这组三张牌不是在催你立刻做决定，而是在讲一个节奏：${pastLabel} 给出过去的底色，${presentLabel} 指出当下的张力，${futureLabel} 像未来传来的回声。`,
+        `过去位的 ${pastLabel} 代表${getCardMeaning(past)}。放到你的状态里，它像一个已经熟悉的反应方式：曾经帮你撑住场面，也可能让某些真实感受被放到后面。`,
+        `现在位的 ${presentLabel} 代表${getCardMeaning(present)}。它更像把灯打到眼前的问题上：不是责怪你，而是让你看见哪种期待、关系或计划正在牵动你。`,
+        `未来位的 ${futureLabel} 代表${getCardMeaning(future)}。它没有要求你变成另一个人，只是在提示：接下来会更适合顺着真正有回应感的方向走，而不是继续应付所有声音。`,
     ].join('\n\n');
 }
 
@@ -227,8 +281,8 @@ function buildFallbackFollowUp(cards: OracleCard[], question: string) {
     const [past, present, future] = cards;
 
     return [
-        `把「${question}」放回牌面看，${past.name} 提醒你：卡点不一定是能力，而是旧反应还在自动接管。`,
-        `${present.name} 和 ${future.name} 给的小动作是：今天只做一件 15 分钟内可完成的事，并写下一个可检查结果。`,
+        `把「${question}」放回牌面看，${getCardLabel(past)} 代表${getCardMeaning(past)}：它像是在指出，这个新信息触到了你原本熟悉的反应方式。`,
+        `${getCardLabel(present)} 的主题是${getCardMeaning(present)}，而 ${getCardLabel(future)} 代表${getCardMeaning(future)}。两张牌连起来看，重点不是立刻解决，而是重新分辨哪部分最值得认真听。`,
     ].join('\n\n');
 }
 
@@ -398,16 +452,17 @@ async function createOracleFollowUp(userId: number, body: Record<string, unknown
         '你是 Hajimi 的水晶球追问助手。学生已经抽过三张塔罗牌，并刚刚提供了新的个人背景。',
         '请结合原始牌面、上一段解读和学生的新信息，给出一次追问回应。',
         '这只是反思和灵感，不要使用宿命论、恐吓、医疗、法律、投资等严肃建议。',
-        '输出 2 个短段落，每段 35-65 个中文字符，段落之间用空行分隔。',
-        '不要复述完整原文，不要 Markdown 项目符号；重点是把新信息转化成一个更具体的判断和一个今天能做的小行动。',
-        '语气像温柔但清醒的 AI 朋友，具体、有画面，避免空泛安慰。',
+        '输出 2-3 个短段落，每段 45-85 个中文字符，段落之间用空行分隔。',
+        '必须至少点名两张相关牌，格式使用“中文名（English Name）”，并说明这张牌此处代表什么。',
+        '不要复述完整原文，不要 Markdown 项目符号；不要用“做小实验、完成任务、打卡验证”作为固定收尾。',
+        '语气像温柔但清醒的 AI 朋友，可以给观察角度，但不要说教、不要命令学生。',
     ].join('\n');
-    const cardPrompt = cards.map(card => `${card.position}: ${card.name} (${card.meaning})`).join('\n');
+    const cardPrompt = cards.map(formatCardForPrompt).join('\n\n');
     const prompt = [
         `牌面：\n${cardPrompt}`,
         `上一段解读：\n${initialReading}`,
         `学生补充的新信息：\n${question}`,
-        '请给出水晶球追问回应：先把新信息放回牌面里，再给一个可执行的小行动。',
+        '请给出水晶球追问回应：把新信息放回具体牌面里，解释牌义如何改变判断；结尾可以是温和提醒，但不要变成行动清单。',
     ].join('\n\n');
     const oracleStartedAt = Date.now();
     let answer = fallbackAnswer;
@@ -422,8 +477,8 @@ async function createOracleFollowUp(userId: number, body: Record<string, unknown
                 system,
                 prompt,
                 Math.min(PROVIDER_TIMEOUT_MS, remainingBudget),
-                320,
-                260,
+                520,
+                380,
             );
             break;
         } catch (error) {
@@ -501,15 +556,17 @@ export async function POST(request: Request) {
         const system = [
             '你是 Hajimi 的 Cyber Oracle。请用中文为高中 AI Club 学生生成一段有深度、温暖、有创意的塔罗解读。',
             '这只是反思和灵感，不要使用宿命论、恐吓、医疗、法律、投资等严肃建议。',
-            '输出 180-260 个中文字符，拆成 3 个短段落，每段 45-85 个中文字符，段落之间用空行分隔。',
-            '可以用自然的小标题，例如“牌面张力：”“现实课题：”“今天的小实验：”，但不要 Markdown 项目符号，不要复述英文卡牌释义。',
-            '必须把三张牌串成一个清晰故事：过去的惯性/卡点，现在的真实课题，未来一两天可执行的微行动。',
-            '不要只给安慰和漂亮话；要指出一个真实矛盾、一个容易忽略的心理机制，以及一个可验证的小实验。',
+            '输出 300-430 个中文字符，拆成 4 个短段落，段落之间用空行分隔。',
+            '第 1 段是总览：点出三张牌之间的关系，可以同时提到三张牌名。',
+            '第 2 段只讲 Past 牌，第 3 段只讲 Present 牌，第 4 段只讲 Future 牌。',
+            '每个单牌段落都必须包含：牌的中文名、英文名，说明“这张牌代表什么”，再结合学生常见处境解释。',
+            '使用“女皇（The Empress）”这种格式；不要只写英文牌名。',
+            '不要把解读写成学习任务清单；少用“应该、必须、立刻”。禁止把“做小实验、打卡验证、完成一个任务”当固定结尾。',
             '可以结合高中学生常见场景：学习、社交、创作、社团项目、焦虑、拖延和自我期待。',
-            '语气要像一个懂学习、创作、社交和成长的 AI 朋友，具体、有画面，但不要装神秘。',
+            '语气要像一个懂学习、创作、社交和成长的 AI 朋友，具体、有画面，但不要装神秘、不要说教。',
         ].join('\n');
         const userPrompt = cards
-            .map(card => `${card.position}: ${card.name} (${card.meaning})`)
+            .map(formatCardForPrompt)
             .join('\n');
 
         const oracleStartedAt = Date.now();
@@ -519,14 +576,14 @@ export async function POST(request: Request) {
             if (remainingBudget < 2500) break;
 
             try {
-                const prompt = `抽到的牌如下：\n${userPrompt}\n请给出本次 Oracle Insight：先读出三张牌之间的张力，再给一个今天可以尝试的小行动。`;
+                const prompt = `抽到的牌如下：\n${userPrompt}\n\n请严格按 4 段输出：总览 / Past / Present / Future。每个单牌段落都要写出这张牌的中文名、英文名、核心代表含义，并结合具体情境解读。`;
                 const reading = await requestOracleText(
                     config,
                     system,
                     prompt,
                     Math.min(PROVIDER_TIMEOUT_MS, remainingBudget),
-                    700,
-                    520,
+                    900,
+                    720,
                 );
                 const readingId = await recordOracleReading(userId, cards, reading);
 

@@ -259,8 +259,8 @@ export default function TarotGame() {
     };
 
     const positions = ['Past', 'Present', 'Future'];
-    const readingParagraphs = formatOracleParagraphs(reading, 3, 76);
-    const followUpParagraphs = formatOracleParagraphs(followUpAnswer, 2, 68);
+    const readingParagraphs = formatOracleParagraphs(reading, 4, 88);
+    const followUpParagraphs = formatOracleParagraphs(followUpAnswer, 3, 78);
     const canAskFollowUp = Boolean(reading && readingId && !followUpUsed);
 
     return (
