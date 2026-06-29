@@ -87,6 +87,10 @@ Database interactions are handled via standard SQL functions.
 *Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is currently open without invite codes for the graduation ceremony. Parent and visitor accounts are stored in `users.role` and remain read-only even if logged in. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification is required during student/teacher registration and can still be submitted from profile settings for older unverified accounts. Student-permission applicants submit Name, G7-G13 / 毕业生 identity, and optional student ID; teachers submit Name and subject. Teacher applicants are stored without staff permissions until admin approval promotes them to `teacher`. The `Name` field is school common/preferred name, not legal name. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
 
 ## 6. Important Workflows for AI Assistants
+0. **Git and production release safety:**
+   - Hajimi may be edited from multiple computers. Always run `git fetch --all --prune --tags`, `git status --short --branch`, and `git diff --name-status` before staging or deploying.
+   - Before any production deploy, verify `git merge-base --is-ancestor origin/main HEAD` exits `0`. If not, create a clean branch from `origin/main` and cherry-pick/rebase only the intended commits.
+   - Never deploy from a stale detached HEAD, dirty temporary worktree, or branch that omits newer `origin/main` work. Keep local DB side files, generated exports, product-intro artifacts, and unrelated experimental pages out of narrow commits.
 1. **Adding or updating a student project:**
    - Prefer the Hub application flow: verified user submits from `/functions`, admin approves at `/admin/project-submissions`.
    - Do not let students directly self-publish live Hub rows. Manual database edits are admin-only maintenance.

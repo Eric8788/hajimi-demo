@@ -1,6 +1,6 @@
 # Hajimi Session Handoff
 
-*Last updated: 2026-06-08 (Asia/Shanghai)*
+*Last updated: 2026-06-29 (Asia/Shanghai)*
 
 **Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
@@ -87,6 +87,8 @@ Important:
 - Parent/visitor accounts intentionally cannot interact. If a parent reports that comments, ratings, saved projects, or H币 features are blocked, that is expected behavior.
 - Vercel "Visit" from a deployment page may open a Vercel deployment URL; the official public domain is still `https://hajimi.ericproject.xyz`.
 - Local `npm run dev` can still be affected by Chinese-path issues noted in the ecosystem doc.
+- Multi-computer safety: before committing, pushing, or deploying, fetch remote refs and confirm the release candidate contains latest `origin/main` with `git merge-base --is-ancestor origin/main HEAD`. If it fails, rebuild from a clean `origin/main` branch and cherry-pick only the intended work.
+- Keep narrow fixes narrow. Do not include stale worktree changes, local DB side files (`*.db-shm`, `*.db-wal`), generated exports (`output/`, `public/qr/`), product-intro artifacts, or experimental pages unless Eric explicitly asked for those files.
 
 ## 5. Beta Context
 
@@ -120,6 +122,17 @@ Open these first:
 3. `HAJIMI_ARCHITECTURE.md`
 4. `/Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md`
 5. `git log --oneline -10`
+
+Then run:
+
+```bash
+git fetch --all --prune --tags
+git status --short --branch
+git diff --name-status
+git merge-base --is-ancestor origin/main HEAD
+```
+
+For production deploys, the final command must succeed.
 
 ## 8. Suggested Prompt For A New Window
 

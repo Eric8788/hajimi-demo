@@ -150,14 +150,33 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 ### Pre-Work Checklist
 ```bash
 # Run before every session in the target repo:
+git fetch --all --prune --tags
 git status --short --branch
-git pull --ff-only
+git log --oneline --decorate --max-count=8
 # Then read:
 # - hajimi-demo/docs/AI_CLUB_ECOSYSTEM.md  (this file)
 # - hajimi-demo/docs/SESSION_HANDOFF.md
 # - hajimi-demo/HAJIMI_ARCHITECTURE.md
 # - /Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md  (discussion board)
 ```
+
+If the worktree is dirty, inspect `git diff --name-status` before any pull,
+rebase, cherry-pick, commit, or deploy. Preserve unrelated local changes by
+using a clean worktree or a narrow branch.
+
+### Multi-Machine Release Safety
+Eric may commit from multiple computers. Production deploys must contain the
+latest remote mainline before adding local work:
+
+```bash
+git fetch --all --prune --tags
+git merge-base --is-ancestor origin/main HEAD
+```
+
+If this exits non-zero, do not deploy from the current worktree. Create a clean
+branch from `origin/main`, then cherry-pick or rebase only the intended commits.
+This prevents an old local branch from overwriting newer work from another
+computer.
 
 ### Agent Availability Model
 - Codex is Eric's primary ongoing executor and may continue work across many updates.
@@ -210,8 +229,15 @@ Next risk: <what the next agent should watch out for>
 - ❌ Never use Tailwind CSS classes
 - ❌ Never introduce an ORM (no Prisma, no Drizzle, no Sequelize)
 - ❌ Never modify DB schema without updating `HAJIMI_ARCHITECTURE.md`
+- ❌ Never production-deploy from a stale branch, detached HEAD, or dirty worktree
+  that does not contain latest `origin/main`
+- ❌ Never mix unrelated local files into a narrow commit: keep `*.db-shm`,
+  `*.db-wal`, `output/`, `public/qr/`, product-intro exports, and experimental
+  pages out unless the user explicitly requests them
 - ✅ Always maintain Glassmorphism aesthetic
 - ✅ Always run `npm run build` before pushing (when possible)
+- ✅ Always inspect `git diff --name-status` and `git diff --stat` before
+  staging, committing, pushing, or deploying
 - ✅ Always write handoff checklist when switching agents
 
 ### Phase Discipline
