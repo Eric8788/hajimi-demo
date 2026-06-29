@@ -22,7 +22,7 @@ type AdminCoinOverview = {
 
 const SOURCE_OPTIONS = [
     { value: 'manual', label: '手动发放' },
-    { value: 'verification_airdrop', label: '认证空投' },
+    { value: 'verification_airdrop', label: '认证启动金' },
     { value: 'project_publish_reward', label: '项目发布奖励' },
     { value: 'version_publish_reward', label: '新版本奖励' },
     { value: 'monthly_award', label: '月榜奖励' },
@@ -85,9 +85,9 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
     const [filter, setFilter] = useState<CoinUserFilter>('verified');
     const [selectedUserId, setSelectedUserId] = useState<number | null>(initialOverview.users[0]?.user_id ?? null);
     const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
-    const [amount, setAmount] = useState('3');
+    const [amount, setAmount] = useState('10');
     const [sourceType, setSourceType] = useState('verification_airdrop');
-    const [note, setNote] = useState('认证空投');
+    const [note, setNote] = useState('认证启动金 10 H币');
     const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
@@ -458,7 +458,7 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                         onChange={event => setNote(event.target.value)}
                     />
                 </label>
-                <p className="admin-coin-batch-note">批量空投只写入 H币钱包和 coin_transactions 账本，不修改 XP、等级或排行榜。</p>
+                <p className="admin-coin-batch-note">认证启动金建议每人 10 H币；已发过 3 H币的老用户可补发 7 H币。批量发放只写入 H币钱包和 coin_transactions 账本，不修改 XP、等级或排行榜。</p>
                 <button type="submit" disabled={saving || selectedBatchIds.length === 0}>
                     {saving ? '处理中...' : '一次性空投'}
                 </button>

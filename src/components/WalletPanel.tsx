@@ -24,7 +24,7 @@ function transactionLabel(type: string, sourceType: string) {
     if (type === 'tip_received') return '收到打赏';
     if (type === 'redemption_hold') return '兑换冻结';
     if (type === 'redemption_refund') return '兑换退回';
-    if (sourceType === 'verification_airdrop') return '认证空投';
+    if (sourceType === 'verification_airdrop') return '认证启动金';
     if (sourceType === 'project_publish_reward') return '项目发布奖励';
     if (sourceType === 'version_publish_reward') return '新版本奖励';
     if (sourceType === 'monthly_award') return '月榜奖励';
