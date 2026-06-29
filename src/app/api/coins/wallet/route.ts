@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getCoinWalletBalance, getCoinWalletOverview } from '@/lib/db';
+import { getRequestLogContext, logApiError } from '@/lib/apiLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
             headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
         });
     } catch (error) {
-        console.error('GET /api/coins/wallet error:', error);
+        logApiError('/api/coins/wallet', error, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }

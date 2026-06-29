@@ -7,6 +7,7 @@ import { getInteractionBlockedMessage } from '@/lib/access';
 import { del, put } from '@vercel/blob';
 import { cachedServerValue, clearServerCache } from '@/lib/serverCache';
 import { normalizePostContentFormat } from '@/lib/forumContent';
+import { getRequestLogContext, logApiError } from '@/lib/apiLog';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
 const MAX_POST_ATTACHMENTS = 3;
@@ -63,18 +64,17 @@ async function cleanupUploadedBlobs(urls: string[]) {
 }
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const sort = (searchParams.get('sort') || 'time') as 'time' | 'heat' | 'likes';
-    const filter = (searchParams.get('filter') || 'all') as 'all' | 'saved';
-    const tag = searchParams.get('tag') || undefined;
-    const paged = searchParams.get('page') === '1';
-    const requestedLimit = Number(searchParams.get('limit') || 15);
-    const requestedOffset = Number(searchParams.get('offset') || 0);
-    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 30) : 15;
-    const offset = Number.isFinite(requestedOffset) ? Math.max(Math.floor(requestedOffset), 0) : 0;
-    const session = await getSession();
-
     try {
+        const { searchParams } = new URL(request.url);
+        const sort = (searchParams.get('sort') || 'time') as 'time' | 'heat' | 'likes';
+        const filter = (searchParams.get('filter') || 'all') as 'all' | 'saved';
+        const tag = searchParams.get('tag') || undefined;
+        const paged = searchParams.get('page') === '1';
+        const requestedLimit = Number(searchParams.get('limit') || 15);
+        const requestedOffset = Number(searchParams.get('offset') || 0);
+        const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 30) : 15;
+        const offset = Number.isFinite(requestedOffset) ? Math.max(Math.floor(requestedOffset), 0) : 0;
+        const session = await getSession();
         const isPublicList = !session && filter === 'all';
         if (paged) {
             const page = isPublicList
@@ -108,7 +108,8 @@ export async function GET(request: Request) {
                     : 'private, no-cache, no-store, max-age=0, must-revalidate',
             }
         });
-    } catch {
+    } catch (error) {
+        logApiError('/api/posts', error, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }
@@ -208,7 +209,7 @@ export async function POST(request: Request) {
         clearServerCache('posts:');
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
-        console.error(err);
+        logApiError('/api/posts', err, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }
@@ -257,7 +258,7 @@ export async function PATCH(request: Request) {
         clearServerCache('posts:');
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
-        console.error(err);
+        logApiError('/api/posts', err, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }

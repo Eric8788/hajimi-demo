@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { trackProjectOpen } from '@/lib/db';
+import { getRequestLogContext, logApiError } from '@/lib/apiLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Project Open Error:', error);
+        logApiError('/api/projects/open', error, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }

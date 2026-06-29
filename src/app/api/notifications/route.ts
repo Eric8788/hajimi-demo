@@ -2,14 +2,15 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getAdminAuditHistory, getAdminReviewSummary, getNotifications, getUnreadNotificationCount, getUserAccountRole, markNotificationsRead } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
+import { getRequestLogContext, logApiError } from '@/lib/apiLog';
 
 export async function GET(request: Request) {
-    const session = await getSession();
-    if (!session) {
-        return NextResponse.json({ notifications: [], unreadCount: 0 });
-    }
-
     try {
+        const session = await getSession();
+        if (!session) {
+            return NextResponse.json({ notifications: [], unreadCount: 0 });
+        }
+
         const { searchParams } = new URL(request.url);
         const countOnly = searchParams.get('mode') === 'count';
         const userId = Number(session.userId);
@@ -42,22 +43,22 @@ export async function GET(request: Request) {
             },
         });
     } catch (error) {
-        console.error('GET /api/notifications error:', error);
+        logApiError('/api/notifications', error, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }
 
-export async function PATCH() {
-    const session = await getSession();
-    if (!session) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+export async function PATCH(request: Request) {
     try {
+        const session = await getSession();
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         await markNotificationsRead(Number(session.userId));
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('PATCH /api/notifications error:', error);
+        logApiError('/api/notifications', error, getRequestLogContext(request));
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }

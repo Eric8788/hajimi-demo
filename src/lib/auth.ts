@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { cookies } from 'next/headers';
-import { isUserSessionActive } from './db';
+import { getCachedSessionActiveStatus } from './serverSessionCache';
 
 const SECRET_KEY = new TextEncoder().encode(
     'h4jimi-sup3r-s3cr3t-k3y-d0nt-sh4r3' // In prod, use environment variable
@@ -35,7 +35,7 @@ export async function getSession(): Promise<SessionPayload | null> {
         if (typeof payload.userId !== 'number') {
             return null;
         }
-        if (!(await isUserSessionActive(payload.userId))) {
+        if (!(await getCachedSessionActiveStatus(payload.userId))) {
             return null;
         }
         return {

@@ -1667,7 +1667,7 @@ export async function isUserSessionActive(userId: number) {
       LIMIT 1
     `;
 
-    return rows[0]?.account_status !== 'disabled';
+    return rows[0]?.account_status === 'active';
 }
 
 export async function getAdminAuditHistory(
