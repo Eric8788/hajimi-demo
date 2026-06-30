@@ -8701,13 +8701,13 @@ textarea:hover,
 }
 
 .hasdaq-market-layout .hasdaq-grid {
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
 
 .hasdaq-card {
   display: grid;
   gap: 12px;
-  min-height: 318px;
+  min-height: 344px;
   padding: 18px;
   border-radius: 22px;
   color: inherit;
@@ -8823,10 +8823,12 @@ textarea:hover,
 
 .hasdaq-card p {
   display: -webkit-box;
-  min-height: 48px;
+  min-height: 70px;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
+  font-size: 0.94rem;
+  line-height: 1.46;
 }
 
 .hasdaq-card-media {
@@ -9230,6 +9232,33 @@ textarea:hover,
   border: 1px solid rgba(45,52,54,0.07);
   border-radius: 12px;
   background: rgba(255,255,255,0.64);
+}
+
+.hasdaq-chart-panel {
+  overflow: hidden;
+}
+
+.hasdaq-chart-panel .hasdaq-lightweight-chart {
+  height: 390px;
+  min-height: 390px;
+}
+
+@media (max-width: 1180px) {
+  .hasdaq-market-layout .hasdaq-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .hasdaq-market-layout .hasdaq-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .hasdaq-market-layout .hasdaq-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hasdaq-market-stats {

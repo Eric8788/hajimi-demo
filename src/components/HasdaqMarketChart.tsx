@@ -35,7 +35,7 @@ type HasdaqCandle = CandlestickData<UTCTimestamp> & {
 const BUCKET_TARGET = 96;
 const BUCKET_SECONDS = 60 * 60;
 const MIN_DISPLAY_CANDLES = 48;
-const MIN_VISIBLE_BARS = 96;
+const MIN_VISIBLE_BARS = 72;
 
 function milliToPrice(value?: number | null) {
     return Number((Number(value || 0) / 1000).toFixed(2));
@@ -226,20 +226,23 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
                 },
                 rightPriceScale: {
                     borderVisible: false,
-                    scaleMargins: { top: 0.08, bottom: 0.2 },
+                    entireTextOnly: true,
+                    minimumWidth: 58,
+                    scaleMargins: { top: 0.08, bottom: 0.22 },
                 },
                 timeScale: {
                     borderVisible: false,
-                    barSpacing: 8,
+                    barSpacing: 7,
                     minBarSpacing: 4,
                     maxBarSpacing: 12,
-                    rightOffset: 8,
+                    rightOffset: 14,
+                    fixLeftEdge: true,
                     timeVisible: true,
                     secondsVisible: false,
                 },
                 crosshair: {
-                    vertLine: { color: 'rgba(108,92,231,0.22)', labelBackgroundColor: '#6c5ce7' },
-                    horzLine: { color: 'rgba(108,92,231,0.18)', labelBackgroundColor: '#6c5ce7' },
+                    vertLine: { color: 'rgba(108,92,231,0.22)', labelBackgroundColor: '#6c5ce7', labelVisible: false },
+                    horzLine: { color: 'rgba(108,92,231,0.18)', labelBackgroundColor: '#6c5ce7', labelVisible: false },
                 },
             });
 
