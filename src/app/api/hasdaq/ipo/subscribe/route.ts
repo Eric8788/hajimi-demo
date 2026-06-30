@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         if (message === 'Company not found') return NextResponse.json({ error: 'Company not found' }, { status: 404 });
         if (message === 'Company is not in IPO') return NextResponse.json({ error: 'This company is not in IPO subscription.' }, { status: 409 });
         if (message === 'Not enough public shares') return NextResponse.json({ error: 'Not enough IPO shares remain.' }, { status: 409 });
-        if (message === 'Position limit reached') return NextResponse.json({ error: 'Each user can hold at most 100 public shares per company.' }, { status: 409 });
+        if (message === 'Position limit reached') return NextResponse.json({ error: '单只股票最多持有 60 股。' }, { status: 409 });
         if (message === 'Insufficient coins') return NextResponse.json({ error: 'Insufficient H coins.' }, { status: 409 });
 
         console.error('POST /api/hasdaq/ipo/subscribe error:', error);

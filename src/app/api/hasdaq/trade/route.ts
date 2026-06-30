@@ -15,6 +15,21 @@ function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : '';
 }
 
+const tradeErrorMessages: Record<string, string> = {
+    'Not enough public shares': '交易池股份不足。',
+    'Company pool has insufficient liquidity': '交易池 H币不足，暂时无法卖出。',
+    'Position limit reached': '已达到单只股票持仓上限。',
+    'Invalid buy shares': '买入股数不合法。',
+    'Invalid sell shares': '卖出股数不合法。',
+    'Daily trade limit reached': '今日交易次数已达上限。',
+    'Daily price limit reached': '今日涨跌幅已达限制。',
+    'Trading is paused': '该股票已暂停交易。',
+};
+
+function localizeTradeError(message: string) {
+    return tradeErrorMessages[message] || message;
+}
+
 export async function POST(request: Request) {
     try {
         const session = await getSession();
@@ -57,8 +72,8 @@ export async function POST(request: Request) {
         const status400 = new Set(['Invalid buy shares', 'Invalid buy amount', 'Buy amount too small', 'Invalid sell shares', 'Sell proceeds too small']);
 
         if (message === 'Company not found') return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-        if (status400.has(message)) return NextResponse.json({ error: message }, { status: 400 });
-        if (status409.has(message)) return NextResponse.json({ error: message }, { status: 409 });
+        if (status400.has(message)) return NextResponse.json({ error: localizeTradeError(message) }, { status: 400 });
+        if (status409.has(message)) return NextResponse.json({ error: localizeTradeError(message) }, { status: 409 });
 
         console.error('POST /api/hasdaq/trade error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });

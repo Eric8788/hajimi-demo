@@ -84,8 +84,16 @@ type HasdaqDetail = {
     canAnnounce?: boolean;
 };
 
+const HASDAQ_MAX_BUY_SHARES = 10;
+const HASDAQ_MAX_SELL_SHARES = 30;
+const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 60;
+
 function formatPrice(value?: number | null) {
     return `${((Number(value || 0)) / 1000).toFixed(2)} H币`;
+}
+
+function formatShares(value: number) {
+    return new Intl.NumberFormat('zh-CN').format(Math.max(0, Math.floor(Number(value) || 0)));
 }
 
 function formatTime(value?: string | Date | null) {
@@ -106,6 +114,49 @@ function estimateTradeCoins(priceMilli: number | null | undefined, shares: numbe
     if (!safePrice || !safeShares) return 0;
     const raw = (safePrice * safeShares) / 1000;
     return side === 'buy' ? Math.ceil(raw) : Math.floor(raw);
+}
+
+function getPoolShares(company?: HasdaqCompanyView) {
+    return Math.max(0, Math.floor(Number(company?.pool_shares ?? company?.public_shares_remaining ?? 0)));
+}
+
+function getPoolCoins(company?: HasdaqCompanyView) {
+    return Math.max(0, Math.floor(Number(company?.pool_coin_balance ?? company?.h_coin_pool ?? 0)));
+}
+
+function getPoolSellShares(priceMilli: number, poolCoins: number) {
+    if (!priceMilli || poolCoins < 1) return 0;
+    return Math.max(0, Math.floor((((poolCoins + 1) * 1000) - 1) / priceMilli));
+}
+
+function getTradeValidationMessage(
+    side: 'buy' | 'sell',
+    inputValue: string,
+    shares: number,
+    poolShares: number,
+    holdingLimitRemaining: number,
+    positionShares: number,
+    poolCoins: number,
+    poolSellShares: number,
+    estimatedCoins: number,
+    companyStatus?: string | null,
+) {
+    if (companyStatus === 'paused') return '该股票已暂停交易。';
+    if (!inputValue) return side === 'buy' ? '请输入买入股数。' : '请输入卖出股数。';
+    if (!Number.isInteger(shares) || shares < 1) return `${side === 'buy' ? '买入' : '卖出'}股数至少 1 股。`;
+
+    if (side === 'buy') {
+        if (shares > poolShares) return `交易池只剩 ${formatShares(poolShares)} 股，无法买入更多。`;
+        if (shares > HASDAQ_MAX_BUY_SHARES) return `单次最多买入 ${HASDAQ_MAX_BUY_SHARES} 股。`;
+        if (shares > holdingLimitRemaining) return `你最多还能持有 ${formatShares(holdingLimitRemaining)} 股。`;
+        return '';
+    }
+
+    if (shares > positionShares) return `你当前只有 ${formatShares(positionShares)} 股可卖。`;
+    if (shares > HASDAQ_MAX_SELL_SHARES) return `单次最多卖出 ${HASDAQ_MAX_SELL_SHARES} 股。`;
+    if (estimatedCoins < 1) return '卖出收入至少需要 1 H币。';
+    if (estimatedCoins > poolCoins) return `交易池 H币不足，当前最多可卖约 ${formatShares(poolSellShares)} 股。`;
+    return '';
 }
 
 function formatPausedReason(reason: string) {
@@ -135,8 +186,27 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
     const myMembership = detail.members?.find(member => Number(member.user_id) === Number(user?.id));
     const canAnnounce = Boolean(detail.canAnnounce || (canAct && detail.members?.some(member => Number(member.user_id) === Number(user?.id) && member.status === 'accepted')));
     const change = getChange(company);
-    const tradeShares = Math.floor(Number(tradeAmount));
-    const estimatedTradeCoins = estimateTradeCoins(company?.current_price_milli || 1000, tradeShares, tradeSide);
+    const currentPriceMilli = Number(company?.current_price_milli || 1000);
+    const poolShares = getPoolShares(company);
+    const poolCoins = getPoolCoins(company);
+    const holdingLimitRemaining = Math.max(0, HASDAQ_MAX_PUBLIC_SHARES_PER_USER - publicShares);
+    const poolSellShares = getPoolSellShares(currentPriceMilli, poolCoins);
+    const maxBuyShares = Math.min(poolShares, HASDAQ_MAX_BUY_SHARES, holdingLimitRemaining);
+    const maxSellShares = Math.min(positionShares, HASDAQ_MAX_SELL_SHARES, poolSellShares);
+    const tradeShares = tradeAmount ? Math.floor(Number(tradeAmount)) : 0;
+    const estimatedTradeCoins = estimateTradeCoins(currentPriceMilli, tradeShares, tradeSide);
+    const tradeValidationMessage = getTradeValidationMessage(
+        tradeSide,
+        tradeAmount,
+        tradeShares,
+        poolShares,
+        holdingLimitRemaining,
+        positionShares,
+        poolCoins,
+        poolSellShares,
+        estimatedTradeCoins,
+        company?.status,
+    );
     const totalShares = Number(company?.total_shares || 1000);
     const currentPrice = Number(company?.current_price_milli || 0) / 1000;
     const marketCap = Math.round(currentPrice * totalShares);
@@ -216,12 +286,8 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
             setMessage(`${tradeSide === 'buy' ? '买入' : '卖出'}股数至少 1 股。`);
             return;
         }
-        if (tradeSide === 'buy' && shares > 20) {
-            setMessage('单次最多买入 20 股。');
-            return;
-        }
-        if (tradeSide === 'sell' && shares > 50) {
-            setMessage('单次最多卖出 50 股。');
+        if (tradeValidationMessage) {
+            setMessage(tradeValidationMessage);
             return;
         }
         setPending(true);
@@ -452,6 +518,14 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                         </form>
                     ) : (
                         <form className="hasdaq-trade-form" onSubmit={submitTrade}>
+                            <div className="hasdaq-position-card">
+                                <span>交易池</span>
+                                <strong>当前价 {formatPrice(currentPriceMilli)}</strong>
+                                <p>可买：{formatShares(maxBuyShares)} 股</p>
+                                <p>可卖：约 {formatShares(maxSellShares)} 股</p>
+                                <p>池内股份 {formatShares(poolShares)} 股 · 池内 H币 {formatShares(poolCoins)}</p>
+                                <p>池内 H币不足时，卖出可能失败。</p>
+                            </div>
                             <div className="hasdaq-segmented">
                                 <button type="button" className={tradeSide === 'buy' ? 'is-active' : ''} onClick={() => setTradeSide('buy')}>买入</button>
                                 <button type="button" className={tradeSide === 'sell' ? 'is-active' : ''} onClick={() => setTradeSide('sell')}>卖出</button>
@@ -460,9 +534,10 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 <span>{tradeSide === 'buy' ? '买入股数' : '卖出股数'}</span>
                                 <input className="glass-input" value={tradeAmount} inputMode="numeric" onChange={event => setTradeAmount(event.target.value.replace(/[^\d]/g, '').slice(0, 3))} />
                             </label>
-                            <button type="submit" disabled={pending || !canAct || company.status === 'paused'}>{tradeSide === 'buy' ? '买入' : '卖出'}</button>
+                            <button type="submit" disabled={pending || !canAct || Boolean(tradeValidationMessage)}>{tradeSide === 'buy' ? '买入' : '卖出'}</button>
                             <p className="hasdaq-trade-estimate">预计{tradeSide === 'buy' ? '花费' : '收入'} {estimatedTradeCoins} H币。</p>
-                            <p>{tradeSide === 'buy' ? '单次最多买入 20 股，成交后价格会随买入上调。' : '单次最多卖出 50 股，创始股受锁仓限制。'}</p>
+                            {tradeValidationMessage && <p className="hasdaq-note">{tradeValidationMessage}</p>}
+                            <p>{tradeSide === 'buy' ? `单次最多买入 ${HASDAQ_MAX_BUY_SHARES} 股，单人单股最多持有 ${HASDAQ_MAX_PUBLIC_SHARES_PER_USER} 股。` : `单次最多卖出 ${HASDAQ_MAX_SELL_SHARES} 股，创始股受锁仓限制。`}</p>
                         </form>
                     )}
 
