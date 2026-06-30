@@ -306,16 +306,16 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     return (
         <div className="hasdaq-market-panel">
             <div className="hasdaq-market-tape" aria-label="Hasdaq market data">
-                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.open} aria-label={TAPE_TOOLTIPS.open}>O <b>{sessionOpen.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.high} aria-label={TAPE_TOOLTIPS.high}>H <b>{sessionHigh.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.low} aria-label={TAPE_TOOLTIPS.low}>L <b>{sessionLow.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.close} aria-label={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}>{sessionClose.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.volume} aria-label={TAPE_TOOLTIPS.volume}>Vol <b>{formatMetric(volume)}</b></span>
+                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.open} aria-label={TAPE_TOOLTIPS.open}>O <b>{sessionOpen.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.high} aria-label={TAPE_TOOLTIPS.high}>H <b>{sessionHigh.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.low} aria-label={TAPE_TOOLTIPS.low}>L <b>{sessionLow.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.close} aria-label={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}>{sessionClose.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.volume} aria-label={TAPE_TOOLTIPS.volume}>Vol <b>{formatMetric(volume)}</b></span>
             </div>
             <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
             <div className="hasdaq-metrics hasdaq-market-stats">
                 <span><b>{formatMetric(Number(company.holder_count || 0))}</b> 持有人</span>
-                <span className="hasdaq-explained-metric" title={marketCapTooltip} aria-label={marketCapTooltip}><b>{formatMetric(marketCap)}</b> 市值</span>
+                <span className="hasdaq-explained-metric" data-tooltip={marketCapTooltip} aria-label={marketCapTooltip}><b>{formatMetric(marketCap)}</b> 市值</span>
                 <span className="hasdaq-liquidity-metric" title="交易池里仍可被买入的公开股"><b>{formatMetric(Number(company.pool_shares ?? company.public_shares_remaining ?? 0))}</b> 可买股份</span>
                 <span className="hasdaq-liquidity-metric" title="交易池用于支付卖出成交，不属于公司可花余额"><b>{formatMetric(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0))}</b> 交易池 H币</span>
             </div>

@@ -363,7 +363,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 <span>Market Panel</span>
                                 <h2>Hasdaq 行情</h2>
                             </div>
-                            <strong className="hasdaq-explained-metric" title={marketCapTooltip} aria-label={marketCapTooltip}>市值 {marketCap} H币</strong>
+                            <strong className="hasdaq-explained-metric" data-tooltip={marketCapTooltip} aria-label={marketCapTooltip}>市值 {marketCap} H币</strong>
                         </div>
                         <HasdaqMarketChart company={company} trades={detail.trades} />
                     </section>
