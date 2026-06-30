@@ -463,6 +463,7 @@ export async function ensureHasdaqTables() {
             await sql`CREATE INDEX IF NOT EXISTS idx_hasdaq_trades_company_created ON hasdaq_trades(company_id, created_at DESC)`;
             await sql`CREATE INDEX IF NOT EXISTS idx_hasdaq_trades_user_created ON hasdaq_trades(user_id, created_at DESC)`;
             await sql`CREATE INDEX IF NOT EXISTS idx_hasdaq_announcements_company_created ON hasdaq_announcements(company_id, created_at DESC)`;
+            await seedHasdaqDemoMarketIfEmpty();
         })().catch(error => {
             hasdaqTablesReady = null;
             throw error;
@@ -470,6 +471,508 @@ export async function ensureHasdaqTables() {
     }
 
     return hasdaqTablesReady;
+}
+
+const HASDAQ_DEMO_SEED_PASSWORD_HASH = '$2b$10$eQWf7Um4mjHlhDTBwFgPI.Hxp5WKrvjQe9sHo.mYzyB26szdWOvmq';
+
+function hasdaqSeedDate(offsetDays: number, hour = 10) {
+    const date = new Date(Date.now() + offsetDays * DAY_MS);
+    const normalizedHour = Math.max(0, Math.min(23, Math.floor(hour)));
+    date.setUTCHours((normalizedHour + 16) % 24, 0, 0, 0);
+    return date.toISOString();
+}
+
+async function ensureHasdaqDemoUserForSeed(client: VercelPoolClient, username: string) {
+    const { rows } = await client.sql<{ id: number }>`
+      INSERT INTO users (
+        username,
+        password_hash,
+        points,
+        level,
+        role,
+        bio,
+        avatar,
+        avatar_emoji,
+        avatar_theme,
+        verification_status,
+        verification_type,
+        verified_grade,
+        verified_at,
+        account_status,
+        disabled_at,
+        disabled_reason
+      )
+      VALUES (
+        ${username},
+        ${HASDAQ_DEMO_SEED_PASSWORD_HASH},
+        0,
+        1,
+        'student',
+        'Hasdaq neutral demo account.',
+        '📈',
+        '📈',
+        'mint',
+        'verified',
+        'student',
+        'Demo',
+        CURRENT_TIMESTAMP,
+        'disabled',
+        CURRENT_TIMESTAMP,
+        'Hasdaq neutral demo seed account'
+      )
+      ON CONFLICT (username)
+      DO UPDATE SET username = EXCLUDED.username
+      RETURNING id
+    `;
+
+    return Number(rows[0]?.id || 0);
+}
+
+type HasdaqSeedCompany = {
+    key: string;
+    founder: string;
+    name: string;
+    ticker: string;
+    status: HasdaqCompanyStatus;
+    summary: string;
+    futurePlan: string;
+    riskStatement: string;
+    currentPriceMilli: number;
+    previousClosePriceMilli: number;
+    publicSharesRemaining: number;
+    coinPool: number;
+    listedOffsetDays?: number | null;
+    lockupOffsetDays?: number | null;
+    pausedReason?: string | null;
+};
+
+function buildHasdaqSeedTrades(
+    companyId: number,
+    sourceSeed: number,
+    startMilli: number,
+    currentMilli: number,
+    userIds: Record<string, number>,
+) {
+    const traderNames = ['hasdaq_demo_trader_a', 'hasdaq_demo_trader_b', 'hasdaq_demo_trader_c', 'hasdaq_demo_trader_d', 'hasdaq_demo_trader_e'];
+    const hours = [9, 11, 14, 20];
+    const total = 30 * hours.length;
+    const volatility = sourceSeed === 3 ? 34 : sourceSeed === 2 ? 28 : 32;
+    const rows: Array<{
+        companyId: number;
+        userId: number;
+        type: HasdaqTradeType;
+        shares: number;
+        priceMilli: number;
+        grossAmount: number;
+        createdAt: string;
+    }> = [];
+    let previousPrice = startMilli;
+
+    for (let day = -29; day <= 0; day += 1) {
+        for (let slotIndex = 0; slotIndex < hours.length; slotIndex += 1) {
+            const index = rows.length;
+            const progress = total <= 1 ? 1 : index / (total - 1);
+            const trend = startMilli + (currentMilli - startMilli) * progress;
+            const wave = Math.sin(progress * Math.PI * 7 + sourceSeed * 0.71) * volatility
+                + Math.cos(progress * Math.PI * 17 + slotIndex) * volatility * 0.38;
+            const rawPrice = index === total - 1 ? currentMilli : trend + wave;
+            const priceMilli = Math.max(HASDAQ_MIN_PRICE_MILLI, Math.round(rawPrice / 10) * 10);
+            const shares = 3 + Math.abs((sourceSeed * 13 + index * 7 + slotIndex * 5) % 16);
+            const username = traderNames[index % traderNames.length];
+            const type: HasdaqTradeType = priceMilli >= previousPrice ? 'buy' : 'sell';
+            previousPrice = priceMilli;
+            rows.push({
+                companyId,
+                userId: userIds[username],
+                type,
+                shares,
+                priceMilli,
+                grossAmount: Math.max(1, Math.round((priceMilli / 1000) * shares)),
+                createdAt: hasdaqSeedDate(day, hours[slotIndex]),
+            });
+        }
+    }
+
+    return rows;
+}
+
+async function seedHasdaqDemoMarketIfEmpty() {
+    if (process.env.HAJIMI_HASDAQ_DEMO_SEED === '0') return;
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+        await client.sql`LOCK TABLE hasdaq_companies IN SHARE ROW EXCLUSIVE MODE`;
+
+        const { rows: countRows } = await client.sql<{ count: number }>`
+          SELECT COUNT(*)::int as count
+          FROM hasdaq_companies
+        `;
+        if (Number(countRows[0]?.count || 0) > 0) {
+            await client.sql`COMMIT`;
+            return;
+        }
+
+        const demoUsernames = [
+            'hasdaq_demo_reviewer',
+            'hasdaq_demo_founder_nova',
+            'hasdaq_demo_member_nova_b',
+            'hasdaq_demo_founder_quiz',
+            'hasdaq_demo_member_quiz_b',
+            'hasdaq_demo_founder_harbor',
+            'hasdaq_demo_founder_prompt',
+            'hasdaq_demo_member_prompt_b',
+            'hasdaq_demo_founder_atlas',
+            'hasdaq_demo_trader_a',
+            'hasdaq_demo_trader_b',
+            'hasdaq_demo_trader_c',
+            'hasdaq_demo_trader_d',
+            'hasdaq_demo_trader_e',
+        ];
+        const userIds: Record<string, number> = {};
+        for (const username of demoUsernames) {
+            userIds[username] = await ensureHasdaqDemoUserForSeed(client, username);
+        }
+
+        const seedCompanies: HasdaqSeedCompany[] = [
+            {
+                key: 'nova',
+                founder: 'hasdaq_demo_founder_nova',
+                name: 'Nova Learning Studio',
+                ticker: 'NOVA',
+                status: 'listed',
+                summary: 'A neutral demo studio building reusable learning tools, quiz helpers, and classroom AI workflows.',
+                futurePlan: 'Ship a reusable quiz review flow and publish monthly progress notes for student testers.',
+                riskStatement: 'Exam weeks may slow product updates, and AI feature quality depends on stable prompts.',
+                currentPriceMilli: 1360,
+                previousClosePriceMilli: 1200,
+                publicSharesRemaining: 126,
+                coinPool: 228,
+                listedOffsetDays: -9,
+                lockupOffsetDays: -2,
+            },
+            {
+                key: 'quiz',
+                founder: 'hasdaq_demo_founder_quiz',
+                name: 'QuizForge Studio',
+                ticker: 'QFORGE',
+                status: 'listed',
+                summary: 'A neutral demo studio turning classroom quizzes into repeatable practice rounds and scoreboards.',
+                futurePlan: 'Add teacher preview mode, import templates, and three demo question packs.',
+                riskStatement: 'Question quality still depends on manual review, and small test groups can make rankings noisy.',
+                currentPriceMilli: 860,
+                previousClosePriceMilli: 940,
+                publicSharesRemaining: 205,
+                coinPool: 132,
+                listedOffsetDays: -14,
+                lockupOffsetDays: -7,
+            },
+            {
+                key: 'harbor',
+                founder: 'hasdaq_demo_founder_harbor',
+                name: 'HarborLab Works',
+                ticker: 'HARBOR',
+                status: 'paused',
+                summary: 'A neutral demo studio experimenting with physics simulations and interactive tutorials.',
+                futurePlan: 'Publish a clearer maintenance plan and a beginner tutorial before trading resumes.',
+                riskStatement: 'The maintenance schedule is uncertain during competition season.',
+                currentPriceMilli: 720,
+                previousClosePriceMilli: 910,
+                publicSharesRemaining: 231,
+                coinPool: 84,
+                listedOffsetDays: -20,
+                lockupOffsetDays: -13,
+                pausedReason: 'Demo pause: waiting for a maintenance update.',
+            },
+            {
+                key: 'prompt',
+                founder: 'hasdaq_demo_founder_prompt',
+                name: 'PromptLab Collective',
+                ticker: 'PROMPT',
+                status: 'ipo',
+                summary: 'A neutral demo collective building prompt templates for writing practice and classroom demos.',
+                futurePlan: 'Release a prompt deck demo and collect feedback from the first IPO subscribers.',
+                riskStatement: 'The product is early, and real user feedback is still limited.',
+                currentPriceMilli: 1000,
+                previousClosePriceMilli: 1000,
+                publicSharesRemaining: 216,
+                coinPool: 84,
+            },
+            {
+                key: 'atlas',
+                founder: 'hasdaq_demo_founder_atlas',
+                name: 'Atlas Campus Lab',
+                ticker: 'ATLAS',
+                status: 'pending_review',
+                summary: 'A neutral demo company in listing review, used to show the admin IPO approval workflow.',
+                futurePlan: 'Prepare screenshots, a short demo script, and a first public progress announcement.',
+                riskStatement: 'The demo is not listed yet, so no public trading is available.',
+                currentPriceMilli: 1000,
+                previousClosePriceMilli: 1000,
+                publicSharesRemaining: 300,
+                coinPool: 0,
+            },
+        ];
+
+        const companyIds: Record<string, number> = {};
+        for (const company of seedCompanies) {
+            const { rows } = await client.sql<{ id: number }>`
+              INSERT INTO hasdaq_companies (
+                founder_id,
+                name,
+                ticker,
+                company_type,
+                summary,
+                future_plan,
+                risk_statement,
+                status,
+                total_shares,
+                founder_shares,
+                public_shares_total,
+                public_shares_remaining,
+                ipo_price_milli,
+                current_price_milli,
+                previous_close_price_milli,
+                h_coin_pool,
+                trading_paused_reason,
+                listed_at,
+                lockup_until,
+                created_at,
+                updated_at
+              )
+              VALUES (
+                ${userIds[company.founder]},
+                ${company.name},
+                ${company.ticker},
+                'team',
+                ${company.summary},
+                ${company.futurePlan},
+                ${company.riskStatement},
+                ${company.status},
+                ${HASDAQ_TOTAL_SHARES},
+                ${HASDAQ_FOUNDER_SHARES},
+                ${HASDAQ_PUBLIC_SHARES},
+                ${company.publicSharesRemaining},
+                ${HASDAQ_IPO_PRICE_MILLI},
+                ${company.currentPriceMilli},
+                ${company.previousClosePriceMilli},
+                ${company.coinPool},
+                ${company.pausedReason || null},
+                ${company.listedOffsetDays ? hasdaqSeedDate(company.listedOffsetDays, 15) : null},
+                ${company.lockupOffsetDays ? hasdaqSeedDate(company.lockupOffsetDays, 15) : null},
+                ${hasdaqSeedDate(-32, 10)},
+                ${hasdaqSeedDate(0, 9)}
+              )
+              RETURNING id
+            `;
+            companyIds[company.key] = Number(rows[0]?.id || 0);
+        }
+
+        const memberRows = [
+            { company: 'nova', username: 'hasdaq_demo_founder_nova', role: 'founder', equity: 70, founderShares: 490, status: 'accepted' },
+            { company: 'nova', username: 'hasdaq_demo_member_nova_b', role: 'member', equity: 30, founderShares: 210, status: 'accepted' },
+            { company: 'quiz', username: 'hasdaq_demo_founder_quiz', role: 'founder', equity: 90, founderShares: 630, status: 'accepted' },
+            { company: 'quiz', username: 'hasdaq_demo_member_quiz_b', role: 'member', equity: 10, founderShares: 70, status: 'accepted' },
+            { company: 'harbor', username: 'hasdaq_demo_founder_harbor', role: 'founder', equity: 100, founderShares: 700, status: 'accepted' },
+            { company: 'prompt', username: 'hasdaq_demo_founder_prompt', role: 'founder', equity: 80, founderShares: 560, status: 'accepted' },
+            { company: 'prompt', username: 'hasdaq_demo_member_prompt_b', role: 'member', equity: 20, founderShares: 140, status: 'accepted' },
+            { company: 'atlas', username: 'hasdaq_demo_founder_atlas', role: 'founder', equity: 100, founderShares: 700, status: 'accepted' },
+        ];
+        for (const member of memberRows) {
+            await client.sql`
+              INSERT INTO hasdaq_company_members (company_id, user_id, role, status, equity_percent, founder_shares, accepted_at, created_at)
+              VALUES (
+                ${companyIds[member.company]},
+                ${userIds[member.username]},
+                ${member.role},
+                ${member.status},
+                ${member.equity},
+                ${member.founderShares},
+                ${hasdaqSeedDate(-18, 10)},
+                ${hasdaqSeedDate(-32, 10)}
+              )
+            `;
+        }
+
+        const productRows = [
+            { company: 'nova', name: 'Nova Learning Portal', description: 'Reusable learning assistant demo with screenshots and a test script.', url: 'https://example.com/nova-learning-demo' },
+            { company: 'nova', name: 'Quiz Bot', description: 'Offline classroom Q&A bot verified with a demo screenshot.', url: 'https://example.com/nova-quizbot-demo' },
+            { company: 'quiz', name: 'QuizForge Arena', description: 'Playable classroom quiz battle demo with importable question packs.', url: 'https://example.com/quizforge-arena-demo' },
+            { company: 'harbor', name: 'Harbor Physics Demo', description: 'Physics simulation demo currently under maintenance.', url: 'https://example.com/harbor-physics-demo' },
+            { company: 'prompt', name: 'Prompt Deck Demo', description: 'Offline prompt template deck for classroom writing practice.', url: 'https://example.com/prompt-deck-proof' },
+            { company: 'atlas', name: 'Atlas Review Demo', description: 'Listing-review proof used by admins to test IPO approval.', url: 'https://example.com/atlas-review-demo' },
+        ];
+        for (const product of productRows) {
+            await client.sql`
+              INSERT INTO hasdaq_company_products (company_id, project_id, name, url, description, proof_url, status, created_at)
+              VALUES (
+                ${companyIds[product.company]},
+                ${null},
+                ${product.name},
+                ${product.url},
+                ${product.description},
+                ${product.url},
+                'mature',
+                ${hasdaqSeedDate(-20, 10)}
+              )
+            `;
+        }
+
+        const positionRows = [
+            { company: 'nova', username: 'hasdaq_demo_founder_nova', publicShares: 0, lockedShares: 490, average: 1000 },
+            { company: 'nova', username: 'hasdaq_demo_member_nova_b', publicShares: 0, lockedShares: 210, average: 1000 },
+            { company: 'nova', username: 'hasdaq_demo_trader_a', publicShares: 46, lockedShares: 0, average: 1180 },
+            { company: 'nova', username: 'hasdaq_demo_trader_b', publicShares: 40, lockedShares: 0, average: 1210 },
+            { company: 'nova', username: 'hasdaq_demo_trader_c', publicShares: 32, lockedShares: 0, average: 1250 },
+            { company: 'nova', username: 'hasdaq_demo_trader_d', publicShares: 24, lockedShares: 0, average: 1320 },
+            { company: 'nova', username: 'hasdaq_demo_trader_e', publicShares: 32, lockedShares: 0, average: 1280 },
+            { company: 'quiz', username: 'hasdaq_demo_founder_quiz', publicShares: 0, lockedShares: 630, average: 1000 },
+            { company: 'quiz', username: 'hasdaq_demo_member_quiz_b', publicShares: 0, lockedShares: 70, average: 1000 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_a', publicShares: 30, lockedShares: 0, average: 910 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_b', publicShares: 24, lockedShares: 0, average: 920 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_c', publicShares: 23, lockedShares: 0, average: 880 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_d', publicShares: 18, lockedShares: 0, average: 860 },
+            { company: 'harbor', username: 'hasdaq_demo_founder_harbor', publicShares: 0, lockedShares: 700, average: 1000 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_a', publicShares: 25, lockedShares: 0, average: 810 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_b', publicShares: 20, lockedShares: 0, average: 780 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_c', publicShares: 14, lockedShares: 0, average: 760 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_d', publicShares: 10, lockedShares: 0, average: 740 },
+            { company: 'prompt', username: 'hasdaq_demo_founder_prompt', publicShares: 0, lockedShares: 560, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_member_prompt_b', publicShares: 0, lockedShares: 140, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_a', publicShares: 20, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_b', publicShares: 20, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_c', publicShares: 18, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_d', publicShares: 14, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_e', publicShares: 12, lockedShares: 0, average: 1000 },
+            { company: 'atlas', username: 'hasdaq_demo_founder_atlas', publicShares: 0, lockedShares: 700, average: 1000 },
+        ];
+        for (const position of positionRows) {
+            await client.sql`
+              INSERT INTO hasdaq_positions (user_id, company_id, public_shares, locked_shares, average_cost_milli, updated_at)
+              VALUES (
+                ${userIds[position.username]},
+                ${companyIds[position.company]},
+                ${position.publicShares},
+                ${position.lockedShares},
+                ${position.average},
+                ${hasdaqSeedDate(-1, 18)}
+              )
+            `;
+        }
+
+        const tradeRows = [
+            ...buildHasdaqSeedTrades(companyIds.nova, 1, 920, 1360, userIds),
+            ...buildHasdaqSeedTrades(companyIds.quiz, 2, 1080, 860, userIds),
+            ...buildHasdaqSeedTrades(companyIds.harbor, 3, 980, 720, userIds),
+            ...[
+                { username: 'hasdaq_demo_trader_a', shares: 20, createdAt: hasdaqSeedDate(-4, 12) },
+                { username: 'hasdaq_demo_trader_b', shares: 20, createdAt: hasdaqSeedDate(-3, 10) },
+                { username: 'hasdaq_demo_trader_c', shares: 18, createdAt: hasdaqSeedDate(-3, 14) },
+                { username: 'hasdaq_demo_trader_d', shares: 14, createdAt: hasdaqSeedDate(-2, 11) },
+                { username: 'hasdaq_demo_trader_e', shares: 12, createdAt: hasdaqSeedDate(-1, 16) },
+            ].map(row => ({
+                companyId: companyIds.prompt,
+                userId: userIds[row.username],
+                type: 'ipo_buy' as HasdaqTradeType,
+                shares: row.shares,
+                priceMilli: HASDAQ_IPO_PRICE_MILLI,
+                grossAmount: row.shares,
+                createdAt: row.createdAt,
+            })),
+        ];
+        for (const trade of tradeRows) {
+            await client.sql`
+              INSERT INTO hasdaq_trades (company_id, user_id, type, shares, locked_shares_sold, price_milli, gross_amount, coin_transaction_id, status, created_at)
+              VALUES (
+                ${trade.companyId},
+                ${trade.userId},
+                ${trade.type},
+                ${trade.shares},
+                0,
+                ${trade.priceMilli},
+                ${trade.grossAmount},
+                ${null},
+                'filled',
+                ${trade.createdAt}
+              )
+            `;
+        }
+
+        const dailyRows = [
+            { company: 'nova', open: 1200, high: 1390, low: 1180, count: 4, volume: 74 },
+            { company: 'quiz', open: 940, high: 960, low: 850, count: 4, volume: 38 },
+            { company: 'harbor', open: 910, high: 930, low: 720, count: 2, volume: 12 },
+            { company: 'prompt', open: 1000, high: 1000, low: 1000, count: 5, volume: 84 },
+        ];
+        for (const day of dailyRows) {
+            await client.sql`
+              INSERT INTO hasdaq_daily_limits (company_id, trade_date, open_price_milli, high_price_milli, low_price_milli, trade_count, volume, created_at, updated_at)
+              VALUES (
+                ${companyIds[day.company]},
+                (NOW() AT TIME ZONE 'Asia/Shanghai')::date,
+                ${day.open},
+                ${day.high},
+                ${day.low},
+                ${day.count},
+                ${day.volume},
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+              )
+            `;
+        }
+
+        const applicationRows = [
+            { company: 'nova', applicant: 'hasdaq_demo_founder_nova', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'Mature learning tools are ready for the demo market.', note: 'Approved for demo listing.', createdAt: hasdaqSeedDate(-12, 12), reviewedAt: hasdaqSeedDate(-10, 13) },
+            { company: 'quiz', applicant: 'hasdaq_demo_founder_quiz', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The quiz battle demo is playable and has repeatable classroom use.', note: 'Approved for demo listing.', createdAt: hasdaqSeedDate(-18, 12), reviewedAt: hasdaqSeedDate(-14, 13) },
+            { company: 'harbor', applicant: 'hasdaq_demo_founder_harbor', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The physics demo is mature enough, but trading is paused for maintenance.', note: 'Approved, then paused pending maintenance.', createdAt: hasdaqSeedDate(-24, 12), reviewedAt: hasdaqSeedDate(-20, 13) },
+            { company: 'prompt', applicant: 'hasdaq_demo_founder_prompt', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The offline prompt deck is ready for IPO subscription.', note: 'Approved for IPO subscription.', createdAt: hasdaqSeedDate(-6, 12), reviewedAt: hasdaqSeedDate(-4, 13) },
+            { company: 'atlas', applicant: 'hasdaq_demo_founder_atlas', status: 'pending', reviewer: null, reason: 'Atlas has a review demo and wants to enter IPO.', note: null, createdAt: hasdaqSeedDate(-1, 18), reviewedAt: null },
+        ];
+        for (const application of applicationRows) {
+            await client.sql`
+              INSERT INTO hasdaq_listing_applications (company_id, applicant_id, status, listing_reason, risk_statement, review_note, reviewed_by, reviewed_at, created_at)
+              VALUES (
+                ${companyIds[application.company]},
+                ${userIds[application.applicant]},
+                ${application.status},
+                ${application.reason},
+                'This is neutral Hasdaq demo data, not a real investment claim.',
+                ${application.note},
+                ${application.reviewer ? userIds[application.reviewer] : null},
+                ${application.reviewedAt},
+                ${application.createdAt}
+              )
+            `;
+        }
+
+        const announcementRows = [
+            { company: 'nova', author: 'hasdaq_demo_founder_nova', title: 'Quiz Bot v0.4 released', body: 'Added review mode and vocabulary practice. The next update will collect feedback from demo holders.', category: 'product', createdAt: hasdaqSeedDate(0, 8) },
+            { company: 'quiz', author: 'hasdaq_demo_founder_quiz', title: 'Question import is faster', body: 'CSV import has been simplified, and the next demo will add teacher preview mode.', category: 'update', createdAt: hasdaqSeedDate(-1, 20) },
+            { company: 'harbor', author: 'hasdaq_demo_founder_harbor', title: 'Maintenance note', body: 'Trading is paused while the studio writes a maintenance plan and a beginner tutorial update.', category: 'risk', createdAt: hasdaqSeedDate(-1, 12) },
+            { company: 'prompt', author: 'hasdaq_demo_founder_prompt', title: 'IPO subscription is open', body: 'PromptLab is in IPO subscription. Demo users can inspect the proof before subscribing.', category: 'ipo', createdAt: hasdaqSeedDate(-2, 14) },
+            { company: 'atlas', author: 'hasdaq_demo_founder_atlas', title: 'Listing review submitted', body: 'Atlas Campus Lab has submitted a neutral demo listing application for admin review.', category: 'review', createdAt: hasdaqSeedDate(-1, 18) },
+        ];
+        for (const announcement of announcementRows) {
+            await client.sql`
+              INSERT INTO hasdaq_announcements (company_id, author_id, title, body, category, created_at)
+              VALUES (
+                ${companyIds[announcement.company]},
+                ${userIds[announcement.author]},
+                ${announcement.title},
+                ${announcement.body},
+                ${announcement.category},
+                ${announcement.createdAt}
+              )
+            `;
+        }
+
+        await client.sql`COMMIT`;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        console.warn('Hasdaq demo seed skipped:', error);
+    } finally {
+        client.release();
+    }
 }
 
 function normalizeHasdaqTicker(value: unknown) {
