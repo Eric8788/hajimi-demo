@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@/lib/db';
 import Avatar from './Avatar';
@@ -33,6 +33,7 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
     const [saveMessage, setSaveMessage] = useState('');
     const [saving, setSaving] = useState(false);
     const dragState = useRef<{ pointerId: number | null; lastX: number; lastY: number }>({ pointerId: null, lastX: 0, lastY: 0 });
+    const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
     const savedProfile = {
         bio: user.bio || '',
@@ -40,7 +41,6 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
         avatarEmoji: user.avatar_emoji || user.avatar || '😊',
         avatarTheme: (user.avatar_theme as AvatarThemeId) || 'lavender',
     };
-    const avatarIsImage = avatar.startsWith('data:image/') || avatar.startsWith('http://') || avatar.startsWith('https://');
     const hajimiId = formatHajimiId(user.id);
 
     const hasProfileChanges = () => (
@@ -81,6 +81,17 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
         };
         reader.onerror = () => setAvatarError('无法读取这张图片。');
         reader.readAsDataURL(file);
+    };
+
+    const openAvatarFilePicker = () => {
+        if (avatarSource) return;
+        avatarFileInputRef.current?.click();
+    };
+
+    const handleAvatarFrameKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openAvatarFilePicker();
     };
 
     const clampAvatarOffset = (value: number) => Math.max(-120, Math.min(120, value));
@@ -194,7 +205,12 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                     </div>
                     <div className="profile-avatar-editor-row">
                         <div
-                            className={`profile-avatar-frame ${avatarSource ? 'is-draggable' : ''}`}
+                            className={`profile-avatar-frame ${avatarSource ? 'is-draggable' : 'is-upload-trigger'}`}
+                            role={avatarSource ? undefined : 'button'}
+                            tabIndex={avatarSource ? undefined : 0}
+                            aria-label={avatarSource ? undefined : 'Upload profile avatar'}
+                            onClick={openAvatarFilePicker}
+                            onKeyDown={handleAvatarFrameKeyDown}
                             onPointerDown={handleAvatarDragStart}
                             onPointerMove={handleAvatarDragMove}
                             onPointerUp={handleAvatarDragEnd}
@@ -208,24 +224,17 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                                     style={{ transform: `translate(${avatarOffsetX * 0.62}px, ${avatarOffsetY * 0.62}px) scale(${avatarZoom})` }}
                                 />
                             ) : (
-                                <Avatar value={avatar} emoji={avatarEmoji} theme={avatarTheme} fallback="😊" size={116} style={{ fontSize: '3.6rem' }} />
+                                <Avatar value={avatar} emoji={avatarEmoji} theme={avatarTheme} fallback="😊" size={92} style={{ fontSize: '2.85rem' }} />
                             )}
                         </div>
+                        <input
+                            ref={avatarFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="profile-avatar-file-input"
+                            onChange={handleAvatarFile}
+                        />
                         <div className="profile-avatar-editor">
-                            <label className="btn profile-avatar-upload">
-                                Upload image
-                                <input type="file" accept="image/*" onChange={handleAvatarFile} />
-                            </label>
-                            <input
-                                value={avatarSource || avatarIsImage ? '' : avatar}
-                                onChange={event => {
-                                    setAvatar(event.target.value);
-                                    setAvatarEmoji(event.target.value || avatarEmoji);
-                                }}
-                                placeholder="Or emoji"
-                                className="glass-input"
-                                maxLength={4}
-                            />
                             <div className="profile-avatar-inline-selects">
                                 <select value={avatarEmoji} onChange={event => { setAvatarEmoji(event.target.value); setAvatar(event.target.value); }} className="glass-input">
                                     {AVATAR_EMOJIS.map(emoji => <option key={emoji} value={emoji}>{emoji}</option>)}
@@ -264,7 +273,7 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                             onChange={event => setBio(event.target.value)}
                             placeholder="写一句会出现在主页名片和 About 里的签名。"
                             className="glass-input settings-profile-bio-input"
-                            rows={5}
+                            rows={4}
                         />
                     </label>
                 </section>
