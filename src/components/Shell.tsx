@@ -86,6 +86,7 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
         { icon: '🏠', path: '/dashboard', label: 'Dashboard', shortLabel: 'Home', meta: 'Today' },
         { icon: '💬', path: '/resources', label: 'Hallway', shortLabel: 'Hall', meta: 'Posts' },
         { icon: '🚀', path: '/functions', label: 'Function Hall', shortLabel: 'Hub', meta: 'Projects' },
+        { icon: '📈', path: '/hasdaq', label: 'Hasdaq', shortLabel: 'IPO', meta: 'Stocks' },
         { icon: '🗺️', path: '/alumni-map', label: 'Alumni Map', shortLabel: 'Map', meta: 'Network' },
         { icon: '🏆', path: '/leaderboard', label: 'Leaderboard', shortLabel: 'Rank', meta: 'Ranks' },
         ...(isAdminRole(displayUser?.role) ? [{ icon: '🛡️', path: '/admin', label: 'Admin', shortLabel: 'Admin', meta: 'Review' }] : []),

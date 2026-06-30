@@ -81,7 +81,7 @@ export interface AdminAuditEvent {
     actor_name?: string | null;
     target_user_id: number | null;
     target_username?: string | null;
-    target_type: 'verification' | 'project_submission' | 'user' | 'coin';
+    target_type: 'verification' | 'project_submission' | 'user' | 'coin' | 'hasdaq';
     target_id: number | null;
     event_type: string;
     summary: string;
@@ -112,7 +112,10 @@ export type CoinTransactionType =
     | 'tip_sent'
     | 'tip_received'
     | 'redemption_hold'
-    | 'redemption_refund';
+    | 'redemption_refund'
+    | 'hasdaq_ipo_buy'
+    | 'hasdaq_buy'
+    | 'hasdaq_sell';
 
 export type CoinRedemptionStatus = 'pending' | 'approved' | 'rejected' | 'completed';
 
@@ -235,6 +238,8 @@ export interface Project {
     effective_open_count_month?: number;
     effective_open_count_total?: number;
     hub_score?: number;
+    hasdaq_ticker?: string | null;
+    hasdaq_company_name?: string | null;
     created_at: string;
 }
 
@@ -395,9 +400,25 @@ export interface Notification {
     id: number;
     recipient_id: number;
     actor_id: number;
-    type: 'post_like' | 'post_bookmark' | 'comment_like' | 'post_comment' | 'comment_reply';
+    type:
+        | 'post_like'
+        | 'post_bookmark'
+        | 'comment_like'
+        | 'post_comment'
+        | 'comment_reply'
+        | 'hasdaq_member_invite'
+        | 'hasdaq_application_approved'
+        | 'hasdaq_application_rejected'
+        | 'hasdaq_ipo_subscribed'
+        | 'hasdaq_bell'
+        | 'hasdaq_buy'
+        | 'hasdaq_sell'
+        | 'hasdaq_announcement'
+        | 'hasdaq_paused';
     post_id?: number | null;
     comment_id?: number | null;
+    company_id?: number | null;
+    trade_id?: number | null;
     read_at?: Date | null;
     created_at: Date;
     actor_name?: string;
@@ -407,11 +428,13 @@ export interface Notification {
     post_title?: string;
     comment_content?: string | null;
     target_comment_content?: string | null;
+    hasdaq_trade_type?: string | null;
+    hasdaq_trade_shares?: number | null;
 }
 
 export interface AdminReviewTask {
     id: string;
-    kind: 'verification' | 'project_submission';
+    kind: 'verification' | 'project_submission' | 'hasdaq_listing';
     title: string;
     description: string;
     href: string;
@@ -429,6 +452,7 @@ export interface AdminReviewSummary {
     totalCount: number;
     verificationCount: number;
     projectSubmissionCount: number;
+    hasdaqListingCount: number;
     tasks: AdminReviewTask[];
 }
 
@@ -577,7 +601,7 @@ async function ensureAdminAccountEnhancements() {
 
 let adminAuditTableReady: Promise<void> | null = null;
 
-async function ensureAdminAuditTable() {
+export async function ensureAdminAuditTable() {
     if (!adminAuditTableReady) {
         adminAuditTableReady = (async () => {
             await sql`
@@ -614,7 +638,7 @@ async function ensureAdminAuditTable() {
     return adminAuditTableReady;
 }
 
-async function createAdminAuditEvent(input: {
+export async function createAdminAuditEvent(input: {
     actorId: number | null;
     targetUserId?: number | null;
     targetType: AdminAuditEvent['target_type'];
@@ -743,7 +767,7 @@ function normalizeCoinRedemption(row: CoinRedemptionRequest): CoinRedemptionRequ
     };
 }
 
-async function ensureCoinWalletForClient(client: VercelPoolClient, userId: number) {
+export async function ensureCoinWalletForClient(client: VercelPoolClient, userId: number) {
     const { rows } = await client.sql<CoinWallet>`
       INSERT INTO coin_wallets (user_id)
       VALUES (${userId})
@@ -754,7 +778,7 @@ async function ensureCoinWalletForClient(client: VercelPoolClient, userId: numbe
     return normalizeCoinWallet(rows[0]);
 }
 
-async function writeCoinTransactionForClient(
+export async function writeCoinTransactionForClient(
     client: VercelPoolClient,
     input: {
         userId: number;
@@ -4336,6 +4360,59 @@ export async function getProjectSubmissions(status: ProjectSubmissionStatus | 'a
     return rows;
 }
 
+async function getHasdaqPendingReviewSummaryPart() {
+    try {
+        const { rows: tableRows } = await sql<{ exists: boolean }>`
+          SELECT to_regclass('public.hasdaq_listing_applications') IS NOT NULL
+             AND to_regclass('public.hasdaq_companies') IS NOT NULL as exists
+        `;
+        if (!tableRows[0]?.exists) return { count: 0, tasks: [] as AdminReviewTask[] };
+
+        const [countResult, tasksResult] = await Promise.all([
+            sql<{ count: number }>`
+              SELECT COUNT(*)::int as count
+              FROM hasdaq_listing_applications
+              WHERE status = 'pending'
+            `,
+            sql<{
+                id: number;
+                company_name: string;
+                ticker: string;
+                applicant_name: string | null;
+                created_at: Date;
+            }>`
+              SELECT
+                hasdaq_listing_applications.id,
+                hasdaq_companies.name as company_name,
+                hasdaq_companies.ticker,
+                users.username as applicant_name,
+                hasdaq_listing_applications.created_at
+              FROM hasdaq_listing_applications
+              JOIN hasdaq_companies ON hasdaq_companies.id = hasdaq_listing_applications.company_id
+              LEFT JOIN users ON users.id = hasdaq_listing_applications.applicant_id
+              WHERE hasdaq_listing_applications.status = 'pending'
+              ORDER BY hasdaq_listing_applications.created_at DESC
+              LIMIT 5
+            `,
+        ]);
+
+        return {
+            count: countResult.rows[0]?.count ?? 0,
+            tasks: tasksResult.rows.map(task => ({
+                id: `hasdaq-${task.id}`,
+                kind: 'hasdaq_listing' as const,
+                title: `${task.company_name} (${task.ticker}) IPO 申请`,
+                description: task.applicant_name || 'Hasdaq listing application',
+                href: '/admin/hasdaq',
+                created_at: task.created_at,
+            })),
+        };
+    } catch (error) {
+        console.warn('Hasdaq review summary skipped:', error);
+        return { count: 0, tasks: [] as AdminReviewTask[] };
+    }
+}
+
 export async function getAdminReviewSummary(): Promise<AdminReviewSummary> {
     await ensureUserProfileEnhancements();
     await ensureProjectSubmissionsTable();
@@ -4397,6 +4474,7 @@ export async function getAdminReviewSummary(): Promise<AdminReviewSummary> {
 
     const verificationCount = verificationCountResult.rows[0]?.count ?? 0;
     const projectSubmissionCount = projectSubmissionCountResult.rows[0]?.count ?? 0;
+    const hasdaqReview = await getHasdaqPendingReviewSummaryPart();
 
     const verificationTasks: AdminReviewTask[] = verificationTasksResult.rows.map((request) => {
         const identity = request.verified_name || request.username;
@@ -4428,14 +4506,15 @@ export async function getAdminReviewSummary(): Promise<AdminReviewSummary> {
         };
     });
 
-    const tasks = [...verificationTasks, ...projectSubmissionTasks]
+    const tasks = [...verificationTasks, ...projectSubmissionTasks, ...hasdaqReview.tasks]
         .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
         .slice(0, 8);
 
     return {
-        totalCount: verificationCount + projectSubmissionCount,
+        totalCount: verificationCount + projectSubmissionCount + hasdaqReview.count,
         verificationCount,
         projectSubmissionCount,
+        hasdaqListingCount: hasdaqReview.count,
         tasks,
     };
 }
@@ -4605,10 +4684,14 @@ async function ensureNotificationsTable() {
                 type TEXT NOT NULL,
                 post_id INTEGER,
                 comment_id INTEGER,
+                company_id INTEGER,
+                trade_id INTEGER,
                 read_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
               );
             `;
+            await sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS company_id INTEGER`;
+            await sql`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS trade_id INTEGER`;
 
             await sql`
               CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx
@@ -4629,12 +4712,14 @@ async function ensureNotificationsTable() {
     return notificationsTableReady;
 }
 
-async function createNotification(input: {
+export async function createNotification(input: {
     recipientId: number;
     actorId: number;
     type: Notification['type'];
     postId?: number | null;
     commentId?: number | null;
+    companyId?: number | null;
+    tradeId?: number | null;
 }) {
     if (!input.recipientId || input.recipientId === input.actorId) return;
 
@@ -4649,6 +4734,8 @@ async function createNotification(input: {
             AND type = ${input.type}
             AND post_id IS NOT DISTINCT FROM ${input.postId ?? null}
             AND comment_id IS NOT DISTINCT FROM ${input.commentId ?? null}
+            AND company_id IS NOT DISTINCT FROM ${input.companyId ?? null}
+            AND trade_id IS NOT DISTINCT FROM ${input.tradeId ?? null}
             AND created_at >= NOW() - INTERVAL '6 hours'
           LIMIT 1
         `;
@@ -4656,8 +4743,8 @@ async function createNotification(input: {
         if (rows[0]) return;
 
         await sql`
-          INSERT INTO notifications (recipient_id, actor_id, type, post_id, comment_id)
-          VALUES (${input.recipientId}, ${input.actorId}, ${input.type}, ${input.postId ?? null}, ${input.commentId ?? null})
+          INSERT INTO notifications (recipient_id, actor_id, type, post_id, comment_id, company_id, trade_id)
+          VALUES (${input.recipientId}, ${input.actorId}, ${input.type}, ${input.postId ?? null}, ${input.commentId ?? null}, ${input.companyId ?? null}, ${input.tradeId ?? null})
         `;
     } catch (error) {
         console.warn('Notification write skipped:', error);
@@ -4755,7 +4842,9 @@ export async function getNotifications(userId: number) {
         users.avatar_theme as actor_avatar_theme,
         posts.title as post_title,
         comments.content as comment_content,
-        parent_comments.content as target_comment_content
+        parent_comments.content as target_comment_content,
+        NULL::text as hasdaq_trade_type,
+        NULL::int as hasdaq_trade_shares
       FROM notifications
       JOIN users ON notifications.actor_id = users.id
       LEFT JOIN posts ON notifications.post_id = posts.id

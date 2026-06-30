@@ -24,6 +24,9 @@ function transactionLabel(type: string, sourceType: string) {
     if (type === 'tip_received') return '收到打赏';
     if (type === 'redemption_hold') return '兑换冻结';
     if (type === 'redemption_refund') return '兑换退回';
+    if (type === 'hasdaq_ipo_buy') return 'Hasdaq IPO 认购';
+    if (type === 'hasdaq_buy') return 'Hasdaq 买入';
+    if (type === 'hasdaq_sell') return 'Hasdaq 卖出';
     if (sourceType === 'verification_airdrop') return '认证空投';
     if (sourceType === 'project_publish_reward') return '项目发布奖励';
     if (sourceType === 'version_publish_reward') return '新版本奖励';

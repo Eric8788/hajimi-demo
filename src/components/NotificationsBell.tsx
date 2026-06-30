@@ -26,6 +26,20 @@ function notificationText(notification: Notification) {
     const actor = notification.actor_name || 'Someone';
     const title = notification.post_title ? `「${notification.post_title}」` : 'your post';
 
+    if (String(notification.type).startsWith('hasdaq_')) {
+        const label = notification.company_id ? `Hasdaq #${notification.company_id}` : 'Hasdaq';
+        if (notification.type === 'hasdaq_member_invite') return `${actor} invited you to join ${label}`;
+        if (notification.type === 'hasdaq_application_approved') return `${label} IPO application approved`;
+        if (notification.type === 'hasdaq_application_rejected') return `${label} IPO application rejected`;
+        if (notification.type === 'hasdaq_ipo_subscribed') return `${actor} subscribed to ${label}`;
+        if (notification.type === 'hasdaq_bell') return `${label} rang the opening bell`;
+        if (notification.type === 'hasdaq_buy') return `${actor} bought ${label}`;
+        if (notification.type === 'hasdaq_sell') return `${actor} sold ${label}`;
+        if (notification.type === 'hasdaq_announcement') return `${label} posted an announcement`;
+        if (notification.type === 'hasdaq_paused') return `${label} trading was paused`;
+        return `${label} update`;
+    }
+
     if (notification.type === 'post_like') {
         return `${actor} liked ${title}`;
     }
@@ -52,6 +66,10 @@ function shortNotificationPreview(text?: string | null) {
 }
 
 function notificationHref(notification: Notification) {
+    if (String(notification.type).startsWith('hasdaq_')) {
+        return '/hasdaq';
+    }
+
     if ((notification.type === 'comment_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && notification.post_id && notification.comment_id) {
         return `/resources#post-${notification.post_id}-comment-${notification.comment_id}`;
     }
@@ -64,6 +82,12 @@ function notificationHref(notification: Notification) {
 }
 
 function notificationPreview(notification: Notification) {
+    if (String(notification.type).startsWith('hasdaq_')) {
+        if (notification.hasdaq_trade_shares) return `${notification.hasdaq_trade_shares} shares`;
+        if (notification.hasdaq_trade_type) return notification.hasdaq_trade_type;
+        return 'Hasdaq market update';
+    }
+
     if (notification.type === 'comment_like') {
         const commentPreview = shortNotificationPreview(notification.comment_content);
         if (commentPreview) return `“${commentPreview}”`;
@@ -88,6 +112,7 @@ function notificationPreview(notification: Notification) {
 }
 
 function reviewTaskIcon(task: AdminReviewTask) {
+    if (task.kind === 'hasdaq_listing') return '📈';
     return task.kind === 'verification' ? '✅' : '🚀';
 }
 
@@ -262,6 +287,10 @@ export default function NotificationsBell({
                             <button type="button" onClick={() => goTo('/admin/project-submissions')}>
                                 <strong>{reviewSummary.projectSubmissionCount}</strong>
                                 <span>项目申请</span>
+                            </button>
+                            <button type="button" onClick={() => goTo('/admin/hasdaq')}>
+                                <strong>{reviewSummary.hasdaqListingCount || 0}</strong>
+                                <span>Hasdaq IPO</span>
                             </button>
                         </div>
                         {reviewSummary.tasks.length === 0 ? (
