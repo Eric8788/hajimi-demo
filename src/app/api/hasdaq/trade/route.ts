@@ -32,7 +32,7 @@ export async function POST(request: Request) {
             companyId = detail?.company?.id ? Number(detail.company.id) : null;
         }
         const side = body.side === 'sell' || body.type === 'sell' ? 'sell' : body.side === 'buy' || body.type === 'buy' ? 'buy' : null;
-        const value = parsePositiveInteger(body.amount ?? body.shares ?? body.value);
+        const value = parsePositiveInteger(body.shares ?? body.amount ?? body.value);
         if (!companyId) return NextResponse.json({ error: 'Invalid companyId' }, { status: 400 });
         if (!side) return NextResponse.json({ error: 'Invalid trade side' }, { status: 400 });
         if (!value) return NextResponse.json({ error: 'Invalid trade value' }, { status: 400 });
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
             'Insufficient coins',
             'Founder sell limit reached',
         ]);
-        const status400 = new Set(['Invalid buy amount', 'Buy amount too small', 'Invalid sell shares', 'Sell proceeds too small']);
+        const status400 = new Set(['Invalid buy shares', 'Invalid buy amount', 'Buy amount too small', 'Invalid sell shares', 'Sell proceeds too small']);
 
         if (message === 'Company not found') return NextResponse.json({ error: 'Company not found' }, { status: 404 });
         if (status400.has(message)) return NextResponse.json({ error: message }, { status: 400 });

@@ -245,7 +245,7 @@ const HASDAQ_MIN_PRICE_MILLI = 200;
 const HASDAQ_PRICE_STEP_MILLI = 20;
 const HASDAQ_SHARES_PER_PRICE_STEP = 10;
 const HASDAQ_MAX_IPO_SHARES_PER_ORDER = 20;
-const HASDAQ_MAX_BUY_COINS = 20;
+const HASDAQ_MAX_BUY_SHARES = 20;
 const HASDAQ_MAX_SELL_SHARES = 50;
 const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 100;
 const HASDAQ_MAX_DAILY_TRADES = 10;
@@ -682,7 +682,7 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 coinPool: 84,
                 listedOffsetDays: -20,
                 lockupOffsetDays: -13,
-                pausedReason: 'Demo pause: waiting for a maintenance update.',
+                pausedReason: '模拟停牌：等待维护公告。',
             },
             {
                 key: 'prompt',
@@ -2715,17 +2715,14 @@ export async function executeHasdaqTrade(userId: number, companyId: number, side
         if (company.status !== 'listed') throw new Error('Company is not listed');
         const currentPrice = Number(company.current_price_milli || HASDAQ_IPO_PRICE_MILLI);
         const safeValue = parseHasdaqPositiveInt(value, 0);
-        if (!safeValue) throw new Error(side === 'buy' ? 'Invalid buy amount' : 'Invalid sell shares');
+        if (!safeValue) throw new Error(side === 'buy' ? 'Invalid buy shares' : 'Invalid sell shares');
         const currentPosition = getLocalDevHasdaqPosition(companyId, userId);
         const currentBalance = state.walletBalances[userId] ?? 128;
         let shares = safeValue;
         let grossAmount = safeValue;
         let nextPrice = currentPrice;
         if (side === 'buy') {
-            if (safeValue > HASDAQ_MAX_BUY_COINS) throw new Error('Invalid buy amount');
-            shares = Math.floor((safeValue * 1000) / currentPrice);
-            while (shares > 0 && computeHasdaqTradeCost(currentPrice, shares) > safeValue) shares -= 1;
-            if (shares < 1) throw new Error('Buy amount too small');
+            if (safeValue > HASDAQ_MAX_BUY_SHARES) throw new Error('Invalid buy shares');
             if (company.public_shares_remaining < shares) throw new Error('Not enough public shares');
             if ((currentPosition?.public_shares || 0) + shares > HASDAQ_MAX_PUBLIC_SHARES_PER_USER) throw new Error('Position limit reached');
             grossAmount = computeHasdaqTradeCost(currentPrice, shares);
@@ -2821,11 +2818,8 @@ export async function executeHasdaqTrade(userId: number, companyId: number, side
         let lockedSharesToSell = 0;
 
         if (side === 'buy') {
-            const budget = parseHasdaqPositiveInt(value, 0);
-            if (!budget || budget > HASDAQ_MAX_BUY_COINS) throw new Error('Invalid buy amount');
-            shares = Math.floor((budget * 1000) / currentPrice);
-            while (shares > 0 && computeHasdaqTradeCost(currentPrice, shares) > budget) shares -= 1;
-            if (shares < 1) throw new Error('Buy amount too small');
+            shares = parseHasdaqPositiveInt(value, 0);
+            if (!shares || shares > HASDAQ_MAX_BUY_SHARES) throw new Error('Invalid buy shares');
             if (company.public_shares_remaining < shares) throw new Error('Not enough public shares');
             if ((position?.public_shares || 0) + shares > HASDAQ_MAX_PUBLIC_SHARES_PER_USER) throw new Error('Position limit reached');
             grossAmount = computeHasdaqTradeCost(currentPrice, shares);

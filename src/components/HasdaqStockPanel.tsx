@@ -100,6 +100,20 @@ function getChange(company?: HasdaqCompanyView) {
     return ((current - open) / open) * 100;
 }
 
+function estimateTradeCoins(priceMilli: number | null | undefined, shares: number, side: 'buy' | 'sell') {
+    const safePrice = Number(priceMilli || 0);
+    const safeShares = Math.max(0, Math.floor(Number(shares) || 0));
+    if (!safePrice || !safeShares) return 0;
+    const raw = (safePrice * safeShares) / 1000;
+    return side === 'buy' ? Math.ceil(raw) : Math.floor(raw);
+}
+
+function formatPausedReason(reason: string) {
+    if (!reason) return '';
+    if (reason.includes('Demo pause')) return '模拟停牌：等待维护公告。';
+    return reason;
+}
+
 export default function HasdaqStockPanel({ ticker, user }: { ticker: string; user: User | null }) {
     const [detail, setDetail] = useState<HasdaqDetail>({});
     const [loading, setLoading] = useState(true);
@@ -117,10 +131,12 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
     const founderShares = Number(position.locked_shares ?? position.founder_shares ?? 0);
     const positionShares = publicShares + founderShares;
     const companyDescription = company?.description || company?.summary || '这家公司还没有填写简介。';
-    const pausedReason = company?.paused_reason || company?.trading_paused_reason || '';
+    const pausedReason = formatPausedReason(company?.paused_reason || company?.trading_paused_reason || '');
     const myMembership = detail.members?.find(member => Number(member.user_id) === Number(user?.id));
     const canAnnounce = Boolean(detail.canAnnounce || (canAct && detail.members?.some(member => Number(member.user_id) === Number(user?.id) && member.status === 'accepted')));
     const change = getChange(company);
+    const tradeShares = Math.floor(Number(tradeAmount));
+    const estimatedTradeCoins = estimateTradeCoins(company?.current_price_milli || 1000, tradeShares, tradeSide);
 
     const loadDetail = async () => {
         setLoading(true);
@@ -191,9 +207,17 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
             setMessage(user ? getInteractionBlockedMessage(user, '交易 Hasdaq 股票') : '登录并完成认证后可以交易。');
             return;
         }
-        const amount = Math.floor(Number(tradeAmount));
-        if (!Number.isInteger(amount) || amount < 1) {
-            setMessage(tradeSide === 'buy' ? '买入金额至少 1 H币。' : '卖出股数至少 1 股。');
+        const shares = Math.floor(Number(tradeAmount));
+        if (!Number.isInteger(shares) || shares < 1) {
+            setMessage(`${tradeSide === 'buy' ? '买入' : '卖出'}股数至少 1 股。`);
+            return;
+        }
+        if (tradeSide === 'buy' && shares > 20) {
+            setMessage('单次最多买入 20 股。');
+            return;
+        }
+        if (tradeSide === 'sell' && shares > 50) {
+            setMessage('单次最多卖出 50 股。');
             return;
         }
         setPending(true);
@@ -205,8 +229,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                     companyId: company?.id,
                     ticker,
                     side: tradeSide,
-                    amount: tradeSide === 'buy' ? amount : undefined,
-                    shares: tradeSide === 'sell' ? amount : undefined,
+                    shares,
                 }),
             });
             const data = await res.json().catch(() => null);
@@ -217,7 +240,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
             if (data?.wallet?.balance !== undefined) {
                 window.dispatchEvent(new CustomEvent('hajimi-wallet-balance', { detail: { balance: Number(data.wallet.balance) } }));
             }
-            setMessage(tradeSide === 'buy' ? `买入成功，获得 ${data?.trade?.shares || data?.shares || 0} 股。` : `卖出成功，收入 ${data?.trade?.gross_amount || data?.trade?.coin_amount || data?.coinAmount || 0} H币。`);
+            setMessage(tradeSide === 'buy' ? `买入成功，获得 ${data?.trade?.shares || data?.shares || 0} 股，花费 ${data?.trade?.gross_amount || data?.coinAmount || estimatedTradeCoins} H币。` : `卖出成功，收入 ${data?.trade?.gross_amount || data?.trade?.coin_amount || data?.coinAmount || 0} H币。`);
             await loadDetail();
         } catch (error) {
             console.error('Hasdaq trade failed:', error);
@@ -306,7 +329,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
         <div className="hasdaq-stock-shell">
             <section className="hasdaq-stock-hero glass-panel">
                 <div>
-                    <Link href="/hasdaq" className="hasdaq-back-link">← Hasdaq</Link>
+                    <Link href="/hasdaq" className="hasdaq-back-link" aria-label="返回 Hasdaq 市场">← 返回市场</Link>
                     <span>{company.status === 'ipo' ? 'IPO Board' : 'Listed Company'}</span>
                     <h1>{company.name}</h1>
                     <p>{companyDescription}</p>
@@ -430,11 +453,12 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 <button type="button" className={tradeSide === 'sell' ? 'is-active' : ''} onClick={() => setTradeSide('sell')}>卖出</button>
                             </div>
                             <label>
-                                <span>{tradeSide === 'buy' ? '买入金额 H币' : '卖出股数'}</span>
+                                <span>{tradeSide === 'buy' ? '买入股数' : '卖出股数'}</span>
                                 <input className="glass-input" value={tradeAmount} inputMode="numeric" onChange={event => setTradeAmount(event.target.value.replace(/[^\d]/g, '').slice(0, 3))} />
                             </label>
                             <button type="submit" disabled={pending || !canAct || company.status === 'paused'}>{tradeSide === 'buy' ? '买入' : '卖出'}</button>
-                            <p>{tradeSide === 'buy' ? '单次最多买入 20 H币，价格会随买入上调。' : '单次最多卖出 50 股，创始股受锁仓限制。'}</p>
+                            <p className="hasdaq-trade-estimate">预计{tradeSide === 'buy' ? '花费' : '收入'} {estimatedTradeCoins} H币。</p>
+                            <p>{tradeSide === 'buy' ? '单次最多买入 20 股，成交后价格会随买入上调。' : '单次最多卖出 50 股，创始股受锁仓限制。'}</p>
                         </form>
                     )}
 

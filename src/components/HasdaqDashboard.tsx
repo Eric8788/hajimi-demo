@@ -175,8 +175,14 @@ function statusLabel(status?: string | null) {
     if (status === 'listed') return '已上市';
     if (status === 'ipo') return 'IPO 中';
     if (status === 'pending_review') return '待审核';
-    if (status === 'paused') return '暂停交易';
+    if (status === 'paused') return '模拟停牌';
     return '筹备中';
+}
+
+function formatPausedReason(reason?: string | null) {
+    if (!reason) return '';
+    if (reason.includes('Demo pause')) return '模拟停牌：等待维护公告。';
+    return reason;
 }
 
 export default function HasdaqDashboard({ user }: { user: User | null }) {
@@ -244,9 +250,9 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
         <div className="hasdaq-shell">
             <section className="hasdaq-hero glass-panel">
                 <div>
-                    <span>Student Company Exchange</span>
+                    <span>Student Simulation Exchange</span>
                     <h1>Hasdaq</h1>
-                    <p>学生公司可以 IPO、敲钟上市，并用 H币实时买卖公司股票。股价由买卖决定，项目表现和公告是市场信号。</p>
+                    <p>学生模拟公司可以 IPO、敲钟上市，并用 H币实时买卖公司股票。股价由买卖决定，项目表现和公告是市场信号。</p>
                     <div className="hasdaq-hero-actions">
                         <Link href="/hasdaq/apply">申请上市</Link>
                         <button type="button" onClick={loadOverview}>刷新市场</button>
@@ -357,7 +363,7 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
     const marketCap = Math.round((Number(company.current_price_milli || 0) / 1000) * Number(company.total_shares || 1000));
     const description = getCompanyPitch(company);
     const volumeToday = Number(company.trade_volume_today ?? company.volume_today ?? 0);
-    const pausedReason = company.paused_reason || company.trading_paused_reason;
+    const pausedReason = formatPausedReason(company.paused_reason || company.trading_paused_reason);
 
     return (
         <Link href={`/hasdaq/${company.ticker}`} className={`hasdaq-card glass-panel is-${company.status} is-${variant}`}>
@@ -369,7 +375,7 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
                     <span>{statusLabel(company.status)}</span>
                     <h3>{company.name}</h3>
                 </div>
-                <strong className="hasdaq-ticker-badge">{company.ticker}</strong>
+                <strong className="hasdaq-ticker-badge">代码：{company.ticker}</strong>
             </div>
             <p className="hasdaq-card-pitch">{description}</p>
             <div className={`hasdaq-card-media is-${variant}`}>
