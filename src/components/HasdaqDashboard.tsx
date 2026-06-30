@@ -10,6 +10,7 @@ type HasdaqCompany = {
     name: string;
     ticker: string;
     status: string;
+    company_type?: 'student' | 'official_demo' | string | null;
     company_name?: string | null;
     description?: string | null;
     summary?: string | null;
@@ -20,9 +21,12 @@ type HasdaqCompany = {
     investment_thesis?: string | null;
     founder_name?: string | null;
     current_price_milli?: number | null;
+    ipo_price_milli?: number | null;
     day_open_price_milli?: number | null;
     previous_close_price_milli?: number | null;
     total_shares?: number | null;
+    public_shares_total?: number | null;
+    public_shares_remaining?: number | null;
     pool_shares?: number | null;
     pool_coin_balance?: number | null;
     bell_rang_at?: string | null;
@@ -43,6 +47,7 @@ type HasdaqCompany = {
 
 type HasdaqOverview = {
     companies?: HasdaqCompany[];
+    officialDemoCompanies?: HasdaqCompany[];
     listed?: HasdaqCompany[];
     ipo?: HasdaqCompany[];
     listedCompanies?: HasdaqCompany[];
@@ -67,6 +72,23 @@ function getChange(company: HasdaqCompany) {
 function getPositionShares(company: HasdaqCompany) {
     return Number(company.user_shares ?? company.user_public_shares ?? company.public_shares ?? 0)
         + Number(company.user_locked_shares ?? company.locked_shares ?? 0);
+}
+
+function isOfficialDemo(company: HasdaqCompany) {
+    return company.company_type === 'official_demo';
+}
+
+function getIpoStats(company: HasdaqCompany) {
+    const total = Math.max(1, Number(company.public_shares_total ?? company.public_shares ?? 300));
+    const remaining = Math.max(0, Math.min(total, Number(company.public_shares_remaining ?? company.pool_shares ?? total)));
+    const subscribed = Math.max(0, total - remaining);
+    return {
+        total,
+        remaining,
+        subscribed,
+        percent: Math.min(100, Math.round((subscribed / total) * 100)),
+        price: Number(company.ipo_price_milli || company.current_price_milli || 1000) / 1000,
+    };
 }
 
 type MiniCandle = {
@@ -216,6 +238,7 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
     const allCompanies = useMemo(() => {
         const merged = [
             ...(overview.companies || []),
+            ...(overview.officialDemoCompanies || []),
             ...(overview.listed || []),
             ...(overview.listedCompanies || []),
             ...(overview.ipo || []),
@@ -230,8 +253,12 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
         });
     }, [overview]);
 
-    const listedCompanies = allCompanies.filter(company => company.status === 'listed' || company.status === 'paused');
-    const ipoCompanies = allCompanies.filter(company => company.status === 'ipo');
+    const officialDemoCompanies = allCompanies.filter(isOfficialDemo);
+    const studentCompanies = allCompanies.filter(company => !isOfficialDemo(company));
+    const listedCompanies = studentCompanies.filter(company => company.status === 'listed' || company.status === 'paused');
+    const ipoCompanies = studentCompanies.filter(company => company.status === 'ipo');
+    const hasStudentCompanies = ipoCompanies.length > 0 || listedCompanies.length > 0;
+    const allListedCompanies = allCompanies.filter(company => company.status === 'listed' || company.status === 'paused');
     const topMovers = [...listedCompanies].sort((a, b) => getChange(b) - getChange(a)).slice(0, 5);
     const rawPositions = overview.positions || overview.myPositions || allCompanies.filter(company => getPositionShares(company) > 0);
     const myPositions = rawPositions.map(position => {
@@ -241,7 +268,7 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
         ));
         return matchingCompany ? { ...matchingCompany, ...position } : position;
     });
-    const latestBell = overview.latestBell || [...listedCompanies]
+    const latestBell = overview.latestBell || [...allListedCompanies]
         .sort((a, b) => new Date(String(b.listed_at || 0)).getTime() - new Date(String(a.listed_at || 0)).getTime())[0];
 
     return (
@@ -250,12 +277,12 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                 <div>
                     <span>Student Simulation Exchange</span>
                     <h1>Hasdaq</h1>
-                    <p>学生模拟公司，一敲钟就开盘。</p>
+                    <p>学生模拟公司 / 官方示范股，一敲钟就开盘。</p>
                     <div className="hasdaq-hero-actions">
                         <Link href="/hasdaq/apply">申请上市</Link>
                         <button type="button" onClick={loadOverview}>刷新市场</button>
                     </div>
-                    <p className="hasdaq-note">备注：目前下面的数据都是模拟的，并且合规合法。</p>
+                    <p className="hasdaq-note">备注：Hasdaq 使用 H币做模拟交易；官方示范股只用于演示机制，不代表个人收益。</p>
                 </div>
                 <div className="hasdaq-bell-card">
                     <div className="hasdaq-bell-icon" aria-hidden="true">🔔</div>
@@ -283,15 +310,21 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                     <section className="hasdaq-section">
                         <div className="hasdaq-section-head">
                             <div>
-                                <span>IPO Board</span>
-                                <h2>正在认购</h2>
+                                <span>Official Demo</span>
+                                <h2>Hajimi Platform / HJM</h2>
                             </div>
                         </div>
-                        {ipoCompanies.length === 0 ? (
-                            <div className="hasdaq-empty glass-panel">暂无 IPO，公司通过审核后会在这里开放认购。</div>
+                        {officialDemoCompanies.length === 0 ? (
+                            <div className="hasdaq-empty glass-panel">官方示范股正在准备中。</div>
                         ) : (
                             <div className="hasdaq-grid">
-                                {ipoCompanies.map(company => <CompanyCard key={company.ticker} company={company} variant="ipo" />)}
+                                {officialDemoCompanies.map(company => (
+                                    <CompanyCard
+                                        key={company.ticker}
+                                        company={company}
+                                        variant={company.status === 'ipo' ? 'ipo' : 'market'}
+                                    />
+                                ))}
                             </div>
                         )}
                     </section>
@@ -300,15 +333,30 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                         <div className="hasdaq-section">
                             <div className="hasdaq-section-head">
                                 <div>
-                                    <span>Market</span>
-                                    <h2>全部股票</h2>
+                                    <span>Student Market</span>
+                                    <h2>学生模拟公司</h2>
                                 </div>
                             </div>
-                            {listedCompanies.length === 0 ? (
-                                <div className="hasdaq-empty glass-panel">还没有上市公司。第一家公司敲钟后，市场会在这里开盘。</div>
+                            {!hasStudentCompanies ? (
+                                <div className="hasdaq-empty glass-panel">等待第一批学生模拟公司上市。</div>
                             ) : (
-                                <div className="hasdaq-grid">
-                                    {listedCompanies.map(company => <CompanyCard key={company.ticker} company={company} variant="market" />)}
+                                <div className="hasdaq-student-board">
+                                    {ipoCompanies.length > 0 && (
+                                        <div>
+                                            <div className="hasdaq-subsection-label">IPO 认购中</div>
+                                            <div className="hasdaq-grid">
+                                                {ipoCompanies.map(company => <CompanyCard key={company.ticker} company={company} variant="ipo" />)}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {listedCompanies.length > 0 && (
+                                        <div>
+                                            <div className="hasdaq-subsection-label">已上市交易</div>
+                                            <div className="hasdaq-grid">
+                                                {listedCompanies.map(company => <CompanyCard key={company.ticker} company={company} variant="market" />)}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -316,9 +364,9 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                         <aside className="hasdaq-side-stack">
                             <section className="glass-panel hasdaq-rank-panel">
                                 <span>Top Movers</span>
-                                <h3>涨幅榜</h3>
+                                <h3>学生涨幅榜</h3>
                                 {topMovers.length === 0 ? (
-                                    <p>暂无交易。</p>
+                                    <p>等待第一批学生模拟公司上市。</p>
                                 ) : topMovers.map(company => (
                                     <Link key={company.ticker} href={`/hasdaq/${company.ticker}`} className="hasdaq-rank-row">
                                         <strong>{company.ticker}</strong>
@@ -360,9 +408,10 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
     const description = getCompanyPitch(company);
     const volumeToday = Number(company.trade_volume_today ?? company.volume_today ?? 0);
     const pausedReason = formatPausedReason(company.paused_reason || company.trading_paused_reason);
+    const officialDemo = isOfficialDemo(company);
 
     return (
-        <Link href={`/hasdaq/${company.ticker}`} className={`hasdaq-card glass-panel is-${company.status} is-${variant}`}>
+        <Link href={`/hasdaq/${company.ticker}`} className={`hasdaq-card glass-panel is-${company.status} is-${variant}${officialDemo ? ' is-official-demo' : ''}`}>
             <div className="hasdaq-card-head">
                 <div className={`hasdaq-company-mark ${getCompanyTheme(company)}`} aria-hidden="true">
                     {getCompanyInitials(company)}
@@ -370,16 +419,19 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
                 <div className="hasdaq-card-title">
                     <div className="hasdaq-card-meta">
                         <span>{statusLabel(company.status)}</span>
+                        {officialDemo && <span className="hasdaq-official-badge">官方示范股</span>}
                         <strong className="hasdaq-ticker-badge">代码：{company.ticker}</strong>
                     </div>
                     <h3>{company.name}</h3>
                 </div>
             </div>
             <p className="hasdaq-card-pitch">{description}</p>
+            {officialDemo && <p className="hasdaq-demo-rule">用于演示 IPO、敲钟和交易机制；不参与学生榜单或月度奖励。</p>}
             <div className={`hasdaq-card-media is-${variant}`}>
                 {variant === 'ipo' && <CompanyPoster company={company} />}
                 <MiniTrend company={company} variant={variant} />
             </div>
+            {variant === 'ipo' && <IpoProgress company={company} compact />}
             <div className="hasdaq-metrics">
                 <span><b>{formatPrice(company.current_price_milli || 1000)}</b> 当前价</span>
                 <span className={change >= 0 ? 'is-up' : 'is-down'}><b>{change >= 0 ? '+' : ''}{change.toFixed(1)}%</b> 今日</span>
@@ -388,6 +440,25 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
             </div>
             {pausedReason && <em>暂停：{pausedReason}</em>}
         </Link>
+    );
+}
+
+function IpoProgress({ company, compact = false }: { company: HasdaqCompany; compact?: boolean }) {
+    const stats = getIpoStats(company);
+    return (
+        <div className={`hasdaq-ipo-progress${compact ? ' is-compact' : ''}`}>
+            <div className="hasdaq-ipo-progress-head">
+                <span>发行价 {stats.price.toFixed(0)} H币/股</span>
+                <strong>{stats.subscribed}/{stats.total} 已认购</strong>
+            </div>
+            <div className="hasdaq-progress-track" aria-hidden="true">
+                <span style={{ width: `${stats.percent}%` }} />
+            </div>
+            <div className="hasdaq-ipo-progress-foot">
+                <span>剩余 {stats.remaining} 股</span>
+                <span>单人上限 20 股</span>
+            </div>
+        </div>
     );
 }
 

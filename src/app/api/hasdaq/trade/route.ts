@@ -65,6 +65,7 @@ export async function POST(request: Request) {
             'Daily price limit reached',
             'Not enough shares',
             'Founder shares are locked',
+            'Official demo founder shares are permanently locked',
             'Company pool has insufficient liquidity',
             'Insufficient coins',
             'Founder sell limit reached',

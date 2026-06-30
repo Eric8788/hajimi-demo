@@ -49,9 +49,13 @@ The app uses Next.js App Router (`src/app/`).
 - `/wallet` **(Protected):**
   - Shows the user's H币 wallet balance, recent ledger entries, and token redemption requests.
   - Users can submit token redemption requests with a minimum of 50 H币. Submitted requests immediately freeze the requested H币 through a `redemption_hold` ledger entry.
+- `/hasdaq` **(Public browse / Verified trading):**
+  - Student simulation company exchange plus the `Hajimi Platform / HJM` official demo stock. `hasdaq_companies.company_type` is `student` by default; `official_demo` companies are shown separately, excluded from student rankings/monthly awards, and keep founder shares permanently locked.
 - `/admin/coins` **(Admin):**
   - Admins manually grant H币 with a required note and source type, and review token redemption requests.
   - Approving a request marks it ready for token issuance; rejecting refunds frozen H币; completing records that token has been issued.
+- `/admin/hasdaq` **(Admin):**
+  - Admins review Hasdaq IPO applications, open IPO subscription, and use the checklist-backed "敲钟上市" flow.
 - `/profile` **(Protected):**
   - Shows the public profile editor plus a Data Studio card after the featured content. The default overview focuses on the monthly participation heatmap; the detail view shows range tabs, KPIs, trend chart, contribution pie, project performance, and post interactions.
   - First verified forum post awards `+100 XP`; later posts continue to use normal post XP.
@@ -78,6 +82,8 @@ Database interactions are handled via standard SQL functions.
 - **`coin_transactions`:** `id`, `user_id`, `amount`, `balance_after`, `type`, `source_type`, `source_id`, `counterparty_user_id`, `note`, `created_by`, `created_at`; H币 ledger for grants, tips, redemption holds, and refunds.
 - **`coin_project_tips`:** `id`, `project_id`, `sender_id`, `recipient_id`, `amount`, `sender_transaction_id`, `recipient_transaction_id`, `created_at`; live H币 project tip log.
 - **`coin_redemption_requests`:** `id`, `user_id`, `amount`, `status`, `requested_note`, `review_note`, `reviewed_by`, `reviewed_at`, `completed_at`, `created_at`; token redemption requests. Minimum amount is 50 H币.
+- **`hasdaq_companies`:** Hasdaq company/stock records with founder, ticker, `company_type` (`student` / `official_demo`), IPO/listing status, total/founder/public shares, price, trading pool H币, listing time, and lockup metadata.
+- **`hasdaq_positions` / `hasdaq_trades`:** Per-user public/locked share positions and filled IPO/buy/sell trade log. Official demo founder shares are permanently locked; ordinary public shares remain tradable.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
 - **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.

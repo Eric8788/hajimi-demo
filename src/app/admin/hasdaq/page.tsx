@@ -22,7 +22,7 @@ export default async function AdminHasdaqPage() {
                     <div>
                         <span>Hasdaq Admin</span>
                         <h1>上市审核</h1>
-                        <p>审核学生公司 IPO 申请、敲钟上市，并处理异常暂停或恢复交易。</p>
+                        <p>审核学生模拟公司 / 官方示范股 IPO 流程、敲钟上市，并处理异常暂停或恢复交易。</p>
                     </div>
                 </div>
                 <AdminHasdaqPanel />

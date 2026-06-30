@@ -8,6 +8,7 @@ type AdminHasdaqCompany = {
     ticker?: string | null;
     founder_name?: string | null;
     status?: string | null;
+    company_type?: 'student' | 'official_demo' | string | null;
     description?: string | null;
     summary?: string | null;
     future_plan?: string | null;
@@ -22,6 +23,9 @@ type AdminHasdaqCompany = {
     listed_at?: string | Date | null;
     paused_reason?: string | null;
     trading_paused_reason?: string | null;
+    product_count?: number | null;
+    ipo_subscription_count?: number | null;
+    ipo_subscribed_shares?: number | null;
 };
 
 type AdminHasdaqApplication = {
@@ -45,6 +49,24 @@ type AdminHasdaqPayload = {
 function formatTime(value?: string | Date | null) {
     if (!value) return '';
     return new Date(value).toLocaleString('zh-CN');
+}
+
+function getBellChecklist(company: AdminHasdaqCompany) {
+    const hasProfile = Boolean(company.name && company.ticker && (company.summary || company.description));
+    const hasProduct = Number(company.product_count || 0) > 0;
+    const ipoOpen = company.status === 'ipo';
+    const hasSubscriptions = Number(company.ipo_subscription_count || 0) > 0 || Number(company.ipo_subscribed_shares || 0) > 0;
+    const ready = hasProfile && hasProduct && ipoOpen && hasSubscriptions;
+    return {
+        ready,
+        items: [
+            { label: '公司资料', ok: hasProfile },
+            { label: '成熟产品', ok: hasProduct },
+            { label: 'IPO 已开启', ok: ipoOpen },
+            { label: '已有认购记录', ok: hasSubscriptions },
+            { label: '可敲钟', ok: ready },
+        ],
+    };
 }
 
 export default function AdminHasdaqPanel({ initialOverview }: { initialOverview?: AdminHasdaqPayload }) {
@@ -200,36 +222,49 @@ export default function AdminHasdaqPanel({ initialOverview }: { initialOverview?
                             <p className="admin-verification-empty">暂无 Hasdaq 公司。</p>
                         ) : (
                             <div className="admin-verification-list">
-                                {companies.map(company => (
-                                    <article key={company.id} className="admin-verification-card project-review-card">
-                                        <div>
-                                            <div className="admin-verification-user">
-                                                <strong>{company.name}</strong>
-                                                <span>{company.ticker}</span>
-                                                <span>{company.status}</span>
-                                                {(company.bell_rang_at || company.listed_at) && <span>敲钟 {formatTime(company.bell_rang_at || company.listed_at)}</span>}
+                                {companies.map(company => {
+                                    const checklist = getBellChecklist(company);
+                                    return (
+                                        <article key={company.id} className="admin-verification-card project-review-card">
+                                            <div>
+                                                <div className="admin-verification-user">
+                                                    <strong>{company.name}</strong>
+                                                    <span>{company.ticker}</span>
+                                                    <span>{company.status}</span>
+                                                    {company.company_type === 'official_demo' && <span>官方示范股</span>}
+                                                    {(company.bell_rang_at || company.listed_at) && <span>敲钟 {formatTime(company.bell_rang_at || company.listed_at)}</span>}
+                                                </div>
+                                                <p>当前价 {Number(company.current_price_milli || 1000) / 1000} H币 · 池内 {Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} 股 / {Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} H币</p>
+                                                {company.status === 'ipo' && (
+                                                    <div className="hasdaq-admin-checklist" aria-label={`${company.ticker || 'Hasdaq'} listing checklist`}>
+                                                        {checklist.items.map(item => (
+                                                            <span key={item.label} className={item.ok ? 'is-done' : ''}>
+                                                                {item.ok ? '✓' : '•'} {item.label}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {(company.paused_reason || company.trading_paused_reason) && <div className="project-review-notes">暂停原因：{company.paused_reason || company.trading_paused_reason}</div>}
                                             </div>
-                                            <p>当前价 {Number(company.current_price_milli || 1000) / 1000} H币 · 池内 {Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} 股 / {Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} H币</p>
-                                            {(company.paused_reason || company.trading_paused_reason) && <div className="project-review-notes">暂停原因：{company.paused_reason || company.trading_paused_reason}</div>}
-                                        </div>
-                                        <div className="admin-verification-actions">
-                                            {company.status === 'ipo' && (
-                                                <button type="button" className="is-approve" disabled={actingId === company.id} onClick={() => bell(Number(company.id))}>
-                                                    敲钟上市
-                                                </button>
-                                            )}
-                                            {company.status === 'paused' ? (
-                                                <button type="button" className="is-approve" disabled={actingId === company.id} onClick={() => resume(Number(company.id))}>
-                                                    恢复
-                                                </button>
-                                            ) : (
-                                                <button type="button" className="is-reject" disabled={actingId === company.id} onClick={() => pause(Number(company.id))}>
-                                                    暂停
-                                                </button>
-                                            )}
-                                        </div>
-                                    </article>
-                                ))}
+                                            <div className="admin-verification-actions">
+                                                {company.status === 'ipo' && (
+                                                    <button type="button" className="is-approve" disabled={actingId === company.id || !checklist.ready} onClick={() => bell(Number(company.id))}>
+                                                        敲钟上市
+                                                    </button>
+                                                )}
+                                                {company.status === 'paused' ? (
+                                                    <button type="button" className="is-approve" disabled={actingId === company.id} onClick={() => resume(Number(company.id))}>
+                                                        恢复
+                                                    </button>
+                                                ) : (
+                                                    <button type="button" className="is-reject" disabled={actingId === company.id} onClick={() => pause(Number(company.id))}>
+                                                        暂停
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </article>
+                                    );
+                                })}
                             </div>
                         )}
                     </section>
