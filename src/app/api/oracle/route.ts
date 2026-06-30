@@ -177,6 +177,10 @@ function isOracleCard(value: unknown): value is OracleCard {
     );
 }
 
+function countMeaningfulCharacters(text: string) {
+    return text.replace(/\s+/g, '').length;
+}
+
 function getCardInfo(card: OracleCard) {
     return CARD_INFO[card.name] ?? {
         zhName: card.name,
@@ -426,7 +430,7 @@ async function createOracleFollowUp(userId: number, body: Record<string, unknown
         return NextResponse.json({ error: 'Reading id is required' }, { status: 400 });
     }
 
-    if (question.length < 4) {
+    if (countMeaningfulCharacters(question) < 2) {
         return NextResponse.json({ error: '请先补充一点你想追问的背景。' }, { status: 400 });
     }
 

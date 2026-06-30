@@ -48,6 +48,10 @@ function formatOracleParagraphs(text: string, maxParagraphs = 3, softLength = 76
     return (paragraphs.length ? paragraphs : [normalized]).slice(0, maxParagraphs);
 }
 
+function countMeaningfulCharacters(text: string) {
+    return text.replace(/\s+/g, '').length;
+}
+
 const MAJOR_ARCANA: TarotCard[] = [
     { id: 0, name: 'The Fool', meaning: 'New beginnings, innocence, spontaneity.', icon: '🤡' },
     { id: 1, name: 'The Magician', meaning: 'Manifestation, resourcefulness, power.', icon: '🪄' },
@@ -218,7 +222,7 @@ export default function TarotGame() {
     const askFollowUp = async () => {
         const question = followUpQuestion.trim();
         if (!readingId || followUpUsed || isFollowUpLoading) return;
-        if (question.length < 4) {
+        if (countMeaningfulCharacters(question) < 2) {
             setFollowUpMessage('给水晶球一点更具体的线索吧。');
             return;
         }
@@ -369,7 +373,7 @@ export default function TarotGame() {
                                             type="button"
                                             className="btn"
                                             onClick={askFollowUp}
-                                            disabled={isFollowUpLoading || followUpQuestion.trim().length < 4}
+                                            disabled={isFollowUpLoading}
                                             style={{
                                                 justifySelf: 'center',
                                                 minWidth: '150px',
