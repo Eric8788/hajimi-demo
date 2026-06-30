@@ -7,7 +7,6 @@ import type { User } from '@/lib/db';
 import Avatar from './Avatar';
 import { AVATAR_EMOJIS, AVATAR_THEME_IDS, type AvatarThemeId } from '@/lib/avatarThemes';
 import { clearCachedJson } from '@/lib/clientJsonCache';
-import { normalizeUsernameInput, validateUsername, USERNAME_REQUIREMENT_MESSAGE } from '@/lib/accountValidation';
 import { formatHajimiId } from '@/lib/hajimiId';
 
 function loadProfileImage(src: string) {
@@ -21,7 +20,6 @@ function loadProfileImage(src: string) {
 
 export default function PublicProfileSettingsPanel({ user }: { user: User }) {
     const router = useRouter();
-    const [username, setUsername] = useState(user.username);
     const [bio, setBio] = useState(user.bio || '');
     const [avatar, setAvatar] = useState(user.avatar || user.avatar_emoji || '😊');
     const [avatarEmoji, setAvatarEmoji] = useState(user.avatar_emoji || user.avatar || '😊');
@@ -37,7 +35,6 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
     const dragState = useRef<{ pointerId: number | null; lastX: number; lastY: number }>({ pointerId: null, lastX: 0, lastY: 0 });
 
     const savedProfile = {
-        username: user.username,
         bio: user.bio || '',
         avatar: user.avatar || user.avatar_emoji || '😊',
         avatarEmoji: user.avatar_emoji || user.avatar || '😊',
@@ -54,7 +51,6 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
     );
 
     const resetDraft = () => {
-        setUsername(savedProfile.username);
         setBio(savedProfile.bio);
         setAvatar(savedProfile.avatar);
         setAvatarEmoji(savedProfile.avatarEmoji);
@@ -144,60 +140,36 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
         }
     };
 
-    const saveBasicProfile = async () => {
-        const cleanUsername = normalizeUsernameInput(username);
-        const usernameChanged = cleanUsername !== user.username;
+    const savePublicProfile = async () => {
         const profileChanged = hasProfileChanges();
         setSaveError('');
         setSaveMessage('');
 
-        if (usernameChanged && !validateUsername(cleanUsername)) {
-            setSaveError(USERNAME_REQUIREMENT_MESSAGE);
-            return;
-        }
-
-        if (!usernameChanged && !profileChanged) {
-            setSaveMessage('没有新的设置修改。');
+        if (!profileChanged) {
+            setSaveMessage('没有新的公开资料修改。');
             return;
         }
 
         setSaving(true);
         try {
-            if (profileChanged) {
-                const profileRes = await fetch('/api/profile', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        bio,
-                        avatar,
-                        avatar_emoji: avatarEmoji,
-                        avatar_theme: avatarTheme,
-                    }),
-                });
-                const profileData = await profileRes.json().catch(() => null);
+            const profileRes = await fetch('/api/profile', {
+                method: 'POST',
+                body: JSON.stringify({
+                    bio,
+                    avatar,
+                    avatar_emoji: avatarEmoji,
+                    avatar_theme: avatarTheme,
+                }),
+            });
+            const profileData = await profileRes.json().catch(() => null);
 
-                if (!profileRes.ok || profileData?.error) {
-                    setSaveError(profileData?.error || '头像或签名保存失败，请稍后再试。');
-                    return;
-                }
-
-                clearCachedJson('avatars:');
+            if (!profileRes.ok || profileData?.error) {
+                setSaveError(profileData?.error || '公开资料保存失败，请稍后再试。');
+                return;
             }
 
-            if (usernameChanged) {
-                const accountRes = await fetch('/api/profile/account', {
-                    method: 'POST',
-                    body: JSON.stringify({ username: cleanUsername }),
-                });
-                const accountData = await accountRes.json().catch(() => null);
-
-                if (!accountRes.ok || accountData?.error) {
-                    setSaveError(accountData?.error || '昵称保存失败，请稍后再试。');
-                    return;
-                }
-            }
-
-            setUsername(cleanUsername);
-            setSaveMessage('设置已更新。');
+            clearCachedJson('avatars:');
+            setSaveMessage('公开主页已更新。');
             router.refresh();
         } finally {
             setSaving(false);
@@ -208,9 +180,9 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
         <section className="settings-public-profile-panel settings-basic-profile-panel">
             <div className="profile-settings-head settings-section-head">
                 <div>
-                    <span>Profile Basics</span>
-                    <h3>基础资料</h3>
-                    <p>这里只调整头像、昵称和个性签名；背景图和 badge 请回到个人主页点击 Edit。</p>
+                    <span>Public Profile</span>
+                    <h3>公开主页</h3>
+                    <p>这里只调整头像和个性签名；公开显示名沿用登录用户名，避免重复填写同一名称。</p>
                 </div>
             </div>
 
@@ -282,19 +254,9 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
 
                 <section className="settings-profile-field-card">
                     <div className="profile-section-heading">
-                        <h3>昵称与签名</h3>
-                        <p>{hajimiId}</p>
+                        <h3>主页签名</h3>
+                        <p>显示名：{user.username} · {hajimiId}</p>
                     </div>
-                    <label className="profile-field-label">
-                        昵称
-                        <input
-                            value={username}
-                            onChange={event => setUsername(event.target.value)}
-                            className="glass-input"
-                            maxLength={24}
-                        />
-                        <small>2-24 个字符，不能包含空格或 URL 特殊字符。</small>
-                    </label>
                     <label className="profile-field-label">
                         个性签名
                         <textarea
@@ -317,8 +279,8 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                 <button type="button" className="profile-secondary-button" onClick={resetDraft} disabled={saving}>
                     还原修改
                 </button>
-                <button type="button" className="btn btn-primary" onClick={saveBasicProfile} disabled={saving}>
-                    {saving ? '保存中' : '保存设置'}
+                <button type="button" className="btn btn-primary" onClick={savePublicProfile} disabled={saving}>
+                    {saving ? '保存中' : '保存公开资料'}
                 </button>
             </div>
         </section>

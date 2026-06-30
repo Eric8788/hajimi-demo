@@ -137,8 +137,8 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
             <div className="profile-settings-head">
                 <div>
                     <span>Private Settings</span>
-                    <h3>账号与认证</h3>
-                    <p>这里的信息只用于登录、安全和认证审核，不会出现在公开主页。</p>
+                    <h3>账号安全与认证</h3>
+                    <p>这里管理登录用户名、密码和认证资料；这些信息主要用于登录、安全与审核。</p>
                 </div>
             </div>
 
@@ -147,15 +147,15 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                     <div className="profile-account-head">
                         <div>
                             <h4>登录与安全</h4>
-                            <p>修改登录昵称或更新密码；公开主页显示内容在上方管理。</p>
+                            <p>登录用户名同时作为公开显示名；头像和签名在上方公开主页区域管理。</p>
                         </div>
                         <span>{hajimiId}</span>
                     </div>
                     <div className="profile-account-fields">
                         <label className="profile-field-label">
-                            用户名
+                            登录用户名
                             <input value={newUsername} onChange={event => setNewUsername(event.target.value)} className="glass-input" />
-                            <small>2-24 个字符；不能包含空格或 URL 特殊符号。</small>
+                            <small>2-24 个字符；也会作为主页显示名，不能包含空格或 URL 特殊符号。</small>
                         </label>
                         <label className="profile-field-label">
                             新密码
