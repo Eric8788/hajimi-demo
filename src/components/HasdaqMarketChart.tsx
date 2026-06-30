@@ -36,6 +36,13 @@ const BUCKET_TARGET = 96;
 const BUCKET_SECONDS = 60 * 60;
 const MIN_DISPLAY_CANDLES = 48;
 const MIN_VISIBLE_BARS = 72;
+const TAPE_TOOLTIPS = {
+    open: 'O = Open 开盘价：当前这段行情的起始价格。',
+    high: 'H = High 最高价：当前这段行情里出现过的最高成交价。',
+    low: 'L = Low 最低价：当前这段行情里出现过的最低成交价。',
+    close: 'C = Close 收盘价 / 最新价：当前最新成交后的价格。',
+    volume: 'Vol = Volume 成交量：当前统计周期内成交的股票数量。',
+};
 
 function milliToPrice(value?: number | null) {
     return Number((Number(value || 0) / 1000).toFixed(2));
@@ -198,6 +205,7 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     const marketCap = Math.round(milliToPrice(company.current_price_milli || 0) * Number(company.total_shares || 1000));
     const volume = Number(company.trade_volume_today ?? company.volume_today ?? lastCandle?.volume ?? 0);
     const isUp = sessionClose >= sessionOpen;
+    const marketCapTooltip = `市值 = 当前股价 × 总股本。Hasdaq V1 默认总股本 ${formatMetric(Number(company.total_shares || 1000))} 股，所以现在约为 ${sessionClose.toFixed(2)} × ${formatMetric(Number(company.total_shares || 1000))} = ${formatMetric(marketCap)} H币。`;
 
     useEffect(() => {
         let disposed = false;
@@ -298,16 +306,16 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     return (
         <div className="hasdaq-market-panel">
             <div className="hasdaq-market-tape" aria-label="Hasdaq market data">
-                <span>O <b>{sessionOpen.toFixed(2)}</b></span>
-                <span>H <b>{sessionHigh.toFixed(2)}</b></span>
-                <span>L <b>{sessionLow.toFixed(2)}</b></span>
-                <span>C <b className={isUp ? 'is-up' : 'is-down'}>{sessionClose.toFixed(2)}</b></span>
-                <span>Vol <b>{formatMetric(volume)}</b></span>
+                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.open} aria-label={TAPE_TOOLTIPS.open}>O <b>{sessionOpen.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.high} aria-label={TAPE_TOOLTIPS.high}>H <b>{sessionHigh.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.low} aria-label={TAPE_TOOLTIPS.low}>L <b>{sessionLow.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.close} aria-label={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}>{sessionClose.toFixed(2)}</b></span>
+                <span className="hasdaq-explained-metric" title={TAPE_TOOLTIPS.volume} aria-label={TAPE_TOOLTIPS.volume}>Vol <b>{formatMetric(volume)}</b></span>
             </div>
             <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
             <div className="hasdaq-metrics hasdaq-market-stats">
                 <span><b>{formatMetric(Number(company.holder_count || 0))}</b> 持有人</span>
-                <span><b>{formatMetric(marketCap)}</b> 市值</span>
+                <span className="hasdaq-explained-metric" title={marketCapTooltip} aria-label={marketCapTooltip}><b>{formatMetric(marketCap)}</b> 市值</span>
                 <span className="hasdaq-liquidity-metric" title="交易池里仍可被买入的公开股"><b>{formatMetric(Number(company.pool_shares ?? company.public_shares_remaining ?? 0))}</b> 可买股份</span>
                 <span className="hasdaq-liquidity-metric" title="交易池用于支付卖出成交，不属于公司可花余额"><b>{formatMetric(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0))}</b> 交易池 H币</span>
             </div>

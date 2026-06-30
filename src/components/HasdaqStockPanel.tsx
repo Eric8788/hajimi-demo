@@ -137,6 +137,10 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
     const change = getChange(company);
     const tradeShares = Math.floor(Number(tradeAmount));
     const estimatedTradeCoins = estimateTradeCoins(company?.current_price_milli || 1000, tradeShares, tradeSide);
+    const totalShares = Number(company?.total_shares || 1000);
+    const currentPrice = Number(company?.current_price_milli || 0) / 1000;
+    const marketCap = Math.round(currentPrice * totalShares);
+    const marketCapTooltip = `市值 = 当前股价 × 总股本。Hasdaq V1 默认总股本 ${totalShares.toLocaleString('zh-CN')} 股，当前约为 ${currentPrice.toFixed(2)} × ${totalShares.toLocaleString('zh-CN')} = ${marketCap.toLocaleString('zh-CN')} H币。`;
 
     const loadDetail = async () => {
         setLoading(true);
@@ -359,7 +363,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 <span>Market Panel</span>
                                 <h2>Hasdaq 行情</h2>
                             </div>
-                            <strong>市值 {Math.round((Number(company.current_price_milli || 0) / 1000) * Number(company.total_shares || 1000))} H币</strong>
+                            <strong className="hasdaq-explained-metric" title={marketCapTooltip} aria-label={marketCapTooltip}>市值 {marketCap} H币</strong>
                         </div>
                         <HasdaqMarketChart company={company} trades={detail.trades} />
                     </section>
