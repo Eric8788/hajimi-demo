@@ -191,8 +191,8 @@ function getLocalDevProjects(): Project[] {
             id: 301,
             author_id: LOCAL_DEV_USER_ID,
             author_name: LOCAL_DEV_HASDAQ_ADMIN_NAME,
-            title: 'Hajimi Community Portal',
-            description: 'A complete student community portal used as a mature Hasdaq proof.',
+            title: 'Campus Study Kit',
+            description: 'A complete simulated study-tool portal used as a mature Hasdaq proof.',
             emoji: 'H',
             url: 'https://example.com/nova-learning-demo',
             tags: ['AI', 'Tool'],
@@ -554,9 +554,9 @@ function buildHasdaqSeedTrades(
     userIds: Record<string, number>,
 ) {
     const traderNames = ['hasdaq_demo_trader_a', 'hasdaq_demo_trader_b', 'hasdaq_demo_trader_c', 'hasdaq_demo_trader_d', 'hasdaq_demo_trader_e'];
-    const hours = [9, 11, 14, 20];
+    const hours = [16, 20];
     const total = 30 * hours.length;
-    const volatility = sourceSeed === 3 ? 34 : sourceSeed === 2 ? 28 : 32;
+    const volatility = sourceSeed === 3 ? 22 : sourceSeed === 2 ? 18 : 20;
     const rows: Array<{
         companyId: number;
         userId: number;
@@ -577,7 +577,7 @@ function buildHasdaqSeedTrades(
                 + Math.cos(progress * Math.PI * 17 + slotIndex) * volatility * 0.38;
             const rawPrice = index === total - 1 ? currentMilli : trend + wave;
             const priceMilli = Math.max(HASDAQ_MIN_PRICE_MILLI, Math.round(rawPrice / 10) * 10);
-            const shares = 3 + Math.abs((sourceSeed * 13 + index * 7 + slotIndex * 5) % 16);
+            const shares = 2 + Math.abs((sourceSeed * 13 + index * 7 + slotIndex * 5) % 9);
             const username = traderNames[index % traderNames.length];
             const type: HasdaqTradeType = priceMilli >= previousPrice ? 'buy' : 'sell';
             previousPrice = priceMilli;
@@ -603,15 +603,6 @@ async function seedHasdaqDemoMarketIfEmpty() {
     try {
         await client.sql`BEGIN`;
         await client.sql`LOCK TABLE hasdaq_companies IN SHARE ROW EXCLUSIVE MODE`;
-
-        const { rows: countRows } = await client.sql<{ count: number }>`
-          SELECT COUNT(*)::int as count
-          FROM hasdaq_companies
-        `;
-        if (Number(countRows[0]?.count || 0) > 0) {
-            await client.sql`COMMIT`;
-            return;
-        }
 
         const demoUsernames = [
             'hasdaq_demo_reviewer',
@@ -641,13 +632,13 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 name: 'Nova Learning Studio',
                 ticker: 'NOVA',
                 status: 'listed',
-                summary: 'A neutral demo studio building reusable learning tools, quiz helpers, and classroom AI workflows.',
-                futurePlan: 'Ship a reusable quiz review flow and publish monthly progress notes for student testers.',
-                riskStatement: 'Exam weeks may slow product updates, and AI feature quality depends on stable prompts.',
-                currentPriceMilli: 1360,
-                previousClosePriceMilli: 1200,
-                publicSharesRemaining: 126,
-                coinPool: 228,
+                summary: 'Simulated student studio for reusable learning tools, sized for a 50-100 active member AI Club.',
+                futurePlan: 'Ship one quiz review flow this month and publish concise progress notes for student testers.',
+                riskStatement: 'This is demo market data. Hasdaq only moves existing H币 between wallets and stock pools; token redemption remains capped by the monthly AI Club budget.',
+                currentPriceMilli: 1120,
+                previousClosePriceMilli: 1080,
+                publicSharesRemaining: 254,
+                coinPool: 52,
                 listedOffsetDays: -9,
                 lockupOffsetDays: -2,
             },
@@ -657,13 +648,13 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 name: 'QuizForge Studio',
                 ticker: 'QFORGE',
                 status: 'listed',
-                summary: 'A neutral demo studio turning classroom quizzes into repeatable practice rounds and scoreboards.',
-                futurePlan: 'Add teacher preview mode, import templates, and three demo question packs.',
-                riskStatement: 'Question quality still depends on manual review, and small test groups can make rankings noisy.',
-                currentPriceMilli: 860,
-                previousClosePriceMilli: 940,
-                publicSharesRemaining: 205,
-                coinPool: 132,
+                summary: 'Simulated quiz studio with a playable review game and a small but active tester group.',
+                futurePlan: 'Add teacher preview mode, import templates, and two demo question packs before the next club meeting.',
+                riskStatement: 'Question quality still depends on manual review. Thin trading volume can make the demo stock look jumpy.',
+                currentPriceMilli: 960,
+                previousClosePriceMilli: 1010,
+                publicSharesRemaining: 266,
+                coinPool: 31,
                 listedOffsetDays: -14,
                 lockupOffsetDays: -7,
             },
@@ -673,16 +664,16 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 name: 'HarborLab Works',
                 ticker: 'HARBOR',
                 status: 'paused',
-                summary: 'A neutral demo studio experimenting with physics simulations and interactive tutorials.',
+                summary: 'Simulated physics studio kept in the market to show what a temporary trading halt looks like.',
                 futurePlan: 'Publish a clearer maintenance plan and a beginner tutorial before trading resumes.',
-                riskStatement: 'The maintenance schedule is uncertain during competition season.',
-                currentPriceMilli: 720,
-                previousClosePriceMilli: 910,
-                publicSharesRemaining: 231,
-                coinPool: 84,
+                riskStatement: 'The maintenance schedule is uncertain during exam and competition weeks.',
+                currentPriceMilli: 880,
+                previousClosePriceMilli: 950,
+                publicSharesRemaining: 276,
+                coinPool: 20,
                 listedOffsetDays: -20,
                 lockupOffsetDays: -13,
-                pausedReason: '模拟停牌：等待维护公告。',
+                pausedReason: '模拟停牌：等待团队补充维护计划。',
             },
             {
                 key: 'prompt',
@@ -690,13 +681,13 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 name: 'PromptLab Collective',
                 ticker: 'PROMPT',
                 status: 'ipo',
-                summary: 'A neutral demo collective building prompt templates for writing practice and classroom demos.',
-                futurePlan: 'Release a prompt deck demo and collect feedback from the first IPO subscribers.',
-                riskStatement: 'The product is early, and real user feedback is still limited.',
+                summary: 'Simulated IPO company for prompt templates, writing practice, and classroom demo workflows.',
+                futurePlan: 'Release a prompt deck demo and collect feedback from the first small group of IPO subscribers.',
+                riskStatement: 'The product is early. IPO interest should be read as simulated attention, not new redeemable H币.',
                 currentPriceMilli: 1000,
                 previousClosePriceMilli: 1000,
-                publicSharesRemaining: 216,
-                coinPool: 84,
+                publicSharesRemaining: 264,
+                coinPool: 36,
             },
             {
                 key: 'atlas',
@@ -704,7 +695,7 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 name: 'Atlas Campus Lab',
                 ticker: 'ATLAS',
                 status: 'pending_review',
-                summary: 'A neutral demo company in listing review, used to show the admin IPO approval workflow.',
+                summary: 'Simulated company in listing review, used to show the admin IPO approval workflow.',
                 futurePlan: 'Prepare screenshots, a short demo script, and a first public progress announcement.',
                 riskStatement: 'The demo is not listed yet, so no public trading is available.',
                 currentPriceMilli: 1000,
@@ -763,9 +754,74 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 ${hasdaqSeedDate(-32, 10)},
                 ${hasdaqSeedDate(0, 9)}
               )
+              ON CONFLICT (ticker)
+              DO UPDATE SET
+                founder_id = EXCLUDED.founder_id,
+                name = EXCLUDED.name,
+                company_type = EXCLUDED.company_type,
+                summary = EXCLUDED.summary,
+                future_plan = EXCLUDED.future_plan,
+                risk_statement = EXCLUDED.risk_statement,
+                status = EXCLUDED.status,
+                total_shares = EXCLUDED.total_shares,
+                founder_shares = EXCLUDED.founder_shares,
+                public_shares_total = EXCLUDED.public_shares_total,
+                public_shares_remaining = EXCLUDED.public_shares_remaining,
+                ipo_price_milli = EXCLUDED.ipo_price_milli,
+                current_price_milli = EXCLUDED.current_price_milli,
+                previous_close_price_milli = EXCLUDED.previous_close_price_milli,
+                h_coin_pool = EXCLUDED.h_coin_pool,
+                trading_paused_reason = EXCLUDED.trading_paused_reason,
+                listed_at = EXCLUDED.listed_at,
+                lockup_until = EXCLUDED.lockup_until,
+                updated_at = EXCLUDED.updated_at
+              WHERE hasdaq_companies.founder_id = ${userIds[company.founder]}
               RETURNING id
             `;
             companyIds[company.key] = Number(rows[0]?.id || 0);
+        }
+        if (Object.values(companyIds).some(companyId => !companyId)) {
+            throw new Error('Hasdaq demo ticker conflict with non-demo company');
+        }
+
+        for (const companyId of Object.values(companyIds).filter(Boolean)) {
+            await client.sql`
+              DELETE FROM hasdaq_company_members
+              WHERE company_id = ${companyId}
+                AND user_id IN (SELECT id FROM users WHERE username LIKE 'hasdaq_demo_%')
+            `;
+            await client.sql`
+              DELETE FROM hasdaq_positions
+              WHERE company_id = ${companyId}
+                AND user_id IN (SELECT id FROM users WHERE username LIKE 'hasdaq_demo_%')
+            `;
+            await client.sql`
+              DELETE FROM hasdaq_trades
+              WHERE company_id = ${companyId}
+                AND (user_id IS NULL OR user_id IN (SELECT id FROM users WHERE username LIKE 'hasdaq_demo_%'))
+            `;
+            await client.sql`
+              DELETE FROM hasdaq_announcements
+              WHERE company_id = ${companyId}
+                AND author_id IN (SELECT id FROM users WHERE username LIKE 'hasdaq_demo_%')
+            `;
+            await client.sql`
+              DELETE FROM hasdaq_listing_applications
+              WHERE company_id = ${companyId}
+                AND (
+                  applicant_id IN (SELECT id FROM users WHERE username LIKE 'hasdaq_demo_%')
+                  OR reviewed_by IN (SELECT id FROM users WHERE username LIKE 'hasdaq_demo_%')
+                )
+            `;
+            await client.sql`
+              DELETE FROM hasdaq_company_products
+              WHERE company_id = ${companyId}
+            `;
+            await client.sql`
+              DELETE FROM hasdaq_daily_limits
+              WHERE company_id = ${companyId}
+                AND trade_date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date
+            `;
         }
 
         const memberRows = [
@@ -821,29 +877,29 @@ async function seedHasdaqDemoMarketIfEmpty() {
         const positionRows = [
             { company: 'nova', username: 'hasdaq_demo_founder_nova', publicShares: 0, lockedShares: 490, average: 1000 },
             { company: 'nova', username: 'hasdaq_demo_member_nova_b', publicShares: 0, lockedShares: 210, average: 1000 },
-            { company: 'nova', username: 'hasdaq_demo_trader_a', publicShares: 46, lockedShares: 0, average: 1180 },
-            { company: 'nova', username: 'hasdaq_demo_trader_b', publicShares: 40, lockedShares: 0, average: 1210 },
-            { company: 'nova', username: 'hasdaq_demo_trader_c', publicShares: 32, lockedShares: 0, average: 1250 },
-            { company: 'nova', username: 'hasdaq_demo_trader_d', publicShares: 24, lockedShares: 0, average: 1320 },
-            { company: 'nova', username: 'hasdaq_demo_trader_e', publicShares: 32, lockedShares: 0, average: 1280 },
+            { company: 'nova', username: 'hasdaq_demo_trader_a', publicShares: 12, lockedShares: 0, average: 1040 },
+            { company: 'nova', username: 'hasdaq_demo_trader_b', publicShares: 10, lockedShares: 0, average: 1060 },
+            { company: 'nova', username: 'hasdaq_demo_trader_c', publicShares: 9, lockedShares: 0, average: 1080 },
+            { company: 'nova', username: 'hasdaq_demo_trader_d', publicShares: 8, lockedShares: 0, average: 1100 },
+            { company: 'nova', username: 'hasdaq_demo_trader_e', publicShares: 7, lockedShares: 0, average: 1110 },
             { company: 'quiz', username: 'hasdaq_demo_founder_quiz', publicShares: 0, lockedShares: 630, average: 1000 },
             { company: 'quiz', username: 'hasdaq_demo_member_quiz_b', publicShares: 0, lockedShares: 70, average: 1000 },
-            { company: 'quiz', username: 'hasdaq_demo_trader_a', publicShares: 30, lockedShares: 0, average: 910 },
-            { company: 'quiz', username: 'hasdaq_demo_trader_b', publicShares: 24, lockedShares: 0, average: 920 },
-            { company: 'quiz', username: 'hasdaq_demo_trader_c', publicShares: 23, lockedShares: 0, average: 880 },
-            { company: 'quiz', username: 'hasdaq_demo_trader_d', publicShares: 18, lockedShares: 0, average: 860 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_a', publicShares: 10, lockedShares: 0, average: 980 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_b', publicShares: 9, lockedShares: 0, average: 990 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_c', publicShares: 8, lockedShares: 0, average: 970 },
+            { company: 'quiz', username: 'hasdaq_demo_trader_d', publicShares: 7, lockedShares: 0, average: 960 },
             { company: 'harbor', username: 'hasdaq_demo_founder_harbor', publicShares: 0, lockedShares: 700, average: 1000 },
-            { company: 'harbor', username: 'hasdaq_demo_trader_a', publicShares: 25, lockedShares: 0, average: 810 },
-            { company: 'harbor', username: 'hasdaq_demo_trader_b', publicShares: 20, lockedShares: 0, average: 780 },
-            { company: 'harbor', username: 'hasdaq_demo_trader_c', publicShares: 14, lockedShares: 0, average: 760 },
-            { company: 'harbor', username: 'hasdaq_demo_trader_d', publicShares: 10, lockedShares: 0, average: 740 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_a', publicShares: 8, lockedShares: 0, average: 920 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_b', publicShares: 7, lockedShares: 0, average: 900 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_c', publicShares: 5, lockedShares: 0, average: 890 },
+            { company: 'harbor', username: 'hasdaq_demo_trader_d', publicShares: 4, lockedShares: 0, average: 880 },
             { company: 'prompt', username: 'hasdaq_demo_founder_prompt', publicShares: 0, lockedShares: 560, average: 1000 },
             { company: 'prompt', username: 'hasdaq_demo_member_prompt_b', publicShares: 0, lockedShares: 140, average: 1000 },
-            { company: 'prompt', username: 'hasdaq_demo_trader_a', publicShares: 20, lockedShares: 0, average: 1000 },
-            { company: 'prompt', username: 'hasdaq_demo_trader_b', publicShares: 20, lockedShares: 0, average: 1000 },
-            { company: 'prompt', username: 'hasdaq_demo_trader_c', publicShares: 18, lockedShares: 0, average: 1000 },
-            { company: 'prompt', username: 'hasdaq_demo_trader_d', publicShares: 14, lockedShares: 0, average: 1000 },
-            { company: 'prompt', username: 'hasdaq_demo_trader_e', publicShares: 12, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_a', publicShares: 10, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_b', publicShares: 8, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_c', publicShares: 7, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_d', publicShares: 6, lockedShares: 0, average: 1000 },
+            { company: 'prompt', username: 'hasdaq_demo_trader_e', publicShares: 5, lockedShares: 0, average: 1000 },
             { company: 'atlas', username: 'hasdaq_demo_founder_atlas', publicShares: 0, lockedShares: 700, average: 1000 },
         ];
         for (const position of positionRows) {
@@ -861,15 +917,15 @@ async function seedHasdaqDemoMarketIfEmpty() {
         }
 
         const tradeRows = [
-            ...buildHasdaqSeedTrades(companyIds.nova, 1, 920, 1360, userIds),
-            ...buildHasdaqSeedTrades(companyIds.quiz, 2, 1080, 860, userIds),
-            ...buildHasdaqSeedTrades(companyIds.harbor, 3, 980, 720, userIds),
-            ...[
-                { username: 'hasdaq_demo_trader_a', shares: 20, createdAt: hasdaqSeedDate(-4, 12) },
-                { username: 'hasdaq_demo_trader_b', shares: 20, createdAt: hasdaqSeedDate(-3, 10) },
-                { username: 'hasdaq_demo_trader_c', shares: 18, createdAt: hasdaqSeedDate(-3, 14) },
-                { username: 'hasdaq_demo_trader_d', shares: 14, createdAt: hasdaqSeedDate(-2, 11) },
-                { username: 'hasdaq_demo_trader_e', shares: 12, createdAt: hasdaqSeedDate(-1, 16) },
+            ...buildHasdaqSeedTrades(companyIds.nova, 1, 980, 1120, userIds),
+            ...buildHasdaqSeedTrades(companyIds.quiz, 2, 1050, 960, userIds),
+            ...buildHasdaqSeedTrades(companyIds.harbor, 3, 960, 880, userIds),
+            ...[ 
+                { username: 'hasdaq_demo_trader_a', shares: 10, createdAt: hasdaqSeedDate(-4, 12) },
+                { username: 'hasdaq_demo_trader_b', shares: 8, createdAt: hasdaqSeedDate(-3, 10) },
+                { username: 'hasdaq_demo_trader_c', shares: 7, createdAt: hasdaqSeedDate(-3, 14) },
+                { username: 'hasdaq_demo_trader_d', shares: 6, createdAt: hasdaqSeedDate(-2, 11) },
+                { username: 'hasdaq_demo_trader_e', shares: 5, createdAt: hasdaqSeedDate(-1, 16) },
             ].map(row => ({
                 companyId: companyIds.prompt,
                 userId: userIds[row.username],
@@ -899,10 +955,10 @@ async function seedHasdaqDemoMarketIfEmpty() {
         }
 
         const dailyRows = [
-            { company: 'nova', open: 1200, high: 1390, low: 1180, count: 4, volume: 74 },
-            { company: 'quiz', open: 940, high: 960, low: 850, count: 4, volume: 38 },
-            { company: 'harbor', open: 910, high: 930, low: 720, count: 2, volume: 12 },
-            { company: 'prompt', open: 1000, high: 1000, low: 1000, count: 5, volume: 84 },
+            { company: 'nova', open: 1080, high: 1130, low: 1050, count: 3, volume: 18 },
+            { company: 'quiz', open: 1010, high: 1020, low: 950, count: 3, volume: 14 },
+            { company: 'harbor', open: 950, high: 960, low: 880, count: 1, volume: 6 },
+            { company: 'prompt', open: 1000, high: 1000, low: 1000, count: 4, volume: 36 },
         ];
         for (const day of dailyRows) {
             await client.sql`
@@ -922,10 +978,10 @@ async function seedHasdaqDemoMarketIfEmpty() {
         }
 
         const applicationRows = [
-            { company: 'nova', applicant: 'hasdaq_demo_founder_nova', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'Mature learning tools are ready for the demo market.', note: 'Approved for demo listing.', createdAt: hasdaqSeedDate(-12, 12), reviewedAt: hasdaqSeedDate(-10, 13) },
-            { company: 'quiz', applicant: 'hasdaq_demo_founder_quiz', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The quiz battle demo is playable and has repeatable classroom use.', note: 'Approved for demo listing.', createdAt: hasdaqSeedDate(-18, 12), reviewedAt: hasdaqSeedDate(-14, 13) },
+            { company: 'nova', applicant: 'hasdaq_demo_founder_nova', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'Mature learning tools are ready for the school-scale demo market.', note: 'Approved for simulated listing.', createdAt: hasdaqSeedDate(-12, 12), reviewedAt: hasdaqSeedDate(-10, 13) },
+            { company: 'quiz', applicant: 'hasdaq_demo_founder_quiz', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The quiz battle demo is playable and has repeatable classroom use.', note: 'Approved for simulated listing.', createdAt: hasdaqSeedDate(-18, 12), reviewedAt: hasdaqSeedDate(-14, 13) },
             { company: 'harbor', applicant: 'hasdaq_demo_founder_harbor', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The physics demo is mature enough, but trading is paused for maintenance.', note: 'Approved, then paused pending maintenance.', createdAt: hasdaqSeedDate(-24, 12), reviewedAt: hasdaqSeedDate(-20, 13) },
-            { company: 'prompt', applicant: 'hasdaq_demo_founder_prompt', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The offline prompt deck is ready for IPO subscription.', note: 'Approved for IPO subscription.', createdAt: hasdaqSeedDate(-6, 12), reviewedAt: hasdaqSeedDate(-4, 13) },
+            { company: 'prompt', applicant: 'hasdaq_demo_founder_prompt', status: 'approved', reviewer: 'hasdaq_demo_reviewer', reason: 'The offline prompt deck is ready for a small IPO subscription demo.', note: 'Approved for IPO subscription.', createdAt: hasdaqSeedDate(-6, 12), reviewedAt: hasdaqSeedDate(-4, 13) },
             { company: 'atlas', applicant: 'hasdaq_demo_founder_atlas', status: 'pending', reviewer: null, reason: 'Atlas has a review demo and wants to enter IPO.', note: null, createdAt: hasdaqSeedDate(-1, 18), reviewedAt: null },
         ];
         for (const application of applicationRows) {
@@ -936,7 +992,7 @@ async function seedHasdaqDemoMarketIfEmpty() {
                 ${userIds[application.applicant]},
                 ${application.status},
                 ${application.reason},
-                'This is neutral Hasdaq demo data, not a real investment claim.',
+                'This is simulated Hasdaq data. H币 has one wallet balance, Hasdaq does not issue new H币, and token redemption is capped by the monthly AI Club budget.',
                 ${application.note},
                 ${application.reviewer ? userIds[application.reviewer] : null},
                 ${application.reviewedAt},
@@ -946,11 +1002,11 @@ async function seedHasdaqDemoMarketIfEmpty() {
         }
 
         const announcementRows = [
-            { company: 'nova', author: 'hasdaq_demo_founder_nova', title: 'Quiz Bot v0.4 released', body: 'Added review mode and vocabulary practice. The next update will collect feedback from demo holders.', category: 'product', createdAt: hasdaqSeedDate(0, 8) },
-            { company: 'quiz', author: 'hasdaq_demo_founder_quiz', title: 'Question import is faster', body: 'CSV import has been simplified, and the next demo will add teacher preview mode.', category: 'update', createdAt: hasdaqSeedDate(-1, 20) },
+            { company: 'nova', author: 'hasdaq_demo_founder_nova', title: 'Small-market budget note', body: 'This simulated listing is calibrated for a 50-100 active member club. Buying and selling only moves existing H币 between wallets and the stock pool.', category: 'market', createdAt: hasdaqSeedDate(0, 8) },
+            { company: 'quiz', author: 'hasdaq_demo_founder_quiz', title: 'Question import is faster', body: 'CSV import has been simplified, and the next demo will add teacher preview mode. The price move is a market signal, not extra token budget.', category: 'update', createdAt: hasdaqSeedDate(-1, 20) },
             { company: 'harbor', author: 'hasdaq_demo_founder_harbor', title: 'Maintenance note', body: 'Trading is paused while the studio writes a maintenance plan and a beginner tutorial update.', category: 'risk', createdAt: hasdaqSeedDate(-1, 12) },
-            { company: 'prompt', author: 'hasdaq_demo_founder_prompt', title: 'IPO subscription is open', body: 'PromptLab is in IPO subscription. Demo users can inspect the proof before subscribing.', category: 'ipo', createdAt: hasdaqSeedDate(-2, 14) },
-            { company: 'atlas', author: 'hasdaq_demo_founder_atlas', title: 'Listing review submitted', body: 'Atlas Campus Lab has submitted a neutral demo listing application for admin review.', category: 'review', createdAt: hasdaqSeedDate(-1, 18) },
+            { company: 'prompt', author: 'hasdaq_demo_founder_prompt', title: 'IPO subscription is open', body: 'PromptLab is in IPO subscription with a small simulated public float. Token redemption still follows the monthly AI Club budget cap.', category: 'ipo', createdAt: hasdaqSeedDate(-2, 14) },
+            { company: 'atlas', author: 'hasdaq_demo_founder_atlas', title: 'Listing review submitted', body: 'Atlas Campus Lab has submitted a simulated listing application for admin review.', category: 'review', createdAt: hasdaqSeedDate(-1, 18) },
         ];
         for (const announcement of announcementRows) {
             await client.sql`
@@ -1157,7 +1213,7 @@ function getLocalDevHasdaqState(): LocalDevHasdaqState {
             positionOverrides: {},
             applicationOverrides: {},
             applicationsExtra: [],
-            walletBalances: { [LOCAL_DEV_USER_ID]: 128 },
+            walletBalances: { [LOCAL_DEV_USER_ID]: 76 },
             nextCompanyId: 9100,
             nextMemberId: 9100,
             nextProductId: 9100,
@@ -1191,19 +1247,19 @@ function getLocalDevHasdaqCompanies(): HasdaqCompany[] {
             company_type: 'team',
             founder_id: 11,
             founder_name: 'demo_founder_nova',
-            summary: '学生 AI 工具工作室，主打 AI 学习助手、背单词工具和 Quiz Bot，已经有可用 Demo 和稳定更新记录。',
-            pitch: '把零散学习需求做成一套可持续迭代的学生 AI 工具箱，先从高频学习场景拿用户。',
+            summary: '模拟学生公司：做学习工具、Quiz Bot 和课堂 AI workflow，按 50-100 人活跃社团规模设计。',
+            pitch: '小步迭代学习工具，不靠增发 H币，只用真实买卖形成市场信号。',
             slogan: '学习工具，也能像产品一样进化',
-            future_plan: '7 月继续打磨 Quiz Bot 的题库导入，并尝试把 AI 学习助手接入 Function Hall 账号体系。',
-            risk_statement: '考试周更新会变慢；大模型 API 成本和稳定性可能影响功能体验。',
-            current_price_milli: 1360,
-            previous_close_price_milli: 1200,
-            public_shares_remaining: 126,
-            h_coin_pool: 228,
-            holder_count: 18,
-            volume_today: 74,
-            volume_total: 412,
-            user_public_shares: 32,
+            future_plan: '本月只做一个 Quiz Bot 复习流程，并发布简短进度公告。',
+            risk_statement: '模拟数据。Hasdaq 不增发 H币，token 兑换仍受 AI Club 月度预算限制。',
+            current_price_milli: 1120,
+            previous_close_price_milli: 1080,
+            public_shares_remaining: 254,
+            h_coin_pool: 52,
+            holder_count: 9,
+            volume_today: 18,
+            volume_total: 126,
+            user_public_shares: 12,
             user_locked_shares: 0,
             listed_at: hasdaqDemoDate(-9, 15),
             lockup_until: hasdaqDemoDate(-2, 15),
@@ -1215,19 +1271,19 @@ function getLocalDevHasdaqCompanies(): HasdaqCompany[] {
             status: 'listed',
             founder_id: 22,
             founder_name: 'demo_founder_quiz',
-            summary: '把课堂测验做成竞技游戏的小团队，QuizForge Arena 已经可以完整游玩，最近在测试排行榜和错题复盘。',
+            summary: '模拟 quiz 小团队：QuizForge Arena 已经可以完整游玩，最近在测试排行榜和错题复盘。',
             pitch: '让课堂 quiz 从一次性练习变成可复用、可排名、可复盘的学习竞技场。',
             slogan: '把测验变成一场比赛',
-            future_plan: '先完成三套课程题包，再做教师端导入模板。',
-            risk_statement: '题库质量依赖人工整理；如果参与测试的人少，排名数据会不稳定。',
-            current_price_milli: 860,
-            previous_close_price_milli: 940,
-            public_shares_remaining: 205,
-            h_coin_pool: 132,
-            holder_count: 11,
-            volume_today: 38,
-            volume_total: 210,
-            user_public_shares: 18,
+            future_plan: '先完成两套课程题包，再做教师端导入模板。',
+            risk_statement: '题库质量依赖人工整理；小市场流动性低，短期价格会比较敏感。',
+            current_price_milli: 960,
+            previous_close_price_milli: 1010,
+            public_shares_remaining: 266,
+            h_coin_pool: 31,
+            holder_count: 7,
+            volume_today: 14,
+            volume_total: 104,
+            user_public_shares: 8,
             listed_at: hasdaqDemoDate(-14, 15),
             lockup_until: hasdaqDemoDate(-7, 15),
         }),
@@ -1238,18 +1294,18 @@ function getLocalDevHasdaqCompanies(): HasdaqCompany[] {
             status: 'paused',
             founder_id: 31,
             founder_name: 'demo_founder_harbor',
-            summary: '围绕物理模拟和互动教程做实验，代表产品 Harbor Physics Demo 已上线。',
+            summary: '模拟物理工具公司：保留在市场里，用来展示“暂停交易 / 维护说明”的情况。',
             pitch: '用交互模拟把帆船训练变得更直观，适合社团教学、赛前复盘和新手入门。',
             slogan: '把训练搬进模拟器',
             future_plan: '修正风向显示，补一个新手教程。',
-            risk_statement: '核心成员近期备赛，短期维护不稳定。',
-            current_price_milli: 720,
-            previous_close_price_milli: 910,
-            public_shares_remaining: 231,
-            h_coin_pool: 84,
-            holder_count: 7,
-            volume_today: 12,
-            volume_total: 98,
+            risk_statement: '核心成员近期备赛，短期维护不稳定；停牌只是模拟风控案例。',
+            current_price_milli: 880,
+            previous_close_price_milli: 950,
+            public_shares_remaining: 276,
+            h_coin_pool: 20,
+            holder_count: 4,
+            volume_today: 6,
+            volume_total: 55,
             trading_paused_reason: '管理员暂停：等待团队说明维护计划。',
             listed_at: hasdaqDemoDate(-20, 15),
             lockup_until: hasdaqDemoDate(-13, 15),
@@ -1259,21 +1315,21 @@ function getLocalDevHasdaqCompanies(): HasdaqCompany[] {
             name: 'PromptLab Collective',
             ticker: 'PROMPT',
             status: 'ipo',
-            founder_id: LOCAL_DEV_USER_ID,
+            founder_id: 44,
             founder_name: 'demo_founder_prompt',
-            summary: '专注提示词模板、AI 写作练习和课堂展示工具，已有完整可用的本地 Demo。',
+            summary: '模拟 IPO 公司：做提示词模板、AI 写作练习和课堂展示工具，已有完整可用的本地 Demo。',
             pitch: '把好用的提示词沉淀成可复用模板，帮助同学更快完成写作、展示和课堂创作。',
             slogan: '让每个好提示词都能复用',
             future_plan: 'IPO 后先发布 Prompt Deck，再绑定一个公开 Demo 截图页。',
-            risk_statement: '产品还在早期，真实使用反馈不足；团队时间会被考试周影响。',
+            risk_statement: '产品还在早期；IPO 热度只是模拟市场注意力，不代表新增可兑换 H币。',
             current_price_milli: 1000,
             previous_close_price_milli: 1000,
-            public_shares_remaining: 216,
-            h_coin_pool: 84,
-            holder_count: 9,
-            volume_today: 84,
-            volume_total: 84,
-            user_public_shares: 12,
+            public_shares_remaining: 264,
+            h_coin_pool: 36,
+            holder_count: 6,
+            volume_today: 36,
+            volume_total: 36,
+            user_public_shares: 6,
             listed_at: null,
             lockup_until: null,
         }),
@@ -1293,8 +1349,8 @@ function getLocalDevHasdaqMembers(companyId: number): HasdaqCompanyMember[] {
             { id: 4, company_id: companyId, user_id: LOCAL_DEV_USER_ID, username: LOCAL_DEV_HASDAQ_VIEWER_NAME, role: 'member', status: 'invited', equity_percent: 10, founder_shares: 0, accepted_at: null, created_at: hasdaqDemoDate(-1) },
         ],
         9004: [
-            { id: 6, company_id: companyId, user_id: LOCAL_DEV_USER_ID, username: 'demo_member_prompt_a', role: 'founder', status: 'accepted', equity_percent: 80, founder_shares: 560, accepted_at: hasdaqDemoDate(-4), created_at: hasdaqDemoDate(-8) },
-            { id: 7, company_id: companyId, user_id: 44, username: 'demo_member_prompt_b', role: 'member', status: 'invited', equity_percent: 20, founder_shares: 0, accepted_at: null, created_at: hasdaqDemoDate(-8) },
+            { id: 6, company_id: companyId, user_id: 44, username: 'demo_founder_prompt', role: 'founder', status: 'accepted', equity_percent: 80, founder_shares: 560, accepted_at: hasdaqDemoDate(-4), created_at: hasdaqDemoDate(-8) },
+            { id: 7, company_id: companyId, user_id: 45, username: 'demo_member_prompt_b', role: 'member', status: 'accepted', equity_percent: 20, founder_shares: 140, accepted_at: hasdaqDemoDate(-4), created_at: hasdaqDemoDate(-8) },
         ],
     };
     const state = getLocalDevHasdaqState();
@@ -1326,10 +1382,10 @@ function getLocalDevHasdaqProducts(companyId: number): HasdaqCompanyProduct[] {
 function getLocalDevHasdaqAnnouncements(companyId?: number): Array<HasdaqAnnouncement & { company_name: string; ticker: string }> {
     const companyById = new Map(getLocalDevHasdaqCompanies().map(company => [company.id, company]));
     const rows: HasdaqAnnouncement[] = [
-        { id: 1, company_id: 9001, author_id: 11, author_name: 'demo_member_nova_a', title: 'Quiz Bot v0.4 上线', body: '新增错题复盘和英语词汇模式，本周会继续收集同学反馈。', category: 'product', created_at: hasdaqDemoDate(0, 8) },
-        { id: 2, company_id: 9002, author_id: 22, author_name: 'demo_member_quiz_a', title: '题包导入速度变快', body: 'QuizForge 的 CSV 导入已经修好，下一版会加老师预览模式。', category: 'update', created_at: hasdaqDemoDate(-1, 20) },
+        { id: 1, company_id: 9001, author_id: 11, author_name: 'demo_member_nova_a', title: '小市场预算说明', body: '这是一组模拟行情，按 50-100 人活跃社团设计。买卖只是在用户钱包和股票池之间转移 H币。', category: 'market', created_at: hasdaqDemoDate(0, 8) },
+        { id: 2, company_id: 9002, author_id: 22, author_name: 'demo_member_quiz_a', title: '题包导入速度变快', body: 'QuizForge 的 CSV 导入已经修好，下一版会加老师预览模式。价格变化是市场信号，不会增加 token 月预算。', category: 'update', created_at: hasdaqDemoDate(-1, 20) },
         { id: 3, company_id: 9003, author_id: 31, author_name: 'demo_founder_harbor', title: '维护说明', body: '本周暂停交易，团队会在周末补充维护计划和新手教程进度。', category: 'risk', created_at: hasdaqDemoDate(-1, 12) },
-        { id: 4, company_id: 9004, author_id: LOCAL_DEV_USER_ID, author_name: 'demo_member_prompt_a', title: 'IPO 认购开放', body: 'PromptLab 正在 IPO，单人单次最多认购 20 股，欢迎先看 Demo 证明再决定。', category: 'ipo', created_at: hasdaqDemoDate(-2, 14) },
+        { id: 4, company_id: 9004, author_id: 44, author_name: 'demo_founder_prompt', title: 'IPO 认购开放', body: 'PromptLab 正在 IPO，公开认购规模很小。Hasdaq 不增发 H币，token 兑换仍按月度预算审核。', category: 'ipo', created_at: hasdaqDemoDate(-2, 14) },
     ];
     const state = getLocalDevHasdaqState();
     return [...rows, ...state.announcementsExtra]
@@ -1356,9 +1412,9 @@ const LOCAL_DEV_HASDAQ_TRADERS = [
 
 function getLocalDevHasdaqStartPrice(companyId: number, currentMilli: number) {
     const starts: Record<number, number> = {
-        9001: 920,
-        9002: 1080,
-        9003: 980,
+        9001: 980,
+        9002: 1050,
+        9003: 960,
         9004: 1000,
     };
     return starts[companyId] || Math.max(HASDAQ_MIN_PRICE_MILLI, currentMilli - 160);
@@ -1368,9 +1424,9 @@ function generateLocalDevHasdaqMonthTrades(companyId: number): HasdaqTrade[] {
     const company = getLocalDevHasdaqCompanyById(companyId);
     const currentMilli = Number(company?.current_price_milli || HASDAQ_IPO_PRICE_MILLI);
     const startMilli = getLocalDevHasdaqStartPrice(companyId, currentMilli);
-    const volatility = companyId === 9003 ? 34 : companyId === 9002 ? 28 : companyId === 9004 ? 12 : 32;
+    const volatility = companyId === 9003 ? 22 : companyId === 9002 ? 18 : companyId === 9004 ? 10 : 20;
     const rows: HasdaqTrade[] = [];
-    const slots = [9.15, 11.6, 14.2, 20.4];
+    const slots = [16.1, 20.4];
     const total = 30 * slots.length;
     let previousPrice = startMilli;
 
@@ -1384,7 +1440,7 @@ function generateLocalDevHasdaqMonthTrades(companyId: number): HasdaqTrade[] {
             const latePull = progress > 0.82 ? (currentMilli - trend) * (progress - 0.82) * 2.4 : 0;
             const rawPrice = index === total - 1 ? currentMilli : trend + wave + latePull;
             const priceMilli = Math.max(HASDAQ_MIN_PRICE_MILLI, Math.round(rawPrice / 10) * 10);
-            const shares = 3 + Math.abs((companyId + index * 7 + slotIndex * 5) % 16);
+            const shares = 2 + Math.abs((companyId + index * 7 + slotIndex * 5) % 9);
             const trader = LOCAL_DEV_HASDAQ_TRADERS[index % LOCAL_DEV_HASDAQ_TRADERS.length];
             const type = priceMilli >= previousPrice ? 'buy' : 'sell';
             previousPrice = priceMilli;
@@ -1421,9 +1477,9 @@ function getLocalDevHasdaqPosition(companyId: number, userId = LOCAL_DEV_USER_ID
     const override = state.positionOverrides[getLocalDevHasdaqPositionKey(userId, companyId)];
     if (override) return normalizeHasdaqPosition(override);
     const positions: Record<number, HasdaqPosition> = {
-        9001: { user_id: LOCAL_DEV_USER_ID, company_id: 9001, public_shares: 32, locked_shares: 0, average_cost_milli: 1180, updated_at: hasdaqDemoDate(-1) },
-        9002: { user_id: LOCAL_DEV_USER_ID, company_id: 9002, public_shares: 18, locked_shares: 0, average_cost_milli: 910, updated_at: hasdaqDemoDate(-2) },
-        9004: { user_id: LOCAL_DEV_USER_ID, company_id: 9004, public_shares: 12, locked_shares: 560, average_cost_milli: 1000, updated_at: hasdaqDemoDate(-3) },
+        9001: { user_id: LOCAL_DEV_USER_ID, company_id: 9001, public_shares: 12, locked_shares: 0, average_cost_milli: 1060, updated_at: hasdaqDemoDate(-1) },
+        9002: { user_id: LOCAL_DEV_USER_ID, company_id: 9002, public_shares: 8, locked_shares: 0, average_cost_milli: 990, updated_at: hasdaqDemoDate(-2) },
+        9004: { user_id: LOCAL_DEV_USER_ID, company_id: 9004, public_shares: 6, locked_shares: 0, average_cost_milli: 1000, updated_at: hasdaqDemoDate(-3) },
     };
     if (userId !== LOCAL_DEV_USER_ID) return null;
     return positions[companyId] ? normalizeHasdaqPosition(positions[companyId]) : null;
@@ -1484,12 +1540,12 @@ function getLocalDevHasdaqCompanyDetail(identifier: string | number, userId?: nu
 
 function getLocalDevHasdaqWallet(userId: number, balanceDelta = 0): CoinWallet {
     const state = getLocalDevHasdaqState();
-    const balance = (state.walletBalances[userId] ?? 128) + balanceDelta;
+    const balance = (state.walletBalances[userId] ?? 76) + balanceDelta;
     return normalizeCoinWallet({
         user_id: userId,
         balance: Math.max(0, balance),
-        earned_total: 180 + Math.max(0, balanceDelta),
-        spent_total: 52 + Math.max(0, -balanceDelta),
+        earned_total: 118 + Math.max(0, balanceDelta),
+        spent_total: 42 + Math.max(0, -balanceDelta),
         created_at: getShanghaiDateKeyFromOffset(-30),
         updated_at: hasdaqDemoDate(0),
     });
@@ -1503,11 +1559,11 @@ function getLocalDevHasdaqApplications(status: HasdaqListingApplicationStatus | 
             company_id: 9004,
             company_name: companyById.get(9004)?.name || 'PromptLab Collective',
             ticker: companyById.get(9004)?.ticker || 'PROMPT',
-            applicant_id: LOCAL_DEV_USER_ID,
-            applicant_name: LOCAL_DEV_HASDAQ_VIEWER_NAME,
+            applicant_id: 44,
+            applicant_name: 'demo_founder_prompt',
             status: 'pending',
             listing_reason: companyById.get(9004)?.summary || 'PromptLab has a mature offline demo and wants to enter IPO.',
-            risk_statement: companyById.get(9004)?.risk_statement || 'Early usage feedback is still limited.',
+            risk_statement: companyById.get(9004)?.risk_statement || 'Early usage feedback is limited; IPO interest does not create new redeemable H币.',
             review_note: null,
             reviewed_by: null,
             reviewer_name: null,
@@ -1524,7 +1580,7 @@ function getLocalDevHasdaqApplications(status: HasdaqListingApplicationStatus | 
             status: 'approved',
             listing_reason: companyById.get(9001)?.summary || 'Mature AI learning tools are already live.',
             risk_statement: companyById.get(9001)?.risk_statement || 'Exam-week update cadence may slow down.',
-            review_note: 'Approved in the local demo market.',
+            review_note: 'Approved in the school-scale simulated market.',
             reviewed_by: LOCAL_DEV_USER_ID,
             reviewer_name: LOCAL_DEV_HASDAQ_ADMIN_NAME,
             reviewed_at: hasdaqDemoDate(-10, 13),
@@ -2591,7 +2647,7 @@ export async function subscribeHasdaqIpo(userId: number, companyId: number, shar
         if ((currentPosition?.public_shares || 0) + safeShares > HASDAQ_MAX_PUBLIC_SHARES_PER_USER) {
             throw new Error('Position limit reached');
         }
-        const currentBalance = state.walletBalances[userId] ?? 128;
+        const currentBalance = state.walletBalances[userId] ?? 76;
         if (currentBalance < safeShares) throw new Error('Insufficient coins');
         const trade = normalizeHasdaqTrade({
             id: state.nextTradeId++,
@@ -2717,7 +2773,7 @@ export async function executeHasdaqTrade(userId: number, companyId: number, side
         const safeValue = parseHasdaqPositiveInt(value, 0);
         if (!safeValue) throw new Error(side === 'buy' ? 'Invalid buy shares' : 'Invalid sell shares');
         const currentPosition = getLocalDevHasdaqPosition(companyId, userId);
-        const currentBalance = state.walletBalances[userId] ?? 128;
+        const currentBalance = state.walletBalances[userId] ?? 76;
         let shares = safeValue;
         let grossAmount = safeValue;
         let nextPrice = currentPrice;
