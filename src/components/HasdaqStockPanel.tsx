@@ -329,7 +329,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
         <div className="hasdaq-stock-shell">
             <section className="hasdaq-stock-hero glass-panel">
                 <div>
-                    <Link href="/hasdaq" className="hasdaq-back-link" aria-label="返回 Hasdaq 市场">← 返回市场</Link>
+                    <Link href="/hasdaq" className="hasdaq-back-link" aria-label="返回 Hasdaq 市场">返回</Link>
                     <span>{company.status === 'ipo' ? 'IPO Board' : 'Listed Company'}</span>
                     <h1>{company.name}</h1>
                     <p>{companyDescription}</p>

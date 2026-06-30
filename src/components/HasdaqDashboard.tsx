@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { User } from '@/lib/db';
-import { canUseMemberInteractions } from '@/lib/access';
 
 type HasdaqCompany = {
     id: number;
@@ -189,7 +188,6 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
     const [overview, setOverview] = useState<HasdaqOverview>({});
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
-    const canAct = canUseMemberInteractions(user);
 
     const loadOverview = async () => {
         setLoading(true);
@@ -252,14 +250,12 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                 <div>
                     <span>Student Simulation Exchange</span>
                     <h1>Hasdaq</h1>
-                    <p>学生模拟公司可以 IPO、敲钟上市，并用 H币实时买卖公司股票。股价由买卖决定，项目表现和公告是市场信号。</p>
+                    <p>学生模拟公司，一敲钟就开盘。</p>
                     <div className="hasdaq-hero-actions">
                         <Link href="/hasdaq/apply">申请上市</Link>
                         <button type="button" onClick={loadOverview}>刷新市场</button>
                     </div>
-                    {!canAct && (
-                        <p className="hasdaq-note">浏览 Hasdaq 对所有人开放；创建公司、IPO 认购和交易需要完成 Hajimi 认证。</p>
-                    )}
+                    <p className="hasdaq-note">备注：目前下面的数据都是模拟的，并且合规合法。</p>
                 </div>
                 <div className="hasdaq-bell-card">
                     <div className="hasdaq-bell-icon" aria-hidden="true">🔔</div>
@@ -372,10 +368,12 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
                     {getCompanyInitials(company)}
                 </div>
                 <div className="hasdaq-card-title">
-                    <span>{statusLabel(company.status)}</span>
+                    <div className="hasdaq-card-meta">
+                        <span>{statusLabel(company.status)}</span>
+                        <strong className="hasdaq-ticker-badge">代码：{company.ticker}</strong>
+                    </div>
                     <h3>{company.name}</h3>
                 </div>
-                <strong className="hasdaq-ticker-badge">代码：{company.ticker}</strong>
             </div>
             <p className="hasdaq-card-pitch">{description}</p>
             <div className={`hasdaq-card-media is-${variant}`}>
