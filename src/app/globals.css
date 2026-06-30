@@ -9143,7 +9143,7 @@ textarea:hover,
   position: absolute;
   left: 50%;
   bottom: calc(100% + 10px);
-  z-index: 80;
+  z-index: 10000;
   width: max-content;
   max-width: min(320px, calc(100vw - 48px));
   padding: 9px 11px;
@@ -9168,6 +9168,16 @@ textarea:hover,
   opacity: 1;
   visibility: visible;
   transform: translate(-50%, 0);
+}
+
+.hasdaq-market-tape .hasdaq-explained-metric:first-child::after {
+  left: 0;
+  transform: translate(0, 4px);
+}
+
+.hasdaq-market-tape .hasdaq-explained-metric:first-child:hover::after,
+.hasdaq-market-tape .hasdaq-explained-metric:first-child:focus-visible::after {
+  transform: translate(0, 0);
 }
 
 .hasdaq-explained-metric:focus-visible {
@@ -9337,6 +9347,7 @@ textarea:hover,
 .hasdaq-market-panel {
   display: grid;
   gap: 12px;
+  overflow: visible;
 }
 
 .hasdaq-market-tape {
@@ -9380,7 +9391,9 @@ textarea:hover,
 }
 
 .hasdaq-chart-panel {
-  overflow: hidden;
+  position: relative;
+  z-index: 5;
+  overflow: visible;
 }
 
 .hasdaq-chart-panel .hasdaq-lightweight-chart {
