@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { User } from '@/lib/db';
 import { canUseMemberInteractions, getInteractionBlockedMessage } from '@/lib/access';
+import HasdaqInfoTooltip from './HasdaqInfoTooltip';
 import HasdaqMarketChart from './HasdaqMarketChart';
 
 type HasdaqCompanyView = {
@@ -429,7 +430,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 <span>Market Panel</span>
                                 <h2>Hasdaq 行情</h2>
                             </div>
-                            <strong className="hasdaq-explained-metric" data-tooltip={marketCapTooltip} aria-label={marketCapTooltip}>市值 {marketCap} H币</strong>
+                            <HasdaqInfoTooltip as="strong" tooltip={marketCapTooltip}>市值 {marketCap} H币</HasdaqInfoTooltip>
                         </div>
                         <HasdaqMarketChart company={company} trades={detail.trades} />
                     </section>

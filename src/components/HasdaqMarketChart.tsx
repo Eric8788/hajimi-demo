@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import type { CandlestickData, HistogramData, UTCTimestamp } from 'lightweight-charts';
+import HasdaqInfoTooltip from './HasdaqInfoTooltip';
 
 type HasdaqChartCompany = {
     ticker?: string;
@@ -306,18 +307,18 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     return (
         <div className="hasdaq-market-panel">
             <div className="hasdaq-market-tape" aria-label="Hasdaq market data">
-                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.open} aria-label={TAPE_TOOLTIPS.open}>O <b>{sessionOpen.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.high} aria-label={TAPE_TOOLTIPS.high}>H <b>{sessionHigh.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.low} aria-label={TAPE_TOOLTIPS.low}>L <b>{sessionLow.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.close} aria-label={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}>{sessionClose.toFixed(2)}</b></span>
-                <span className="hasdaq-explained-metric" data-tooltip={TAPE_TOOLTIPS.volume} aria-label={TAPE_TOOLTIPS.volume}>Vol <b>{formatMetric(volume)}</b></span>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.open}>O <b>{sessionOpen.toFixed(2)}</b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.high}>H <b>{sessionHigh.toFixed(2)}</b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.low}>L <b>{sessionLow.toFixed(2)}</b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}>{sessionClose.toFixed(2)}</b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.volume}>Vol <b>{formatMetric(volume)}</b></HasdaqInfoTooltip>
             </div>
             <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
             <div className="hasdaq-metrics hasdaq-market-stats">
-                <span className="hasdaq-liquidity-metric" title="系统交易池中还能被买入的股票数量。"><b>{formatMetric(Number(company.pool_shares ?? company.public_shares_remaining ?? 0))}</b> 池内股份</span>
-                <span className="hasdaq-liquidity-metric" title="系统交易池中用于承接卖出的 H币余额。"><b>{formatMetric(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0))}</b> 池内 H币</span>
+                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中还能被买入的股票数量。"><b>{formatMetric(Number(company.pool_shares ?? company.public_shares_remaining ?? 0))}</b> 池内股份</HasdaqInfoTooltip>
+                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中用于承接卖出的 H币余额。"><b>{formatMetric(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0))}</b> 池内 H币</HasdaqInfoTooltip>
                 <span><b>{formatMetric(Number(company.holder_count || 0))}</b> 持有人</span>
-                <span className="hasdaq-explained-metric" data-tooltip={marketCapTooltip} aria-label={marketCapTooltip}><b>{formatMetric(marketCap)}</b> 市值</span>
+                <HasdaqInfoTooltip tooltip={marketCapTooltip}><b>{formatMetric(marketCap)}</b> 市值</HasdaqInfoTooltip>
             </div>
         </div>
     );
