@@ -851,22 +851,13 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         ? '用本月热度图快速查看自己的真实活跃节奏。'
                         : '按时间范围查看 XP、项目打开、帖子互动和贡献来源。'}</p>
                 </div>
-                <div className="profile-analytics-mode-tabs" aria-label="个人数据分析模式">
-                    <button
-                        type="button"
-                        className={analyticsMode === 'overview' ? 'is-active' : ''}
-                        onClick={() => setAnalyticsMode('overview')}
-                    >
-                        概览
-                    </button>
-                    <button
-                        type="button"
-                        className={analyticsMode === 'detail' ? 'is-active' : ''}
-                        onClick={() => setAnalyticsMode('detail')}
-                    >
-                        详细分析
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    className="profile-analytics-heading-action"
+                    onClick={() => setAnalyticsMode(analyticsMode === 'overview' ? 'detail' : 'overview')}
+                >
+                    {analyticsMode === 'overview' ? '详细分析' : '概览'}
+                </button>
             </div>
 
             {analyticsMode === 'overview' ? (
@@ -877,9 +868,6 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                 <h4>本月活跃热度图</h4>
                                 <p>{activeMonthDays} 天留下记录，颜色越深代表当天活跃越集中。</p>
                             </div>
-                            <button type="button" className="profile-analytics-primary-action is-compact" onClick={() => setAnalyticsMode('detail')}>
-                                详细分析
-                            </button>
                         </div>
                         <div className="profile-heatmap-shell">
                             <div className="profile-heatmap profile-heatmap-detail" aria-label="当月活跃方格">
