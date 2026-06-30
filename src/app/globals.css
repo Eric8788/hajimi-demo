@@ -9355,6 +9355,16 @@ textarea:hover,
   margin-top: 0;
 }
 
+.hasdaq-market-stats .hasdaq-liquidity-metric {
+  color: #8a9491;
+  background: rgba(255,255,255,0.48);
+  border-color: rgba(45,52,54,0.06);
+}
+
+.hasdaq-market-stats .hasdaq-liquidity-metric b {
+  color: #66716e;
+}
+
 .hasdaq-price-line {
   width: 100%;
   min-height: 180px;

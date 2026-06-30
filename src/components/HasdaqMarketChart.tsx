@@ -306,10 +306,10 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
             </div>
             <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
             <div className="hasdaq-metrics hasdaq-market-stats">
-                <span><b>{formatMetric(Number(company.pool_shares ?? company.public_shares_remaining ?? 0))}</b> 池内股份</span>
-                <span><b>{formatMetric(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0))}</b> 池内 H币</span>
                 <span><b>{formatMetric(Number(company.holder_count || 0))}</b> 持有人</span>
                 <span><b>{formatMetric(marketCap)}</b> 市值</span>
+                <span className="hasdaq-liquidity-metric" title="交易池里仍可被买入的公开股"><b>{formatMetric(Number(company.pool_shares ?? company.public_shares_remaining ?? 0))}</b> 可买股份</span>
+                <span className="hasdaq-liquidity-metric" title="交易池用于支付卖出成交，不属于公司可花余额"><b>{formatMetric(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0))}</b> 交易池 H币</span>
             </div>
         </div>
     );
