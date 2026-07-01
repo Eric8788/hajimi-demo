@@ -94,6 +94,8 @@ type HasdaqDetail = {
 const HASDAQ_MAX_BUY_SHARES = 10;
 const HASDAQ_MAX_SELL_SHARES = 30;
 const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 50;
+const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
 
 function formatShares(value: number) {
     return new Intl.NumberFormat('zh-CN').format(Math.max(0, Math.floor(Number(value) || 0)));
@@ -183,12 +185,15 @@ function getIpoStats(company?: HasdaqCompanyView) {
         ? Math.min(total, reportedSubscribed)
         : Math.max(0, reportedSubscribed, total - poolRemaining);
     const remaining = isOfficialDemo(company) ? Math.max(0, total - subscribed) : poolRemaining;
+    const bellThresholdShares = Math.min(total, HASDAQ_MIN_BELL_SUBSCRIBED_SHARES);
     return {
         total,
         remaining,
         subscribed,
         subscribers: Math.max(0, Number(company?.ipo_subscription_count || 0)),
         percent: Math.min(100, Math.round((subscribed / total) * 100)),
+        bellThresholdShares,
+        bellThresholdPercent: Math.min(100, Math.max(0, (bellThresholdShares / total) * 100)),
         price: Number(company?.ipo_price_milli || company?.current_price_milli || 1000) / 1000,
     };
 }
@@ -602,12 +607,15 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                     <strong>{ipoStats.subscribed}/{ipoStats.total} 已认购</strong>
                                 </div>
                                 <div className="hasdaq-progress-track" aria-hidden="true">
-                                    <span style={{ width: `${ipoStats.percent}%` }} />
+                                    <span className="hasdaq-progress-fill" style={{ width: `${ipoStats.percent}%` }} />
+                                    <i className="hasdaq-progress-threshold" style={{ left: `${ipoStats.bellThresholdPercent}%` }}>
+                                        <em>{ipoStats.bellThresholdShares} 股可敲钟</em>
+                                    </i>
                                 </div>
                                 <div className="hasdaq-ipo-progress-foot">
                                     <span>公开发行 {ipoStats.total} 股</span>
                                     <span>剩余 {ipoStats.remaining} 股</span>
-                                    <span>敲钟门槛 {ipoStats.subscribers}/5 人 · {ipoStats.subscribed}/50 股</span>
+                                    <span>敲钟门槛 {ipoStats.subscribers}/{HASDAQ_MIN_BELL_SUBSCRIBERS} 人 · {ipoStats.subscribed}/{HASDAQ_MIN_BELL_SUBSCRIBED_SHARES} 股</span>
                                     <span>单人上限 20 股</span>
                                 </div>
                             </div>

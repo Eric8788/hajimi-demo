@@ -60,6 +60,9 @@ type HasdaqOverview = {
     latestAnnouncements?: Array<{ ticker?: string | null; company_name?: string | null; title?: string | null; category?: string | null }>;
 };
 
+const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
+
 function formatPrice(value?: number | null) {
     return `${((Number(value || 0)) / 1000).toFixed(2)} H币`;
 }
@@ -88,12 +91,15 @@ function getIpoStats(company: HasdaqCompany) {
         ? Math.min(total, reportedSubscribed)
         : Math.max(0, reportedSubscribed, total - poolRemaining);
     const remaining = isOfficialDemo(company) ? Math.max(0, total - subscribed) : poolRemaining;
+    const bellThresholdShares = Math.min(total, HASDAQ_MIN_BELL_SUBSCRIBED_SHARES);
     return {
         total,
         remaining,
         subscribed,
         subscribers: Math.max(0, Number(company.ipo_subscription_count || 0)),
         percent: Math.min(100, Math.round((subscribed / total) * 100)),
+        bellThresholdShares,
+        bellThresholdPercent: Math.min(100, Math.max(0, (bellThresholdShares / total) * 100)),
         price: Number(company.ipo_price_milli || company.current_price_milli || 1000) / 1000,
     };
 }
@@ -458,11 +464,14 @@ function IpoProgress({ company, compact = false }: { company: HasdaqCompany; com
                 <strong>{stats.subscribed}/{stats.total} 已认购</strong>
             </div>
             <div className="hasdaq-progress-track" aria-hidden="true">
-                <span style={{ width: `${stats.percent}%` }} />
+                <span className="hasdaq-progress-fill" style={{ width: `${stats.percent}%` }} />
+                <i className="hasdaq-progress-threshold" style={{ left: `${stats.bellThresholdPercent}%` }}>
+                    <em>{stats.bellThresholdShares} 股可敲钟</em>
+                </i>
             </div>
             <div className="hasdaq-ipo-progress-foot">
                 <span>剩余 {stats.remaining} 股</span>
-                <span>敲钟门槛 {stats.subscribers}/5 人 · {stats.subscribed}/50 股</span>
+                <span>敲钟门槛 {stats.subscribers}/{HASDAQ_MIN_BELL_SUBSCRIBERS} 人 · {stats.subscribed}/{HASDAQ_MIN_BELL_SUBSCRIBED_SHARES} 股</span>
                 <span>单人上限 20 股</span>
             </div>
         </div>

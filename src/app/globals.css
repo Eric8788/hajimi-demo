@@ -8990,17 +8990,57 @@ textarea:hover,
 }
 
 .hasdaq-progress-track {
+  position: relative;
   height: 10px;
-  overflow: hidden;
+  margin-top: 28px;
+  overflow: visible;
   border-radius: 999px;
   background: rgba(108,92,231,0.1);
 }
 
-.hasdaq-progress-track span {
+.hasdaq-ipo-progress.is-compact .hasdaq-progress-track {
+  margin-top: 0;
+}
+
+.hasdaq-progress-fill {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #00b894, #6c5ce7);
+}
+
+.hasdaq-progress-threshold {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(45,52,54,0.78);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.8), 0 6px 14px rgba(45,52,54,0.16);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.hasdaq-progress-threshold em {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5px);
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #2d3436;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(45,52,54,0.08);
+  box-shadow: 0 7px 14px rgba(45,52,54,0.08);
+  font-size: 0.56rem;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.hasdaq-ipo-progress.is-compact .hasdaq-progress-threshold em {
+  display: none;
 }
 
 .hasdaq-card-media {
