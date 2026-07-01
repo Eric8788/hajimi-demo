@@ -1030,8 +1030,8 @@ function getLocalDevHasdaqCompanies(): HasdaqCompany[] {
             volume_today: HASDAQ_OFFICIAL_DEMO_SEEDED_SHARES,
             volume_total: HASDAQ_OFFICIAL_DEMO_SEEDED_SHARES,
             product_count: 1,
-            ipo_subscription_count: 5,
-            ipo_subscribed_shares: HASDAQ_OFFICIAL_DEMO_SEEDED_SHARES,
+            ipo_subscription_count: 0,
+            ipo_subscribed_shares: 0,
             user_public_shares: 6,
             listed_at: null,
             lockup_until: null,
@@ -1524,13 +1524,15 @@ export async function getHasdaqOverview(userId?: number | null): Promise<HasdaqO
       ),
       ipo_stats AS (
         SELECT
-          company_id,
-          COUNT(DISTINCT user_id)::int as ipo_subscription_count,
-          COALESCE(SUM(shares), 0)::int as ipo_subscribed_shares
+          hasdaq_trades.company_id,
+          COUNT(DISTINCT hasdaq_trades.user_id)::int as ipo_subscription_count,
+          COALESCE(SUM(hasdaq_trades.shares), 0)::int as ipo_subscribed_shares
         FROM hasdaq_trades
-        WHERE type = 'ipo_buy'
-          AND status = 'filled'
-        GROUP BY company_id
+        LEFT JOIN users ipo_users ON ipo_users.id = hasdaq_trades.user_id
+        WHERE hasdaq_trades.type = 'ipo_buy'
+          AND hasdaq_trades.status = 'filled'
+          AND COALESCE(ipo_users.username, '') NOT LIKE 'hasdaq_demo_%'
+        GROUP BY hasdaq_trades.company_id
       ),
       viewer_positions AS (
         SELECT company_id, public_shares as user_public_shares, locked_shares as user_locked_shares
@@ -1643,13 +1645,15 @@ export async function getHasdaqCompanyDetail(identifier: string | number, userId
       ),
       ipo_stats AS (
         SELECT
-          company_id,
-          COUNT(DISTINCT user_id)::int as ipo_subscription_count,
-          COALESCE(SUM(shares), 0)::int as ipo_subscribed_shares
+          hasdaq_trades.company_id,
+          COUNT(DISTINCT hasdaq_trades.user_id)::int as ipo_subscription_count,
+          COALESCE(SUM(hasdaq_trades.shares), 0)::int as ipo_subscribed_shares
         FROM hasdaq_trades
-        WHERE type = 'ipo_buy'
-          AND status = 'filled'
-        GROUP BY company_id
+        LEFT JOIN users ipo_users ON ipo_users.id = hasdaq_trades.user_id
+        WHERE hasdaq_trades.type = 'ipo_buy'
+          AND hasdaq_trades.status = 'filled'
+          AND COALESCE(ipo_users.username, '') NOT LIKE 'hasdaq_demo_%'
+        GROUP BY hasdaq_trades.company_id
       ),
       viewer_positions AS (
         SELECT company_id, public_shares as user_public_shares, locked_shares as user_locked_shares
@@ -2010,13 +2014,15 @@ export async function getAdminHasdaqOverview(status: HasdaqListingApplicationSta
       ),
       ipo_stats AS (
         SELECT
-          company_id,
-          COUNT(DISTINCT user_id)::int as ipo_subscription_count,
-          COALESCE(SUM(shares), 0)::int as ipo_subscribed_shares
+          hasdaq_trades.company_id,
+          COUNT(DISTINCT hasdaq_trades.user_id)::int as ipo_subscription_count,
+          COALESCE(SUM(hasdaq_trades.shares), 0)::int as ipo_subscribed_shares
         FROM hasdaq_trades
-        WHERE type = 'ipo_buy'
-          AND status = 'filled'
-        GROUP BY company_id
+        LEFT JOIN users ipo_users ON ipo_users.id = hasdaq_trades.user_id
+        WHERE hasdaq_trades.type = 'ipo_buy'
+          AND hasdaq_trades.status = 'filled'
+          AND COALESCE(ipo_users.username, '') NOT LIKE 'hasdaq_demo_%'
+        GROUP BY hasdaq_trades.company_id
       )
       SELECT
         hasdaq_companies.*,
