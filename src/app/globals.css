@@ -9654,6 +9654,62 @@ textarea:hover,
   align-items: end;
 }
 
+.hasdaq-founder-preview {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  color: #2d3436;
+  background: rgba(255,255,255,0.68);
+  border: 1px solid rgba(45,52,54,0.08);
+}
+
+.hasdaq-founder-preview-head,
+.hasdaq-founder-preview-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.hasdaq-founder-preview-head {
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(45,52,54,0.08);
+  color: #636e72;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.hasdaq-founder-preview-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 900;
+}
+
+.hasdaq-founder-preview-row strong {
+  font-size: 0.88rem;
+}
+
+.hasdaq-founder-preview-row em {
+  min-width: 46px;
+  color: #636e72;
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 900;
+  text-align: right;
+}
+
+.hasdaq-founder-preview-warning {
+  margin: 0;
+  color: #b35f00 !important;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .hasdaq-file-field {
   display: grid;
   gap: 7px;

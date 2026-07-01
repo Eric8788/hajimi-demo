@@ -9,6 +9,8 @@ type MemberDraft = {
     allocationPercent: number;
 };
 
+const HASDAQ_FOUNDER_SHARE_POOL = 700;
+
 export default function HasdaqApplyPanel({ user }: { user: User | null }) {
     const canApply = canUseMemberInteractions(user);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -46,6 +48,25 @@ export default function HasdaqApplyPanel({ user }: { user: User | null }) {
     const removeMember = (index: number) => {
         setMembers(current => current.filter((_, itemIndex) => itemIndex !== index));
     };
+
+    const memberAllocationPreview = members.map((member, index) => {
+        const percent = Math.max(0, Math.min(100, Math.round(Number(member.allocationPercent || 0))));
+        return {
+            key: `${index}-${member.username || 'member'}`,
+            name: member.username.trim() || `成员 ${index + 1}`,
+            percent,
+        };
+    });
+    const memberAllocationTotal = memberAllocationPreview.reduce((sum, member) => sum + member.percent, 0);
+    const allocationDenominator = Math.max(100, memberAllocationTotal);
+    const previewMembers = memberAllocationPreview.map(member => ({
+        ...member,
+        shares: Math.floor(HASDAQ_FOUNDER_SHARE_POOL * member.percent / allocationDenominator),
+    }));
+    const previewFounderPercent = Math.max(0, 100 - memberAllocationTotal);
+    const previewFounderShares = memberAllocationTotal > 100
+        ? 0
+        : HASDAQ_FOUNDER_SHARE_POOL - previewMembers.reduce((sum, member) => sum + member.shares, 0);
 
     const updateProofImage = (file: File | undefined) => {
         setProofImageName(file?.name || '');
@@ -198,6 +219,27 @@ export default function HasdaqApplyPanel({ user }: { user: User | null }) {
                         <button type="button" onClick={() => removeMember(index)}>移除</button>
                     </div>
                 ))}
+                <div className="hasdaq-founder-preview">
+                    <div className="hasdaq-founder-preview-head">
+                        <span>创始股分配预览</span>
+                        <strong>{HASDAQ_FOUNDER_SHARE_POOL} 股</strong>
+                    </div>
+                    <div className="hasdaq-founder-preview-row">
+                        <span>主理人（你）</span>
+                        <strong>{previewFounderShares} 股</strong>
+                        <em>{previewFounderPercent}%</em>
+                    </div>
+                    {previewMembers.map(member => (
+                        <div className="hasdaq-founder-preview-row" key={member.key}>
+                            <span>{member.name}</span>
+                            <strong>{member.shares} 股</strong>
+                            <em>{member.percent}%</em>
+                        </div>
+                    ))}
+                    {memberAllocationTotal > 100 && (
+                        <p className="hasdaq-founder-preview-warning">成员比例超过 100%，系统会按填写比例重新折算；建议提交前调到 100% 以内。</p>
+                    )}
+                </div>
             </section>
 
             <section className="hasdaq-apply-block">

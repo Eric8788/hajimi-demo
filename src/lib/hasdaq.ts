@@ -255,9 +255,11 @@ const HASDAQ_MAX_IPO_SHARES_PER_ORDER = 20;
 const HASDAQ_MAX_IPO_SHARES_PER_USER = 20;
 const HASDAQ_MAX_BUY_SHARES = 10;
 const HASDAQ_MAX_SELL_SHARES = 30;
-const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 60;
+const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 50;
 const HASDAQ_MAX_DAILY_TRADES = 5;
 const HASDAQ_DAILY_LIMIT_PERCENT = 20;
+const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
 const HASDAQ_OFFICIAL_DEMO_TICKER = 'HJM';
 const HASDAQ_OFFICIAL_DEMO_NAME = 'Hajimi Platform';
 const HASDAQ_OFFICIAL_DEMO_SEEDED_SHARES = 40;
@@ -1446,30 +1448,39 @@ async function writeHasdaqProductsForClient(client: VercelPoolClient, companyId:
 }
 
 async function writeHasdaqMembersForClient(client: VercelPoolClient, companyId: number, founderId: number, members: unknown) {
+    const preparedMembers = new Map<number, number>();
+
+    if (Array.isArray(members)) {
+        for (const member of members.slice(0, 12)) {
+            const item = member as Record<string, unknown>;
+            let userId = parseHasdaqPositiveInt(item.userId || item.user_id, 0);
+            const username = normalizeHasdaqText(item.username, 80);
+            if (!userId && username) {
+                const { rows } = await client.sql<{ id: number }>`
+                  SELECT id
+                  FROM users
+                  WHERE lower(username) = lower(${username})
+                  LIMIT 1
+                `;
+                userId = Number(rows[0]?.id || 0);
+            }
+            if (!userId || userId === founderId) continue;
+            const equity = Math.min(Math.max(parseHasdaqPositiveInt(item.equityPercent || item.equity_percent, 0), 0), 100);
+            preparedMembers.set(userId, equity);
+        }
+    }
+
+    const memberEquityTotal = Array.from(preparedMembers.values()).reduce((sum, equity) => sum + equity, 0);
+    const founderEquity = Math.max(0, 100 - memberEquityTotal);
+
     await client.sql`
       INSERT INTO hasdaq_company_members (company_id, user_id, role, status, equity_percent, accepted_at)
-      VALUES (${companyId}, ${founderId}, 'founder', 'accepted', 100, CURRENT_TIMESTAMP)
+      VALUES (${companyId}, ${founderId}, 'founder', 'accepted', ${founderEquity}, CURRENT_TIMESTAMP)
       ON CONFLICT (company_id, user_id)
-      DO UPDATE SET role = 'founder', status = 'accepted', equity_percent = 100, accepted_at = CURRENT_TIMESTAMP
+      DO UPDATE SET role = 'founder', status = 'accepted', equity_percent = ${founderEquity}, accepted_at = CURRENT_TIMESTAMP
     `;
 
-    if (!Array.isArray(members)) return;
-
-    for (const member of members.slice(0, 12)) {
-        const item = member as Record<string, unknown>;
-        let userId = parseHasdaqPositiveInt(item.userId || item.user_id, 0);
-        const username = normalizeHasdaqText(item.username, 80);
-        if (!userId && username) {
-            const { rows } = await client.sql<{ id: number }>`
-              SELECT id
-              FROM users
-              WHERE lower(username) = lower(${username})
-              LIMIT 1
-            `;
-            userId = Number(rows[0]?.id || 0);
-        }
-        if (!userId || userId === founderId) continue;
-        const equity = Math.min(Math.max(parseHasdaqPositiveInt(item.equityPercent || item.equity_percent, 0), 0), 100);
+    for (const [userId, equity] of preparedMembers) {
         await client.sql`
           INSERT INTO hasdaq_company_members (company_id, user_id, role, status, equity_percent)
           VALUES (${companyId}, ${userId}, 'member', 'invited', ${equity})
@@ -1974,7 +1985,7 @@ export async function getAdminHasdaqOverview(status: HasdaqListingApplicationSta
       ipo_stats AS (
         SELECT
           company_id,
-          COUNT(*)::int as ipo_subscription_count,
+          COUNT(DISTINCT user_id)::int as ipo_subscription_count,
           COALESCE(SUM(shares), 0)::int as ipo_subscribed_shares
         FROM hasdaq_trades
         WHERE type = 'ipo_buy'
@@ -2098,8 +2109,14 @@ export async function bellHasdaqListing(adminId: number, companyId: number) {
         const company = getLocalDevHasdaqCompanyById(companyId);
         if (!company) throw new Error('Company not found');
         if (company.status !== 'ipo') throw new Error('Company is not in IPO');
-        if (!getLocalDevHasdaqTrades(companyId).some(trade => trade.type === 'ipo_buy')) {
-            throw new Error('Company has no IPO subscriptions');
+        const ipoTrades = getLocalDevHasdaqTrades(companyId).filter(trade => trade.type === 'ipo_buy' && (!trade.status || trade.status === 'filled'));
+        const subscriberCount = new Set(ipoTrades.map(trade => Number(trade.user_id || 0)).filter(Boolean)).size;
+        const subscribedShares = ipoTrades.reduce((sum, trade) => sum + Number(trade.shares || 0), 0);
+        if (company.company_type !== 'official_demo' && subscriberCount < HASDAQ_MIN_BELL_SUBSCRIBERS) {
+            throw new Error('Company has insufficient IPO subscribers');
+        }
+        if (company.company_type !== 'official_demo' && subscribedShares < HASDAQ_MIN_BELL_SUBSCRIBED_SHARES) {
+            throw new Error('Company has insufficient IPO shares');
         }
         const updated = normalizeHasdaqCompany({
             ...company,
@@ -2135,14 +2152,23 @@ export async function bellHasdaqListing(adminId: number, companyId: number) {
         if (!company) throw new Error('Company not found');
         if (company.status !== 'ipo') throw new Error('Company is not in IPO');
 
-        const { rows: subscriptionRows } = await client.sql<{ count: number }>`
-          SELECT COUNT(*)::int as count
+        const { rows: subscriptionRows } = await client.sql<{ subscriber_count: number; subscribed_shares: number }>`
+          SELECT
+            COUNT(DISTINCT user_id)::int as subscriber_count,
+            COALESCE(SUM(shares), 0)::int as subscribed_shares
           FROM hasdaq_trades
           WHERE company_id = ${companyId}
             AND type = 'ipo_buy'
             AND status = 'filled'
         `;
-        if (Number(subscriptionRows[0]?.count || 0) <= 0) throw new Error('Company has no IPO subscriptions');
+        const subscriberCount = Number(subscriptionRows[0]?.subscriber_count || 0);
+        const subscribedShares = Number(subscriptionRows[0]?.subscribed_shares || 0);
+        if (company.company_type !== 'official_demo' && subscriberCount < HASDAQ_MIN_BELL_SUBSCRIBERS) {
+            throw new Error('Company has insufficient IPO subscribers');
+        }
+        if (company.company_type !== 'official_demo' && subscribedShares < HASDAQ_MIN_BELL_SUBSCRIBED_SHARES) {
+            throw new Error('Company has insufficient IPO shares');
+        }
 
         const { rows: memberRows } = await client.sql<HasdaqCompanyMember>`
           SELECT *

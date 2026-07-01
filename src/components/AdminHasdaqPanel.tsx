@@ -46,6 +46,9 @@ type AdminHasdaqPayload = {
     companies?: AdminHasdaqCompany[];
 };
 
+const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
+
 function formatTime(value?: string | Date | null) {
     if (!value) return '';
     return new Date(value).toLocaleString('zh-CN');
@@ -55,15 +58,20 @@ function getBellChecklist(company: AdminHasdaqCompany) {
     const hasProfile = Boolean(company.name && company.ticker && (company.summary || company.description));
     const hasProduct = Number(company.product_count || 0) > 0;
     const ipoOpen = company.status === 'ipo';
-    const hasSubscriptions = Number(company.ipo_subscription_count || 0) > 0 || Number(company.ipo_subscribed_shares || 0) > 0;
-    const ready = hasProfile && hasProduct && ipoOpen && hasSubscriptions;
+    const officialDemo = company.company_type === 'official_demo';
+    const subscriberCount = Number(company.ipo_subscription_count || 0);
+    const subscribedShares = Number(company.ipo_subscribed_shares || 0);
+    const enoughSubscribers = officialDemo || subscriberCount >= HASDAQ_MIN_BELL_SUBSCRIBERS;
+    const enoughShares = officialDemo || subscribedShares >= HASDAQ_MIN_BELL_SUBSCRIBED_SHARES;
+    const ready = hasProfile && hasProduct && ipoOpen && enoughSubscribers && enoughShares;
     return {
         ready,
         items: [
             { label: '公司资料', ok: hasProfile },
             { label: '成熟产品', ok: hasProduct },
             { label: 'IPO 已开启', ok: ipoOpen },
-            { label: '已有认购记录', ok: hasSubscriptions },
+            { label: officialDemo ? '官方示范免人数阈值' : `认购人数 ${subscriberCount}/${HASDAQ_MIN_BELL_SUBSCRIBERS}`, ok: enoughSubscribers },
+            { label: officialDemo ? '官方示范免股数阈值' : `认购股数 ${subscribedShares}/${HASDAQ_MIN_BELL_SUBSCRIBED_SHARES}`, ok: enoughShares },
             { label: '可敲钟', ok: ready },
         ],
     };

@@ -43,6 +43,8 @@ type HasdaqCompany = {
     user_locked_shares?: number | null;
     public_shares?: number | null;
     locked_shares?: number | null;
+    ipo_subscription_count?: number | null;
+    ipo_subscribed_shares?: number | null;
 };
 
 type HasdaqOverview = {
@@ -81,11 +83,12 @@ function isOfficialDemo(company: HasdaqCompany) {
 function getIpoStats(company: HasdaqCompany) {
     const total = Math.max(1, Number(company.public_shares_total ?? company.public_shares ?? 300));
     const remaining = Math.max(0, Math.min(total, Number(company.public_shares_remaining ?? company.pool_shares ?? total)));
-    const subscribed = Math.max(0, total - remaining);
+    const subscribed = Math.max(0, Number(company.ipo_subscribed_shares ?? total - remaining));
     return {
         total,
         remaining,
         subscribed,
+        subscribers: Math.max(0, Number(company.ipo_subscription_count || 0)),
         percent: Math.min(100, Math.round((subscribed / total) * 100)),
         price: Number(company.ipo_price_milli || company.current_price_milli || 1000) / 1000,
     };
@@ -282,7 +285,7 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                         <Link href="/hasdaq/apply">申请上市</Link>
                         <button type="button" onClick={loadOverview}>刷新市场</button>
                     </div>
-                    <p className="hasdaq-note">备注：Hasdaq 仅用于校内学习与模拟交易，所有数据均为演示；官方示范股只用于演示机制，不涉及真实证券、现金收益或个人投资回报。</p>
+                    <p className="hasdaq-note">备注：Hasdaq 仅用于校内学习与模拟交易；H币交易只代表平台内模拟市场行为，不涉及真实证券、股权或现金收益。</p>
                 </div>
                 <div className="hasdaq-bell-card">
                     <div className="hasdaq-bell-icon" aria-hidden="true">🔔</div>
@@ -456,6 +459,7 @@ function IpoProgress({ company, compact = false }: { company: HasdaqCompany; com
             </div>
             <div className="hasdaq-ipo-progress-foot">
                 <span>剩余 {stats.remaining} 股</span>
+                <span>敲钟门槛 {stats.subscribers}/5 人 · {stats.subscribed}/50 股</span>
                 <span>单人上限 20 股</span>
             </div>
         </div>

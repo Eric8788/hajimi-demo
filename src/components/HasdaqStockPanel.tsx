@@ -30,6 +30,8 @@ type HasdaqCompanyView = {
     holder_count?: number | null;
     trade_volume_today?: number | null;
     volume_today?: number | null;
+    ipo_subscription_count?: number | null;
+    ipo_subscribed_shares?: number | null;
 };
 
 type HasdaqProductView = {
@@ -90,7 +92,7 @@ type HasdaqDetail = {
 
 const HASDAQ_MAX_BUY_SHARES = 10;
 const HASDAQ_MAX_SELL_SHARES = 30;
-const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 60;
+const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 50;
 
 function formatPrice(value?: number | null) {
     return `${((Number(value || 0)) / 1000).toFixed(2)} H币`;
@@ -179,11 +181,12 @@ function isOfficialDemo(company?: HasdaqCompanyView) {
 function getIpoStats(company?: HasdaqCompanyView) {
     const total = Math.max(1, Number(company?.public_shares_total ?? 300));
     const remaining = Math.max(0, Math.min(total, Number(company?.public_shares_remaining ?? company?.pool_shares ?? total)));
-    const subscribed = Math.max(0, total - remaining);
+    const subscribed = Math.max(0, Number(company?.ipo_subscribed_shares ?? total - remaining));
     return {
         total,
         remaining,
         subscribed,
+        subscribers: Math.max(0, Number(company?.ipo_subscription_count || 0)),
         percent: Math.min(100, Math.round((subscribed / total) * 100)),
         price: Number(company?.ipo_price_milli || company?.current_price_milli || 1000) / 1000,
     };
@@ -563,6 +566,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 <div className="hasdaq-ipo-progress-foot">
                                     <span>公开发行 {ipoStats.total} 股</span>
                                     <span>剩余 {ipoStats.remaining} 股</span>
+                                    <span>敲钟门槛 {ipoStats.subscribers}/5 人 · {ipoStats.subscribed}/50 股</span>
                                     <span>单人上限 20 股</span>
                                 </div>
                             </div>
