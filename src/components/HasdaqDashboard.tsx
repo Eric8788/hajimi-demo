@@ -83,7 +83,7 @@ function isOfficialDemo(company: HasdaqCompany) {
 function getIpoStats(company: HasdaqCompany) {
     const total = Math.max(1, Number(company.public_shares_total ?? company.public_shares ?? 300));
     const remaining = Math.max(0, Math.min(total, Number(company.public_shares_remaining ?? company.pool_shares ?? total)));
-    const subscribed = Math.max(0, Number(company.ipo_subscribed_shares ?? total - remaining));
+    const subscribed = Math.max(0, Number(company.ipo_subscribed_shares || 0), total - remaining);
     return {
         total,
         remaining,

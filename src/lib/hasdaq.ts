@@ -1522,6 +1522,16 @@ export async function getHasdaqOverview(userId?: number | null): Promise<HasdaqO
         WHERE public_shares + locked_shares > 0
         GROUP BY company_id
       ),
+      ipo_stats AS (
+        SELECT
+          company_id,
+          COUNT(DISTINCT user_id)::int as ipo_subscription_count,
+          COALESCE(SUM(shares), 0)::int as ipo_subscribed_shares
+        FROM hasdaq_trades
+        WHERE type = 'ipo_buy'
+          AND status = 'filled'
+        GROUP BY company_id
+      ),
       viewer_positions AS (
         SELECT company_id, public_shares as user_public_shares, locked_shares as user_locked_shares
         FROM hasdaq_positions
@@ -1533,6 +1543,8 @@ export async function getHasdaqOverview(userId?: number | null): Promise<HasdaqO
         COALESCE(today_volume.volume_today, 0)::int as volume_today,
         COALESCE(total_volume.volume_total, 0)::int as volume_total,
         COALESCE(holder_stats.holder_count, 0)::int as holder_count,
+        COALESCE(ipo_stats.ipo_subscription_count, 0)::int as ipo_subscription_count,
+        COALESCE(ipo_stats.ipo_subscribed_shares, 0)::int as ipo_subscribed_shares,
         COALESCE(viewer_positions.user_public_shares, 0)::int as user_public_shares,
         COALESCE(viewer_positions.user_locked_shares, 0)::int as user_locked_shares
       FROM hasdaq_companies
@@ -1540,6 +1552,7 @@ export async function getHasdaqOverview(userId?: number | null): Promise<HasdaqO
       LEFT JOIN today_volume ON today_volume.company_id = hasdaq_companies.id
       LEFT JOIN total_volume ON total_volume.company_id = hasdaq_companies.id
       LEFT JOIN holder_stats ON holder_stats.company_id = hasdaq_companies.id
+      LEFT JOIN ipo_stats ON ipo_stats.company_id = hasdaq_companies.id
       LEFT JOIN viewer_positions ON viewer_positions.company_id = hasdaq_companies.id
       WHERE hasdaq_companies.status IN ('ipo', 'listed', 'paused')
       ORDER BY
@@ -1628,6 +1641,16 @@ export async function getHasdaqCompanyDetail(identifier: string | number, userId
         WHERE status = 'filled'
         GROUP BY company_id
       ),
+      ipo_stats AS (
+        SELECT
+          company_id,
+          COUNT(DISTINCT user_id)::int as ipo_subscription_count,
+          COALESCE(SUM(shares), 0)::int as ipo_subscribed_shares
+        FROM hasdaq_trades
+        WHERE type = 'ipo_buy'
+          AND status = 'filled'
+        GROUP BY company_id
+      ),
       viewer_positions AS (
         SELECT company_id, public_shares as user_public_shares, locked_shares as user_locked_shares
         FROM hasdaq_positions
@@ -1639,6 +1662,8 @@ export async function getHasdaqCompanyDetail(identifier: string | number, userId
         COALESCE(holder_stats.holder_count, 0)::int as holder_count,
         COALESCE(today_volume.volume_today, 0)::int as volume_today,
         COALESCE(total_volume.volume_total, 0)::int as volume_total,
+        COALESCE(ipo_stats.ipo_subscription_count, 0)::int as ipo_subscription_count,
+        COALESCE(ipo_stats.ipo_subscribed_shares, 0)::int as ipo_subscribed_shares,
         COALESCE(viewer_positions.user_public_shares, 0)::int as user_public_shares,
         COALESCE(viewer_positions.user_locked_shares, 0)::int as user_locked_shares
       FROM hasdaq_companies
@@ -1646,6 +1671,7 @@ export async function getHasdaqCompanyDetail(identifier: string | number, userId
       LEFT JOIN holder_stats ON holder_stats.company_id = hasdaq_companies.id
       LEFT JOIN today_volume ON today_volume.company_id = hasdaq_companies.id
       LEFT JOIN total_volume ON total_volume.company_id = hasdaq_companies.id
+      LEFT JOIN ipo_stats ON ipo_stats.company_id = hasdaq_companies.id
       LEFT JOIN viewer_positions ON viewer_positions.company_id = hasdaq_companies.id
       WHERE (${id} > 0 AND hasdaq_companies.id = ${id})
          OR (${ticker} != '' AND hasdaq_companies.ticker = ${ticker})
