@@ -8594,13 +8594,13 @@ textarea:hover,
     linear-gradient(135deg, rgba(255,255,255,0.78), rgba(238,246,255,0.7));
 }
 
-.hasdaq-hero span,
-.hasdaq-stock-hero span,
+.hasdaq-hero > div > span,
+.hasdaq-stock-hero > div > span,
 .hasdaq-section-head span,
 .hasdaq-rank-panel > span,
-.hasdaq-bell-card span,
-.hasdaq-price-board span,
-.hasdaq-position-card span {
+.hasdaq-bell-card > span,
+.hasdaq-price-board > span,
+.hasdaq-position-card > span {
   color: #6c5ce7;
   font-size: 0.76rem;
   font-weight: 950;
@@ -9200,7 +9200,7 @@ textarea:hover,
   gap: 7px;
 }
 
-.hasdaq-metrics span {
+.hasdaq-metrics > span {
   border-radius: 999px;
   padding: 6px 9px;
   color: #636e72;
@@ -9444,7 +9444,7 @@ textarea:hover,
   padding-bottom: 10px;
 }
 
-.hasdaq-market-tape span {
+.hasdaq-market-tape > span {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
