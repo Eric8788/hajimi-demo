@@ -429,7 +429,6 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
                 </div>
             </div>
             <p className="hasdaq-card-pitch">{description}</p>
-            {officialDemo && <p className="hasdaq-demo-rule">用于演示 IPO、敲钟和交易机制；不参与学生榜单或月度奖励。</p>}
             <div className={`hasdaq-card-media is-${variant}`}>
                 {variant === 'ipo' && <CompanyPoster company={company} />}
                 <MiniTrend company={company} variant={variant} />
