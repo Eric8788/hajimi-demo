@@ -282,7 +282,7 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
                         <Link href="/hasdaq/apply">申请上市</Link>
                         <button type="button" onClick={loadOverview}>刷新市场</button>
                     </div>
-                    <p className="hasdaq-note">备注：Hasdaq 使用 H币做模拟交易；官方示范股只用于演示机制，不代表个人收益。</p>
+                    <p className="hasdaq-note">备注：Hasdaq 仅用于校内学习与模拟交易，所有数据均为演示；官方示范股只用于演示机制，不涉及真实证券、现金收益或个人投资回报。</p>
                 </div>
                 <div className="hasdaq-bell-card">
                     <div className="hasdaq-bell-icon" aria-hidden="true">🔔</div>
