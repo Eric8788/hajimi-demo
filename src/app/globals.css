@@ -9864,11 +9864,78 @@ textarea:hover,
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
+  border-left: 4px solid var(--product-accent, rgba(108,92,231,0.22));
+}
+
+.hasdaq-product-row.has-cover {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .hasdaq-product-row strong,
 .hasdaq-announcement-row strong {
   display: block;
+  color: #2d3436;
+}
+
+.hasdaq-product-cover {
+  width: 74px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(45,52,54,0.08);
+}
+
+.hasdaq-product-copy {
+  min-width: 0;
+}
+
+.hasdaq-product-signals,
+.hasdaq-card-pool,
+.hasdaq-pool-status-grid,
+.hasdaq-maturity-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.hasdaq-product-signals {
+  margin-top: 7px;
+}
+
+.hasdaq-product-signals span,
+.hasdaq-card-pool span,
+.hasdaq-pool-status-grid span,
+.hasdaq-maturity-checklist span {
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #5f6470;
+  background: rgba(255,255,255,0.68);
+  border: 1px solid rgba(108,92,231,0.12);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.hasdaq-product-signals span:first-child,
+.hasdaq-maturity-checklist span {
+  color: #007f6d;
+  background: rgba(85,239,196,0.14);
+  border-color: rgba(0,184,148,0.18);
+}
+
+.hasdaq-card-pool,
+.hasdaq-pool-status-grid {
+  margin-top: 10px;
+}
+
+.hasdaq-card-pool span,
+.hasdaq-pool-status-grid span {
+  border-radius: 12px;
+}
+
+.hasdaq-card-pool b,
+.hasdaq-pool-status-grid b {
   color: #2d3436;
 }
 
@@ -10339,6 +10406,16 @@ textarea:hover,
   .hasdaq-share-stepper-value {
     min-height: 116px;
     padding: 14px;
+  }
+
+  .hasdaq-product-row,
+  .hasdaq-product-row.has-cover {
+    grid-template-columns: 1fr;
+  }
+
+  .hasdaq-product-cover {
+    width: 100%;
+    max-height: 180px;
   }
 
   .hasdaq-price-figure,

@@ -42,10 +42,18 @@ type HasdaqProductView = {
     name?: string | null;
     project_title?: string | null;
     project_description?: string | null;
+    project_url?: string | null;
+    project_status?: string | null;
+    project_tags?: string[] | string | null;
+    project_rating?: number | null;
+    project_rating_count?: number | null;
+    project_cover_url?: string | null;
+    project_accent_color?: string | null;
     description?: string | null;
     proof_note?: string | null;
-    project_url?: string | null;
+    url?: string | null;
     proof_url?: string | null;
+    status?: string | null;
 };
 
 type HasdaqMemberView = {
@@ -132,6 +140,18 @@ function getPoolCoins(company?: HasdaqCompanyView) {
 function getPoolSellShares(priceMilli: number, poolCoins: number) {
     if (!priceMilli || poolCoins < 1) return 0;
     return Math.max(0, Math.floor((((poolCoins + 1) * 1000) - 1) / priceMilli));
+}
+
+function normalizeProductTags(tags?: string[] | string | null) {
+    if (Array.isArray(tags)) return tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 4);
+    if (!tags) return [];
+    try {
+        const parsed = JSON.parse(tags);
+        if (Array.isArray(parsed)) return parsed.map(tag => String(tag).trim()).filter(Boolean).slice(0, 4);
+    } catch {
+        // Some legacy rows may store a comma-delimited string.
+    }
+    return String(tags).split(',').map(tag => tag.trim()).filter(Boolean).slice(0, 4);
 }
 
 function getTradeValidationMessage(
@@ -531,11 +551,31 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                         {detail.products?.length ? (
                             <div className="hasdaq-product-list">
                                 {detail.products.map((product) => {
-                                    const productUrl = product.project_url || product.proof_url || '';
+                                    const productUrl = product.project_url || product.url || product.proof_url || '';
+                                    const tags = normalizeProductTags(product.project_tags);
+                                    const rating = Number(product.project_rating || 0);
+                                    const ratingCount = Number(product.project_rating_count || 0);
+                                    const hasProjectSignals = Boolean(product.project_id || product.project_status || ratingCount || tags.length || product.project_cover_url);
                                     return (
-                                        <article key={product.id || product.project_id || product.title || product.name} className="hasdaq-product-row">
-                                            <div>
+                                        <article
+                                            key={product.id || product.project_id || product.title || product.name}
+                                            className={`hasdaq-product-row${product.project_cover_url ? ' has-cover' : ''}`}
+                                            style={product.project_accent_color ? { borderLeftColor: product.project_accent_color } : undefined}
+                                        >
+                                            {product.project_cover_url && (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img src={product.project_cover_url} alt="" className="hasdaq-product-cover" />
+                                            )}
+                                            <div className="hasdaq-product-copy">
                                                 <strong>{product.project_title || product.title || product.name}</strong>
+                                                {hasProjectSignals && (
+                                                    <div className="hasdaq-product-signals" aria-label="Function Hall product signals">
+                                                        {product.project_status && <span>{product.project_status}</span>}
+                                                        {ratingCount > 0 && <span>{rating.toFixed(1)} rating / {ratingCount} reviews</span>}
+                                                        {tags.map(tag => <span key={tag}>{tag}</span>)}
+                                                        {product.project_id && <span>Function Hall linked</span>}
+                                                    </div>
+                                                )}
                                                 <p>{product.project_description || product.description || product.proof_note || '成熟项目证明'}</p>
                                             </div>
                                             {productUrl ? (
@@ -548,6 +588,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                         ) : (
                             <p className="hasdaq-note">暂无产品数据。</p>
                         )}
+                        <p className="hasdaq-note">Product signals are review context only. They do not automatically move Hasdaq stock price or trading limits.</p>
                     </section>
 
                     <section className="glass-panel hasdaq-announcements-panel">
@@ -640,6 +681,13 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 </strong>
                                 <p>可买 <b><HasdaqRollingNumber value={maxBuyShares} fontSize={14} /></b> 股 · 可卖约 <b><HasdaqRollingNumber value={maxSellShares} fontSize={14} /></b> 股</p>
                                 <p className="hasdaq-liquidity-note">当前流动性：{poolShares > 0 ? '仍有股票可买' : '暂时无股可买'} · {poolCoins > 0 ? '可承接卖出' : '暂缺 H币承接'}</p>
+                                <div className="hasdaq-pool-status-grid">
+                                    <span><b>{formatShares(poolShares)}</b> pool shares</span>
+                                    <span><b>{formatShares(poolCoins)}</b> H coin pool</span>
+                                    <span><b>{formatShares(maxBuyShares)}</b> buy availability</span>
+                                    <span><b>{formatShares(poolSellShares)}</b> estimated sell support</span>
+                                </div>
+                                <p className="hasdaq-liquidity-note">Display-only learning signal: pool status explains current simulated liquidity and does not add rewards, fees, or price rules.</p>
                             </div>
                             <div className="hasdaq-segmented">
                                 <button type="button" className={tradeSide === 'buy' ? 'is-active' : ''} onClick={() => setTradeSide('buy')}>买入</button>

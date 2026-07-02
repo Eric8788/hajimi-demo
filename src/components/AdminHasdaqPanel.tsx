@@ -57,6 +57,8 @@ function formatTime(value?: string | Date | null) {
 function getBellChecklist(company: AdminHasdaqCompany) {
     const hasProfile = Boolean(company.name && company.ticker && (company.summary || company.description));
     const hasProduct = Number(company.product_count || 0) > 0;
+    const hasRiskStatement = Boolean(company.risk_statement || company.risk_note);
+    const hasPlan = Boolean(company.future_plan);
     const ipoOpen = company.status === 'ipo';
     const officialDemo = company.company_type === 'official_demo';
     const subscriberCount = Number(company.ipo_subscription_count || 0);
@@ -67,6 +69,11 @@ function getBellChecklist(company: AdminHasdaqCompany) {
     return {
         ready,
         items: [
+            { label: 'Product bound / proof attached', ok: hasProduct },
+            { label: 'Live Function Hall, rating, or review proof checked', ok: hasProduct },
+            { label: 'Non-demo usage proof reviewed', ok: hasProduct },
+            { label: 'Founder/team track record reviewed', ok: hasPlan || hasProfile },
+            { label: 'Substantive risk statement', ok: hasRiskStatement },
             { label: '公司资料', ok: hasProfile },
             { label: '成熟产品', ok: hasProduct },
             { label: 'IPO 已开启', ok: ipoOpen },

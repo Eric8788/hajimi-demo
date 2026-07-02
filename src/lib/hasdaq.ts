@@ -78,6 +78,14 @@ export interface HasdaqCompanyProduct {
     company_id: number;
     project_id: number | null;
     project_title?: string | null;
+    project_description?: string | null;
+    project_url?: string | null;
+    project_status?: string | null;
+    project_tags?: string[] | string | null;
+    project_rating?: number | null;
+    project_rating_count?: number | null;
+    project_cover_url?: string | null;
+    project_accent_color?: string | null;
     name: string;
     url: string | null;
     description: string | null;
@@ -872,6 +880,8 @@ function normalizeHasdaqProduct(row: HasdaqCompanyProduct): HasdaqCompanyProduct
         id: Number(row.id),
         company_id: Number(row.company_id),
         project_id: row.project_id === null || row.project_id === undefined ? null : Number(row.project_id),
+        project_rating: row.project_rating === null || row.project_rating === undefined ? null : Number(row.project_rating),
+        project_rating_count: row.project_rating_count === null || row.project_rating_count === undefined ? null : Number(row.project_rating_count),
     };
 }
 
@@ -892,6 +902,37 @@ function normalizeHasdaqAnnouncement(row: HasdaqAnnouncement): HasdaqAnnouncemen
         company_id: Number(row.company_id),
         author_id: row.author_id === null || row.author_id === undefined ? null : Number(row.author_id),
     };
+}
+
+async function createHasdaqSystemAnnouncementOnce(input: {
+    companyId: number;
+    authorId: number | null;
+    title: string;
+    body: string;
+    category: string;
+}) {
+    const title = normalizeHasdaqText(input.title, 160);
+    const body = normalizeHasdaqText(input.body, 3000);
+    const category = normalizeHasdaqText(input.category, 40) || 'update';
+    if (!title || !body) return;
+
+    try {
+        await sql`
+          INSERT INTO hasdaq_announcements (company_id, author_id, title, body, category)
+          SELECT ${input.companyId}, ${input.authorId}, ${title}, ${body}, ${category}
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM hasdaq_announcements
+            WHERE company_id = ${input.companyId}
+              AND category = ${category}
+              AND title = ${title}
+              AND body = ${body}
+              AND created_at > CURRENT_TIMESTAMP - INTERVAL '12 hours'
+          )
+        `;
+    } catch (error) {
+        console.warn('Hasdaq system announcement skipped:', error);
+    }
 }
 
 function parseHasdaqPositiveInt(value: unknown, fallback = 0) {
@@ -1713,7 +1754,17 @@ export async function getHasdaqCompanyDetail(identifier: string | number, userId
           ORDER BY role DESC, status ASC, created_at ASC
         `,
         sql<HasdaqCompanyProduct>`
-          SELECT hasdaq_company_products.*, projects.title as project_title
+          SELECT
+            hasdaq_company_products.*,
+            projects.title as project_title,
+            projects.description as project_description,
+            projects.url as project_url,
+            projects.status as project_status,
+            projects.tags as project_tags,
+            projects.rating as project_rating,
+            projects.rating_count as project_rating_count,
+            projects.cover_url as project_cover_url,
+            projects.accent_color as project_accent_color
           FROM hasdaq_company_products
           LEFT JOIN projects ON projects.id = hasdaq_company_products.project_id
           WHERE hasdaq_company_products.company_id = ${company.id}
@@ -2359,6 +2410,15 @@ export async function setHasdaqTradingStatus(adminId: number, companyId: number,
             companyId,
         });
     }
+    await createHasdaqSystemAnnouncementOnce({
+        companyId,
+        authorId: adminId,
+        title: action === 'pause' ? '交易暂停' : '交易恢复',
+        body: action === 'pause'
+            ? (reason || '管理员已暂停交易，等待进一步说明。')
+            : '管理员已恢复交易，公开股买卖重新开放。',
+        category: action === 'pause' ? 'risk' : 'update',
+    });
     await createAdminAuditEvent({
         actorId: adminId,
         targetUserId: company.founder_id,

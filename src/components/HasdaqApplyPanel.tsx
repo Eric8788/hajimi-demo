@@ -283,6 +283,23 @@ export default function HasdaqApplyPanel({ user }: { user: User | null }) {
                 </label>
             </section>
 
+            <section className="hasdaq-apply-block">
+                <div className="hasdaq-section-head">
+                    <div>
+                        <span>Review Checklist</span>
+                        <h2>Product maturity review</h2>
+                    </div>
+                </div>
+                <div className="hasdaq-maturity-checklist" aria-label="Hasdaq mature product review checklist">
+                    <span>Product bound or proof attached</span>
+                    <span>Live Function Hall link, rating, or reviews if available</span>
+                    <span>Non-demo usage proof or user feedback</span>
+                    <span>Founder/team track record</span>
+                    <span>Substantive risk statement</span>
+                </div>
+                <p className="hasdaq-note">This checklist helps reviewers judge product maturity. It does not add an automatic scoring model or change Hasdaq price behavior.</p>
+            </section>
+
             <button className="hasdaq-primary-button" type="submit" disabled={submitting || !canApply}>
                 {submitting ? '提交中...' : '提交 Hasdaq IPO 申请'}
             </button>

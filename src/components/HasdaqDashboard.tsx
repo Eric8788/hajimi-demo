@@ -29,6 +29,7 @@ type HasdaqCompany = {
     public_shares_remaining?: number | null;
     pool_shares?: number | null;
     pool_coin_balance?: number | null;
+    h_coin_pool?: number | null;
     bell_rang_at?: string | null;
     listed_at?: string | null;
     paused_reason?: string | null;
@@ -102,6 +103,19 @@ function getIpoStats(company: HasdaqCompany) {
         bellThresholdPercent: Math.min(100, Math.max(0, (bellThresholdShares / total) * 100)),
         price: Number(company.ipo_price_milli || company.current_price_milli || 1000) / 1000,
     };
+}
+
+function getPoolShares(company: HasdaqCompany) {
+    return Math.max(0, Math.floor(Number(company.pool_shares ?? company.public_shares_remaining ?? 0)));
+}
+
+function getPoolCoins(company: HasdaqCompany) {
+    return Math.max(0, Math.floor(Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)));
+}
+
+function getPoolSellShares(priceMilli: number, poolCoins: number) {
+    if (!priceMilli || poolCoins < 1) return 0;
+    return Math.max(0, Math.floor((((poolCoins + 1) * 1000) - 1) / priceMilli));
 }
 
 type MiniCandle = {
@@ -421,6 +435,9 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
     const volumeToday = Number(company.trade_volume_today ?? company.volume_today ?? 0);
     const pausedReason = formatPausedReason(company.paused_reason || company.trading_paused_reason);
     const officialDemo = isOfficialDemo(company);
+    const poolShares = getPoolShares(company);
+    const poolCoins = getPoolCoins(company);
+    const sellSupport = getPoolSellShares(Number(company.current_price_milli || 1000), poolCoins);
 
     return (
         <Link href={`/hasdaq/${company.ticker}`} className={`hasdaq-card glass-panel is-${company.status} is-${variant}${officialDemo ? ' is-official-demo' : ''}`}>
@@ -443,6 +460,13 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
                 <MiniTrend company={company} variant={variant} />
             </div>
             {variant === 'ipo' && <IpoProgress company={company} compact />}
+            {variant === 'market' && (
+                <div className="hasdaq-card-pool">
+                    <span><b>{poolShares}</b> pool shares</span>
+                    <span><b>{poolCoins}</b> H coin pool</span>
+                    <span><b>{sellSupport}</b> sell support</span>
+                </div>
+            )}
             <div className="hasdaq-metrics">
                 <span><b>{formatPrice(company.current_price_milli || 1000)}</b> 当前价</span>
                 <span className={change >= 0 ? 'is-up' : 'is-down'}><b>{change >= 0 ? '+' : ''}{change.toFixed(1)}%</b> 今日</span>
