@@ -85,6 +85,9 @@ export async function POST(request: Request) {
         if (message === 'Target user not found') {
             return NextResponse.json({ error: '成员不存在。' }, { status: 404 });
         }
+        if (message === 'Target user is not coin grant eligible') {
+            return NextResponse.json({ error: '不能向已停用或系统演示账号发放 H币。' }, { status: 400 });
+        }
         if (message === 'No target users selected') {
             return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
         }
