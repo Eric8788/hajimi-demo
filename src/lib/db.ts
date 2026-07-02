@@ -547,7 +547,7 @@ async function ensureUserProfileEnhancements() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
             await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
-            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '😊'`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '??'`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
             await sql`UPDATE users SET bio = 'New member at Hajimi High!' WHERE bio = 'New student at Hajimi High!'`;
             await ensureVerificationColumns();
@@ -913,10 +913,16 @@ export async function getCoinWalletOverview(userId: number): Promise<CoinWalletO
     };
 }
 
-export async function getAdminCoinOverview(options: { query?: string; limit?: number } = {}) {
+export async function getAdminCoinOverview(options: { query?: string; verification?: VerificationStatus | 'all'; limit?: number } = {}) {
     await ensureCoinTables();
 
     const query = String(options.query || '').trim().toLowerCase().slice(0, 60);
+    const verification = options.verification === 'pending'
+        || options.verification === 'verified'
+        || options.verification === 'rejected'
+        || options.verification === 'unverified'
+        ? options.verification
+        : 'all';
     const safeLimit = Math.min(Math.max(Number(options.limit) || 80, 1), 120);
 
     const { rows: userRows } = await sql<Array<CoinWallet & { username: string; role: string; verification_status: VerificationStatus }>[number]>`
@@ -938,6 +944,7 @@ export async function getAdminCoinOverview(options: { query?: string; limit?: nu
         OR CAST(users.id AS TEXT) = ${query}
         OR lower(COALESCE(users.verified_name, '')) LIKE ${`%${query}%`}
       )
+        AND (${verification} = 'all' OR users.verification_status = ${verification})
       ORDER BY COALESCE(coin_wallets.balance, 0) DESC, users.created_at DESC
       LIMIT ${safeLimit}
     `;
@@ -1006,7 +1013,7 @@ export async function grantCoinsByAdmin(input: {
             targetType: 'coin',
             targetId: result.transaction.id,
             eventType: 'coin_granted',
-            summary: `向 ${target.username} 发放 ${amount} H币`,
+            summary: `? ${target.username} ?? ${amount} H?`,
             details: {
                 amount,
                 source_type: sourceType,
@@ -1016,6 +1023,95 @@ export async function grantCoinsByAdmin(input: {
         });
 
         return result;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function grantCoinsToUsersByAdmin(input: {
+    adminId: number;
+    targetUserIds: number[];
+    amount: number;
+    sourceType: string;
+    note: string;
+}) {
+    await ensureCoinTables();
+    await ensureAdminAuditTable();
+
+    const amount = Math.floor(Number(input.amount));
+    const note = String(input.note || '').trim();
+    const sourceType = String(input.sourceType || 'manual').trim().slice(0, 80) || 'manual';
+    const targetUserIds = Array.from(new Set(
+        (input.targetUserIds || [])
+            .map(id => Math.floor(Number(id)))
+            .filter(id => Number.isInteger(id) && id > 0),
+    ));
+
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
+    if (note.length < 2) throw new Error('Coin grant note required');
+    if (targetUserIds.length < 1) throw new Error('No target users selected');
+    if (targetUserIds.length > 120) throw new Error('Too many target users');
+
+    const { rows: targets } = await db.query<{ id: number; username: string }>(
+        `
+          SELECT id, username
+          FROM users
+          WHERE id = ANY($1::int[])
+          ORDER BY id ASC
+        `,
+        [targetUserIds],
+    );
+    if (targets.length !== targetUserIds.length) throw new Error('Target user not found');
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+        const results = [];
+        for (const target of targets) {
+            await ensureCoinWalletForClient(client, Number(target.id));
+            const result = await writeCoinTransactionForClient(client, {
+                userId: Number(target.id),
+                amount,
+                type: 'grant',
+                sourceType,
+                note,
+                createdBy: input.adminId,
+            });
+            results.push({
+                user_id: Number(target.id),
+                username: target.username,
+                wallet: result.wallet,
+                transaction: result.transaction,
+            });
+        }
+        await client.sql`COMMIT`;
+
+        await createAdminAuditEvent({
+            actorId: input.adminId,
+            targetUserId: null,
+            targetType: 'coin',
+            targetId: results[0]?.transaction.id ?? null,
+            eventType: 'coin_batch_granted',
+            summary: `??? ${results.length} ????? ${amount} H?`,
+            details: {
+                amount,
+                source_type: sourceType,
+                note,
+                total_amount: amount * results.length,
+                target_user_ids: results.map(result => result.user_id),
+                target_usernames: results.map(result => result.username),
+                transaction_ids: results.map(result => result.transaction.id),
+            },
+        });
+
+        return {
+            count: results.length,
+            totalAmount: amount * results.length,
+            results,
+        };
     } catch (error) {
         await client.sql`ROLLBACK`;
         throw error;
@@ -1059,7 +1155,7 @@ export async function transferProjectCoinTip(senderId: number, projectId: number
             sourceType: 'project_tip',
             sourceId: projectId,
             counterpartyUserId: recipientId,
-            note: 'Function Hall 项目打赏',
+            note: 'Function Hall ????',
         });
         const recipientResult = await writeCoinTransactionForClient(client, {
             userId: recipientId,
@@ -1068,7 +1164,7 @@ export async function transferProjectCoinTip(senderId: number, projectId: number
             sourceType: 'project_tip',
             sourceId: projectId,
             counterpartyUserId: senderId,
-            note: 'Function Hall 项目打赏',
+            note: 'Function Hall ????',
         });
 
         const { rows: tipRows } = await client.sql<{ id: number }>`
@@ -1122,7 +1218,7 @@ export async function createCoinRedemptionRequest(userId: number, amount: number
             amount: -safeAmount,
             type: 'redemption_hold',
             sourceType: 'token_redemption',
-            note: note || '申请兑换 token 额度',
+            note: note || '???? token ??',
         });
         const { rows } = await client.sql<CoinRedemptionRequest>`
           INSERT INTO coin_redemption_requests (user_id, amount, requested_note)
@@ -1186,7 +1282,7 @@ export async function reviewCoinRedemptionRequest(adminId: number, requestId: nu
                 type: 'redemption_refund',
                 sourceType: 'token_redemption',
                 sourceId: requestId,
-                note: note || '兑换申请未通过，退回 H币',
+                note: note || '?????????? H?',
                 createdBy: adminId,
             });
             wallet = refundResult.wallet;
@@ -1217,7 +1313,7 @@ export async function reviewCoinRedemptionRequest(adminId: number, requestId: nu
             targetType: 'coin',
             targetId: requestId,
             eventType,
-            summary: `${request.username || `用户 ${request.user_id}`} 的 ${request.amount} H币兑换申请已${nextStatus === 'approved' ? '通过' : nextStatus === 'rejected' ? '拒绝' : '完成'}`,
+            summary: `${request.username || `?? ${request.user_id}`} ? ${request.amount} H??????${nextStatus === 'approved' ? '??' : nextStatus === 'rejected' ? '??' : '??'}`,
             details: {
                 amount: Number(request.amount),
                 status: nextStatus,
@@ -1509,7 +1605,7 @@ export async function reviewUserVerification(targetUserId: number, reviewerId: n
 
     const reviewedUser = rows[0];
     if (reviewedUser) {
-        const statusLabel = status === 'verified' ? '通过' : '拒绝';
+        const statusLabel = status === 'verified' ? '??' : '??';
         const identity = reviewedUser.verified_name || reviewedUser.username;
         const meta = reviewedUser.verification_type === 'teacher'
             ? reviewedUser.verified_subject
@@ -1521,7 +1617,7 @@ export async function reviewUserVerification(targetUserId: number, reviewerId: n
             targetType: 'verification',
             targetId: targetUserId,
             eventType: `verification_${status}`,
-            summary: `${identity} 的认证已${statusLabel}`,
+            summary: `${identity} ????${statusLabel}`,
             details: {
                 username: reviewedUser.username,
                 verification_type: reviewedUser.verification_type,
@@ -1772,7 +1868,7 @@ export async function getAdminAuditHistory(
         `;
 
         verificationRows.forEach((row, index) => {
-            const statusLabel = row.verification_status === 'verified' ? '已通过' : '已拒绝';
+            const statusLabel = row.verification_status === 'verified' ? '???' : '???';
             const identity = row.verified_name || row.username;
             legacyEvents.push({
                 id: -100000 - index,
@@ -1783,7 +1879,7 @@ export async function getAdminAuditHistory(
                 target_type: 'verification',
                 target_id: row.id,
                 event_type: `legacy_verification_${row.verification_status}`,
-                summary: `${identity} 的认证${statusLabel}`,
+                summary: `${identity} ???${statusLabel}`,
                 details: {
                     legacy: true,
                     verification_type: row.verification_type,
@@ -1843,7 +1939,7 @@ export async function getAdminAuditHistory(
                 target_type: 'project_submission',
                 target_id: row.id,
                 event_type: `legacy_project_submission_${row.status}`,
-                summary: `${row.title} 项目申请已${row.status === 'approved' ? '通过' : '拒绝'}`,
+                summary: `${row.title} ?????${row.status === 'approved' ? '??' : '??'}`,
                 details: {
                     legacy: true,
                     submission_type: row.submission_type,
@@ -2082,7 +2178,7 @@ export async function updateAdminUserIdentity(adminId: number, targetUserId: num
         targetType: 'user',
         targetId: targetUserId,
         eventType: 'user_identity_updated',
-        summary: `${username} 的认证资料已维护`,
+        summary: `${username} ????????`,
         details: {
             previous_username: existing.username,
             verification_status: verificationStatus,
@@ -2117,7 +2213,7 @@ export async function setAdminUserAccountStatus(adminId: number, targetUserId: n
         }
     }
 
-    const cleanReason = reason.trim().slice(0, 240) || (status === 'disabled' ? '管理员停用账号' : '管理员恢复账号');
+    const cleanReason = reason.trim().slice(0, 240) || (status === 'disabled' ? '???????' : '???????');
 
     await sql`
       UPDATE users
@@ -2135,7 +2231,7 @@ export async function setAdminUserAccountStatus(adminId: number, targetUserId: n
         targetType: 'user',
         targetId: targetUserId,
         eventType: status === 'disabled' ? 'user_disabled' : 'user_enabled',
-        summary: `${target.username} 已${status === 'disabled' ? '停用' : '恢复'}`,
+        summary: `${target.username} ?${status === 'disabled' ? '??' : '??'}`,
         details: {
             reason: cleanReason,
             previous_status: target.account_status,
@@ -3234,9 +3330,9 @@ async function applyProjectAttributionCorrections() {
       )
       SELECT
         teacher.id,
-        'Vocab Runner · Sprint Lab',
+        'Vocab Runner ? Sprint Lab',
         'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.',
-        '🏃',
+        '??',
         'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html',
         '["Tool","Classroom"]'::jsonb,
         'rgba(14, 165, 233, 0.18)',
@@ -3246,7 +3342,7 @@ async function applyProjectAttributionCorrections() {
       WHERE NOT EXISTS (
         SELECT 1
         FROM projects
-        WHERE title = 'Vocab Runner · Sprint Lab'
+        WHERE title = 'Vocab Runner ? Sprint Lab'
       )
     `;
     await sql`
@@ -3254,19 +3350,19 @@ async function applyProjectAttributionCorrections() {
       SET
         author_id = users.id,
         description = 'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.',
-        emoji = '🏃',
+        emoji = '??',
         url = 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html',
         tags = '["Tool","Classroom"]'::jsonb,
         accent_color = 'rgba(14, 165, 233, 0.18)',
         cover_url = 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/cover.svg',
         status = 'live'
       FROM users
-      WHERE projects.title = 'Vocab Runner · Sprint Lab'
+      WHERE projects.title = 'Vocab Runner ? Sprint Lab'
         AND lower(users.username) = lower('jinyuhong@vma.edu.cn')
         AND (
           projects.author_id IS DISTINCT FROM users.id
           OR projects.description IS DISTINCT FROM 'A classroom vocabulary runner game for ESL review, combining unit levels, timed questions, combo feedback, and a playful sprint track.'
-          OR projects.emoji IS DISTINCT FROM '🏃'
+          OR projects.emoji IS DISTINCT FROM '??'
           OR projects.url IS DISTINCT FROM 'https://hajimi.ericproject.xyz/projects/vocab-runner-game/index.html'
           OR projects.tags IS DISTINCT FROM '["Tool","Classroom"]'::jsonb
           OR projects.accent_color IS DISTINCT FROM 'rgba(14, 165, 233, 0.18)'
@@ -3294,7 +3390,7 @@ async function applyProjectAttributionCorrections() {
       UPDATE projects
       SET author_id = users.id
       FROM users
-      WHERE projects.title = '草原梦境'
+      WHERE projects.title = '????'
         AND lower(users.username) = 'luna1919810'
         AND projects.author_id IS DISTINCT FROM users.id
     `;
@@ -3321,7 +3417,7 @@ async function ensureProjectSubmissionsTable() {
                 project_id INTEGER REFERENCES projects(id),
                 title TEXT NOT NULL,
                 description TEXT NOT NULL,
-                emoji TEXT NOT NULL DEFAULT '🚀',
+                emoji TEXT NOT NULL DEFAULT '??',
                 url TEXT,
                 tags JSONB DEFAULT '[]'::jsonb,
                 accent_color TEXT,
@@ -3897,9 +3993,9 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
     const contributionBase = Math.max(1, visibleXp + projectOpenTotal + postInteractionTotal);
     const contributionBreakdown = [
         { label: 'XP', value: Math.min(100, Math.max(8, Math.round(visibleXp / contributionBase * 100))) },
-        { label: '项目打开量', value: Math.min(100, Math.max(8, Math.round(projectOpenTotal / contributionBase * 100))) },
-        { label: '帖子互动', value: Math.min(100, Math.max(8, Math.round(postInteractionTotal / contributionBase * 100))) },
-        { label: '项目创作', value: Math.min(100, Math.max(8, Math.round((categoryTotals.get('project') || 0) / Math.max(1, visibleXp) * 100))) },
+        { label: '?????', value: Math.min(100, Math.max(8, Math.round(projectOpenTotal / contributionBase * 100))) },
+        { label: '????', value: Math.min(100, Math.max(8, Math.round(postInteractionTotal / contributionBase * 100))) },
+        { label: '????', value: Math.min(100, Math.max(8, Math.round((categoryTotals.get('project') || 0) / Math.max(1, visibleXp) * 100))) },
     ];
 
     return {
@@ -4257,7 +4353,7 @@ function normalizeProjectSubmission(input: ProjectSubmissionInput) {
         project_id: submissionType === 'new_version' && input.project_id ? Number(input.project_id) : null,
         title: String(input.title || '').trim().slice(0, 80),
         description: String(input.description || '').trim().slice(0, 520),
-        emoji: String(input.emoji || '🚀').trim().slice(0, 8) || '🚀',
+        emoji: String(input.emoji || '??').trim().slice(0, 8) || '??',
         url: String(input.url || '').trim().slice(0, 500) || null,
         tags: tags.length > 0 ? tags : ['Game'],
         accent_color: String(input.accent_color || 'rgba(162, 155, 254, 0.22)').trim().slice(0, 80) || 'rgba(162, 155, 254, 0.22)',
@@ -4401,7 +4497,7 @@ async function getHasdaqPendingReviewSummaryPart() {
             tasks: tasksResult.rows.map(task => ({
                 id: `hasdaq-${task.id}`,
                 kind: 'hasdaq_listing' as const,
-                title: `${task.company_name} (${task.ticker}) IPO 申请`,
+                title: `${task.company_name} (${task.ticker}) IPO ??`,
                 description: task.applicant_name || 'Hasdaq listing application',
                 href: '/admin/hasdaq',
                 created_at: task.created_at,
@@ -4479,13 +4575,13 @@ export async function getAdminReviewSummary(): Promise<AdminReviewSummary> {
     const verificationTasks: AdminReviewTask[] = verificationTasksResult.rows.map((request) => {
         const identity = request.verified_name || request.username;
         const detail = request.verification_type === 'teacher'
-            ? `Teacher · ${request.verified_subject || 'subject not set'}`
-            : `${request.verified_grade || 'grade not set'} · ${request.username}`;
+            ? `Teacher ? ${request.verified_subject || 'subject not set'}`
+            : `${request.verified_grade || 'grade not set'} ? ${request.username}`;
 
         return {
             id: `verification-${request.id}`,
             kind: 'verification',
-            title: `${identity} 的认证申请`,
+            title: `${identity} ?????`,
             description: detail,
             href: '/admin/verifications',
             created_at: request.verification_submitted_at,
@@ -4493,13 +4589,13 @@ export async function getAdminReviewSummary(): Promise<AdminReviewSummary> {
     });
 
     const projectSubmissionTasks: AdminReviewTask[] = projectSubmissionTasksResult.rows.map((submission) => {
-        const typeLabel = submission.submission_type === 'new_version' ? '新版本申请' : '新项目申请';
-        const target = submission.project_title ? ` · 更新 ${submission.project_title}` : '';
+        const typeLabel = submission.submission_type === 'new_version' ? '?????' : '?????';
+        const target = submission.project_title ? ` ? ?? ${submission.project_title}` : '';
 
         return {
             id: `project-${submission.id}`,
             kind: 'project_submission',
-            title: `${submission.title} · ${typeLabel}`,
+            title: `${submission.title} ? ${typeLabel}`,
             description: `${submission.author_name}${target}`,
             href: '/admin/project-submissions',
             created_at: submission.created_at,
@@ -4652,7 +4748,7 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
             'project_submission',
             ${submissionId},
             ${`project_submission_${status}`},
-            ${`${submission.title} 项目申请已${status === 'approved' ? '通过' : '拒绝'}`},
+            ${`${submission.title} ?????${status === 'approved' ? '??' : '??'}`},
             ${JSON.stringify({
                 submission_type: submission.submission_type,
                 project_id: submission.project_id,
@@ -4957,8 +5053,8 @@ export async function initDB() {
       level INTEGER DEFAULT 1,
       role TEXT DEFAULT 'student',
       bio TEXT DEFAULT 'New member at Hajimi High!',
-      avatar TEXT DEFAULT '😊',
-      avatar_emoji TEXT DEFAULT '😊',
+      avatar TEXT DEFAULT '??',
+      avatar_emoji TEXT DEFAULT '??',
       avatar_theme TEXT DEFAULT 'lavender',
       profile_image TEXT,
       grade TEXT,
@@ -4997,7 +5093,7 @@ export async function initDB() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_preferences JSONB DEFAULT '[]'::jsonb`;
     await sql`ALTER TABLE users ALTER COLUMN badge_preferences TYPE JSONB USING COALESCE(to_jsonb(badge_preferences), '[]'::jsonb)`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '😊'`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji TEXT DEFAULT '??'`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_theme TEXT DEFAULT 'lavender'`;
     await sql`UPDATE users SET bio = 'New member at Hajimi High!' WHERE bio = 'New student at Hajimi High!'`;
     await ensureVerificationColumns();

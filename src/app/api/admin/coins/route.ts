@@ -5,6 +5,13 @@ import { isAdminRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
+type VerificationFilter = 'all' | 'verified' | 'pending' | 'unverified' | 'rejected';
+
+function normalizeVerificationFilter(value: string | null): VerificationFilter {
+    if (value === 'pending' || value === 'verified' || value === 'rejected' || value === 'unverified') return value;
+    return 'all';
+}
+
 export async function GET(request: Request) {
     try {
         const session = await getSession();
@@ -18,6 +25,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const overview = await getAdminCoinOverview({
             query: searchParams.get('query') || '',
+            verification: normalizeVerificationFilter(searchParams.get('verification')),
             limit: Number(searchParams.get('limit') || 80),
         });
 
