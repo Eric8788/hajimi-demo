@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CoinRedemptionRequest, CoinWallet } from '@/lib/db';
 import { formatHajimiId } from '@/lib/hajimiId';
 
+type VerificationFilter = 'all' | 'verified' | 'pending' | 'unverified' | 'rejected';
+
 type AdminCoinUser = CoinWallet & {
     username: string;
     role: string;
@@ -16,13 +18,21 @@ type AdminCoinOverview = {
 };
 
 const SOURCE_OPTIONS = [
-    { value: 'manual', label: '手动发放' },
-    { value: 'verification_airdrop', label: '认证空投' },
-    { value: 'project_publish_reward', label: '项目发布奖励' },
-    { value: 'version_publish_reward', label: '新版本奖励' },
-    { value: 'monthly_award', label: '月榜奖励' },
-    { value: 'teacher_bounty', label: '老师项目悬赏' },
-    { value: 'content_award', label: '内容/活动奖励' },
+    { value: 'manual', label: '????' },
+    { value: 'verification_airdrop', label: '????' },
+    { value: 'project_publish_reward', label: '??????' },
+    { value: 'version_publish_reward', label: '?????' },
+    { value: 'monthly_award', label: '????' },
+    { value: 'teacher_bounty', label: '??????' },
+    { value: 'content_award', label: '??/????' },
+];
+
+const VERIFICATION_FILTERS: Array<{ value: VerificationFilter; label: string }> = [
+    { value: 'verified', label: 'Verified' },
+    { value: 'all', label: '??' },
+    { value: 'pending', label: '???' },
+    { value: 'unverified', label: '???' },
+    { value: 'rejected', label: '???' },
 ];
 
 function formatTime(value: Date | string | null | undefined) {
@@ -31,31 +41,62 @@ function formatTime(value: Date | string | null | undefined) {
 }
 
 function statusLabel(status: string) {
-    if (status === 'approved') return '已通过，待发 token';
-    if (status === 'completed') return '已完成';
-    if (status === 'rejected') return '已拒绝';
-    return '待审核';
+    if (status === 'approved') return '?????? token';
+    if (status === 'completed') return '???';
+    if (status === 'rejected') return '???';
+    return '???';
+}
+
+function userLabel(user: AdminCoinUser) {
+    return `${user.username} (${formatHajimiId(user.user_id)})`;
 }
 
 export default function AdminCoinsPanel({ initialOverview }: { initialOverview: AdminCoinOverview }) {
     const [overview, setOverview] = useState(initialOverview);
     const [query, setQuery] = useState('');
+    const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>('verified');
     const [selectedUserId, setSelectedUserId] = useState<number | null>(initialOverview.users[0]?.user_id ?? null);
+    const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
     const [amount, setAmount] = useState('3');
     const [sourceType, setSourceType] = useState('verification_airdrop');
-    const [note, setNote] = useState('认证空投');
+    const [note, setNote] = useState('????');
     const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
+
+    const visibleUserIds = useMemo(
+        () => overview.users.map(user => Number(user.user_id)),
+        [overview.users],
+    );
+
+    const visibleSelectedUserIds = useMemo(
+        () => selectedUserIds.filter(id => visibleUserIds.includes(id)),
+        [selectedUserIds, visibleUserIds],
+    );
+
+    const selectedUsers = useMemo(
+        () => overview.users.filter(user => selectedUserIds.includes(Number(user.user_id))),
+        [overview.users, selectedUserIds],
+    );
 
     const selectedUser = useMemo(
         () => overview.users.find(user => Number(user.user_id) === Number(selectedUserId)) || overview.users[0] || null,
         [overview.users, selectedUserId],
     );
 
-    const loadOverview = async (nextQuery = query) => {
+    const grantTargets = selectedUsers.length > 0
+        ? selectedUsers
+        : selectedUser
+            ? [selectedUser]
+            : [];
+    const isBatchGrant = selectedUsers.length > 1;
+    const allVisibleSelected = overview.users.length > 0 && visibleSelectedUserIds.length === overview.users.length;
+
+    const loadOverview = async (nextQuery = query, nextVerification = verificationFilter) => {
         const params = new URLSearchParams();
         if (nextQuery.trim()) params.set('query', nextQuery.trim());
+        params.set('verification', nextVerification);
+        params.set('limit', '120');
         const res = await fetch(`/api/admin/coins?${params.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to load coin admin data');
         const data = await res.json();
@@ -63,33 +104,52 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
         setSelectedUserId(current => current && data.users?.some((user: AdminCoinUser) => Number(user.user_id) === Number(current))
             ? current
             : data.users?.[0]?.user_id ?? null);
+        setSelectedUserIds(current => current.filter(id => data.users?.some((user: AdminCoinUser) => Number(user.user_id) === id)));
     };
 
     useEffect(() => {
         const timeout = window.setTimeout(() => {
-            loadOverview(query).catch(error => {
+            loadOverview(query, verificationFilter).catch(error => {
                 console.error('Failed to load coin admin data:', error);
-                setMessage('H币管理数据加载失败，请稍后刷新。');
+                setMessage('H????????????????');
             });
         }, 180);
         return () => window.clearTimeout(timeout);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [query]);
+    }, [query, verificationFilter]);
+
+    const toggleSelectedUser = (userId: number) => {
+        setSelectedUserIds(current => current.includes(userId)
+            ? current.filter(id => id !== userId)
+            : [...current, userId]);
+    };
+
+    const toggleAllVisible = () => {
+        setSelectedUserIds(current => {
+            const visibleSet = new Set(visibleUserIds);
+            if (allVisibleSelected) return current.filter(id => !visibleSet.has(id));
+            return Array.from(new Set([...current, ...visibleUserIds]));
+        });
+    };
+
+    const clearSelection = () => {
+        setSelectedUserIds([]);
+    };
 
     const submitGrant = async (event: React.FormEvent) => {
         event.preventDefault();
         setMessage('');
         const parsedAmount = Math.floor(Number(amount));
-        if (!selectedUser) {
-            setMessage('请选择成员。');
+        if (grantTargets.length === 0) {
+            setMessage('??????');
             return;
         }
         if (!Number.isInteger(parsedAmount) || parsedAmount < 1 || parsedAmount > 10000) {
-            setMessage('发放数量需要是 1-10000 的整数。');
+            setMessage('??????? 1-10000 ????');
             return;
         }
         if (note.trim().length < 2) {
-            setMessage('管理员发币必须填写备注。');
+            setMessage('????????????');
             return;
         }
 
@@ -99,7 +159,8 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    targetUserId: selectedUser.user_id,
+                    targetUserId: grantTargets.length === 1 ? grantTargets[0].user_id : undefined,
+                    targetUserIds: grantTargets.length > 1 ? grantTargets.map(user => user.user_id) : undefined,
                     amount: parsedAmount,
                     sourceType,
                     note,
@@ -107,14 +168,20 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
             });
             const data = await res.json().catch(() => null);
             if (!res.ok) {
-                setMessage(data?.error || '发币失败，请稍后再试。');
+                setMessage(data?.error || '???????????');
                 return;
             }
-            setMessage(`已向 ${selectedUser.username} 发放 ${parsedAmount} H币。`);
+
+            if (data?.batch) {
+                setMessage(`?? ${data.count} ??????? ${parsedAmount} H??? ${data.totalAmount} H??`);
+                clearSelection();
+            } else {
+                setMessage(`?? ${grantTargets[0].username} ?? ${parsedAmount} H??`);
+            }
             await loadOverview();
         } catch (error) {
             console.error('Coin grant failed:', error);
-            setMessage('发币失败，请稍后再试。');
+            setMessage('???????????');
         } finally {
             setSaving(false);
         }
@@ -135,14 +202,14 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
             });
             const data = await res.json().catch(() => null);
             if (!res.ok) {
-                setMessage(data?.error || '兑换状态更新失败。');
+                setMessage(data?.error || '?????????');
                 return;
             }
-            setMessage('兑换申请状态已更新。');
+            setMessage('??????????');
             await loadOverview();
         } catch (error) {
             console.error('Coin redemption review failed:', error);
-            setMessage('兑换状态更新失败。');
+            setMessage('?????????');
         } finally {
             setSaving(false);
         }
@@ -156,47 +223,94 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                         className="glass-input"
                         value={query}
                         onChange={event => setQuery(event.target.value)}
-                        placeholder="搜索 username / Name / ID"
+                        placeholder="?? username / Name / ID"
                     />
+                    <div className="admin-users-filters" aria-label="?????????">
+                        {VERIFICATION_FILTERS.map(option => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                className={verificationFilter === option.value ? 'is-active' : ''}
+                                onClick={() => setVerificationFilter(option.value)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="admin-coin-selection-bar">
+                        <label>
+                            <input
+                                type="checkbox"
+                                checked={allVisibleSelected}
+                                onChange={toggleAllVisible}
+                                disabled={overview.users.length === 0}
+                            />
+                            <span>????????</span>
+                        </label>
+                        <strong>{visibleSelectedUserIds.length} / {overview.users.length}</strong>
+                        {selectedUserIds.length > 0 && (
+                            <button type="button" onClick={clearSelection}>??</button>
+                        )}
+                    </div>
                 </div>
                 {message && <div className="admin-verification-message">{message}</div>}
                 <div className="admin-coin-user-list">
                     {overview.users.length === 0 ? (
-                        <p className="admin-verification-empty">没有匹配的成员。</p>
-                    ) : overview.users.map(user => (
-                        <button
-                            key={user.user_id}
-                            type="button"
-                            className={`admin-coin-user-row${Number(selectedUser?.user_id) === Number(user.user_id) ? ' is-selected' : ''}`}
-                            onClick={() => setSelectedUserId(Number(user.user_id))}
-                        >
-                            <span>
-                                <strong>{user.username}</strong>
-                                <small>{formatHajimiId(user.user_id)} · {user.role} · {user.verification_status}</small>
-                            </span>
-                            <em>{Number(user.balance || 0).toLocaleString()} H币</em>
-                        </button>
-                    ))}
+                        <p className="admin-verification-empty">????????</p>
+                    ) : overview.users.map(user => {
+                        const userId = Number(user.user_id);
+                        const checked = selectedUserIds.includes(userId);
+                        return (
+                            <div
+                                key={user.user_id}
+                                className={`admin-coin-user-row${Number(selectedUser?.user_id) === userId ? ' is-selected' : ''}${checked ? ' is-checked' : ''}`}
+                            >
+                                <label className="admin-coin-user-check" aria-label={`?? ${user.username}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleSelectedUser(userId)}
+                                    />
+                                </label>
+                                <button type="button" onClick={() => setSelectedUserId(userId)}>
+                                    <span>
+                                        <strong>{user.username}</strong>
+                                        <small>{formatHajimiId(user.user_id)} ? {user.role} ? {user.verification_status}</small>
+                                    </span>
+                                    <em>{Number(user.balance || 0).toLocaleString()} H?</em>
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </section>
 
             <form className="glass-panel admin-coin-grant-panel" onSubmit={submitGrant}>
                 <div className="wallet-section-head">
                     <div>
-                        <span>Grant</span>
-                        <h2>人工发放 H币</h2>
+                        <span>{isBatchGrant ? 'Batch Grant' : 'Grant'}</span>
+                        <h2>{isBatchGrant ? '???? H?' : '???? H?'}</h2>
                     </div>
+                    {selectedUsers.length > 0 && <strong>{selectedUsers.length} selected</strong>}
                 </div>
-                {selectedUser ? (
-                    <div className="admin-coin-target">
-                        <strong>{selectedUser.username}</strong>
-                        <span>当前余额 {Number(selectedUser.balance || 0).toLocaleString()} H币</span>
+                {grantTargets.length > 0 ? (
+                    <div className={`admin-coin-target${isBatchGrant ? ' is-batch' : ''}`}>
+                        <strong>{isBatchGrant ? `${grantTargets.length} ???` : userLabel(grantTargets[0])}</strong>
+                        <span>{isBatchGrant ? `????? ${grantTargets.length * Math.max(0, Math.floor(Number(amount) || 0))} H?` : `???? ${Number(grantTargets[0].balance || 0).toLocaleString()} H?`}</span>
                     </div>
                 ) : (
-                    <p className="admin-verification-empty">请选择成员。</p>
+                    <p className="admin-verification-empty">??????</p>
+                )}
+                {isBatchGrant && (
+                    <div className="admin-coin-batch-preview">
+                        {grantTargets.slice(0, 8).map(user => (
+                            <span key={user.user_id}>{user.username}</span>
+                        ))}
+                        {grantTargets.length > 8 && <span>+{grantTargets.length - 8}</span>}
+                    </div>
                 )}
                 <label>
-                    <span>发放数量</span>
+                    <span>????</span>
                     <input
                         className="glass-input"
                         value={amount}
@@ -206,7 +320,7 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                     />
                 </label>
                 <label>
-                    <span>来源</span>
+                    <span>??</span>
                     <select className="glass-input" value={sourceType} onChange={event => setSourceType(event.target.value)}>
                         {SOURCE_OPTIONS.map(option => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -214,7 +328,7 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                     </select>
                 </label>
                 <label>
-                    <span>备注</span>
+                    <span>??</span>
                     <textarea
                         className="glass-input"
                         value={note}
@@ -222,8 +336,8 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                         onChange={event => setNote(event.target.value)}
                     />
                 </label>
-                <button type="submit" disabled={saving || !selectedUser}>
-                    {saving ? '处理中...' : '发放 H币'}
+                <button type="submit" disabled={saving || grantTargets.length === 0}>
+                    {saving ? '???...' : isBatchGrant ? `????? ${grantTargets.length} ?` : '?? H?'}
                 </button>
             </form>
 
@@ -231,40 +345,40 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                 <div className="wallet-section-head">
                     <div>
                         <span>Token Requests</span>
-                        <h2>兑换审核</h2>
+                        <h2>????</h2>
                     </div>
                 </div>
                 {overview.redemptions.length === 0 ? (
-                    <p className="admin-verification-empty">暂无待处理兑换申请。</p>
+                    <p className="admin-verification-empty">??????????</p>
                 ) : (
                     <div className="admin-coin-redemption-list">
                         {overview.redemptions.map(request => (
                             <article key={request.id} className={`admin-coin-redemption-card is-${request.status}`}>
                                 <div className="admin-coin-redemption-head">
                                     <div>
-                                        <strong>{request.username} · {request.amount} H币</strong>
-                                        <span>{statusLabel(request.status)} · {formatTime(request.created_at)}</span>
+                                        <strong>{request.username} ? {request.amount} H?</strong>
+                                        <span>{statusLabel(request.status)} ? {formatTime(request.created_at)}</span>
                                     </div>
                                     <em>{request.status}</em>
                                 </div>
-                                <p>{request.requested_note || '未填写用途说明。'}</p>
+                                <p>{request.requested_note || '????????'}</p>
                                 <textarea
                                     className="glass-input"
                                     value={reviewNotes[request.id] || ''}
                                     onChange={event => setReviewNotes(current => ({ ...current, [request.id]: event.target.value }))}
-                                    placeholder="审核备注 / token 发放记录"
+                                    placeholder="???? / token ????"
                                 />
                                 <div className="admin-coin-redemption-actions">
                                     {request.status === 'pending' && (
                                         <>
-                                            <button type="button" onClick={() => updateRedemption(request.id, 'approve')} disabled={saving}>通过</button>
-                                            <button type="button" className="is-danger" onClick={() => updateRedemption(request.id, 'reject')} disabled={saving}>拒绝并退款</button>
+                                            <button type="button" onClick={() => updateRedemption(request.id, 'approve')} disabled={saving}>??</button>
+                                            <button type="button" className="is-danger" onClick={() => updateRedemption(request.id, 'reject')} disabled={saving}>?????</button>
                                         </>
                                     )}
                                     {request.status === 'approved' && (
                                         <>
-                                            <button type="button" onClick={() => updateRedemption(request.id, 'complete')} disabled={saving}>标记已发 token</button>
-                                            <button type="button" className="is-danger" onClick={() => updateRedemption(request.id, 'reject')} disabled={saving}>撤回并退款</button>
+                                            <button type="button" onClick={() => updateRedemption(request.id, 'complete')} disabled={saving}>???? token</button>
+                                            <button type="button" className="is-danger" onClick={() => updateRedemption(request.id, 'reject')} disabled={saving}>?????</button>
                                         </>
                                     )}
                                 </div>
