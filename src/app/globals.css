@@ -8786,7 +8786,9 @@ textarea:hover,
 
 .wallet-transaction-row,
 .hasdaq-page {
+  width: 100%;
   max-width: 1320px;
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -9516,9 +9518,25 @@ textarea:hover,
 .hasdaq-market-layout,
 .hasdaq-stock-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.3fr);
   gap: 18px;
   align-items: start;
+}
+
+.hasdaq-market-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.3fr);
+}
+
+.hasdaq-stock-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.32fr);
+}
+
+.hasdaq-stock-main,
+.hasdaq-chart-panel,
+.hasdaq-products-panel,
+.hasdaq-announcements-panel,
+.hasdaq-trade-panel,
+.hasdaq-market-panel {
+  min-width: 0;
 }
 
 .hasdaq-rank-panel,
@@ -9690,9 +9708,9 @@ textarea:hover,
 }
 
 .hasdaq-market-tape {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  align-items: stretch;
   gap: 8px;
   min-width: 0;
   border-bottom: 1px solid rgba(45,52,54,0.08);
@@ -9701,9 +9719,13 @@ textarea:hover,
 
 .hasdaq-market-tape > span {
   display: inline-flex;
+  width: 100%;
+  min-width: 0;
   min-height: 30px;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
+  overflow: hidden;
   border: 1px solid rgba(45,52,54,0.08);
   border-radius: 10px;
   padding: 6px 9px;
@@ -9715,8 +9737,13 @@ textarea:hover,
 }
 
 .hasdaq-market-tape b {
+  min-width: 0;
   color: #2d3436;
   font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
 }
 
 .hasdaq-lightweight-chart {
@@ -9740,6 +9767,16 @@ textarea:hover,
   min-height: 390px;
 }
 
+@media (max-width: 1240px) {
+  .hasdaq-stock-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hasdaq-stock-layout .hasdaq-trade-panel {
+    position: static;
+  }
+}
+
 @media (max-width: 1180px) {
   .hasdaq-market-layout .hasdaq-grid {
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -9759,7 +9796,18 @@ textarea:hover,
 }
 
 .hasdaq-market-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 8px;
   margin-top: 0;
+}
+
+.hasdaq-market-stats > span {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hasdaq-market-stats .hasdaq-liquidity-metric {
@@ -9909,6 +9957,7 @@ textarea:hover,
 .hasdaq-market-stats b {
   display: inline-flex;
   align-items: baseline;
+  flex: 0 1 auto;
   color: #2d3436;
   font-weight: 950;
   vertical-align: baseline;

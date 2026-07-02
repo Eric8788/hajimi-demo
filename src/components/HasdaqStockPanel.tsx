@@ -501,7 +501,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                     </div>
                     <ul>
                         <li>创始股永久锁仓，管理员 / 创始人不能卖出创始股。</li>
-                        <li>不参与学生公司榜单，不参与月度奖励。</li>
+                        <li>不参与学生公司榜单、市值榜、成交榜、涨幅榜或月度奖励。</li>
                         <li>普通用户仍可认购 IPO，并在上市后交易公开股。</li>
                         <li>股价仍由公开股买卖决定，不代表个人收益承诺。</li>
                     </ul>

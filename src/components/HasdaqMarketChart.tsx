@@ -308,18 +308,18 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     return (
         <div className="hasdaq-market-panel">
             <div className="hasdaq-market-tape" aria-label="Hasdaq market data">
-                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.open}>O <b><HasdaqRollingNumber value={sessionOpen} decimals={2} fontSize={13} /></b></HasdaqInfoTooltip>
-                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.high}>H <b><HasdaqRollingNumber value={sessionHigh} decimals={2} fontSize={13} /></b></HasdaqInfoTooltip>
-                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.low}>L <b><HasdaqRollingNumber value={sessionLow} decimals={2} fontSize={13} /></b></HasdaqInfoTooltip>
-                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}><HasdaqRollingNumber value={sessionClose} decimals={2} fontSize={13} /></b></HasdaqInfoTooltip>
-                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.volume}>Vol <b><HasdaqRollingNumber value={volume} fontSize={13} /></b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.open}>O <b><HasdaqRollingNumber value={sessionOpen} decimals={2} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.high}>H <b><HasdaqRollingNumber value={sessionHigh} decimals={2} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.low}>L <b><HasdaqRollingNumber value={sessionLow} decimals={2} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}><HasdaqRollingNumber value={sessionClose} decimals={2} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
+                <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.volume}>Vol <b><HasdaqRollingNumber value={volume} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
             </div>
             <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
             <div className="hasdaq-metrics hasdaq-market-stats">
-                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中还能被买入的股票数量。"><b><HasdaqRollingNumber value={Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} fontSize={13} /></b> 可买股票</HasdaqInfoTooltip>
-                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中用于承接卖出的 H币余额。"><b><HasdaqRollingNumber value={Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} fontSize={13} /></b> 流动 H币</HasdaqInfoTooltip>
-                <span><b><HasdaqRollingNumber value={Number(company.holder_count || 0)} fontSize={13} /></b> 持有人</span>
-                <HasdaqInfoTooltip tooltip={marketCapTooltip}><b><HasdaqRollingNumber value={marketCap} fontSize={13} /></b> 市值</HasdaqInfoTooltip>
+                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中还能被买入的股票数量。"><b><HasdaqRollingNumber value={Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} fontSize={13} animated={false} /></b> 可买股票</HasdaqInfoTooltip>
+                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中用于承接卖出的 H币余额。"><b><HasdaqRollingNumber value={Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} fontSize={13} animated={false} /></b> 流动 H币</HasdaqInfoTooltip>
+                <span><b><HasdaqRollingNumber value={Number(company.holder_count || 0)} fontSize={13} animated={false} /></b> 持有人</span>
+                <HasdaqInfoTooltip tooltip={marketCapTooltip}><b><HasdaqRollingNumber value={marketCap} fontSize={13} animated={false} /></b> 市值</HasdaqInfoTooltip>
             </div>
         </div>
     );

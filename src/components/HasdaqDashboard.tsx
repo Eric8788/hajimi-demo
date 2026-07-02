@@ -271,7 +271,6 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
     const listedCompanies = studentCompanies.filter(company => company.status === 'listed' || company.status === 'paused');
     const ipoCompanies = studentCompanies.filter(company => company.status === 'ipo');
     const hasStudentCompanies = ipoCompanies.length > 0 || listedCompanies.length > 0;
-    const allListedCompanies = allCompanies.filter(company => company.status === 'listed' || company.status === 'paused');
     const topMovers = [...listedCompanies].sort((a, b) => getChange(b) - getChange(a)).slice(0, 5);
     const rawPositions = overview.positions || overview.myPositions || allCompanies.filter(company => getPositionShares(company) > 0);
     const myPositions = rawPositions.map(position => {
@@ -281,7 +280,7 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
         ));
         return matchingCompany ? { ...matchingCompany, ...position } : position;
     });
-    const latestBell = overview.latestBell || [...allListedCompanies]
+    const latestBell = overview.latestBell && !isOfficialDemo(overview.latestBell) ? overview.latestBell : [...listedCompanies]
         .sort((a, b) => new Date(String(b.listed_at || 0)).getTime() - new Date(String(a.listed_at || 0)).getTime())[0];
 
     return (

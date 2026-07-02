@@ -9,6 +9,7 @@ type HasdaqRollingNumberProps = {
     decimals?: number;
     className?: string;
     fontSize?: number;
+    animated?: boolean;
 };
 
 type HasdaqShareStepperProps = {
@@ -54,6 +55,7 @@ export function HasdaqRollingNumber({
     decimals = 0,
     className = '',
     fontSize = 16,
+    animated = true,
 }: HasdaqRollingNumberProps) {
     const reducedMotion = useReducedMotion();
     const numericValue = getNumericValue(value);
@@ -63,7 +65,7 @@ export function HasdaqRollingNumber({
 
     return (
         <span className={`hasdaq-rolling-number${className ? ` ${className}` : ''}`} aria-label={formattedValue}>
-            {reducedMotion ? formattedValue : (
+            {reducedMotion || !animated ? formattedValue : (
                 <Counter
                     value={digitValue}
                     places={places}
