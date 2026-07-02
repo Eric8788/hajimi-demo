@@ -188,20 +188,20 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
     };
 
     return (
-        <section className="settings-public-profile-panel settings-basic-profile-panel">
-            <div className="profile-settings-head settings-section-head">
+        <section className="settings-panel settings-public-profile-panel">
+            <div className="settings-panel-head">
                 <div>
                     <span>Public Profile</span>
                     <h3>公开主页</h3>
-                    <p>这里只调整头像和个性签名；公开显示名沿用登录用户名，避免重复填写同一名称。</p>
                 </div>
+                <span className="settings-id-pill">显示名 {user.username} · {hajimiId}</span>
             </div>
 
-            <div className="settings-basic-profile-grid">
-                <section className="profile-avatar-settings profile-inline-editor">
-                    <div className="profile-section-heading">
+            <div className="settings-public-editor">
+                <div className="settings-avatar-control">
+                    <div className="settings-field-title">
                         <h3>个人头像</h3>
-                        <p>上传并裁剪图片，或继续使用 emoji 头像。</p>
+                        <p>图片或 emoji</p>
                     </div>
                     <div className="profile-avatar-editor-row">
                         <div
@@ -236,12 +236,18 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                         />
                         <div className="profile-avatar-editor">
                             <div className="profile-avatar-inline-selects">
-                                <select value={avatarEmoji} onChange={event => { setAvatarEmoji(event.target.value); setAvatar(event.target.value); }} className="glass-input">
-                                    {AVATAR_EMOJIS.map(emoji => <option key={emoji} value={emoji}>{emoji}</option>)}
-                                </select>
-                                <select value={avatarTheme} onChange={event => setAvatarTheme(event.target.value as AvatarThemeId)} className="glass-input">
-                                    {AVATAR_THEME_IDS.map(theme => <option key={theme} value={theme}>{theme}</option>)}
-                                </select>
+                                <label>
+                                    <span>Emoji</span>
+                                    <select value={avatarEmoji} onChange={event => { setAvatarEmoji(event.target.value); setAvatar(event.target.value); }} className="glass-input">
+                                        {AVATAR_EMOJIS.map(emoji => <option key={emoji} value={emoji}>{emoji}</option>)}
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>主题</span>
+                                    <select value={avatarTheme} onChange={event => setAvatarTheme(event.target.value as AvatarThemeId)} className="glass-input">
+                                        {AVATAR_THEME_IDS.map(theme => <option key={theme} value={theme}>{theme}</option>)}
+                                    </select>
+                                </label>
                             </div>
                             {avatarSource && (
                                 <div className="profile-avatar-crop-controls">
@@ -250,21 +256,21 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                                         <input type="range" min="1" max="2.2" step="0.05" value={avatarZoom} onChange={event => setAvatarZoom(Number(event.target.value))} />
                                     </label>
                                     <div className="profile-editor-button-row">
-                                        <button type="button" className="btn btn-primary" onClick={applyCroppedAvatar}>Use crop</button>
-                                        <button type="button" className="btn profile-secondary-button" onClick={() => setAvatarSource('')}>Cancel image</button>
+                                        <button type="button" className="settings-button settings-button-primary" onClick={applyCroppedAvatar}>使用裁剪</button>
+                                        <button type="button" className="settings-button settings-button-secondary" onClick={() => setAvatarSource('')}>取消图片</button>
                                     </div>
                                 </div>
                             )}
-                            {avatarSource && <div className="profile-avatar-drag-hint">Drag avatar to reposition</div>}
+                            {avatarSource && <div className="profile-avatar-drag-hint">拖动头像调整位置</div>}
                             {avatarError && <div className="profile-avatar-error">{avatarError}</div>}
                         </div>
                     </div>
-                </section>
+                </div>
 
-                <section className="settings-profile-field-card">
-                    <div className="profile-section-heading">
+                <div className="settings-bio-control">
+                    <div className="settings-field-title">
                         <h3>主页签名</h3>
-                        <p>显示名：{user.username} · {hajimiId}</p>
+                        <p>显示在主页名片</p>
                     </div>
                     <label className="profile-field-label">
                         个性签名
@@ -276,7 +282,7 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                             rows={4}
                         />
                     </label>
-                </section>
+                </div>
             </div>
 
             {(saveError || saveMessage) && (
@@ -285,10 +291,10 @@ export default function PublicProfileSettingsPanel({ user }: { user: User }) {
                 </div>
             )}
             <div className="settings-action-bar">
-                <button type="button" className="profile-secondary-button" onClick={resetDraft} disabled={saving}>
+                <button type="button" className="settings-button settings-button-secondary" onClick={resetDraft} disabled={saving}>
                     还原修改
                 </button>
-                <button type="button" className="btn btn-primary" onClick={savePublicProfile} disabled={saving}>
+                <button type="button" className="settings-button settings-button-primary" onClick={savePublicProfile} disabled={saving}>
                     {saving ? '保存中' : '保存公开资料'}
                 </button>
             </div>

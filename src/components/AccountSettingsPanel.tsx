@@ -133,23 +133,20 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
     };
 
     return (
-        <section className="profile-settings-panel account-settings-panel">
-            <div className="profile-settings-head">
+        <section className="settings-panel account-settings-panel">
+            <div className="settings-panel-head">
                 <div>
                     <span>Private Settings</span>
-                    <h3>账号安全与认证</h3>
-                    <p>这里管理登录用户名、密码和认证资料；这些信息主要用于登录、安全与审核。</p>
+                    <h3>账号安全</h3>
                 </div>
+                <span className="settings-id-pill">{hajimiId}</span>
             </div>
 
-            <div className="profile-settings-grid">
-                <section className="profile-account-editor">
-                    <div className="profile-account-head">
-                        <div>
-                            <h4>登录与安全</h4>
-                            <p>登录用户名同时作为公开显示名；头像和签名在上方公开主页区域管理。</p>
-                        </div>
-                        <span>{hajimiId}</span>
+            <div className="settings-account-grid">
+                <div className="settings-form-block">
+                    <div className="settings-field-title">
+                        <h3>登录</h3>
+                        <p>用户名会同步为公开显示名</p>
                     </div>
                     <div className="profile-account-fields">
                         <label className="profile-field-label">
@@ -184,14 +181,16 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                         )}
                         {accountError && <div className="profile-account-error">{accountError}</div>}
                         {accountMessage && <div className="profile-verification-success">{accountMessage}</div>}
-                        <button type="button" className="btn btn-primary profile-account-save" onClick={handleSaveAccount} disabled={settingsLoading}>
-                            {settingsLoading ? '保存中' : '保存账号设置'}
-                        </button>
+                        <div className="settings-inline-actions">
+                            <button type="button" className="settings-button settings-button-primary" onClick={handleSaveAccount} disabled={settingsLoading}>
+                                {settingsLoading ? '保存中' : '保存账号设置'}
+                            </button>
+                        </div>
                     </div>
-                </section>
+                </div>
 
-                <section className="profile-verification-editor">
-                    <div className="profile-section-heading">
+                <div className="settings-form-block">
+                    <div className="settings-field-title">
                         <h3>{isReadOnlyUser ? '参观账号权限' : 'Hajimi 认证'}</h3>
                         <p>{verificationCopy}</p>
                     </div>
@@ -244,23 +243,25 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                             )}
                             {verificationError && <div className="profile-account-error">{verificationError}</div>}
                             {verificationMessage && <div className="profile-verification-success">{verificationMessage}</div>}
-                            <button type="button" className="btn btn-primary profile-verification-submit" onClick={submitVerification} disabled={verificationLoading}>
-                                {verificationLoading ? 'Submitting...' : '提交认证'}
-                            </button>
+                            <div className="settings-inline-actions">
+                                <button type="button" className="settings-button settings-button-primary" onClick={submitVerification} disabled={verificationLoading}>
+                                    {verificationLoading ? '提交中' : '提交认证'}
+                                </button>
+                            </div>
                         </div>
                     )}
                     {verificationMessage && verificationStatus === 'pending' && <div className="profile-verification-success">{verificationMessage}</div>}
-                </section>
+                </div>
             </div>
 
-            <div className="profile-danger-actions">
+            <div className="settings-account-footer">
                 <div>
                     <strong>账号操作</strong>
-                    <span>退出当前登录状态；账号停用或删除请联系管理员处理。</span>
+                    <span>退出当前登录状态</span>
                 </div>
-                <div className="profile-danger-button-row">
-                    <button type="button" onClick={handleLogout} className="btn profile-logout-button" disabled={logoutLoading}>
-                        退出账号 / Log out
+                <div className="settings-inline-actions">
+                    <button type="button" onClick={handleLogout} className="settings-button settings-button-danger" disabled={logoutLoading}>
+                        {logoutLoading ? '退出中' : '退出登录'}
                     </button>
                 </div>
             </div>
