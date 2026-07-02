@@ -2,14 +2,14 @@
 
 *Last updated: 2026-06-08 (Asia/Shanghai)*
 
-**Current version:** Hajimi Beta v0.2.0-beta.16 ? 2026-05-22
+**Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
 This file is the fast handoff note for any new AI window or fallback agent. Read this after `docs/AI_CLUB_ECOSYSTEM.md` and before making changes.
 
 ## 1. Current Status
 
 - **Repo:** `hajimi-demo`
-- **Directory:** `2_????_Student_Projects/Hajimi-Dan`
+- **Directory:** `2_学生项目_Student_Projects/Hajimi-Dan`
 - **Primary domain:** `https://hajimi.ericproject.xyz`
 - **Static hub domain:** `https://hub.ericproject.xyz`
 - **Current phase:** Hajimi beta rollout for AI Club internal testing
@@ -28,7 +28,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - The composer auto-compresses oversized JPEG/PNG/WebP images before upload.
 - Registration is open without invite codes for graduation ceremony promotion.
 - Registration supports `student`, `teacher`, `parent`, and `visitor` identities.
-- Student and teacher registration requires verification details up front. Student-permission applicants submit Name, G7-G13 / ??? identity, and optional student ID; teacher applicants submit Name and subject. Teacher applicants are not granted `teacher` staff permissions until admin approval.
+- Student and teacher registration requires verification details up front. Student-permission applicants submit Name, G7-G13 / 毕业生 identity, and optional student ID; teacher applicants submit Name and subject. Teacher applicants are not granted `teacher` staff permissions until admin approval.
 - Registration is presented as a 3-step wizard: identity, account/verification details, then password plus optional avatar/profile.
 - Parent/visitor accounts share the same read-only permissions: they can browse Hallway and open Function Hall projects, but cannot post, comment, like, bookmark, rate, tip, submit projects, check in, redeem tokens, or use Cyber Oracle.
 - Password policy for new accounts is active:
@@ -44,7 +44,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Production role note: `eric` has already been promoted to `admin` in the database.
 - Announcement posts now behave like pinned posts in the main Hallway feed.
 - The Hallway beta prompt sends testers to the pinned announcement; beta feedback should be left as comments there.
-- Normal posts support custom hashtags. Starter suggestions include `????`, `?????`, `????`, and `????`; `announcement` remains staff-only.
+- Normal posts support custom hashtags. Starter suggestions include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`; `announcement` remains staff-only.
 - The Dashboard has a beta test mission card linking students to Function Hall and the pinned announcement flow.
 - Forum buttons now use a unified hover language, and post likes, post saves, and comment likes have small animation feedback.
 - The app has in-app notifications for post likes, post saves, and comment likes. Notifications are stored in the `notifications` table, created automatically if missing.
@@ -52,12 +52,12 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
 - The UI review pass for `v0.2.0-beta.6` is live: the app logo and dashboard mascot now use Eric's supplied original PNG cat assets instead of the redrawn SVG version.
 - `Sailer 2D` is now served from the Static Hub: `https://hub.ericproject.xyz/projects/sailer-2d/index.html`.
-- Hajimi? v1 is implemented as an independent wallet/ledger system separate from XP:
+- Hajimi币 v1 is implemented as an independent wallet/ledger system separate from XP:
   - `users.points` remains XP only.
   - legacy `project_tips` remains historical XP tip data for analytics.
-  - new Function Hall tips use H? wallet transfers through `coin_wallets`, `coin_transactions`, and `coin_project_tips`.
-  - `/wallet` shows H? balance, ledger, and token redemption requests.
-  - `/admin/coins` supports manual H? grants, verified-user filtering, guarded batch H? grants, and token redemption review.
+  - new Function Hall tips use H币 wallet transfers through `coin_wallets`, `coin_transactions`, and `coin_project_tips`.
+  - `/wallet` shows H币 balance, ledger, and token redemption requests.
+  - `/admin/coins` supports manual H币 grants, verified-user filtering, guarded batch H币 grants, and token redemption review.
 
 ## 3. Required Environment Variables
 
@@ -79,12 +79,12 @@ Important:
 - Legacy invite-code environment variables may remain set, but they are not used by the current registration flow.
 - Hajimi verification is required during student/teacher registration and remains required for interactions: posting, commenting, liking, bookmarking, check-in points, project comments/ratings, project submissions, token redemption, Cyber Oracle, and leaderboard visibility. Parent/visitor roles remain read-only regardless of verification status.
 - Verification `Name` means school common/preferred name, not legal name. Public pages never show Name, student ID, or subject.
-- Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows Hub `???` / `???` views based on capped effective opens, verified unique players, and ratings.
+- Hub projects stay open to play. Verified users submit project/new-version applications from `/functions`; admins review them at `/admin/project-submissions`. Function Hall records project opens in `project_opens` and shows Hub `热度榜` / `星级榜` views based on capped effective opens, verified unique players, and ratings.
 - Cyber Oracle readings are counted server-side in `oracle_readings` and limited to 3 successful readings per user per day. Provider order is custom `HAJIMI_ORACLE_API_*`, then ZenMux, DashScope, SiliconFlow, and optional Tokendance; provider failures try the next configured provider, then use a server fallback and still count once a reading is returned.
 
 ## 4. Known Live Quirks
 
-- Parent/visitor accounts intentionally cannot interact. If a parent reports that comments, ratings, saved projects, or H? features are blocked, that is expected behavior.
+- Parent/visitor accounts intentionally cannot interact. If a parent reports that comments, ratings, saved projects, or H币 features are blocked, that is expected behavior.
 - Vercel "Visit" from a deployment page may open a Vercel deployment URL; the official public domain is still `https://hajimi.ericproject.xyz`.
 - Local `npm run dev` can still be affected by Chinese-path issues noted in the ecosystem doc.
 
@@ -121,19 +121,19 @@ Open these first:
 4. `/Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md`
 5. `git log --oneline -10`
 
-Before ending a task, especially for restored features or high-risk areas such as H?, auth, permissions, or data changes, confirm the work is traceable in Git: committed locally at minimum, and pushed to a branch/PR before deployment. Do not leave important behavior only in a temporary worktree or uncommitted Codex window state.
+Before ending a task, especially for restored features or high-risk areas such as H币, auth, permissions, or data changes, confirm the work is traceable in Git: committed locally at minimum, and pushed to a branch/PR before deployment. Do not leave important behavior only in a temporary worktree or uncommitted Codex window state.
 
 ## 8. Suggested Prompt For A New Window
 
 Use this in a fresh Codex window:
 
 ```text
-We are continuing the Hajimi project in /Users/eric/Desktop/AI/AI-CLUB/2_????_Student_Projects/Hajimi-Dan.
+We are continuing the Hajimi project in /Users/eric/Desktop/AI/AI-CLUB/2_学生项目_Student_Projects/Hajimi-Dan.
 
 Please first read:
-1. /Users/eric/Desktop/AI/AI-CLUB/2_????_Student_Projects/Hajimi-Dan/docs/AI_CLUB_ECOSYSTEM.md
-2. /Users/eric/Desktop/AI/AI-CLUB/2_????_Student_Projects/Hajimi-Dan/docs/SESSION_HANDOFF.md
-3. /Users/eric/Desktop/AI/AI-CLUB/2_????_Student_Projects/Hajimi-Dan/HAJIMI_ARCHITECTURE.md
+1. /Users/eric/Desktop/AI/AI-CLUB/2_学生项目_Student_Projects/Hajimi-Dan/docs/AI_CLUB_ECOSYSTEM.md
+2. /Users/eric/Desktop/AI/AI-CLUB/2_学生项目_Student_Projects/Hajimi-Dan/docs/SESSION_HANDOFF.md
+3. /Users/eric/Desktop/AI/AI-CLUB/2_学生项目_Student_Projects/Hajimi-Dan/HAJIMI_ARCHITECTURE.md
 4. /Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md
 5. the recent git log
 

@@ -48,10 +48,10 @@ export async function POST(request: Request) {
             ? String(body?.sourceType)
             : 'manual';
 
-        if (!targetUserId && targetUserIds.length === 0) return NextResponse.json({ error: '?????? H?????' }, { status: 400 });
-        if (targetUserIds.length > 120) return NextResponse.json({ error: '?????????? 120 ????' }, { status: 400 });
-        if (!amount || amount > 10000) return NextResponse.json({ error: '??????? 1-10000 ????' }, { status: 400 });
-        if (note.length < 2) return NextResponse.json({ error: '????????????' }, { status: 400 });
+        if (!targetUserId && targetUserIds.length === 0) return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
+        if (targetUserIds.length > 120) return NextResponse.json({ error: '单次批量发放最多选择 120 位成员。' }, { status: 400 });
+        if (!amount || amount > 10000) return NextResponse.json({ error: '发放数量需要是 1-10000 的整数。' }, { status: 400 });
+        if (note.length < 2) return NextResponse.json({ error: '管理员发币必须填写备注。' }, { status: 400 });
 
         if (targetUserIds.length > 0) {
             const result = await grantCoinsToUsersByAdmin({
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
             });
         }
 
-        if (!targetUserId) return NextResponse.json({ error: '?????? H?????' }, { status: 400 });
+        if (!targetUserId) return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
 
         const result = await grantCoinsByAdmin({
             adminId: Number(admin.id),
@@ -83,19 +83,19 @@ export async function POST(request: Request) {
     } catch (error) {
         const message = error instanceof Error ? error.message : '';
         if (message === 'Target user not found') {
-            return NextResponse.json({ error: '??????' }, { status: 404 });
+            return NextResponse.json({ error: '成员不存在。' }, { status: 404 });
         }
         if (message === 'No target users selected') {
-            return NextResponse.json({ error: '?????? H?????' }, { status: 400 });
+            return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
         }
         if (message === 'Too many target users') {
-            return NextResponse.json({ error: '?????????? 120 ????' }, { status: 400 });
+            return NextResponse.json({ error: '单次批量发放最多选择 120 位成员。' }, { status: 400 });
         }
         if (message === 'Invalid coin amount') {
-            return NextResponse.json({ error: '??????? 1-10000 ????' }, { status: 400 });
+            return NextResponse.json({ error: '发放数量需要是 1-10000 的整数。' }, { status: 400 });
         }
         if (message === 'Coin grant note required') {
-            return NextResponse.json({ error: '????????????' }, { status: 400 });
+            return NextResponse.json({ error: '管理员发币必须填写备注。' }, { status: 400 });
         }
         console.error('POST /api/admin/coins/grant error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });

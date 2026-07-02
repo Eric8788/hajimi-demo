@@ -18,7 +18,7 @@
 
   --radius-lg: 24px;
   --radius-md: 16px;
-  --cursor-alien: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' style='font-size:24px'><text y='24'>??</text></svg>") 12 12, auto;
+  --cursor-alien: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' style='font-size:24px'><text y='24'>👾</text></svg>") 12 12, auto;
 }
 
 * {
@@ -10910,7 +10910,7 @@ textarea:hover,
 }
 
 .alumni-map-share-button::before {
-  content: "?";
+  content: "↗";
   color: #6c5ce7;
   font-size: 1rem;
 }
