@@ -9,6 +9,7 @@ import { getRecentPostHighlights } from '@/lib/db';
 import LeaderboardWidget from '@/components/LeaderboardWidget';
 import DashboardAlumniPreview from '@/components/DashboardAlumniPreview';
 import DashboardPromoCarousel from '@/components/DashboardPromoCarousel';
+import PresencePanel from '@/components/PresencePanel';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
 type DashboardGreeting = {
@@ -228,6 +229,8 @@ export default async function DashboardPage() {
         <DashboardPromoCarousel userRole={user.role} />
 
         <DashboardAlumniPreview />
+
+        <PresencePanel userId={user.id} limit={8} />
 
         <div className="dashboard-grid">
 

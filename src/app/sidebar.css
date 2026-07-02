@@ -396,6 +396,66 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.84), 0 14px 28px rgba(108,92,231,0.16);
 }
 
+.sidebar-presence-strip {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba(55,198,208,0.16);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.48);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.64), 0 8px 18px rgba(55,198,208,0.08);
+}
+
+.sidebar-presence-copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #087f8c;
+  font-size: 0.66rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.sidebar-presence-strip .presence-avatar-stack {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.sidebar-presence-strip .presence-avatar-button {
+  width: 27px;
+  height: 27px;
+  margin-left: -8px;
+  border-width: 1px;
+  box-shadow: 0 6px 14px rgba(55,198,208,0.1);
+}
+
+.sidebar-presence-strip .presence-avatar-button:first-child {
+  margin-left: 0;
+}
+
+.sidebar-presence-strip .presence-dot {
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border-width: 1px;
+}
+
+.sidebar-presence-strip .presence-extra {
+  min-width: 28px;
+  height: 26px;
+  margin-left: -7px;
+  border-width: 1px;
+  font-size: 0.62rem;
+}
+
 .sidebar-user-copy {
   min-width: 0;
   display: flex;
@@ -533,6 +593,10 @@
 .glass-sidebar[data-state="collapsed"] .sidebar-quick-actions {
   display: none;
   flex-direction: column;
+}
+
+.glass-sidebar[data-state="collapsed"] .sidebar-presence-strip {
+  display: none;
 }
 
 .glass-sidebar[data-state="collapsed"] .sidebar-collapsed-actions {
@@ -738,6 +802,10 @@
   .sidebar-quick-actions {
     display: none;
     flex-direction: column;
+  }
+
+  .sidebar-presence-strip {
+    display: none;
   }
 
   .sidebar-collapsed-actions {
@@ -959,6 +1027,11 @@
   }
 
   .sidebar-quick-actions {
+    display: none;
+  }
+
+  .sidebar-presence-strip,
+  .glass-sidebar[data-state="collapsed"] .sidebar-presence-strip {
     display: none;
   }
 

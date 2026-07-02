@@ -100,6 +100,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
+- **Live Presence:** `/api/presence` records one `user_presence` row per logged-in account and shows a lightweight online count/avatar stack for accounts seen in the last 5 minutes.
 - **Cyber Oracle AI:** `POST /api/oracle` powers the Dashboard tarot insight. It runs server-side only and can use AI Tabletop-aligned OpenAI-compatible providers: custom `HAJIMI_ORACLE_API_KEY` + `HAJIMI_ORACLE_API_URL` + `HAJIMI_ORACLE_MODEL`, then `ZENMUX_API_KEY`, `DASHSCOPE_API_KEY`, `SILICONFLOW_API_KEY`, and optional `TOKENDANCE_API_KEY` + `TOKENDANCE_BASE_URL`. Default models favor deeper reflective readings (`deepseek/deepseek-v3.2`, `qwen-max`, `deepseek-ai/DeepSeek-V3`) and can be overridden with provider-specific `HAJIMI_ORACLE_*_MODEL` variables. Readings are limited to 3 successful readings per user per day through the `oracle_readings` table. If no provider is configured or every provider fails, the server returns a deeper local fallback and still counts that successful reading.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.
 - **Image Uploads:** `POST /api/posts` stores up to 3 public forum images in Vercel Blob and saves URLs in `posts.attachment_urls`, with the first URL mirrored in legacy `posts.attachment_url`. `POST /api/posts/interact` supports one optional Blob image per comment in `comments.attachment_url`. `POST /api/project-submissions/cover` stores cropped Function Hall project cover screenshots in Vercel Blob and saves the URL through `project_submissions.cover_url`. Production requires `BLOB_READ_WRITE_TOKEN`. Forum guardrails: JPEG/PNG/WebP/GIF only, 1 MB max per image, 5 image uploads per user per rolling 24 hours, 30 total image uploads per user, and deletion attempts to delete associated Blobs. The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation. Project covers are cropped client-side to 16:9 WebP before upload.
@@ -122,6 +123,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `coin_project_tips` | live H币 project tip log linking sender/recipient wallet transactions |
 | `coin_redemption_requests` | token redemption requests with `pending`, `approved`, `rejected`, `completed` statuses |
 | `notifications` | `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at` |
+| `user_presence` | `user_id`, `last_seen_at`; lightweight online presence, 5-minute active window |
 | `oracle_readings` | `user_id`, `reading_date`, `cards`, `created_at` |
 | `project_submissions` | `author_id`, `submission_type`, `project_id`, `title`, `description`, `url`, `tags`, `status`, `reviewed_by`, `reviewed_at` |
 | `admin_audit_events` | `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at` |
@@ -131,7 +133,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 |---|---|---|
 | `/` | Public | Landing page with particle bg, project marquee |
 | `/login` | Public | JWT auth (login + register) |
-| `/dashboard` | Protected | Welcome widget, Timeline, Tarot, Rec Room |
+| `/dashboard` | Protected | Welcome widget, live presence, Timeline, Tarot, Rec Room |
 | `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
 | `/functions` | Public | Function Hall — project grid, open project play, verified project submission, owner new-version edits, pasted/uploaded project cover crop |
 | `/wallet` | Protected | H币 wallet, transaction ledger, and token redemption request form |

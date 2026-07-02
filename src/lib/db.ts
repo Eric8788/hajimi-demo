@@ -448,6 +448,18 @@ export interface PublicAvatar {
     avatar_theme?: string | null;
 }
 
+export interface PresenceMember extends PublicAvatar {
+    username: string;
+    last_seen_at: Date | string;
+}
+
+export interface PresenceSummary {
+    onlineCount: number;
+    members: PresenceMember[];
+    windowSeconds: number;
+    generatedAt: string;
+}
+
 export interface AdminReviewSummary {
     totalCount: number;
     verificationCount: number;
@@ -461,6 +473,8 @@ const ADMIN_VISIBLE_XP_CAP = 680;
 const ADMIN_WINDOW_XP_CAP = 120;
 const ADMIN_DAILY_ACTIVITY_XP_CAP = 24;
 const MEMBER_DAILY_ACTIVITY_XP_CAP = 120;
+export const USER_PRESENCE_WINDOW_SECONDS = 300;
+const USER_PRESENCE_WRITE_THROTTLE_SECONDS = 60;
 
 export function applyVisibleXpDisplayCap(points: number, role?: string | null) {
     const safePoints = Math.max(0, Math.round(points));
@@ -4767,6 +4781,87 @@ export async function reviewProjectSubmission(submissionId: number, reviewerId: 
     }
 }
 
+let userPresenceTableReady: Promise<void> | null = null;
+
+export async function ensureUserPresenceTable() {
+    if (!userPresenceTableReady) {
+        userPresenceTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS user_presence (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+              );
+            `;
+
+            await sql`
+              CREATE INDEX IF NOT EXISTS user_presence_last_seen_idx
+              ON user_presence (last_seen_at DESC);
+            `;
+        })().catch(error => {
+            userPresenceTableReady = null;
+            throw error;
+        });
+    }
+
+    return userPresenceTableReady;
+}
+
+export async function touchUserPresence(userId: number) {
+    await ensureUserPresenceTable();
+
+    await sql`
+      INSERT INTO user_presence (user_id, last_seen_at)
+      VALUES (${userId}, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id)
+      DO UPDATE SET last_seen_at = CURRENT_TIMESTAMP
+      WHERE user_presence.last_seen_at < CURRENT_TIMESTAMP - (${USER_PRESENCE_WRITE_THROTTLE_SECONDS} * INTERVAL '1 second')
+    `;
+}
+
+export async function getPresenceSummary(limit = 8): Promise<PresenceSummary> {
+    await ensureUserPresenceTable();
+
+    const memberLimit = Math.max(0, Math.min(20, Math.floor(Number(limit) || 0)));
+    const { rows } = await sql<PresenceMember & { online_count: number }>`
+      WITH online AS (
+        SELECT
+          users.id,
+          users.username,
+          CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as avatar,
+          users.avatar_emoji,
+          users.avatar_theme,
+          user_presence.last_seen_at
+        FROM user_presence
+        JOIN users ON users.id = user_presence.user_id
+        WHERE user_presence.last_seen_at >= CURRENT_TIMESTAMP - (${USER_PRESENCE_WINDOW_SECONDS} * INTERVAL '1 second')
+          AND COALESCE(users.account_status, 'active') != 'disabled'
+      ),
+      counted AS (
+        SELECT COUNT(*)::int as online_count FROM online
+      )
+      SELECT online.*, counted.online_count
+      FROM counted
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM online
+        ORDER BY last_seen_at DESC, id ASC
+        LIMIT ${memberLimit}
+      ) online ON true
+    `;
+
+    const onlineCount = Number(rows[0]?.online_count || 0);
+    const members = rows
+        .filter(row => Number.isFinite(Number(row.id)) && Number(row.id) > 0)
+        .map(({ online_count: _onlineCount, ...member }) => member);
+
+    return {
+        onlineCount,
+        members,
+        windowSeconds: USER_PRESENCE_WINDOW_SECONDS,
+        generatedAt: new Date().toISOString(),
+    };
+}
+
 let notificationsTableReady: Promise<void> | null = null;
 
 async function ensureNotificationsTable() {
@@ -5209,6 +5304,7 @@ export async function initDB() {
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;
     await ensureVerificationColumns();
     await ensureNotificationsTable();
+    await ensureUserPresenceTable();
     await ensureAdminAuditTable();
 
     // Seeding logic (optional, but keep for now if needed)
