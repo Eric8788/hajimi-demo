@@ -553,6 +553,77 @@ function normalizeAuditDetails(value: unknown): Record<string, unknown> | null {
     }
 }
 
+function hasCorruptedAuditSummary(summary?: string | null) {
+    return /\?{3,}/.test(String(summary || ''));
+}
+
+function getAuditDetailString(details: Record<string, unknown> | null, key: string) {
+    const value = details?.[key];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getAuditDetailNumber(details: Record<string, unknown> | null, key: string) {
+    const value = Number(details?.[key]);
+    return Number.isFinite(value) ? value : null;
+}
+
+function getAuditDetailArrayLength(details: Record<string, unknown> | null, key: string) {
+    const value = details?.[key];
+    return Array.isArray(value) ? value.length : null;
+}
+
+function getAuditSummaryPrefix(summary: string) {
+    return summary.split(/\?{3,}/)[0]?.trim().replace(/[：:·\-]+$/, '').trim() || null;
+}
+
+function formatAdminAuditSummary(row: AdminAuditEvent, details: Record<string, unknown> | null) {
+    const currentSummary = String(row.summary || '').trim();
+    if (!hasCorruptedAuditSummary(currentSummary)) return currentSummary || row.event_type;
+
+    const preservedPrefix = getAuditSummaryPrefix(currentSummary);
+    const targetName = preservedPrefix || row.target_username || getAuditDetailString(details, 'username') || '该成员';
+    const amount = getAuditDetailNumber(details, 'amount');
+
+    switch (row.event_type) {
+        case 'coin_granted':
+            return `向 ${targetName} 发放 ${amount ?? ''} H币`.replace(/\s+/g, ' ').trim();
+        case 'coin_batch_granted': {
+            const count = getAuditDetailArrayLength(details, 'target_user_ids')
+                ?? getAuditDetailArrayLength(details, 'target_usernames')
+                ?? (amount ? Math.floor((getAuditDetailNumber(details, 'total_amount') ?? 0) / amount) : null);
+            return `批量向 ${count && count > 0 ? `${count} 位成员` : '多位成员'}发放 ${amount ?? ''} H币`.replace(/\s+/g, ' ').trim();
+        }
+        case 'coin_redemption_approved':
+        case 'coin_redemption_rejected':
+        case 'coin_redemption_completed': {
+            const statusLabel = row.event_type.endsWith('_approved')
+                ? '通过'
+                : row.event_type.endsWith('_rejected')
+                    ? '拒绝'
+                    : '完成';
+            return `${targetName} 的 ${amount ?? ''} H币兑换申请已${statusLabel}`.replace(/\s+/g, ' ').trim();
+        }
+        case 'verification_verified':
+            return `${targetName} 的认证已通过`;
+        case 'verification_rejected':
+            return `${targetName} 的认证已拒绝`;
+        case 'project_submission_approved':
+        case 'project_submission_rejected': {
+            const title = getAuditDetailString(details, 'title') || preservedPrefix || '项目';
+            const statusLabel = row.event_type.endsWith('_approved') ? '通过' : '拒绝';
+            return `${title} 项目申请已${statusLabel}`;
+        }
+        case 'user_identity_updated':
+            return `${targetName} 的认证资料已维护`;
+        case 'user_disabled':
+            return `${targetName} 已停用`;
+        case 'user_enabled':
+            return `${targetName} 已恢复`;
+        default:
+            return currentSummary.replace(/\?{3,}/g, '').trim() || row.event_type;
+    }
+}
+
 let userProfileEnhancementsReady: Promise<void> | null = null;
 
 async function ensureUserProfileEnhancements() {
@@ -781,6 +852,12 @@ function normalizeCoinRedemption(row: CoinRedemptionRequest): CoinRedemptionRequ
     };
 }
 
+function isCoinGrantEligibleUser(user: { username?: string | null; account_status?: string | null } | null | undefined) {
+    if (!user) return false;
+    if ((user.account_status || 'active') !== 'active') return false;
+    return !String(user.username || '').toLowerCase().startsWith('hasdaq_demo_');
+}
+
 export async function ensureCoinWalletForClient(client: VercelPoolClient, userId: number) {
     const { rows } = await client.sql<CoinWallet>`
       INSERT INTO coin_wallets (user_id)
@@ -959,6 +1036,8 @@ export async function getAdminCoinOverview(options: { query?: string; verificati
         OR lower(COALESCE(users.verified_name, '')) LIKE ${`%${query}%`}
       )
         AND (${verification} = 'all' OR users.verification_status = ${verification})
+        AND COALESCE(users.account_status, 'active') = 'active'
+        AND lower(users.username) NOT LIKE 'hasdaq_demo_%'
       ORDER BY COALESCE(coin_wallets.balance, 0) DESC, users.created_at DESC
       LIMIT ${safeLimit}
     `;
@@ -1006,6 +1085,7 @@ export async function grantCoinsByAdmin(input: {
 
     const target = await getUserById(input.targetUserId);
     if (!target) throw new Error('Target user not found');
+    if (!isCoinGrantEligibleUser(target)) throw new Error('Target user is not coin grant eligible');
 
     const client = await db.connect();
     try {
@@ -1069,9 +1149,9 @@ export async function grantCoinsToUsersByAdmin(input: {
     if (targetUserIds.length < 1) throw new Error('No target users selected');
     if (targetUserIds.length > 120) throw new Error('Too many target users');
 
-    const { rows: targets } = await db.query<{ id: number; username: string }>(
+    const { rows: targets } = await db.query<{ id: number; username: string; account_status: AccountStatus | null }>(
         `
-          SELECT id, username
+          SELECT id, username, COALESCE(account_status, 'active') as account_status
           FROM users
           WHERE id = ANY($1::int[])
           ORDER BY id ASC
@@ -1079,6 +1159,7 @@ export async function grantCoinsToUsersByAdmin(input: {
         [targetUserIds],
     );
     if (targets.length !== targetUserIds.length) throw new Error('Target user not found');
+    if (targets.some(target => !isCoinGrantEligibleUser(target))) throw new Error('Target user is not coin grant eligible');
 
     const client = await db.connect();
     try {
@@ -1833,10 +1914,14 @@ export async function getAdminAuditHistory(
       LIMIT ${safeLimit}
     `;
 
-    const auditRows = rows.map(row => ({
-        ...row,
-        details: normalizeAuditDetails(row.details),
-    }));
+    const auditRows = rows.map(row => {
+        const details = normalizeAuditDetails(row.details);
+        return {
+            ...row,
+            summary: formatAdminAuditSummary(row, details),
+            details,
+        };
+    });
 
     if (type === 'user') return auditRows;
 
