@@ -927,10 +927,16 @@ export async function getCoinWalletOverview(userId: number): Promise<CoinWalletO
     };
 }
 
-export async function getAdminCoinOverview(options: { query?: string; limit?: number } = {}) {
+export async function getAdminCoinOverview(options: { query?: string; verification?: VerificationStatus | 'all'; limit?: number } = {}) {
     await ensureCoinTables();
 
     const query = String(options.query || '').trim().toLowerCase().slice(0, 60);
+    const verification = options.verification === 'pending'
+        || options.verification === 'verified'
+        || options.verification === 'rejected'
+        || options.verification === 'unverified'
+        ? options.verification
+        : 'all';
     const safeLimit = Math.min(Math.max(Number(options.limit) || 80, 1), 120);
 
     const { rows: userRows } = await sql<Array<CoinWallet & { username: string; role: string; verification_status: VerificationStatus }>[number]>`
@@ -952,6 +958,7 @@ export async function getAdminCoinOverview(options: { query?: string; limit?: nu
         OR CAST(users.id AS TEXT) = ${query}
         OR lower(COALESCE(users.verified_name, '')) LIKE ${`%${query}%`}
       )
+        AND (${verification} = 'all' OR users.verification_status = ${verification})
       ORDER BY COALESCE(coin_wallets.balance, 0) DESC, users.created_at DESC
       LIMIT ${safeLimit}
     `;
@@ -1030,6 +1037,95 @@ export async function grantCoinsByAdmin(input: {
         });
 
         return result;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function grantCoinsToUsersByAdmin(input: {
+    adminId: number;
+    targetUserIds: number[];
+    amount: number;
+    sourceType: string;
+    note: string;
+}) {
+    await ensureCoinTables();
+    await ensureAdminAuditTable();
+
+    const amount = Math.floor(Number(input.amount));
+    const note = String(input.note || '').trim();
+    const sourceType = String(input.sourceType || 'manual').trim().slice(0, 80) || 'manual';
+    const targetUserIds = Array.from(new Set(
+        (input.targetUserIds || [])
+            .map(id => Math.floor(Number(id)))
+            .filter(id => Number.isInteger(id) && id > 0),
+    ));
+
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
+    if (note.length < 2) throw new Error('Coin grant note required');
+    if (targetUserIds.length < 1) throw new Error('No target users selected');
+    if (targetUserIds.length > 120) throw new Error('Too many target users');
+
+    const { rows: targets } = await db.query<{ id: number; username: string }>(
+        `
+          SELECT id, username
+          FROM users
+          WHERE id = ANY($1::int[])
+          ORDER BY id ASC
+        `,
+        [targetUserIds],
+    );
+    if (targets.length !== targetUserIds.length) throw new Error('Target user not found');
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+        const results = [];
+        for (const target of targets) {
+            await ensureCoinWalletForClient(client, Number(target.id));
+            const result = await writeCoinTransactionForClient(client, {
+                userId: Number(target.id),
+                amount,
+                type: 'grant',
+                sourceType,
+                note,
+                createdBy: input.adminId,
+            });
+            results.push({
+                user_id: Number(target.id),
+                username: target.username,
+                wallet: result.wallet,
+                transaction: result.transaction,
+            });
+        }
+        await client.sql`COMMIT`;
+
+        await createAdminAuditEvent({
+            actorId: input.adminId,
+            targetUserId: null,
+            targetType: 'coin',
+            targetId: results[0]?.transaction.id ?? null,
+            eventType: 'coin_batch_granted',
+            summary: `批量向 ${results.length} 位成员发放 ${amount} H币`,
+            details: {
+                amount,
+                source_type: sourceType,
+                note,
+                total_amount: amount * results.length,
+                target_user_ids: results.map(result => result.user_id),
+                target_usernames: results.map(result => result.username),
+                transaction_ids: results.map(result => result.transaction.id),
+            },
+        });
+
+        return {
+            count: results.length,
+            totalAmount: amount * results.length,
+            results,
+        };
     } catch (error) {
         await client.sql`ROLLBACK`;
         throw error;

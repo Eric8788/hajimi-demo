@@ -57,7 +57,7 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
   - legacy `project_tips` remains historical XP tip data for analytics.
   - new Function Hall tips use H币 wallet transfers through `coin_wallets`, `coin_transactions`, and `coin_project_tips`.
   - `/wallet` shows H币 balance, ledger, and token redemption requests.
-  - `/admin/coins` supports manual H币 grants and token redemption review.
+  - `/admin/coins` supports manual H币 grants, verified-user filtering, guarded batch H币 grants, and token redemption review.
 
 ## 3. Required Environment Variables
 
@@ -120,6 +120,8 @@ Open these first:
 3. `HAJIMI_ARCHITECTURE.md`
 4. `/Users/eric/Desktop/AI/AI-CLUB/AI_COORDINATION.md`
 5. `git log --oneline -10`
+
+Before ending a task, especially for restored features or high-risk areas such as H币, auth, permissions, or data changes, confirm the work is traceable in Git: committed locally at minimum, and pushed to a branch/PR before deployment. Do not leave important behavior only in a temporary worktree or uncommitted Codex window state.
 
 ## 8. Suggested Prompt For A New Window
 

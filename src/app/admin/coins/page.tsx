@@ -15,7 +15,7 @@ export default async function AdminCoinsPage() {
     if (!user) redirect('/login');
     if (!isAdminRole(user.role)) redirect('/dashboard');
 
-    const overview = await getAdminCoinOverview();
+    const overview = await getAdminCoinOverview({ verification: 'verified' });
 
     return (
         <Shell user={user}>

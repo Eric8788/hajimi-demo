@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getUserById, grantCoinsByAdmin } from '@/lib/db';
+import { getUserById, grantCoinsByAdmin, grantCoinsToUsersByAdmin } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,15 @@ function parsePositiveInteger(value: unknown) {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function parseTargetUserIds(value: unknown) {
+    if (!Array.isArray(value)) return [];
+    return Array.from(new Set(
+        value
+            .map(parsePositiveInteger)
+            .filter((id): id is number => Boolean(id)),
+    ));
+}
+
 export async function POST(request: Request) {
     try {
         const session = await getSession();
@@ -32,15 +41,33 @@ export async function POST(request: Request) {
 
         const body = await request.json().catch(() => null);
         const targetUserId = parsePositiveInteger(body?.targetUserId);
+        const targetUserIds = parseTargetUserIds(body?.targetUserIds);
         const amount = parsePositiveInteger(body?.amount);
         const note = String(body?.note || '').trim();
         const sourceType = ALLOWED_SOURCES.has(String(body?.sourceType || ''))
             ? String(body?.sourceType)
             : 'manual';
 
-        if (!targetUserId) return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
+        if (!targetUserId && targetUserIds.length === 0) return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
+        if (targetUserIds.length > 120) return NextResponse.json({ error: '单次批量发放最多选择 120 位成员。' }, { status: 400 });
         if (!amount || amount > 10000) return NextResponse.json({ error: '发放数量需要是 1-10000 的整数。' }, { status: 400 });
         if (note.length < 2) return NextResponse.json({ error: '管理员发币必须填写备注。' }, { status: 400 });
+
+        if (targetUserIds.length > 0) {
+            const result = await grantCoinsToUsersByAdmin({
+                adminId: Number(admin.id),
+                targetUserIds,
+                amount,
+                sourceType,
+                note,
+            });
+
+            return NextResponse.json({ success: true, batch: true, ...result }, {
+                headers: { 'Cache-Control': 'no-store' },
+            });
+        }
+
+        if (!targetUserId) return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
 
         const result = await grantCoinsByAdmin({
             adminId: Number(admin.id),
@@ -57,6 +84,12 @@ export async function POST(request: Request) {
         const message = error instanceof Error ? error.message : '';
         if (message === 'Target user not found') {
             return NextResponse.json({ error: '成员不存在。' }, { status: 404 });
+        }
+        if (message === 'No target users selected') {
+            return NextResponse.json({ error: '请选择要发放 H币的成员。' }, { status: 400 });
+        }
+        if (message === 'Too many target users') {
+            return NextResponse.json({ error: '单次批量发放最多选择 120 位成员。' }, { status: 400 });
         }
         if (message === 'Invalid coin amount') {
             return NextResponse.json({ error: '发放数量需要是 1-10000 的整数。' }, { status: 400 });
