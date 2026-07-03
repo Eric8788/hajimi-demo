@@ -3,13 +3,14 @@ import { getSession } from '@/lib/auth';
 import { createCoinRedemptionRequest, getUserById } from '@/lib/db';
 import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage } from '@/lib/access';
+import {
+    COIN_REDEMPTION_BASE_MONTHLY_LIMIT,
+    COIN_REDEMPTION_MAX_AMOUNT,
+    COIN_REDEMPTION_MIN_AMOUNT,
+    validateCoinRedemptionRequest,
+} from '@/lib/coinRules';
 
 export const dynamic = 'force-dynamic';
-
-function parsePositiveInteger(value: unknown) {
-    const parsed = typeof value === 'number' ? value : Number(value);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
 
 export async function POST(request: Request) {
     try {
@@ -23,20 +24,26 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json().catch(() => null);
-        const amount = parsePositiveInteger(body?.amount);
-        const note = String(body?.requestedNote || '').trim();
-        if (!amount || amount < 50 || amount > 10000) {
-            return NextResponse.json({ error: '兑换申请最低 50 H币，最高 10000 H币。' }, { status: 400 });
+        const validation = validateCoinRedemptionRequest(body?.amount, body?.requestedNote);
+        if (!validation.ok && validation.reason === 'invalid_amount') {
+            return NextResponse.json({ error: `兑换申请最低 ${COIN_REDEMPTION_MIN_AMOUNT} H币，最高 ${COIN_REDEMPTION_MAX_AMOUNT} H币。` }, { status: 400 });
         }
+        if (!validation.ok && validation.reason === 'missing_additional_note') {
+            return NextResponse.json({ error: `超过每人每月基础 ${COIN_REDEMPTION_BASE_MONTHLY_LIMIT} H币的追加申请必须填写用途说明。` }, { status: 400 });
+        }
+        if (!validation.ok) return NextResponse.json({ error: 'Invalid redemption request' }, { status: 400 });
 
-        const result = await createCoinRedemptionRequest(userId, amount, note);
+        const result = await createCoinRedemptionRequest(userId, validation.amount, validation.note);
         return NextResponse.json({ success: true, ...result }, {
             headers: { 'Cache-Control': 'no-store' },
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : '';
         if (message === 'Invalid redemption amount') {
-            return NextResponse.json({ error: '兑换申请最低 50 H币。' }, { status: 400 });
+            return NextResponse.json({ error: `兑换申请最低 ${COIN_REDEMPTION_MIN_AMOUNT} H币，最高 ${COIN_REDEMPTION_MAX_AMOUNT} H币。` }, { status: 400 });
+        }
+        if (message === 'Additional redemption note required') {
+            return NextResponse.json({ error: `超过每人每月基础 ${COIN_REDEMPTION_BASE_MONTHLY_LIMIT} H币的追加申请必须填写用途说明。` }, { status: 400 });
         }
         if (message === 'Insufficient coins') {
             return NextResponse.json({ error: 'H币余额不足，无法冻结兑换额度。' }, { status: 409 });

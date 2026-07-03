@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CoinRedemptionRequest, CoinWallet } from '@/lib/db';
 import { formatHajimiId } from '@/lib/hajimiId';
+import {
+    COIN_REDEMPTION_BASE_MONTHLY_LIMIT,
+    COIN_REDEMPTION_MONTHLY_POOL,
+    isAdditionalCoinRedemption,
+} from '@/lib/coinRules';
 
 type VerificationFilter = 'all' | 'verified' | 'pending' | 'unverified' | 'rejected';
 
@@ -347,6 +352,12 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                         <span>Token Requests</span>
                         <h2>兑换审核</h2>
                     </div>
+                    <strong>月池 {COIN_REDEMPTION_MONTHLY_POOL} H币</strong>
+                </div>
+                <div className="admin-coin-redemption-policy">
+                    <span>公共兑换池 {COIN_REDEMPTION_MONTHLY_POOL} H币/月</span>
+                    <span>基础额度 {COIN_REDEMPTION_BASE_MONTHLY_LIMIT} H币/人/月</span>
+                    <span>超出部分按剩余额度人工审核</span>
                 </div>
                 {overview.redemptions.length === 0 ? (
                     <p className="admin-verification-empty">暂无待处理兑换申请。</p>
@@ -356,7 +367,10 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                             <article key={request.id} className={`admin-coin-redemption-card is-${request.status}`}>
                                 <div className="admin-coin-redemption-head">
                                     <div>
-                                        <strong>{request.username} · {request.amount} H币</strong>
+                                        <strong>
+                                            {request.username} · {request.amount} H币
+                                            {isAdditionalCoinRedemption(request.amount) && <span className="admin-coin-redemption-badge">追加申请</span>}
+                                        </strong>
                                         <span>{statusLabel(request.status)} · {formatTime(request.created_at)}</span>
                                     </div>
                                     <em>{request.status}</em>
