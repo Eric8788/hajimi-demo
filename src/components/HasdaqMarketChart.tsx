@@ -196,6 +196,119 @@ function buildCandles(trades: HasdaqChartTrade[] | undefined, company: HasdaqCha
     return displayCandles.length > 0 ? displayCandles.slice(-72) : buildFallbackCandles(openMilli, fallbackCurrent);
 }
 
+function getFallbackChartGeometry(candles: HasdaqCandle[]) {
+    const width = 960;
+    const height = 320;
+    const chartTop = 26;
+    const chartBottom = 222;
+    const volumeTop = 246;
+    const volumeBottom = 292;
+    const left = 32;
+    const right = 42;
+    const plotWidth = width - left - right;
+    const visibleCandles = candles.length > 0 ? candles : buildFallbackCandles(1000, 1000);
+    const minLow = Math.min(...visibleCandles.map(candle => candle.low));
+    const maxHigh = Math.max(...visibleCandles.map(candle => candle.high));
+    const range = Math.max(0.01, maxHigh - minLow);
+    const maxVolume = Math.max(1, ...visibleCandles.map(candle => candle.volume));
+    const step = plotWidth / Math.max(1, visibleCandles.length - 1);
+    const candleWidth = Math.max(4, Math.min(12, step * 0.48));
+
+    const yForPrice = (price: number) => chartTop + ((maxHigh - price) / range) * (chartBottom - chartTop);
+    const xForIndex = (index: number) => left + index * step;
+    const yForVolume = (value: number) => volumeBottom - (Math.max(0, value) / maxVolume) * (volumeBottom - volumeTop);
+
+    return {
+        width,
+        height,
+        chartTop,
+        chartBottom,
+        volumeTop,
+        volumeBottom,
+        left,
+        right,
+        visibleCandles,
+        candleWidth,
+        yForPrice,
+        xForIndex,
+        yForVolume,
+    };
+}
+
+function HasdaqFallbackCandles({ candles }: { candles: HasdaqCandle[] }) {
+    const geometry = getFallbackChartGeometry(candles);
+    const gridLines = [0, 1, 2, 3].map(index => geometry.chartTop + ((geometry.chartBottom - geometry.chartTop) * index) / 3);
+    const lastCandle = geometry.visibleCandles[geometry.visibleCandles.length - 1];
+    const lastPriceY = geometry.yForPrice(lastCandle?.close ?? 1);
+
+    return (
+        <svg
+            className="hasdaq-candle-fallback"
+            viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            focusable="false"
+        >
+            <defs>
+                <linearGradient id="hasdaqFallbackArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(108,92,231,0.16)" />
+                    <stop offset="100%" stopColor="rgba(108,92,231,0)" />
+                </linearGradient>
+            </defs>
+            {gridLines.map(lineY => (
+                <line
+                    key={`grid-${lineY}`}
+                    x1={geometry.left}
+                    x2={geometry.width - geometry.right}
+                    y1={lineY}
+                    y2={lineY}
+                    className="hasdaq-candle-grid"
+                />
+            ))}
+            <line
+                x1={geometry.left}
+                x2={geometry.width - geometry.right}
+                y1={lastPriceY}
+                y2={lastPriceY}
+                className="hasdaq-candle-last-price"
+            />
+            {geometry.visibleCandles.map((candle, index) => {
+                const x = geometry.xForIndex(index);
+                const openY = geometry.yForPrice(candle.open);
+                const closeY = geometry.yForPrice(candle.close);
+                const highY = geometry.yForPrice(candle.high);
+                const lowY = geometry.yForPrice(candle.low);
+                const isUpCandle = candle.close >= candle.open;
+                const bodyTop = Math.min(openY, closeY);
+                const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+                const volumeY = geometry.yForVolume(candle.volume);
+
+                return (
+                    <g key={`${candle.time}-${index}`} className={isUpCandle ? 'is-up' : 'is-down'}>
+                        <rect
+                            x={x - geometry.candleWidth / 2}
+                            y={volumeY}
+                            width={geometry.candleWidth}
+                            height={Math.max(1, geometry.volumeBottom - volumeY)}
+                            className="hasdaq-candle-volume"
+                            rx="1.5"
+                        />
+                        <line x1={x} x2={x} y1={highY} y2={lowY} className="hasdaq-candle-wick" />
+                        <rect
+                            x={x - geometry.candleWidth / 2}
+                            y={bodyTop}
+                            width={geometry.candleWidth}
+                            height={bodyHeight}
+                            rx="2"
+                            className="hasdaq-candle-body"
+                        />
+                    </g>
+                );
+            })}
+        </svg>
+    );
+}
+
 export default function HasdaqMarketChart({ company, trades }: { company: HasdaqChartCompany; trades?: HasdaqChartTrade[] }) {
     const chartRef = useRef<HTMLDivElement | null>(null);
     const candles = useMemo(() => buildCandles(trades, company), [trades, company]);
@@ -214,87 +327,91 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
         let cleanup = () => {};
 
         async function mountChart() {
-            const container = chartRef.current;
-            if (!container) return;
+            try {
+                const container = chartRef.current;
+                if (!container) return;
 
-            const { createChart, CandlestickSeries, HistogramSeries } = await import('lightweight-charts');
-            if (disposed || !chartRef.current) return;
+                const { createChart, CandlestickSeries, HistogramSeries } = await import('lightweight-charts');
+                if (disposed || !chartRef.current) return;
 
-            const chart = createChart(container, {
-                height: 410,
-                width: container.clientWidth,
-                autoSize: true,
-                layout: {
-                    attributionLogo: false,
-                    background: { color: 'rgba(255,255,255,0)' },
-                    textColor: '#4f5b58',
-                    fontFamily: 'Inter, sans-serif',
-                },
-                grid: {
-                    vertLines: { color: 'rgba(45,52,54,0.06)' },
-                    horzLines: { color: 'rgba(45,52,54,0.06)' },
-                },
-                rightPriceScale: {
-                    borderVisible: false,
-                    entireTextOnly: true,
-                    minimumWidth: 58,
-                    scaleMargins: { top: 0.08, bottom: 0.22 },
-                },
-                timeScale: {
-                    borderVisible: false,
-                    barSpacing: 7,
-                    minBarSpacing: 4,
-                    maxBarSpacing: 12,
-                    rightOffset: 14,
-                    fixLeftEdge: true,
-                    timeVisible: true,
-                    secondsVisible: false,
-                },
-                crosshair: {
-                    vertLine: { color: 'rgba(108,92,231,0.22)', labelBackgroundColor: '#6c5ce7', labelVisible: false },
-                    horzLine: { color: 'rgba(108,92,231,0.18)', labelBackgroundColor: '#6c5ce7', labelVisible: false },
-                },
-            });
+                const chart = createChart(container, {
+                    height: container.clientHeight || 410,
+                    width: container.clientWidth || 960,
+                    autoSize: true,
+                    layout: {
+                        attributionLogo: false,
+                        background: { color: 'rgba(255,255,255,0)' },
+                        textColor: '#4f5b58',
+                        fontFamily: 'Inter, sans-serif',
+                    },
+                    grid: {
+                        vertLines: { color: 'rgba(45,52,54,0.06)' },
+                        horzLines: { color: 'rgba(45,52,54,0.06)' },
+                    },
+                    rightPriceScale: {
+                        borderVisible: false,
+                        entireTextOnly: true,
+                        minimumWidth: 58,
+                        scaleMargins: { top: 0.08, bottom: 0.22 },
+                    },
+                    timeScale: {
+                        borderVisible: false,
+                        barSpacing: 7,
+                        minBarSpacing: 4,
+                        maxBarSpacing: 12,
+                        rightOffset: 14,
+                        fixLeftEdge: true,
+                        timeVisible: true,
+                        secondsVisible: false,
+                    },
+                    crosshair: {
+                        vertLine: { color: 'rgba(108,92,231,0.22)', labelBackgroundColor: '#6c5ce7', labelVisible: false },
+                        horzLine: { color: 'rgba(108,92,231,0.18)', labelBackgroundColor: '#6c5ce7', labelVisible: false },
+                    },
+                });
 
-            const candleSeries = chart.addSeries(CandlestickSeries, {
-                upColor: '#00a884',
-                downColor: '#d63031',
-                borderUpColor: '#00a884',
-                borderDownColor: '#d63031',
-                wickUpColor: '#00a884',
-                wickDownColor: '#d63031',
-                priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-            });
-            candleSeries.setData(candles);
+                const candleSeries = chart.addSeries(CandlestickSeries, {
+                    upColor: '#00a884',
+                    downColor: '#d63031',
+                    borderUpColor: '#00a884',
+                    borderDownColor: '#d63031',
+                    wickUpColor: '#00a884',
+                    wickDownColor: '#d63031',
+                    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+                });
+                candleSeries.setData(candles);
 
-            const volumeSeries = chart.addSeries(HistogramSeries, {
-                priceFormat: { type: 'volume' },
-                priceScaleId: '',
-                color: 'rgba(108,92,231,0.24)',
-            });
-            volumeSeries.priceScale().applyOptions({
-                scaleMargins: { top: 0.84, bottom: 0 },
-            });
-            const volumeData: HistogramData<UTCTimestamp>[] = candles.map(candle => ({
-                time: candle.time,
-                value: candle.volume,
-                color: candle.close >= candle.open ? 'rgba(0,168,132,0.28)' : 'rgba(214,48,49,0.22)',
-            }));
-            volumeSeries.setData(volumeData);
+                const volumeSeries = chart.addSeries(HistogramSeries, {
+                    priceFormat: { type: 'volume' },
+                    priceScaleId: '',
+                    color: 'rgba(108,92,231,0.24)',
+                });
+                volumeSeries.priceScale().applyOptions({
+                    scaleMargins: { top: 0.84, bottom: 0 },
+                });
+                const volumeData: HistogramData<UTCTimestamp>[] = candles.map(candle => ({
+                    time: candle.time,
+                    value: candle.volume,
+                    color: candle.close >= candle.open ? 'rgba(0,168,132,0.28)' : 'rgba(214,48,49,0.22)',
+                }));
+                volumeSeries.setData(volumeData);
 
-            const visibleBars = Math.max(MIN_VISIBLE_BARS, candles.length + 8);
-            const visibleTo = candles.length + 5;
-            chart.timeScale().setVisibleLogicalRange({ from: visibleTo - visibleBars, to: visibleTo });
+                const visibleBars = Math.max(MIN_VISIBLE_BARS, candles.length + 8);
+                const visibleTo = candles.length + 5;
+                chart.timeScale().setVisibleLogicalRange({ from: visibleTo - visibleBars, to: visibleTo });
 
-            const resizeObserver = new ResizeObserver(() => {
-                if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth });
-            });
-            resizeObserver.observe(container);
+                const resizeObserver = new ResizeObserver(() => {
+                    if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth || 960 });
+                });
+                resizeObserver.observe(container);
 
-            cleanup = () => {
-                resizeObserver.disconnect();
-                chart.remove();
-            };
+                cleanup = () => {
+                    resizeObserver.disconnect();
+                    chart.remove();
+                };
+            } catch (error) {
+                console.warn('Hasdaq chart enhancement failed; SVG fallback remains visible.', error);
+            }
         }
 
         void mountChart();
@@ -314,7 +431,10 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
                 <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.close}>C <b className={isUp ? 'is-up' : 'is-down'}><HasdaqRollingNumber value={sessionClose} decimals={2} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
                 <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.volume}>Vol <b><HasdaqRollingNumber value={volume} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
             </div>
-            <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
+            <div className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`}>
+                <HasdaqFallbackCandles candles={candles} />
+                <div ref={chartRef} className="hasdaq-chart-library-layer" aria-hidden="true" />
+            </div>
             <div className="hasdaq-metrics hasdaq-market-stats">
                 <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="现在还可以被同学买入的公开股数量。"><b><HasdaqRollingNumber value={Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} fontSize={13} animated={false} /></b> 可买公开股</HasdaqInfoTooltip>
                 <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="当前大致能承接卖出的 H币，帮助判断卖出是否顺畅。"><b><HasdaqRollingNumber value={Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} fontSize={13} animated={false} /></b> 承接 H币</HasdaqInfoTooltip>

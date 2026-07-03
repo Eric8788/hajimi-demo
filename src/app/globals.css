@@ -9863,6 +9863,72 @@ textarea:hover,
   background: rgba(255,255,255,0.64);
 }
 
+.hasdaq-chart-library-layer,
+.hasdaq-candle-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hasdaq-chart-library-layer {
+  z-index: 2;
+}
+
+.hasdaq-candle-fallback {
+  z-index: 3;
+  display: block;
+  pointer-events: none;
+}
+
+.hasdaq-chart-library-layer:empty {
+  pointer-events: none;
+}
+
+.hasdaq-candle-grid {
+  stroke: rgba(45,52,54,0.06);
+  stroke-width: 1;
+}
+
+.hasdaq-candle-last-price {
+  stroke: rgba(0,168,132,0.18);
+  stroke-dasharray: 7 7;
+  stroke-width: 1.5;
+}
+
+.hasdaq-candle-wick {
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.hasdaq-candle-body {
+  stroke-width: 1;
+}
+
+.hasdaq-candle-volume {
+  opacity: 0.62;
+}
+
+.hasdaq-candle-fallback .is-up .hasdaq-candle-wick,
+.hasdaq-candle-fallback .is-up .hasdaq-candle-body {
+  fill: rgba(0,168,132,0.76);
+  stroke: rgba(0,168,132,0.9);
+}
+
+.hasdaq-candle-fallback .is-down .hasdaq-candle-wick,
+.hasdaq-candle-fallback .is-down .hasdaq-candle-body {
+  fill: rgba(214,48,49,0.68);
+  stroke: rgba(214,48,49,0.86);
+}
+
+.hasdaq-candle-fallback .is-up .hasdaq-candle-volume {
+  fill: rgba(0,168,132,0.22);
+}
+
+.hasdaq-candle-fallback .is-down .hasdaq-candle-volume {
+  fill: rgba(214,48,49,0.18);
+}
+
 .hasdaq-chart-panel {
   position: relative;
   z-index: 5;
@@ -9870,6 +9936,7 @@ textarea:hover,
 }
 
 .hasdaq-chart-panel .hasdaq-lightweight-chart {
+  position: relative;
   height: 390px;
   min-height: 390px;
 }
