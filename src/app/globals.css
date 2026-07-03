@@ -9854,6 +9854,7 @@ textarea:hover,
 }
 
 .hasdaq-lightweight-chart {
+  position: relative;
   width: 100%;
   height: 410px;
   min-height: 410px;
@@ -9876,7 +9877,7 @@ textarea:hover,
 }
 
 .hasdaq-candle-fallback {
-  z-index: 3;
+  z-index: 1;
   display: block;
   pointer-events: none;
 }
@@ -9936,7 +9937,6 @@ textarea:hover,
 }
 
 .hasdaq-chart-panel .hasdaq-lightweight-chart {
-  position: relative;
   height: 390px;
   min-height: 390px;
 }

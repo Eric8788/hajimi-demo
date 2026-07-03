@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CandlestickData, HistogramData, UTCTimestamp } from 'lightweight-charts';
 import HasdaqInfoTooltip from './HasdaqInfoTooltip';
 import { HasdaqRollingNumber } from './HasdaqNumberControls';
@@ -311,6 +311,7 @@ function HasdaqFallbackCandles({ candles }: { candles: HasdaqCandle[] }) {
 
 export default function HasdaqMarketChart({ company, trades }: { company: HasdaqChartCompany; trades?: HasdaqChartTrade[] }) {
     const chartRef = useRef<HTMLDivElement | null>(null);
+    const [chartReady, setChartReady] = useState(false);
     const candles = useMemo(() => buildCandles(trades, company), [trades, company]);
     const lastCandle = candles[candles.length - 1];
     const sessionOpen = candles[0]?.open ?? milliToPrice(company.day_open_price_milli || company.previous_close_price_milli || company.current_price_milli || 1000);
@@ -325,6 +326,7 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     useEffect(() => {
         let disposed = false;
         let cleanup = () => {};
+        setChartReady(false);
 
         async function mountChart() {
             try {
@@ -399,6 +401,7 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
                 const visibleBars = Math.max(MIN_VISIBLE_BARS, candles.length + 8);
                 const visibleTo = candles.length + 5;
                 chart.timeScale().setVisibleLogicalRange({ from: visibleTo - visibleBars, to: visibleTo });
+                if (!disposed) setChartReady(true);
 
                 const resizeObserver = new ResizeObserver(() => {
                     if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth || 960 });
@@ -410,6 +413,7 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
                     chart.remove();
                 };
             } catch (error) {
+                if (!disposed) setChartReady(false);
                 console.warn('Hasdaq chart enhancement failed; SVG fallback remains visible.', error);
             }
         }
@@ -432,7 +436,7 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
                 <HasdaqInfoTooltip tooltip={TAPE_TOOLTIPS.volume}>Vol <b><HasdaqRollingNumber value={volume} fontSize={13} animated={false} /></b></HasdaqInfoTooltip>
             </div>
             <div className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`}>
-                <HasdaqFallbackCandles candles={candles} />
+                {!chartReady && <HasdaqFallbackCandles candles={candles} />}
                 <div ref={chartRef} className="hasdaq-chart-library-layer" aria-hidden="true" />
             </div>
             <div className="hasdaq-metrics hasdaq-market-stats">
