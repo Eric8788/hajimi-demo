@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { createArticle, getUserById } from '@/lib/db';
+import { createArticle, deleteArticle, getUserById } from '@/lib/db';
 import { canUseMemberInteractions, getInteractionBlockedMessage } from '@/lib/access';
+import { isAdminRole } from '@/lib/roles';
 import { clearServerCache } from '@/lib/serverCache';
 
 const MAX_TITLE_LENGTH = 120;
@@ -60,6 +61,43 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, articleId: result?.articleId, forumPostId: result?.forumPostId });
     } catch (error) {
         console.error('Article create error:', error);
+        return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const session = await getSession();
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const user = await getUserById(Number(session.userId));
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        let articleId = Number(searchParams.get('articleId') || 0);
+
+        if (!articleId) {
+            const body = await request.json().catch(() => null);
+            articleId = Number(body?.articleId || 0);
+        }
+
+        if (!Number.isInteger(articleId) || articleId <= 0) {
+            return NextResponse.json({ error: 'Missing articleId' }, { status: 400 });
+        }
+
+        const deleted = await deleteArticle(user.id, articleId, isAdminRole(user.role));
+        if (!deleted) {
+            return NextResponse.json({ error: 'Cannot delete article' }, { status: 403 });
+        }
+
+        clearServerCache('posts:');
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Article delete error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }
 }

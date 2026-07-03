@@ -71,7 +71,14 @@ function notificationHref(notification: Notification) {
     }
 
     if ((notification.type === 'comment_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && notification.post_id && notification.comment_id) {
+        if (notification.article_id) {
+            return `/articles/${notification.article_id}#post-${notification.post_id}-comment-${notification.comment_id}`;
+        }
         return `/resources#post-${notification.post_id}-comment-${notification.comment_id}`;
+    }
+
+    if (notification.article_id && notification.post_type === 'article_thread') {
+        return `/articles/${notification.article_id}#comments`;
     }
 
     if (notification.post_id) {

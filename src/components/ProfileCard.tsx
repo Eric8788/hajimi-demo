@@ -241,6 +241,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const [articleSubmitting, setArticleSubmitting] = useState(false);
     const [articleError, setArticleError] = useState('');
     const [articleMessage, setArticleMessage] = useState('');
+    const [deletingArticleId, setDeletingArticleId] = useState<number | null>(null);
     const [bio, setBio] = useState(user.bio || '');
     const [profileImage, setProfileImage] = useState(user.profile_image || '');
     const [badgePreferences, setBadgePreferences] = useState<BadgeId[]>(normalizeBadgePreferences(user.badge_preferences));
@@ -259,7 +260,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const progressPercent = analytics?.progressPercent ?? Math.min(100, Math.round((xpInCurrentLevel / xpRequiredForLevel) * 100));
     const xpToNext = analytics?.xpToNext ?? xpForNextLevel - totalXp;
     const hajimiId = formatHajimiId(user.id);
-    const forumPosts = posts.filter(post => post.type !== 'article');
+    const forumPosts = posts.filter(post => post.type !== 'article' && post.type !== 'article_thread');
     const featuredPost = forumPosts[0];
     const recentPosts = forumPosts.slice(featuredPost ? 1 : 0, featuredPost ? 5 : 4);
     const heroIntro = bio || '这个人还没有写主页介绍，但已经在 Hajimi 留下了一点痕迹。';
@@ -716,6 +717,29 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
 
         setArticleError(data?.error || '发布失败，请稍后再试。');
         setArticleSubmitting(false);
+    };
+
+    const handleDeleteArticle = async (article: Article) => {
+        if (!confirm(`Delete "${article.title}"? Comments on this article will also be deleted.`)) return;
+
+        setDeletingArticleId(article.id);
+        setArticleError('');
+        setArticleMessage('');
+
+        const res = await fetch(`/api/articles?articleId=${article.id}`, {
+            method: 'DELETE',
+        });
+        const data = await res.json().catch(() => null);
+
+        if (res.ok) {
+            setArticleList(current => current.filter(item => item.id !== article.id));
+            setArticleMessage('Article deleted.');
+            router.refresh();
+        } else {
+            setArticleError(data?.error || 'Could not delete this article.');
+        }
+
+        setDeletingArticleId(null);
     };
 
     const renderHero = () => {
@@ -1355,20 +1379,39 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                             )}
 
                             <div className="profile-article-list">
-                                {articleList.length > 0 ? articleList.map(article => (
-                                    <Link key={article.id} href={`/articles/${article.id}`} className="profile-article-list-item">
-                                        <div>
-                                            <h4>{article.title}</h4>
-                                            <p>{getPreviewText(article.excerpt || article.content, 126)}</p>
-                                            <div className="profile-post-meta">
-                                                <span>{getTagLabel(article.tag)}</span>
-                                                <span>{formatDate(article.created_at)}</span>
-                                                <span>{estimateReadMinutes(article.content)} min read</span>
+                                {articleList.length > 0 ? articleList.map(article => {
+                                    const isDeleting = deletingArticleId === article.id;
+
+                                    return (
+                                        <article key={article.id} className="profile-article-list-item">
+                                            <div className="profile-article-list-copy">
+                                                <h4>{article.title}</h4>
+                                                <p>{getPreviewText(article.excerpt || article.content, 126)}</p>
+                                                <div className="profile-post-meta">
+                                                    <span>{getTagLabel(article.tag)}</span>
+                                                    <span>{formatDate(article.created_at)}</span>
+                                                    <span>{estimateReadMinutes(article.content)} min read</span>
+                                                    <span>{article.comment_count || 0} comments</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <strong>{'\u9605\u8bfb\u5168\u6587'}</strong>
-                                    </Link>
-                                )) : (
+                                            <div className="profile-article-card-actions">
+                                                <Link href={`/articles/${article.id}`}>
+                                                    {'\u9605\u8bfb\u5168\u6587'}
+                                                </Link>
+                                                {!readOnly && (
+                                                    <button
+                                                        type="button"
+                                                        className="profile-article-delete"
+                                                        onClick={() => handleDeleteArticle(article)}
+                                                        disabled={isDeleting}
+                                                    >
+                                                        {isDeleting ? 'Deleting...' : 'Delete'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </article>
+                                    );
+                                }) : (
                                     <div className="profile-empty-row">{readOnly ? '\u6682\u65e0\u4e3b\u9875\u957f\u6587\u3002' : '\u8fd8\u6ca1\u6709\u957f\u6587\u3002'}</div>
                                 )}
                             </div>

@@ -4,8 +4,9 @@ import Shell from '@/components/Shell';
 import Avatar from '@/components/Avatar';
 import UserBadges from '@/components/UserBadges';
 import PostContentRenderer from '@/components/PostContentRenderer';
+import ArticleComments from '@/components/ArticleComments';
 import { getSession } from '@/lib/auth';
-import { getArticleById, getUserById, type User } from '@/lib/db';
+import { ensureArticleCommentPost, getArticleById, getUserById, type User } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +35,7 @@ function stripMarkdownSyntax(text: string) {
 }
 
 function getSafeUser(user: User | null) {
-    if (!user?.avatar?.startsWith('data:image/')) return user;
-    return {
-        ...user,
-        avatar: user.avatar_emoji || '\u6587',
-    };
+    return user;
 }
 
 export default async function ArticlePage({ params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +48,10 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
     const article = await getArticleById(articleId);
     if (!article) notFound();
 
+    const commentPostId = await ensureArticleCommentPost(article.id);
+    const profileHref = viewer?.id === article.author_id ? '/profile' : `/profile/${article.author_id}`;
+    const readMinutes = estimateReadMinutes(article.content);
+
     const authorBadgeUser = {
         username: article.author_name || '',
         role: article.author_role || 'student',
@@ -61,40 +62,52 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
     return (
         <Shell user={getSafeUser(viewer)}>
             <article className="article-read-shell">
+                <div className="article-read-topbar">
+                    <Link href={profileHref} className="article-back-link">
+                        {'\u2190 \u8fd4\u56de'}
+                    </Link>
+                    {article.forum_post_id && article.forum_post_type !== 'article_thread' && (
+                        <Link href={`/resources#post-${article.forum_post_id}`} className="article-forum-link">
+                            Forum {'\u5361\u7247'}
+                        </Link>
+                    )}
+                </div>
+
                 <header className="article-read-hero glass-panel">
-                    <div className="article-read-author">
-                        <Avatar
-                            value={article.author_avatar || undefined}
-                            emoji={article.author_avatar_emoji}
-                            theme={article.author_avatar_theme}
-                            fallback="\u6587"
-                            size={48}
-                        />
+                    <Link href={profileHref} className="article-read-author">
+                        <span className="article-read-avatar-frame">
+                            <Avatar
+                                value={article.author_avatar || undefined}
+                                emoji={article.author_avatar_emoji}
+                                theme={article.author_avatar_theme}
+                                fallback="\u6587"
+                                size={54}
+                            />
+                        </span>
                         <div>
                             <div className="article-read-author-line">
                                 <strong>{article.author_name}</strong>
                                 <UserBadges user={authorBadgeUser} compact iconOnly />
                             </div>
-                            <span>{formatDate(article.created_at)}{' · '}{estimateReadMinutes(article.content)} min read{' · '}#{article.tag || 'general'}</span>
+                            <span>{formatDate(article.created_at)}{' \u00b7 '}{readMinutes} min read{' \u00b7 '}#{article.tag || 'general'}</span>
                         </div>
-                    </div>
+                    </Link>
                     <h1>{article.title}</h1>
                     {article.excerpt && <p>{stripMarkdownSyntax(article.excerpt)}</p>}
-                    <div className="article-read-actions">
-                        <Link href={viewer?.id === article.author_id ? '/profile' : `/profile/${article.author_id}`}>
-                            {'\u4f5c\u8005\u4e3b\u9875'}
-                        </Link>
-                        {article.forum_post_id && (
-                            <Link href={`/resources#post-${article.forum_post_id}`}>
-                                Forum {'\u5361\u7247'}
-                            </Link>
-                        )}
+                    <div className="article-read-stats" aria-label="Article stats">
+                        <span>{readMinutes} min read</span>
+                        <span>{article.comment_count || 0} comments</span>
+                        <span>#{article.tag || 'general'}</span>
                     </div>
                 </header>
 
                 <section className="article-read-body glass-panel">
                     <PostContentRenderer content={article.content} format="markdown" className="article-read-content" />
                 </section>
+
+                {commentPostId && (
+                    <ArticleComments postId={commentPostId} currentUser={viewer} />
+                )}
             </article>
         </Shell>
     );

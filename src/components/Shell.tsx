@@ -11,7 +11,6 @@ import { isAdminRole } from '@/lib/roles';
 import { isReadOnlyRole } from '@/lib/access';
 import { applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 import { cachedJson, clearCachedJsonKey, setCachedJson } from '@/lib/clientJsonCache';
-import PresencePanel from './PresencePanel';
 
 const SIDEBAR_STORAGE_KEY = 'hajimi-sidebar-expanded';
 const NOTIFICATION_COUNT_POLL_MS = 180000;
@@ -340,7 +339,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     </span>
                                 </span>
                             </button>
-                            <PresencePanel userId={displayUser.id} variant="sidebar" limit={3} />
                             <div className="sidebar-quick-actions" aria-label="Account shortcuts">
                                 <NotificationsBell initialUnreadCount={unreadCount} userId={displayUser.id} />
                                 {!isReadOnlyUser && (
@@ -403,7 +401,6 @@ export default function Shell({ children, user }: { children: React.ReactNode, u
                                     <span className="sidebar-user-balance">XP -- · 🪙 --</span>
                                 </span>
                             </button>
-                            <PresencePanel variant="sidebar" limit={0} />
                             <div className="sidebar-collapsed-actions" aria-label="Collapsed guest shortcuts">
                                 <button
                                     type="button"

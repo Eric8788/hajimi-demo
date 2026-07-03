@@ -107,6 +107,7 @@ export default function PresencePanel({ userId, variant = 'card', limit = 8 }: P
                         size={variant === 'sidebar' ? 24 : 38}
                     />
                     <span className="presence-dot" aria-hidden="true" />
+                    {variant !== 'sidebar' && <span className="presence-member-name">{member.username}</span>}
                 </button>
             ))}
             {extraCount > 0 && (
@@ -136,7 +137,8 @@ export default function PresencePanel({ userId, variant = 'card', limit = 8 }: P
             <div className="presence-card-head">
                 <div>
                     <span className="dashboard-widget-kicker">Live Campus</span>
-                    <h3>Online now</h3>
+                    <h3>{'\u5728\u7ebf\u6210\u5458'}</h3>
+                    <p>See who is around Hajimi right now.</p>
                 </div>
                 <div className="presence-count-pill">
                     <span className="presence-live-dot" aria-hidden="true" />
@@ -145,12 +147,15 @@ export default function PresencePanel({ userId, variant = 'card', limit = 8 }: P
             </div>
 
             <div className="presence-card-body">
-                {visibleMembers.length > 0 ? avatarStack : (
-                    <p className="presence-empty">No classmates are active in the last few minutes.</p>
-                )}
-                <p className="presence-note">
-                    Updates lightly every few minutes while Hajimi is open.
-                </p>
+                <div className="presence-card-main">
+                    {visibleMembers.length > 0 ? avatarStack : (
+                        <p className="presence-empty">No classmates are active in the last few minutes.</p>
+                    )}
+                </div>
+                <div className="presence-card-aside">
+                    <strong>{summary.windowSeconds ? Math.round(summary.windowSeconds / 60) : 5} min</strong>
+                    <p className="presence-note">Active window. Avatars open member profiles.</p>
+                </div>
             </div>
         </SpotlightCard>
     );

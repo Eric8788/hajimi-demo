@@ -343,6 +343,7 @@ export interface Article {
     content: string;
     tag: string;
     forum_post_id?: number | null;
+    forum_post_type?: string | null;
     created_at: Date;
     updated_at?: Date | null;
     author_name?: string;
@@ -352,6 +353,7 @@ export interface Article {
     author_role?: string | null;
     author_badge_preferences?: string[] | null;
     author_verification_status?: VerificationStatus | null;
+    comment_count?: number;
 }
 
 export interface Comment {
@@ -417,6 +419,8 @@ export interface Notification {
         | 'hasdaq_paused';
     post_id?: number | null;
     comment_id?: number | null;
+    article_id?: number | null;
+    post_type?: string | null;
     company_id?: number | null;
     trade_id?: number | null;
     read_at?: Date | null;
@@ -2603,9 +2607,10 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
           featured_comments.created_at DESC
         LIMIT 1
       ) featured ON true
-      WHERE 
+      WHERE
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
+        AND COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY 
         CASE WHEN ${tag ?? 'all'} = 'all' AND posts.tag = 'announcement' THEN 0 ELSE 1 END ASC,
         CASE WHEN ${sort} = 'likes' THEN posts.likes END DESC,
@@ -2699,6 +2704,7 @@ export async function getPostsPage(
       WHERE
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
+        AND COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY
         CASE WHEN ${tag ?? 'all'} = 'all' AND posts.tag = 'announcement' THEN 0 ELSE 1 END ASC,
         CASE WHEN ${sort} = 'likes' THEN posts.likes END DESC,
@@ -2743,6 +2749,7 @@ export async function getRecentPostHighlights(limit = 2) {
         (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count
       FROM posts
       JOIN users ON posts.author_id = users.id
+      WHERE COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY
         CASE WHEN posts.tag = 'announcement' THEN 0 ELSE 1 END ASC,
         posts.created_at DESC
@@ -2784,6 +2791,7 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
       FROM posts
       JOIN users ON posts.author_id = users.id
       WHERE posts.author_id = ${authorId}
+        AND COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY posts.created_at DESC
       LIMIT ${limit}
     `;
@@ -2832,10 +2840,13 @@ export async function createPost(authorId: number, title: string, content: strin
     VALUES (${authorId}, ${title}, ${content}, ${normalizedContentFormat}, ${type}, ${attachmentUrl}, ${JSON.stringify(attachmentUrls)}::jsonb, ${tag})
     RETURNING id
   `;
+    if (type === 'article_thread') return rows[0]?.id;
+
     const { rows: postCountRows } = await sql<{ post_count: number }>`
       SELECT COUNT(*)::int as post_count
       FROM posts
       WHERE author_id = ${authorId}
+        AND COALESCE(type, 'text') != 'article_thread'
     `;
     const isFirstPost = (postCountRows[0]?.post_count ?? 0) === 1;
 
@@ -2858,10 +2869,13 @@ export async function createPostWithAttachments(authorId: number, title: string,
     VALUES (${authorId}, ${title}, ${content}, ${normalizedContentFormat}, ${type}, ${firstAttachmentUrl}, ${JSON.stringify(cleanAttachmentUrls)}::jsonb, ${tag})
     RETURNING id
   `;
+    if (type === 'article_thread') return rows[0]?.id;
+
     const { rows: postCountRows } = await sql<{ post_count: number }>`
       SELECT COUNT(*)::int as post_count
       FROM posts
       WHERE author_id = ${authorId}
+        AND COALESCE(type, 'text') != 'article_thread'
     `;
     const isFirstPost = (postCountRows[0]?.post_count ?? 0) === 1;
 
@@ -2894,17 +2908,22 @@ export async function getArticlesByAuthor(authorId: number, limit = 12) {
         articles.content,
         articles.tag,
         articles.forum_post_id,
+        forum_posts.type as forum_post_type,
         articles.created_at,
         articles.updated_at,
         users.username as author_name,
-        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+        users.avatar as author_avatar,
         users.avatar_emoji as author_avatar_emoji,
         users.avatar_theme as author_avatar_theme,
         users.role as author_role,
         users.badge_preferences as author_badge_preferences,
-        users.verification_status as author_verification_status
+        users.verification_status as author_verification_status,
+        CASE WHEN articles.forum_post_id IS NOT NULL THEN
+          (SELECT COUNT(*)::int FROM comments WHERE post_id = articles.forum_post_id)
+        ELSE 0 END as comment_count
       FROM articles
       JOIN users ON articles.author_id = users.id
+      LEFT JOIN posts forum_posts ON forum_posts.id = articles.forum_post_id
       WHERE articles.author_id = ${authorId}
       ORDER BY articles.created_at DESC
       LIMIT ${limit}
@@ -2928,17 +2947,22 @@ export async function getArticleById(articleId: number) {
         articles.content,
         articles.tag,
         articles.forum_post_id,
+        forum_posts.type as forum_post_type,
         articles.created_at,
         articles.updated_at,
         users.username as author_name,
-        CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as author_avatar,
+        users.avatar as author_avatar,
         users.avatar_emoji as author_avatar_emoji,
         users.avatar_theme as author_avatar_theme,
         users.role as author_role,
         users.badge_preferences as author_badge_preferences,
-        users.verification_status as author_verification_status
+        users.verification_status as author_verification_status,
+        CASE WHEN articles.forum_post_id IS NOT NULL THEN
+          (SELECT COUNT(*)::int FROM comments WHERE post_id = articles.forum_post_id)
+        ELSE 0 END as comment_count
       FROM articles
       JOIN users ON articles.author_id = users.id
+      LEFT JOIN posts forum_posts ON forum_posts.id = articles.forum_post_id
       WHERE articles.id = ${articleId}
       LIMIT 1
     `;
@@ -2980,6 +3004,112 @@ export async function createArticle(authorId: number, title: string, content: st
     await addPoints(authorId, 10);
 
     return { articleId, forumPostId };
+}
+
+export async function ensureArticleCommentPost(articleId: number) {
+    await ensureArticlesTable();
+
+    const client = await db.connect();
+    try {
+        await client.sql`BEGIN`;
+
+        const { rows } = await client.sql<{
+            id: number;
+            author_id: number;
+            title: string;
+            excerpt: string | null;
+            tag: string;
+            forum_post_id: number | null;
+        }>`
+          SELECT id, author_id, title, excerpt, tag, forum_post_id
+          FROM articles
+          WHERE id = ${articleId}
+          FOR UPDATE
+        `;
+
+        const article = rows[0];
+        if (!article) {
+            await client.sql`COMMIT`;
+            return null;
+        }
+
+        if (article.forum_post_id) {
+            const { rows: postRows } = await client.sql<{ id: number }>`
+              SELECT id
+              FROM posts
+              WHERE id = ${article.forum_post_id}
+              LIMIT 1
+            `;
+            if (postRows[0]?.id) {
+                await client.sql`COMMIT`;
+                return postRows[0].id;
+            }
+        }
+
+        const { rows: existingRows } = await client.sql<{ id: number }>`
+          SELECT id
+          FROM posts
+          WHERE article_id = ${article.id}
+            AND COALESCE(type, 'text') = 'article_thread'
+          ORDER BY id ASC
+          LIMIT 1
+        `;
+        const existingPostId = existingRows[0]?.id ?? null;
+        if (existingPostId) {
+            await client.sql`
+              UPDATE articles
+              SET forum_post_id = ${existingPostId}, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ${article.id}
+            `;
+            await client.sql`COMMIT`;
+            return existingPostId;
+        }
+
+        const forumContent = `${article.excerpt || article.title}\n\n${'\u9605\u8bfb\u5168\u6587'}\uff1a/articles/${article.id}`;
+        const { rows: createdRows } = await client.sql<{ id: number }>`
+          INSERT INTO posts (author_id, article_id, title, content, content_format, type, tag, attachment_url, attachment_urls)
+          VALUES (${article.author_id}, ${article.id}, ${article.title}, ${forumContent}, 'plain', 'article_thread', ${article.tag || 'general'}, '', '[]'::jsonb)
+          RETURNING id
+        `;
+        const postId = createdRows[0]?.id ?? null;
+
+        if (postId) {
+            await client.sql`
+              UPDATE articles
+              SET forum_post_id = ${postId}, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ${article.id}
+            `;
+        }
+
+        await client.sql`COMMIT`;
+        return postId;
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+export async function deleteArticle(userId: number, articleId: number, canModerate = false): Promise<boolean> {
+    await ensureArticlesTable();
+
+    const { rows } = await sql<{ author_id: number; forum_post_id: number | null }>`
+      SELECT author_id, forum_post_id
+      FROM articles
+      WHERE id = ${articleId}
+      LIMIT 1
+    `;
+
+    const article = rows[0];
+    if (!article || (!canModerate && article.author_id !== userId)) return false;
+
+    if (article.forum_post_id) {
+        await deletePost(article.author_id, article.forum_post_id, true);
+    }
+
+    await sql`DELETE FROM articles WHERE id = ${articleId}`;
+    return true;
 }
 
 export async function updatePost(userId: number, postId: number, title: string, content: string, tag: string, contentFormat: PostContentFormat = 'plain', canModerate = false): Promise<boolean> {
@@ -3194,6 +3324,7 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
           posts.created_at,
           ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) as post_rank
         FROM posts
+        WHERE COALESCE(posts.type, 'text') != 'article_thread'
       ),
       legacy_project_firsts AS (
         SELECT
@@ -3814,6 +3945,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
           posts.created_at,
           ROW_NUMBER() OVER (PARTITION BY posts.author_id ORDER BY posts.created_at ASC, posts.id ASC) as post_rank
         FROM posts
+        WHERE COALESCE(posts.type, 'text') != 'article_thread'
       ),
       legacy_project_firsts AS (
         SELECT
@@ -3986,7 +4118,7 @@ export async function getProfileAnalytics(userId: number): Promise<ProfileAnalyt
 
     const { rows: countRows } = await sql<{ post_count: number; project_count: number }>`
       SELECT
-        (SELECT COUNT(*)::int FROM posts WHERE author_id = ${userId}) as post_count,
+        (SELECT COUNT(*)::int FROM posts WHERE author_id = ${userId} AND COALESCE(type, 'text') != 'article_thread') as post_count,
         (SELECT COUNT(*)::int FROM projects WHERE author_id = ${userId}) as project_count
     `;
 
@@ -4912,7 +5044,7 @@ export async function getPresenceSummary(limit = 8): Promise<PresenceSummary> {
         SELECT
           users.id,
           users.username,
-          CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as avatar,
+          users.avatar,
           users.avatar_emoji,
           users.avatar_theme,
           user_presence.last_seen_at
@@ -5117,6 +5249,8 @@ export async function getNotifications(userId: number) {
         users.avatar_emoji as actor_avatar_emoji,
         users.avatar_theme as actor_avatar_theme,
         posts.title as post_title,
+        posts.article_id as article_id,
+        posts.type as post_type,
         comments.content as comment_content,
         parent_comments.content as target_comment_content,
         NULL::text as hasdaq_trade_type,
