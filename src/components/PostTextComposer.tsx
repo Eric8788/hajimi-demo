@@ -789,6 +789,49 @@ function htmlToNodes(document: Document, html: string) {
     return Array.from(template.content.childNodes);
 }
 
+function createEmptyParagraph(document: Document) {
+    const paragraph = document.createElement('p');
+    paragraph.appendChild(document.createElement('br'));
+    return paragraph;
+}
+
+function isEditableTextBlock(node: Node | null) {
+    if (!(node instanceof HTMLElement)) return false;
+    return node.matches('p,h1,h2,h3,h4,blockquote,pre,ul,ol');
+}
+
+function isImageBlockSequence(nodes: Node[]) {
+    return nodes.length > 0 && nodes.every(node => isEditorImageBlock(node));
+}
+
+function ensureEditableImageBoundaries(editor: HTMLElement, insertedNodes: Node[] = []) {
+    if (insertedNodes.length === 0 && !editor.querySelector('figure[data-editor-image-block]')) return;
+
+    const firstChild = editor.firstElementChild;
+    if (isEditorImageBlock(firstChild)) {
+        editor.insertBefore(createEmptyParagraph(editor.ownerDocument), firstChild);
+    }
+
+    const lastChild = editor.lastElementChild;
+    if (isEditorImageBlock(lastChild)) {
+        editor.appendChild(createEmptyParagraph(editor.ownerDocument));
+    }
+
+    for (const node of insertedNodes) {
+        const imageBlock = node instanceof HTMLElement && isEditorImageBlock(node) ? node : null;
+        if (!imageBlock || imageBlock.parentElement !== editor) continue;
+
+        const previous = imageBlock.previousElementSibling;
+        const next = imageBlock.nextElementSibling;
+        if (!isEditableTextBlock(previous)) {
+            imageBlock.before(createEmptyParagraph(editor.ownerDocument));
+        }
+        if (!isEditableTextBlock(next)) {
+            imageBlock.after(createEmptyParagraph(editor.ownerDocument));
+        }
+    }
+}
+
 function nodeHasVisibleEditorContent(node: Node) {
     if (node.nodeType === Node.TEXT_NODE) {
         return !!normalizeEditorText(node.textContent || '').trim();
@@ -821,6 +864,15 @@ function placeCaretInNode(node: Node, edge: 'start' | 'end') {
 }
 
 function placeCaretAfterInsertedNodes(nodes: Node[], editor: HTMLElement) {
+    if (isImageBlockSequence(nodes)) {
+        const lastImage = [...nodes].reverse().find(node => node.parentNode && isEditorImageBlock(node));
+        const next = lastImage instanceof HTMLElement ? lastImage.nextElementSibling : null;
+        if (next instanceof HTMLElement && isEditableTextBlock(next)) {
+            placeCaretInNode(next, 'start');
+            return;
+        }
+    }
+
     const target = [...nodes].reverse().find(node => node.parentNode && nodeHasVisibleEditorContent(node));
     if (target) {
         placeCaretInNode(target, 'end');
@@ -912,12 +964,9 @@ function removeBlockWithoutMerging(block: HTMLElement) {
     } else if (previous) {
         placeCaretInNode(previous, 'end');
     } else if (editor) {
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(editor);
-        range.collapse(false);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
+        const emptyParagraph = createEmptyParagraph(editor.ownerDocument);
+        editor.appendChild(emptyParagraph);
+        placeCaretInNode(emptyParagraph, 'start');
     }
 }
 
@@ -975,18 +1024,22 @@ function insertBlockHtml(editor: HTMLElement, range: Range, html: string) {
 
     if (rangeCoversEditor(range, editor)) {
         editor.innerHTML = blockHtml;
-        placeCaretAfterInsertedNodes(Array.from(editor.childNodes), editor);
+        const editorNodes = Array.from(editor.childNodes);
+        ensureEditableImageBoundaries(editor, editorNodes);
+        placeCaretAfterInsertedNodes(editorNodes, editor);
         return;
     }
 
     if (selectedBlock) {
         selectedBlock.replaceWith(...insertedNodes);
+        ensureEditableImageBoundaries(editor, insertedNodes);
         placeCaretAfterInsertedNodes(insertedNodes, editor);
         return;
     }
 
     if (activeBlock && isBlockEffectivelyEmpty(activeBlock)) {
         activeBlock.replaceWith(...insertedNodes);
+        ensureEditableImageBoundaries(editor, insertedNodes);
         placeCaretAfterInsertedNodes(insertedNodes, editor);
         return;
     }
@@ -994,17 +1047,20 @@ function insertBlockHtml(editor: HTMLElement, range: Range, html: string) {
     if (activeBlock && activeBlock.parentElement === editor) {
         if (isCaretAtBlockEdge(range, activeBlock, 'start')) {
             activeBlock.before(...insertedNodes);
+            ensureEditableImageBoundaries(editor, insertedNodes);
             placeCaretAfterInsertedNodes(insertedNodes, editor);
             return;
         }
 
         if (isCaretAtBlockEdge(range, activeBlock, 'end')) {
             activeBlock.after(...insertedNodes);
+            ensureEditableImageBoundaries(editor, insertedNodes);
             placeCaretAfterInsertedNodes(insertedNodes, editor);
             return;
         }
 
         if (splitBlockAroundRange(activeBlock, range, insertedNodes)) {
+            ensureEditableImageBoundaries(editor, insertedNodes);
             placeCaretAfterInsertedNodes(insertedNodes, editor);
             return;
         }
@@ -1165,6 +1221,7 @@ export default function PostTextComposer({
         });
         if (nextValue !== rawValue) {
             editor.innerHTML = markdownToEditorHtml(nextValue);
+            ensureEditableImageBoundaries(editor, Array.from(editor.childNodes));
         }
         onChange(nextValue);
         return nextValue;
@@ -1363,6 +1420,7 @@ export default function PostTextComposer({
         const nextHtml = markdownToEditorHtml(value);
         if (editor.innerHTML !== nextHtml) {
             editor.innerHTML = nextHtml;
+            ensureEditableImageBoundaries(editor, Array.from(editor.childNodes));
         }
     }, [activeFormat, value]);
 
@@ -1711,6 +1769,7 @@ export default function PostTextComposer({
             if (imageBlock) {
                 event.preventDefault();
                 event.stopPropagation();
+                editor.focus();
                 selectEditorBlock(imageBlock);
                 setSelectedImageBlock(imageBlock);
                 setFloatingToolbar(null);
@@ -1889,6 +1948,7 @@ export default function PostTextComposer({
                             const editor = richEditorRef.current;
                             if (editor && !editor.innerHTML && value) {
                                 editor.innerHTML = markdownToEditorHtml(value);
+                                ensureEditableImageBoundaries(editor, Array.from(editor.childNodes));
                             }
                         }}
                         onBlur={() => {
