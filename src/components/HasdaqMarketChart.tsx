@@ -204,10 +204,10 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
     const sessionHigh = candles.reduce((high, candle) => Math.max(high, candle.high), sessionOpen);
     const sessionLow = candles.reduce((low, candle) => Math.min(low, candle.low), sessionOpen);
     const sessionClose = milliToPrice(company.current_price_milli || (lastCandle?.close || 1000) * 1000);
-    const marketCap = Math.round(milliToPrice(company.current_price_milli || 0) * Number(company.total_shares || 1000));
+    const marketCap = Math.round(milliToPrice(company.current_price_milli || 0) * Number(company.total_shares || 500));
     const volume = Number(company.trade_volume_today ?? company.volume_today ?? lastCandle?.volume ?? 0);
     const isUp = sessionClose >= sessionOpen;
-    const marketCapTooltip = `市值 = 当前股价 × 总股本。Hasdaq V1 默认总股本 ${formatMetric(Number(company.total_shares || 1000))} 股，所以现在约为 ${sessionClose.toFixed(2)} × ${formatMetric(Number(company.total_shares || 1000))} = ${formatMetric(marketCap)} H币。`;
+    const marketCapTooltip = `市值 = 当前股价 × 总股本。Hasdaq V1 默认总股本 ${formatMetric(Number(company.total_shares || 500))} 股，所以现在约为 ${sessionClose.toFixed(2)} × ${formatMetric(Number(company.total_shares || 500))} = ${formatMetric(marketCap)} H币。`;
 
     useEffect(() => {
         let disposed = false;
@@ -316,8 +316,8 @@ export default function HasdaqMarketChart({ company, trades }: { company: Hasdaq
             </div>
             <div ref={chartRef} className="hasdaq-lightweight-chart" role="img" aria-label={`${company.ticker || 'Hasdaq'} candlestick and volume chart`} />
             <div className="hasdaq-metrics hasdaq-market-stats">
-                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中还能被买入的股票数量。"><b><HasdaqRollingNumber value={Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} fontSize={13} animated={false} /></b> 可买股票</HasdaqInfoTooltip>
-                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="系统交易池中用于承接卖出的 H币余额。"><b><HasdaqRollingNumber value={Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} fontSize={13} animated={false} /></b> 流动 H币</HasdaqInfoTooltip>
+                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="现在还可以被同学买入的公开股数量。"><b><HasdaqRollingNumber value={Number(company.pool_shares ?? company.public_shares_remaining ?? 0)} fontSize={13} animated={false} /></b> 可买公开股</HasdaqInfoTooltip>
+                <HasdaqInfoTooltip className="hasdaq-liquidity-metric" tooltip="当前大致能承接卖出的 H币，帮助判断卖出是否顺畅。"><b><HasdaqRollingNumber value={Number(company.pool_coin_balance ?? company.h_coin_pool ?? 0)} fontSize={13} animated={false} /></b> 承接 H币</HasdaqInfoTooltip>
                 <span><b><HasdaqRollingNumber value={Number(company.holder_count || 0)} fontSize={13} animated={false} /></b> 持有人</span>
                 <HasdaqInfoTooltip tooltip={marketCapTooltip}><b><HasdaqRollingNumber value={marketCap} fontSize={13} animated={false} /></b> 市值</HasdaqInfoTooltip>
             </div>

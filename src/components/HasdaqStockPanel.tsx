@@ -101,9 +101,12 @@ type HasdaqDetail = {
 
 const HASDAQ_MAX_BUY_SHARES = 10;
 const HASDAQ_MAX_SELL_SHARES = 30;
-const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 50;
+const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 30;
 const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
-const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 30;
+const HASDAQ_IPO_PUBLIC_SHARES = 100;
+const HASDAQ_TOTAL_SHARES = 500;
+const HASDAQ_MAX_IPO_SHARES_PER_USER = 10;
 
 function formatShares(value: number) {
     return new Intl.NumberFormat('zh-CN').format(Math.max(0, Math.floor(Number(value) || 0)));
@@ -198,7 +201,7 @@ function isOfficialDemo(company?: HasdaqCompanyView) {
 }
 
 function getIpoStats(company?: HasdaqCompanyView) {
-    const total = Math.max(1, Number(company?.public_shares_total ?? 300));
+    const total = Math.max(1, Number(company?.public_shares_total ?? HASDAQ_IPO_PUBLIC_SHARES));
     const poolRemaining = Math.max(0, Math.min(total, Number(company?.public_shares_remaining ?? company?.pool_shares ?? total)));
     const reportedSubscribed = Math.max(0, Number(company?.ipo_subscribed_shares || 0));
     const subscribed = isOfficialDemo(company)
@@ -266,13 +269,13 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
         estimatedTradeCoins,
         company?.status,
     );
-    const totalShares = Number(company?.total_shares || 1000);
+    const totalShares = Number(company?.total_shares || HASDAQ_TOTAL_SHARES);
     const currentPrice = Number(company?.current_price_milli || 0) / 1000;
     const marketCap = Math.round(currentPrice * totalShares);
     const marketCapTooltip = `市值 = 当前股价 × 总股本。Hasdaq V1 默认总股本 ${totalShares.toLocaleString('zh-CN')} 股，当前约为 ${currentPrice.toFixed(2)} × ${totalShares.toLocaleString('zh-CN')} = ${marketCap.toLocaleString('zh-CN')} H币。`;
     const ipoStats = getIpoStats(company);
     const walletBalance = Number(detail.wallet?.balance || 0);
-    const ipoMaxShares = Math.max(0, Math.min(20, ipoStats.remaining || 0));
+    const ipoMaxShares = Math.max(0, Math.min(HASDAQ_MAX_IPO_SHARES_PER_USER, ipoStats.remaining || 0));
     const afterTradeShares = tradeShares > 0
         ? (tradeSide === 'buy' ? positionShares + tradeShares : Math.max(0, positionShares - tradeShares))
         : positionShares;
@@ -334,8 +337,8 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
         }
         const requestedShares = Math.floor(Number(ipoShares));
         const shares = ipoMaxShares > 0 ? Math.min(requestedShares, ipoMaxShares) : requestedShares;
-        if (!Number.isInteger(shares) || shares < 1 || shares > 20) {
-            setMessage('IPO 每次认购需要 1-20 股，单人累计上限 20 股。');
+        if (!Number.isInteger(shares) || shares < 1 || shares > HASDAQ_MAX_IPO_SHARES_PER_USER) {
+            setMessage(`IPO 每次认购需要 1-${HASDAQ_MAX_IPO_SHARES_PER_USER} 股，单人累计上限 ${HASDAQ_MAX_IPO_SHARES_PER_USER} 股。`);
             return;
         }
         setPending(true);
@@ -657,7 +660,7 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                     <span>公开发行 {ipoStats.total} 股</span>
                                     <span>剩余 {ipoStats.remaining} 股</span>
                                     <span>敲钟门槛 {ipoStats.subscribers}/{HASDAQ_MIN_BELL_SUBSCRIBERS} 人 · {ipoStats.subscribed}/{HASDAQ_MIN_BELL_SUBSCRIBED_SHARES} 股</span>
-                                    <span>单人上限 20 股</span>
+                                    <span>单人上限 {HASDAQ_MAX_IPO_SHARES_PER_USER} 股</span>
                                 </div>
                             </div>
                             <HasdaqShareStepper
@@ -665,11 +668,11 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                 label="认购股数"
                                 max={ipoMaxShares}
                                 disabled={pending || !canAct || ipoMaxShares < 1}
-                                helper={`剩余 ${formatShares(ipoStats.remaining)} 股 · 单人最多 20 股`}
+                                helper={`剩余 ${formatShares(ipoStats.remaining)} 股 · 单人最多 ${HASDAQ_MAX_IPO_SHARES_PER_USER} 股`}
                                 onChange={setIpoSharesValue}
                             />
                             <button type="submit" disabled={pending || !canAct || ipoMaxShares < 1}>认购 IPO</button>
-                            <p>IPO 价格固定 1 H币 / 股，单人最多认购 20 股。</p>
+                            <p>IPO 价格固定 1 H币 / 股，单人最多认购 {HASDAQ_MAX_IPO_SHARES_PER_USER} 股。</p>
                         </form>
                     ) : (
                         <form className="hasdaq-trade-form" onSubmit={submitTrade}>
@@ -680,14 +683,14 @@ export default function HasdaqStockPanel({ ticker, user }: { ticker: string; use
                                     <small>H币/股</small>
                                 </strong>
                                 <p>可买 <b><HasdaqRollingNumber value={maxBuyShares} fontSize={14} /></b> 股 · 可卖约 <b><HasdaqRollingNumber value={maxSellShares} fontSize={14} /></b> 股</p>
-                                <p className="hasdaq-liquidity-note">当前流动性：{poolShares > 0 ? '仍有股票可买' : '暂时无股可买'} · {poolCoins > 0 ? '可承接卖出' : '暂缺 H币承接'}</p>
+                                <p className="hasdaq-liquidity-note">当前流动性：{poolShares > 0 ? '仍有公开股可买' : '暂时无公开股可买'} · {poolCoins > 0 ? '卖出有人接得住' : '暂时不适合卖出'}</p>
                                 <div className="hasdaq-pool-status-grid">
-                                    <span><b>{formatShares(poolShares)}</b> pool shares</span>
-                                    <span><b>{formatShares(poolCoins)}</b> H coin pool</span>
-                                    <span><b>{formatShares(maxBuyShares)}</b> buy availability</span>
-                                    <span><b>{formatShares(poolSellShares)}</b> estimated sell support</span>
+                                    <span><b>{formatShares(poolShares)}</b> 可买公开股</span>
+                                    <span><b>{formatShares(maxBuyShares)}</b> 本次可买</span>
+                                    <span><b>{formatShares(poolSellShares)}</b> 估算可卖</span>
+                                    <span><b>{formatShares(poolCoins)}</b> 承接 H币</span>
                                 </div>
-                                <p className="hasdaq-liquidity-note">Display-only learning signal: pool status explains current simulated liquidity and does not add rewards, fees, or price rules.</p>
+                                <p className="hasdaq-liquidity-note">这些数字只帮助判断现在好不好买卖，不会增加奖励、手续费或额外股价规则。</p>
                             </div>
                             <div className="hasdaq-segmented">
                                 <button type="button" className={tradeSide === 'buy' ? 'is-active' : ''} onClick={() => setTradeSide('buy')}>买入</button>

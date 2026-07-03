@@ -49,6 +49,9 @@ export async function POST(request: Request) {
         ) {
             return NextResponse.json({ error: '当前兑换状态不能执行这个操作。' }, { status: 409 });
         }
+        if (message === 'Coin redemption monthly pool exhausted') {
+            return NextResponse.json({ error: 'Monthly H coin redemption pool is exhausted.' }, { status: 409 });
+        }
         console.error('POST /api/admin/coins/redemptions error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
     }

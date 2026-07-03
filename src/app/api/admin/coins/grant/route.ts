@@ -97,8 +97,14 @@ export async function POST(request: Request) {
         if (message === 'Invalid coin amount') {
             return NextResponse.json({ error: '发放数量需要是 1-10000 的整数。' }, { status: 400 });
         }
+        if (message === 'Invalid verification airdrop amount') {
+            return NextResponse.json({ error: '认证空投固定为 20 H币；如需其他金额，请选择其他发放来源。' }, { status: 400 });
+        }
         if (message === 'Coin grant note required') {
             return NextResponse.json({ error: '管理员发币必须填写备注。' }, { status: 400 });
+        }
+        if (message === 'Verification airdrop already granted') {
+            return NextResponse.json({ error: '认证空投已经发放过；为避免重复空投，请改用其他来源或先核对流水。' }, { status: 409 });
         }
         console.error('POST /api/admin/coins/grant error:', error);
         return NextResponse.json({ error: 'Internal Error' }, { status: 500 });

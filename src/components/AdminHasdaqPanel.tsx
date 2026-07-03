@@ -47,7 +47,7 @@ type AdminHasdaqPayload = {
 };
 
 const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
-const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 30;
 
 function formatTime(value?: string | Date | null) {
     if (!value) return '';

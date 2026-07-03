@@ -3,7 +3,7 @@ import { hashStudentId, STUDENT_GRADES, type VerificationStatus, type Verificati
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 import { normalizeUsernameInput, validateUsername } from './accountValidation';
 import { normalizePostContentFormat, type PostContentFormat } from './forumContent';
-import { validateCoinRedemptionRequest } from './coinRules';
+import { COIN_REDEMPTION_MONTHLY_POOL, validateCoinRedemptionRequest } from './coinRules';
 
 const AUTO_ENSURE_READ_SCHEMA = process.env.HAJIMI_AUTO_ENSURE_ON_READ === '1' || process.env.NODE_ENV !== 'production';
 
@@ -893,6 +893,41 @@ function isCoinGrantEligibleUser(user: { username?: string | null; account_statu
     return !String(user.username || '').toLowerCase().startsWith('hasdaq_demo_');
 }
 
+async function assertNoVerificationAirdropForClient(client: VercelPoolClient, userId: number) {
+    const { rows } = await client.sql<{ exists: boolean }>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM coin_transactions
+        WHERE user_id = ${userId}
+          AND type = 'grant'
+          AND source_type = 'verification_airdrop'
+      ) as exists
+    `;
+    if (rows[0]?.exists) throw new Error('Verification airdrop already granted');
+}
+
+async function assertCoinRedemptionMonthlyCapacityForClient(
+    client: VercelPoolClient,
+    amount: number,
+    excludeRequestId?: number | null,
+) {
+    await client.sql`SELECT pg_advisory_xact_lock(hashtext('coin_redemption_monthly_pool'))`;
+
+    const excludedId = excludeRequestId ?? null;
+    const { rows } = await client.sql<{ active_total: number }>`
+      SELECT COALESCE(SUM(amount), 0)::int as active_total
+      FROM coin_redemption_requests
+      WHERE status IN ('pending', 'approved', 'completed')
+        AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
+        AND created_at < date_trunc('month', CURRENT_TIMESTAMP) + interval '1 month'
+        AND (${excludedId}::int IS NULL OR id != ${excludedId})
+    `;
+    const activeTotal = Number(rows[0]?.active_total || 0);
+    if (activeTotal + amount > COIN_REDEMPTION_MONTHLY_POOL) {
+        throw new Error('Coin redemption monthly pool exhausted');
+    }
+}
+
 export async function ensureCoinWalletForClient(client: VercelPoolClient, userId: number) {
     const { rows } = await client.sql<CoinWallet>`
       INSERT INTO coin_wallets (user_id)
@@ -1116,6 +1151,7 @@ export async function grantCoinsByAdmin(input: {
     const note = String(input.note || '').trim();
     const sourceType = String(input.sourceType || 'manual').trim().slice(0, 80) || 'manual';
     if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
+    if (sourceType === 'verification_airdrop' && amount !== 20) throw new Error('Invalid verification airdrop amount');
     if (note.length < 2) throw new Error('Coin grant note required');
 
     const target = await getUserById(input.targetUserId);
@@ -1126,6 +1162,9 @@ export async function grantCoinsByAdmin(input: {
     try {
         await client.sql`BEGIN`;
         await ensureCoinWalletForClient(client, input.targetUserId);
+        if (sourceType === 'verification_airdrop') {
+            await assertNoVerificationAirdropForClient(client, input.targetUserId);
+        }
         const result = await writeCoinTransactionForClient(client, {
             userId: input.targetUserId,
             amount,
@@ -1180,6 +1219,7 @@ export async function grantCoinsToUsersByAdmin(input: {
     ));
 
     if (!Number.isInteger(amount) || amount < 1 || amount > 10000) throw new Error('Invalid coin amount');
+    if (sourceType === 'verification_airdrop' && amount !== 20) throw new Error('Invalid verification airdrop amount');
     if (note.length < 2) throw new Error('Coin grant note required');
     if (targetUserIds.length < 1) throw new Error('No target users selected');
     if (targetUserIds.length > 120) throw new Error('Too many target users');
@@ -1201,9 +1241,13 @@ export async function grantCoinsToUsersByAdmin(input: {
         await client.sql`BEGIN`;
         const results = [];
         for (const target of targets) {
-            await ensureCoinWalletForClient(client, Number(target.id));
+            const targetId = Number(target.id);
+            await ensureCoinWalletForClient(client, targetId);
+            if (sourceType === 'verification_airdrop') {
+                await assertNoVerificationAirdropForClient(client, targetId);
+            }
             const result = await writeCoinTransactionForClient(client, {
-                userId: Number(target.id),
+                userId: targetId,
                 amount,
                 type: 'grant',
                 sourceType,
@@ -1211,7 +1255,7 @@ export async function grantCoinsToUsersByAdmin(input: {
                 createdBy: input.adminId,
             });
             results.push({
-                user_id: Number(target.id),
+                user_id: targetId,
                 username: target.username,
                 wallet: result.wallet,
                 transaction: result.transaction,
@@ -1348,6 +1392,7 @@ export async function createCoinRedemptionRequest(userId: number, amount: number
     const client = await db.connect();
     try {
         await client.sql`BEGIN`;
+        await assertCoinRedemptionMonthlyCapacityForClient(client, safeAmount);
         await ensureCoinWalletForClient(client, userId);
         const holdResult = await writeCoinTransactionForClient(client, {
             userId,
@@ -1406,6 +1451,7 @@ export async function reviewCoinRedemptionRequest(adminId: number, requestId: nu
 
         if (action === 'approve') {
             if (request.status !== 'pending') throw new Error('Redemption request is not pending');
+            await assertCoinRedemptionMonthlyCapacityForClient(client, Number(request.amount), requestId);
             nextStatus = 'approved';
             eventType = 'coin_redemption_approved';
         } else if (action === 'reject') {

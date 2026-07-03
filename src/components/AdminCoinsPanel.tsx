@@ -40,6 +40,8 @@ const VERIFICATION_FILTERS: Array<{ value: VerificationFilter; label: string }> 
     { value: 'rejected', label: '已拒绝' },
 ];
 
+const COIN_VERIFICATION_AIRDROP_AMOUNT = 20;
+
 function formatTime(value: Date | string | null | undefined) {
     if (!value) return '';
     return new Date(value).toLocaleString('zh-CN');
@@ -62,7 +64,7 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
     const [verificationFilter, setVerificationFilter] = useState<VerificationFilter>('verified');
     const [selectedUserId, setSelectedUserId] = useState<number | null>(initialOverview.users[0]?.user_id ?? null);
     const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
-    const [amount, setAmount] = useState('3');
+    const [amount, setAmount] = useState(String(COIN_VERIFICATION_AIRDROP_AMOUNT));
     const [sourceType, setSourceType] = useState('verification_airdrop');
     const [note, setNote] = useState('认证空投');
     const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
@@ -326,7 +328,13 @@ export default function AdminCoinsPanel({ initialOverview }: { initialOverview: 
                 </label>
                 <label>
                     <span>来源</span>
-                    <select className="glass-input" value={sourceType} onChange={event => setSourceType(event.target.value)}>
+                    <select className="glass-input" value={sourceType} onChange={event => {
+                        const nextSource = event.target.value;
+                        setSourceType(nextSource);
+                        if (nextSource === 'verification_airdrop') {
+                            setAmount(String(COIN_VERIFICATION_AIRDROP_AMOUNT));
+                        }
+                    }}>
                         {SOURCE_OPTIONS.map(option => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                         ))}

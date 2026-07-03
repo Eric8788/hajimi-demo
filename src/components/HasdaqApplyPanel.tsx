@@ -9,7 +9,7 @@ type MemberDraft = {
     allocationPercent: number;
 };
 
-const HASDAQ_FOUNDER_SHARE_POOL = 700;
+const HASDAQ_FOUNDER_SHARE_POOL = 350;
 
 export default function HasdaqApplyPanel({ user }: { user: User | null }) {
     const canApply = canUseMemberInteractions(user);

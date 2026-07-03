@@ -62,7 +62,10 @@ type HasdaqOverview = {
 };
 
 const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
-const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 30;
+const HASDAQ_IPO_PUBLIC_SHARES = 100;
+const HASDAQ_TOTAL_SHARES = 500;
+const HASDAQ_MAX_IPO_SHARES_PER_USER = 10;
 
 function formatPrice(value?: number | null) {
     return `${((Number(value || 0)) / 1000).toFixed(2)} H币`;
@@ -85,7 +88,7 @@ function isOfficialDemo(company: HasdaqCompany) {
 }
 
 function getIpoStats(company: HasdaqCompany) {
-    const total = Math.max(1, Number(company.public_shares_total ?? company.public_shares ?? 300));
+    const total = Math.max(1, Number(company.public_shares_total ?? company.public_shares ?? HASDAQ_IPO_PUBLIC_SHARES));
     const poolRemaining = Math.max(0, Math.min(total, Number(company.public_shares_remaining ?? company.pool_shares ?? total)));
     const reportedSubscribed = Math.max(0, Number(company.ipo_subscribed_shares || 0));
     const subscribed = isOfficialDemo(company)
@@ -430,7 +433,7 @@ export default function HasdaqDashboard({ user }: { user: User | null }) {
 
 function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; variant?: 'ipo' | 'market' }) {
     const change = getChange(company);
-    const marketCap = Math.round((Number(company.current_price_milli || 0) / 1000) * Number(company.total_shares || 1000));
+    const marketCap = Math.round((Number(company.current_price_milli || 0) / 1000) * Number(company.total_shares || HASDAQ_TOTAL_SHARES));
     const description = getCompanyPitch(company);
     const volumeToday = Number(company.trade_volume_today ?? company.volume_today ?? 0);
     const pausedReason = formatPausedReason(company.paused_reason || company.trading_paused_reason);
@@ -462,8 +465,8 @@ function CompanyCard({ company, variant = 'market' }: { company: HasdaqCompany; 
             {variant === 'ipo' && <IpoProgress company={company} compact />}
             {variant === 'market' && (
                 <div className="hasdaq-card-pool">
-                    <span><b>{poolShares}</b> pool shares</span>
-                    <span><b>{poolCoins}</b> H coin pool</span>
+                    <span><b>{poolShares}</b> 可买公开股</span>
+                    <span><b>{poolCoins}</b> 承接 H币</span>
                     <span><b>{sellSupport}</b> sell support</span>
                 </div>
             )}
@@ -495,7 +498,7 @@ function IpoProgress({ company, compact = false }: { company: HasdaqCompany; com
             <div className="hasdaq-ipo-progress-foot">
                 <span>剩余 {stats.remaining} 股</span>
                 <span>敲钟门槛 {stats.subscribers}/{HASDAQ_MIN_BELL_SUBSCRIBERS} 人 · {stats.subscribed}/{HASDAQ_MIN_BELL_SUBSCRIBED_SHARES} 股</span>
-                <span>单人上限 20 股</span>
+                <span>单人上限 {HASDAQ_MAX_IPO_SHARES_PER_USER} 股</span>
             </div>
         </div>
     );
