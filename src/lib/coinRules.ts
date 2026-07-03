@@ -1,7 +1,7 @@
-export const COIN_REDEMPTION_MONTHLY_POOL = 200;
+export const COIN_REDEMPTION_MONTHLY_POOL = 300;
 export const COIN_REDEMPTION_MIN_AMOUNT = 10;
 export const COIN_REDEMPTION_BASE_MONTHLY_LIMIT = 20;
-export const COIN_REDEMPTION_MAX_AMOUNT = 10000;
+export const COIN_REDEMPTION_MAX_AMOUNT = 300;
 
 export type CoinRedemptionValidation =
     | {

@@ -85,7 +85,7 @@ export async function PATCH(request: Request) {
         if (message === 'Company not found') return NextResponse.json({ error: 'Company not found' }, { status: 404 });
         if (message === 'Company is not in IPO') return NextResponse.json({ error: 'Company must be in IPO before bell listing.' }, { status: 409 });
         if (message === 'Company has insufficient IPO subscribers') return NextResponse.json({ error: 'Company needs at least 5 IPO subscribers before bell listing.' }, { status: 409 });
-        if (message === 'Company has insufficient IPO shares') return NextResponse.json({ error: 'Company needs at least 50 subscribed IPO shares before bell listing.' }, { status: 409 });
+        if (message === 'Company has insufficient IPO shares') return NextResponse.json({ error: 'Company needs at least 30 subscribed IPO shares before bell listing.' }, { status: 409 });
         if (message === 'Company status cannot be changed') return NextResponse.json({ error: 'Company status cannot be changed.' }, { status: 409 });
         if (message === 'Company has no founder') return NextResponse.json({ error: 'Company has no accepted founder.' }, { status: 409 });
 

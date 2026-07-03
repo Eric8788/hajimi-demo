@@ -252,25 +252,25 @@ function getLocalDevProjects(): Project[] {
         },
     ];
 }
-const HASDAQ_TOTAL_SHARES = 1000;
-const HASDAQ_FOUNDER_SHARES = 700;
-const HASDAQ_PUBLIC_SHARES = 300;
+const HASDAQ_TOTAL_SHARES = 500;
+const HASDAQ_FOUNDER_SHARES = 350;
+const HASDAQ_PUBLIC_SHARES = 100;
 const HASDAQ_IPO_PRICE_MILLI = 1000;
 const HASDAQ_MIN_PRICE_MILLI = 200;
 const HASDAQ_PRICE_STEP_MILLI = 20;
 const HASDAQ_SHARES_PER_PRICE_STEP = 10;
-const HASDAQ_MAX_IPO_SHARES_PER_ORDER = 20;
-const HASDAQ_MAX_IPO_SHARES_PER_USER = 20;
+const HASDAQ_MAX_IPO_SHARES_PER_ORDER = 10;
+const HASDAQ_MAX_IPO_SHARES_PER_USER = 10;
 const HASDAQ_MAX_BUY_SHARES = 10;
 const HASDAQ_MAX_SELL_SHARES = 30;
-const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 50;
+const HASDAQ_MAX_PUBLIC_SHARES_PER_USER = 30;
 const HASDAQ_MAX_DAILY_TRADES = 5;
 const HASDAQ_DAILY_LIMIT_PERCENT = 20;
 const HASDAQ_MIN_BELL_SUBSCRIBERS = 5;
-const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 50;
+const HASDAQ_MIN_BELL_SUBSCRIBED_SHARES = 30;
 const HASDAQ_OFFICIAL_DEMO_TICKER = 'HJM';
 const HASDAQ_OFFICIAL_DEMO_NAME = 'Hajimi Platform';
-const HASDAQ_OFFICIAL_DEMO_SEEDED_SHARES = 40;
+const HASDAQ_OFFICIAL_DEMO_SEEDED_SHARES = 30;
 
 let hasdaqTablesReady: Promise<void> | null = null;
 
@@ -289,10 +289,10 @@ export async function ensureHasdaqTables() {
                 future_plan TEXT,
                 risk_statement TEXT,
                 status TEXT NOT NULL DEFAULT 'draft',
-                total_shares INTEGER NOT NULL DEFAULT 1000,
-                founder_shares INTEGER NOT NULL DEFAULT 700,
-                public_shares_total INTEGER NOT NULL DEFAULT 300,
-                public_shares_remaining INTEGER NOT NULL DEFAULT 300,
+                total_shares INTEGER NOT NULL DEFAULT 500,
+                founder_shares INTEGER NOT NULL DEFAULT 350,
+                public_shares_total INTEGER NOT NULL DEFAULT 100,
+                public_shares_remaining INTEGER NOT NULL DEFAULT 100,
                 ipo_price_milli INTEGER NOT NULL DEFAULT 1000,
                 current_price_milli INTEGER NOT NULL DEFAULT 1000,
                 previous_close_price_milli INTEGER NOT NULL DEFAULT 1000,
@@ -321,10 +321,14 @@ export async function ensureHasdaqTables() {
             await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS future_plan TEXT`;
             await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS risk_statement TEXT`;
             await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft'`;
-            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS total_shares INTEGER NOT NULL DEFAULT 1000`;
-            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS founder_shares INTEGER NOT NULL DEFAULT 700`;
-            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS public_shares_total INTEGER NOT NULL DEFAULT 300`;
-            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS public_shares_remaining INTEGER NOT NULL DEFAULT 300`;
+            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS total_shares INTEGER NOT NULL DEFAULT 500`;
+            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS founder_shares INTEGER NOT NULL DEFAULT 350`;
+            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS public_shares_total INTEGER NOT NULL DEFAULT 100`;
+            await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS public_shares_remaining INTEGER NOT NULL DEFAULT 100`;
+            await sql`ALTER TABLE hasdaq_companies ALTER COLUMN total_shares SET DEFAULT 500`;
+            await sql`ALTER TABLE hasdaq_companies ALTER COLUMN founder_shares SET DEFAULT 350`;
+            await sql`ALTER TABLE hasdaq_companies ALTER COLUMN public_shares_total SET DEFAULT 100`;
+            await sql`ALTER TABLE hasdaq_companies ALTER COLUMN public_shares_remaining SET DEFAULT 100`;
             await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS ipo_price_milli INTEGER NOT NULL DEFAULT 1000`;
             await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS current_price_milli INTEGER NOT NULL DEFAULT 1000`;
             await sql`ALTER TABLE hasdaq_companies ADD COLUMN IF NOT EXISTS previous_close_price_milli INTEGER NOT NULL DEFAULT 1000`;
@@ -734,11 +738,11 @@ async function seedHasdaqDemoMarketIfEmpty() {
         `;
 
         const ipoRows = [
-            { username: 'hasdaq_demo_trader_a', shares: 12, createdAt: hasdaqSeedDate(-5, 12) },
-            { username: 'hasdaq_demo_trader_b', shares: 10, createdAt: hasdaqSeedDate(-4, 16) },
-            { username: 'hasdaq_demo_trader_c', shares: 8, createdAt: hasdaqSeedDate(-3, 12) },
-            { username: 'hasdaq_demo_trader_d', shares: 6, createdAt: hasdaqSeedDate(-2, 14) },
-            { username: 'hasdaq_demo_trader_e', shares: 4, createdAt: hasdaqSeedDate(-1, 15) },
+            { username: 'hasdaq_demo_trader_a', shares: 10, createdAt: hasdaqSeedDate(-5, 12) },
+            { username: 'hasdaq_demo_trader_b', shares: 8, createdAt: hasdaqSeedDate(-4, 16) },
+            { username: 'hasdaq_demo_trader_c', shares: 6, createdAt: hasdaqSeedDate(-3, 12) },
+            { username: 'hasdaq_demo_trader_d', shares: 4, createdAt: hasdaqSeedDate(-2, 14) },
+            { username: 'hasdaq_demo_trader_e', shares: 2, createdAt: hasdaqSeedDate(-1, 15) },
         ];
         for (const row of ipoRows) {
             await client.sql`
@@ -746,9 +750,10 @@ async function seedHasdaqDemoMarketIfEmpty() {
               VALUES (${userIds[row.username]}, ${companyId}, ${row.shares}, 0, ${HASDAQ_IPO_PRICE_MILLI}, ${row.createdAt})
               ON CONFLICT (user_id, company_id)
               DO UPDATE SET
-                public_shares = GREATEST(hasdaq_positions.public_shares, EXCLUDED.public_shares),
-                average_cost_milli = CASE WHEN hasdaq_positions.average_cost_milli > 0 THEN hasdaq_positions.average_cost_milli ELSE EXCLUDED.average_cost_milli END,
-                updated_at = GREATEST(hasdaq_positions.updated_at, EXCLUDED.updated_at)
+                public_shares = EXCLUDED.public_shares,
+                locked_shares = 0,
+                average_cost_milli = EXCLUDED.average_cost_milli,
+                updated_at = EXCLUDED.updated_at
             `;
             await client.sql`
               INSERT INTO hasdaq_trades (company_id, user_id, type, shares, locked_shares_sold, price_milli, gross_amount, coin_transaction_id, status, created_at)
@@ -1091,7 +1096,7 @@ function getLocalDevHasdaqMembers(companyId: number): HasdaqCompanyMember[] {
     const state = getLocalDevHasdaqState();
     const extras = state.membersExtra.filter(member => Number(member.company_id) === Number(companyId));
     const fallback = !map[companyId] && extras.length === 0 ? [
-        { id: companyId, company_id: companyId, user_id: 22, username: 'demo_member_fallback', role: 'founder', status: 'accepted', equity_percent: 100, founder_shares: 700, accepted_at: hasdaqDemoDate(-14), created_at: hasdaqDemoDate(-24) },
+        { id: companyId, company_id: companyId, user_id: 22, username: 'demo_member_fallback', role: 'founder', status: 'accepted', equity_percent: 100, founder_shares: HASDAQ_FOUNDER_SHARES, accepted_at: hasdaqDemoDate(-14), created_at: hasdaqDemoDate(-24) },
     ] satisfies HasdaqCompanyMember[] : [];
     return [...(map[companyId] || []), ...extras, ...fallback]
         .map(member => normalizeHasdaqMember({
@@ -1365,7 +1370,7 @@ function createLocalDevHasdaqDraftDetail(userId: number, input: Record<string, u
         created_at: hasdaqDemoDate(0),
         updated_at: hasdaqDemoDate(0),
     });
-    const products = Array.isArray(input.products) ? input.products.slice(0, 3).map((item) => {
+    const products = Array.isArray(input.products) ? input.products.slice(0, 1).map((item) => {
         const product = item as Record<string, unknown>;
         const projectId = parseHasdaqPositiveInt(product.projectId || product.project_id, 0) || null;
         const linkedProject = projectId ? getLocalDevProjects().find(project => Number(project.id) === projectId) : null;
@@ -1452,7 +1457,7 @@ async function writeHasdaqProductsForClient(client: VercelPoolClient, companyId:
     if (!Array.isArray(products)) return;
 
     await client.sql`DELETE FROM hasdaq_company_products WHERE company_id = ${companyId}`;
-    for (const product of products.slice(0, 12)) {
+    for (const product of products.slice(0, 1)) {
         const item = product as Record<string, unknown>;
         const projectId = parseHasdaqPositiveInt(item.projectId, 0) || null;
         let projectTitle = '';
