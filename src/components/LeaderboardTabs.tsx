@@ -11,10 +11,14 @@ export default function LeaderboardTabs({
     initialTab = 'members',
     defaultHubMode = 'heat',
     defaultHubWindow = 'month',
+    defaultHubRangeStart,
+    defaultHubRangeEnd,
 }: {
     initialTab?: LeaderboardTab;
     defaultHubMode?: HubRankingMode;
     defaultHubWindow?: HubLeaderboardWindow;
+    defaultHubRangeStart?: string;
+    defaultHubRangeEnd?: string;
 }) {
     const [activeTab, setActiveTab] = useState<LeaderboardTab>(initialTab);
 
@@ -40,7 +44,13 @@ export default function LeaderboardTabs({
             {activeTab === 'members' ? (
                 <LeaderboardWidget limit={30} showViewAll={false} />
             ) : (
-                <HubLeaderboardWidget limit={30} defaultMode={defaultHubMode} defaultWindow={defaultHubWindow} />
+                <HubLeaderboardWidget
+                    limit={30}
+                    defaultMode={defaultHubMode}
+                    defaultWindow={defaultHubWindow}
+                    defaultRangeStart={defaultHubRangeStart}
+                    defaultRangeEnd={defaultHubRangeEnd}
+                />
             )}
         </div>
     );

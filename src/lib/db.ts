@@ -228,14 +228,17 @@ export interface Project {
     open_count_today?: number;
     open_count_week?: number;
     open_count_month?: number;
+    open_count_custom?: number;
     open_count_total?: number;
     unique_open_count_today?: number;
     unique_open_count_week?: number;
     unique_open_count_month?: number;
+    unique_open_count_custom?: number;
     unique_open_count_total?: number;
     effective_open_count_today?: number;
     effective_open_count_week?: number;
     effective_open_count_month?: number;
+    effective_open_count_custom?: number;
     effective_open_count_total?: number;
     hub_score?: number;
     hasdaq_ticker?: string | null;
@@ -3727,17 +3730,22 @@ export async function getProjects(): Promise<Project[]> {
     return rows;
 }
 
-export async function getProjectOpenStats(): Promise<Partial<Project>[]> {
+export async function getProjectOpenStats(range?: { startDate: string; endDate: string }): Promise<Partial<Project>[]> {
     if (shouldAutoEnsureReadSchema()) {
         await ensureProjectEnhancements();
     }
+
+    const customStartDate = range?.startDate || null;
+    const customEndDate = range?.endDate || null;
 
     const { rows } = await sql<Partial<Project>>`
       WITH boundaries AS (
         SELECT
           (NOW() AT TIME ZONE 'Asia/Shanghai')::date as today,
           ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 6) as week_start,
-          ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 29) as month_start
+          ((NOW() AT TIME ZONE 'Asia/Shanghai')::date - 29) as month_start,
+          ${customStartDate}::date as custom_start,
+          ${customEndDate}::date as custom_end
       ),
       verified_opens AS (
         SELECT
@@ -3779,6 +3787,11 @@ export async function getProjectOpenStats(): Promise<Partial<Project>[]> {
           COUNT(DISTINCT verified_opens.user_id) FILTER (WHERE verified_opens.local_day = boundaries.today)::int as unique_open_count_today,
           COUNT(DISTINCT verified_opens.user_id) FILTER (WHERE verified_opens.local_day >= boundaries.week_start)::int as unique_open_count_week,
           COUNT(DISTINCT verified_opens.user_id) FILTER (WHERE verified_opens.local_day >= boundaries.month_start)::int as unique_open_count_month,
+          COUNT(DISTINCT verified_opens.user_id) FILTER (
+            WHERE boundaries.custom_start IS NOT NULL
+              AND boundaries.custom_end IS NOT NULL
+              AND verified_opens.local_day BETWEEN boundaries.custom_start AND boundaries.custom_end
+          )::int as unique_open_count_custom,
           COUNT(DISTINCT verified_opens.user_id)::int as unique_open_count_total
         FROM verified_opens
         CROSS JOIN boundaries
@@ -3790,6 +3803,11 @@ export async function getProjectOpenStats(): Promise<Partial<Project>[]> {
           COALESCE(SUM(daily_effective.effective_sessions) FILTER (WHERE daily_effective.local_day = boundaries.today), 0)::int as effective_open_count_today,
           COALESCE(SUM(daily_effective.effective_sessions) FILTER (WHERE daily_effective.local_day >= boundaries.week_start), 0)::int as effective_open_count_week,
           COALESCE(SUM(daily_effective.effective_sessions) FILTER (WHERE daily_effective.local_day >= boundaries.month_start), 0)::int as effective_open_count_month,
+          COALESCE(SUM(daily_effective.effective_sessions) FILTER (
+            WHERE boundaries.custom_start IS NOT NULL
+              AND boundaries.custom_end IS NOT NULL
+              AND daily_effective.local_day BETWEEN boundaries.custom_start AND boundaries.custom_end
+          ), 0)::int as effective_open_count_custom,
           COALESCE(SUM(daily_effective.effective_sessions), 0)::int as effective_open_count_total
         FROM daily_effective
         CROSS JOIN boundaries
@@ -3800,14 +3818,17 @@ export async function getProjectOpenStats(): Promise<Partial<Project>[]> {
         COALESCE(effective_stats.effective_open_count_today, 0)::int as open_count_today,
         COALESCE(effective_stats.effective_open_count_week, 0)::int as open_count_week,
         COALESCE(effective_stats.effective_open_count_month, 0)::int as open_count_month,
+        COALESCE(effective_stats.effective_open_count_custom, 0)::int as open_count_custom,
         COALESCE(effective_stats.effective_open_count_total, 0)::int as open_count_total,
         COALESCE(unique_stats.unique_open_count_today, 0)::int as unique_open_count_today,
         COALESCE(unique_stats.unique_open_count_week, 0)::int as unique_open_count_week,
         COALESCE(unique_stats.unique_open_count_month, 0)::int as unique_open_count_month,
+        COALESCE(unique_stats.unique_open_count_custom, 0)::int as unique_open_count_custom,
         COALESCE(unique_stats.unique_open_count_total, 0)::int as unique_open_count_total,
         COALESCE(effective_stats.effective_open_count_today, 0)::int as effective_open_count_today,
         COALESCE(effective_stats.effective_open_count_week, 0)::int as effective_open_count_week,
         COALESCE(effective_stats.effective_open_count_month, 0)::int as effective_open_count_month,
+        COALESCE(effective_stats.effective_open_count_custom, 0)::int as effective_open_count_custom,
         COALESCE(effective_stats.effective_open_count_total, 0)::int as effective_open_count_total,
         ROUND((
           COALESCE(unique_stats.unique_open_count_today, 0) * 10

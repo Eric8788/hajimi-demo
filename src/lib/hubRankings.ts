@@ -11,7 +11,7 @@ export const HUB_RANKING_MODES = [
     { id: 'rating', label: '星级榜' },
 ] as const;
 
-export type HubLeaderboardWindow = (typeof HUB_LEADERBOARD_TABS)[number]['id'];
+export type HubLeaderboardWindow = (typeof HUB_LEADERBOARD_TABS)[number]['id'] | 'custom';
 export type HubRankingMode = (typeof HUB_RANKING_MODES)[number]['id'];
 
 export type HubLeaderboardStats = {
@@ -43,6 +43,13 @@ export function getProjectCommentCount(project: Partial<Project>) {
 }
 
 export function getHubStats(project: Partial<Project>, windowType: HubLeaderboardWindow): HubLeaderboardStats {
+    if (windowType === 'custom') {
+        return {
+            uniquePlayers: toFiniteNumber(project.unique_open_count_custom),
+            effectiveOpens: toFiniteNumber(project.effective_open_count_custom ?? project.open_count_custom),
+        };
+    }
+
     if (windowType === 'month') {
         return {
             uniquePlayers: toFiniteNumber(project.unique_open_count_month),
