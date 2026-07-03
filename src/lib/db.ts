@@ -3,6 +3,7 @@ import { hashStudentId, STUDENT_GRADES, type VerificationStatus, type Verificati
 import { isAvatarThemeId, normalizeAvatarEmoji, pickRandomAvatarThemeId } from './avatarThemes';
 import { normalizeUsernameInput, validateUsername } from './accountValidation';
 import { normalizePostContentFormat, type PostContentFormat } from './forumContent';
+import { validateCoinRedemptionRequest } from './coinRules';
 
 const AUTO_ENSURE_READ_SCHEMA = process.env.HAJIMI_AUTO_ENSURE_ON_READ === '1' || process.env.NODE_ENV !== 'production';
 
@@ -803,7 +804,7 @@ export async function ensureCoinTables() {
               CREATE TABLE IF NOT EXISTS coin_redemption_requests (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                amount INTEGER NOT NULL CHECK (amount >= 50),
+                amount INTEGER NOT NULL CONSTRAINT coin_redemption_requests_amount_min_check CHECK (amount >= 10),
                 status TEXT NOT NULL DEFAULT 'pending',
                 requested_note TEXT,
                 review_note TEXT,
@@ -812,6 +813,33 @@ export async function ensureCoinTables() {
                 completed_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
               );
+            `;
+            await sql`
+              DO $$
+              DECLARE
+                old_constraint record;
+              BEGIN
+                FOR old_constraint IN
+                  SELECT conname
+                  FROM pg_constraint
+                  WHERE conrelid = 'coin_redemption_requests'::regclass
+                    AND contype = 'c'
+                    AND conname <> 'coin_redemption_requests_amount_min_check'
+                    AND replace(pg_get_constraintdef(oid), ' ', '') LIKE '%amount>=50%'
+                LOOP
+                  EXECUTE format('ALTER TABLE coin_redemption_requests DROP CONSTRAINT %I', old_constraint.conname);
+                END LOOP;
+
+                IF NOT EXISTS (
+                  SELECT 1
+                  FROM pg_constraint
+                  WHERE conrelid = 'coin_redemption_requests'::regclass
+                    AND conname = 'coin_redemption_requests_amount_min_check'
+                ) THEN
+                  ALTER TABLE coin_redemption_requests
+                    ADD CONSTRAINT coin_redemption_requests_amount_min_check CHECK (amount >= 10) NOT VALID;
+                END IF;
+              END $$;
             `;
             await sql`CREATE INDEX IF NOT EXISTS idx_coin_transactions_user_created ON coin_transactions(user_id, created_at DESC)`;
             await sql`CREATE INDEX IF NOT EXISTS idx_coin_transactions_source ON coin_transactions(source_type, source_id)`;
@@ -1305,11 +1333,17 @@ export async function transferProjectCoinTip(senderId: number, projectId: number
 export async function createCoinRedemptionRequest(userId: number, amount: number, requestedNote = '') {
     await ensureCoinTables();
 
-    const safeAmount = Math.floor(Number(amount));
-    const note = String(requestedNote || '').trim().slice(0, 500);
-    if (!Number.isInteger(safeAmount) || safeAmount < 50 || safeAmount > 10000) {
+    const validation = validateCoinRedemptionRequest(amount, requestedNote);
+    if (!validation.ok && validation.reason === 'invalid_amount') {
         throw new Error('Invalid redemption amount');
     }
+    if (!validation.ok && validation.reason === 'missing_additional_note') {
+        throw new Error('Additional redemption note required');
+    }
+    if (!validation.ok) throw new Error('Invalid redemption amount');
+
+    const safeAmount = validation.amount;
+    const note = validation.note;
 
     const client = await db.connect();
     try {

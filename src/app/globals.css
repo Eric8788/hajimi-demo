@@ -8825,6 +8825,18 @@ textarea:hover,
   font-weight: 900;
 }
 
+.wallet-redemption-rule,
+.wallet-redemption-hint {
+  margin: 0;
+  color: #516173;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.wallet-redemption-hint {
+  color: #7a4d0b;
+}
+
 .wallet-redemption-card textarea,
 .admin-coin-grant-panel textarea {
   min-height: 98px;
@@ -10546,6 +10558,28 @@ textarea:hover,
   font-size: 0.92rem;
 }
 
+.wallet-redemption-row strong,
+.admin-coin-redemption-card strong {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wallet-redemption-badge,
+.admin-coin-redemption-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 179, 71, 0.2);
+  border: 1px solid rgba(255, 179, 71, 0.42);
+  color: #7a4d0b;
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
 .wallet-transaction-row p,
 .wallet-redemption-row p,
 .admin-coin-redemption-card p {
@@ -10739,6 +10773,26 @@ textarea:hover,
 .admin-coin-redemption-card {
   display: grid;
   gap: 10px;
+}
+
+.admin-coin-redemption-policy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.admin-coin-redemption-policy span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.62);
+  border: 1px solid rgba(255,255,255,0.72);
+  color: #516173;
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .admin-coin-redemption-head {

@@ -4,6 +4,14 @@ import { useMemo, useState } from 'react';
 import type { CoinWalletOverview } from '@/lib/db';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { clearCachedJsonKey, setCachedJson } from '@/lib/clientJsonCache';
+import {
+    COIN_REDEMPTION_BASE_MONTHLY_LIMIT,
+    COIN_REDEMPTION_MAX_AMOUNT,
+    COIN_REDEMPTION_MIN_AMOUNT,
+    COIN_REDEMPTION_MONTHLY_POOL,
+    isAdditionalCoinRedemption,
+    validateCoinRedemptionRequest,
+} from '@/lib/coinRules';
 import AnimatedNumber from '@/components/reactbits/AnimatedNumber';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
@@ -45,13 +53,15 @@ function redemptionLabel(status: string) {
 
 export default function WalletPanel({ initialOverview, verified, readOnlyRole }: { initialOverview: CoinWalletOverview; verified: boolean; readOnlyRole?: string | null }) {
     const [overview, setOverview] = useState(initialOverview);
-    const [amount, setAmount] = useState('50');
+    const [amount, setAmount] = useState(String(COIN_REDEMPTION_MIN_AMOUNT));
     const [requestedNote, setRequestedNote] = useState('');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     const visibleTransactions = useMemo(() => overview.transactions.slice(0, 30), [overview.transactions]);
     const coinBalanceCacheKey = scopedCoinBalanceCacheKey(overview.wallet.user_id);
+    const amountPreview = Number.isInteger(Number(amount)) ? Number(amount) : null;
+    const isAdditionalRequest = isAdditionalCoinRedemption(amountPreview);
 
     const refreshWallet = async () => {
         clearCachedJsonKey(coinBalanceCacheKey);
@@ -70,18 +80,23 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
         event.preventDefault();
         setMessage('');
 
-        const parsedAmount = Math.floor(Number(amount));
+        const validation = validateCoinRedemptionRequest(amount, requestedNote);
         if (!verified) {
             setMessage(isReadOnlyRole(readOnlyRole)
                 ? getInteractionBlockedMessage({ role: readOnlyRole, verification_status: 'unverified' }, '申请兑换 token')
                 : '完成 Hajimi 认证后可以申请兑换 token。');
             return;
         }
-        if (!Number.isInteger(parsedAmount) || parsedAmount < 50) {
-            setMessage('兑换申请最低 50 H币。');
+        if (!validation.ok && validation.reason === 'invalid_amount') {
+            setMessage(`兑换申请最低 ${COIN_REDEMPTION_MIN_AMOUNT} H币，最高 ${COIN_REDEMPTION_MAX_AMOUNT} H币。`);
             return;
         }
-        if (parsedAmount > Number(overview.wallet.balance || 0)) {
+        if (!validation.ok && validation.reason === 'missing_additional_note') {
+            setMessage(`超过每人每月基础 ${COIN_REDEMPTION_BASE_MONTHLY_LIMIT} H币的追加申请必须填写用途说明。`);
+            return;
+        }
+        if (!validation.ok) return;
+        if (validation.amount > Number(overview.wallet.balance || 0)) {
             setMessage('H币余额不足，无法冻结兑换额度。');
             return;
         }
@@ -91,14 +106,14 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
             const res = await fetch('/api/coins/redemptions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: parsedAmount, requestedNote }),
+                body: JSON.stringify({ amount: validation.amount, requestedNote }),
             });
             const data = await res.json().catch(() => null);
             if (!res.ok) {
                 setMessage(data?.error || '兑换申请提交失败，请稍后再试。');
                 return;
             }
-            setMessage(`已提交 ${parsedAmount} H币 token 兑换申请，H币已冻结等待管理员审核。`);
+            setMessage(`已提交 ${validation.amount} H币${validation.isAdditional ? '追加' : ''} token 兑换申请，H币已冻结等待管理员审核。`);
             setRequestedNote('');
             await refreshWallet();
         } catch (error) {
@@ -123,8 +138,11 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
                         <span>Token Redemption</span>
                         <h2>兑换 token 额度</h2>
                     </div>
-                    <strong>最低 50 H币</strong>
+                    <strong>最低 {COIN_REDEMPTION_MIN_AMOUNT} H币</strong>
                 </div>
+                <p className="wallet-redemption-rule">
+                    公共兑换池 {COIN_REDEMPTION_MONTHLY_POOL} H币/月；每人每月基础额度 {COIN_REDEMPTION_BASE_MONTHLY_LIMIT} H币，超过部分作为追加申请由管理员人工审核。
+                </p>
                 <label>
                     <span>兑换数量</span>
                     <input
@@ -136,7 +154,7 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
                     />
                 </label>
                 <label>
-                    <span>用途说明</span>
+                    <span>用途说明{isAdditionalRequest ? '（追加申请必填）' : ''}</span>
                     <textarea
                         className="glass-input"
                         value={requestedNote}
@@ -145,6 +163,9 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
                         placeholder="例如：用于 Sailer 2D 新版本调试、课堂 demo、模型测试。"
                     />
                 </label>
+                {isAdditionalRequest && (
+                    <p className="wallet-redemption-hint">这笔申请超过基础额度，请写清用途，管理员会按当月剩余额度审核。</p>
+                )}
                 <button type="submit" disabled={submitting || !verified}>
                     {submitting ? '提交中...' : '提交兑换申请'}
                 </button>
@@ -192,7 +213,10 @@ export default function WalletPanel({ initialOverview, verified, readOnlyRole }:
                         {overview.redemptions.map(request => (
                             <article key={request.id} className={`wallet-redemption-row is-${request.status}`}>
                                 <div>
-                                    <strong>{request.amount} H币 · {redemptionLabel(request.status)}</strong>
+                                    <strong>
+                                        {request.amount} H币 · {redemptionLabel(request.status)}
+                                        {isAdditionalCoinRedemption(request.amount) && <span className="wallet-redemption-badge">追加申请</span>}
+                                    </strong>
                                     <p>{request.review_note || request.requested_note || 'token 兑换申请'}</p>
                                     <small>{formatTime(request.created_at)}</small>
                                 </div>
