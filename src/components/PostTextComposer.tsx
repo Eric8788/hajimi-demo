@@ -54,16 +54,29 @@ type PostTextComposerProps = {
     rows?: number;
     disabled?: boolean;
     maxLength?: number;
+    allowInlineImagePaste?: boolean;
+};
+
+type InlineImageDraft = {
+    file: File;
+    previewUrl: string;
 };
 
 export type PostTextComposerApi = {
     sync: () => string;
+    getInlineImages: () => { id: string; file: File }[];
+    clearInlineImages: () => void;
 };
 
-const INLINE_MARKDOWN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
+const INLINE_MARKDOWN_PATTERN = /(!\[([^\]\n]{0,120})\]\(([^)\s]+)\)|`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
 const BLOCK_TAGS = new Set(['address', 'article', 'aside', 'blockquote', 'div', 'dl', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'ul']);
-const EDITOR_BLOCK_SELECTOR = 'p,h1,h2,h3,h4,li,blockquote,pre';
-const EDITOR_TOP_LEVEL_BLOCK_SELECTOR = 'p,h1,h2,h3,h4,blockquote,pre,ul,ol,hr';
+const EDITOR_BLOCK_SELECTOR = 'p,h1,h2,h3,h4,li,blockquote,pre,figure[data-editor-image-block]';
+const EDITOR_TOP_LEVEL_BLOCK_SELECTOR = 'p,h1,h2,h3,h4,blockquote,pre,ul,ol,hr,figure[data-editor-image-block]';
+const INLINE_IMAGE_PLACEHOLDER_PREFIX = 'hajimi-inline-image:';
+
+function isInlineImagePlaceholder(src: string) {
+    return src.startsWith(INLINE_IMAGE_PLACEHOLDER_PREFIX);
+}
 
 function normalizeLinkInput(value: string) {
     const trimmed = value.trim();
@@ -113,6 +126,31 @@ function safeExternalUrl(url: string) {
     }
 }
 
+function safeImageSource(url: string) {
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    if (isInlineImagePlaceholder(trimmed)) return trimmed;
+    return safeExternalUrl(trimmed);
+}
+
+function normalizeImageAlt(value: string) {
+    return value
+        .replace(/[\[\]\n\r]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120);
+}
+
+function createEditorImageHtml(src: string, alt = 'image') {
+    const safeSrc = safeImageSource(src);
+    if (!safeSrc) return '';
+    const safeAlt = normalizeImageAlt(alt) || 'image';
+    const escapedSrc = escapeAttribute(safeSrc);
+    const escapedAlt = escapeAttribute(safeAlt);
+
+    return `<figure data-editor-image-block="true" contenteditable="false"><img src="${escapedSrc}" alt="${escapedAlt}" draggable="false"></figure>`;
+}
+
 function looksLikeMarkdownSource(value: string) {
     return value.replace(/\r\n?/g, '\n').split('\n').some(line => (
         /^#{1,6}\s+\S/.test(line)
@@ -121,6 +159,7 @@ function looksLikeMarkdownSource(value: string) {
         || /^>\s?\S/.test(line)
         || /^```/.test(line.trim())
         || /^(-{3,}|\*{3,})$/.test(line.trim())
+        || /^!\[[^\]\n]*\]\([^)]+\)$/.test(line.trim())
     ));
 }
 
@@ -167,8 +206,19 @@ function getAdjacentEditorBlock(block: HTMLElement, direction: 'previous' | 'nex
     return sibling instanceof HTMLElement && sibling.matches(EDITOR_TOP_LEVEL_BLOCK_SELECTOR) ? sibling : null;
 }
 
+function isEditorImageBlock(node: Node | null) {
+    return node instanceof HTMLElement && node.matches('figure[data-editor-image-block]');
+}
+
+function getClosestEditorImageBlock(target: EventTarget | null, editor: HTMLElement) {
+    if (!(target instanceof Element)) return null;
+    const block = target.closest('figure[data-editor-image-block]');
+    return block instanceof HTMLElement && editor.contains(block) ? block : null;
+}
+
 function isBlockEffectivelyEmpty(block: HTMLElement) {
-    if (block.tagName.toLowerCase() === 'hr') return false;
+    const tagName = block.tagName.toLowerCase();
+    if (tagName === 'hr' || block.matches('figure[data-editor-image-block]')) return false;
     return !normalizeEditorText(block.textContent || '').trim()
         && block.querySelectorAll('img, hr').length === 0;
 }
@@ -299,6 +349,9 @@ function renderClipboardInlineNode(node: Node): string {
     if (tagName === 'strong' || tagName === 'b') return `<strong>${children}</strong>`;
     if (tagName === 'em' || tagName === 'i') return `<em>${children}</em>`;
     if (tagName === 'code' && node.closest('pre') === null) return `<code>${children}</code>`;
+    if (tagName === 'img') {
+        return createEditorImageHtml(node.getAttribute('src') || '', node.getAttribute('alt') || 'image');
+    }
     if (tagName === 'a') {
         const href = safeExternalUrl(node.getAttribute('href') || '');
         return href
@@ -342,6 +395,13 @@ function renderClipboardBlockNode(node: Node): string {
     const tagName = node.tagName.toLowerCase();
 
     if (tagName === 'script' || tagName === 'style' || tagName === 'meta' || tagName === 'link') return '';
+    if (tagName === 'img') {
+        return createEditorImageHtml(node.getAttribute('src') || '', node.getAttribute('alt') || 'image');
+    }
+    if (tagName === 'figure' && node.querySelector('img')) {
+        const image = node.querySelector('img');
+        return image ? createEditorImageHtml(image.getAttribute('src') || '', image.getAttribute('alt') || 'image') : '';
+    }
 
     if (/^h[1-6]$/.test(tagName)) {
         const level = Math.min(Math.max(Number(tagName.slice(1)), 1), 4);
@@ -398,12 +458,16 @@ function renderInlineMarkdown(text: string) {
         }
 
         const rawText = match[0];
-        const markdownHref = match[3] || '';
-        const autoHref = match[4] || '';
+        const imageAlt = match[2] || '';
+        const imageSrc = match[3] || '';
+        const markdownHref = match[5] || '';
+        const autoHref = match[6] || '';
         const href = safeExternalUrl(markdownHref || autoHref);
 
-        if (href) {
-            const label = match[2] || autoHref || href;
+        if (rawText.startsWith('![')) {
+            html += createEditorImageHtml(imageSrc, imageAlt);
+        } else if (href) {
+            const label = match[4] || autoHref || href;
             html += `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
         } else if (rawText.startsWith('`') && rawText.endsWith('`')) {
             html += `<code>${escapeHtml(rawText.slice(1, -1))}</code>`;
@@ -480,6 +544,15 @@ function markdownToEditorHtml(markdown: string) {
             flushParagraph();
             flushList();
             flushQuote();
+            continue;
+        }
+
+        const imageBlock = /^!\[([^\]\n]*)\]\(([^)\s]+)\)$/.exec(trimmed);
+        if (imageBlock) {
+            flushParagraph();
+            flushList();
+            flushQuote();
+            htmlBlocks.push(createEditorImageHtml(imageBlock[2], imageBlock[1]));
             continue;
         }
 
@@ -572,6 +645,14 @@ function nodeToMarkdown(node: Node): string {
     if (tagName === 'code' && node.parentElement?.tagName.toLowerCase() !== 'pre') {
         return `\`${normalizeEditorText(node.textContent || '')}\``;
     }
+    if (tagName === 'img') {
+        const inlineImageId = node.getAttribute('data-inline-image-id') || '';
+        const src = inlineImageId
+            ? `${INLINE_IMAGE_PLACEHOLDER_PREFIX}${inlineImageId}`
+            : safeImageSource(node.getAttribute('src') || '');
+        const alt = normalizeImageAlt(node.getAttribute('alt') || 'image') || 'image';
+        return src ? `![${alt}](${src})` : '';
+    }
     if (tagName === 'a') {
         const href = safeExternalUrl(node.getAttribute('href') || '');
         const label = nodeChildrenToMarkdown(node).trim() || href;
@@ -589,6 +670,17 @@ function blockToMarkdown(node: Node): string {
     if (!(node instanceof HTMLElement)) return '';
 
     const tagName = node.tagName.toLowerCase();
+    if (isEditorImageBlock(node)) {
+        const image = node.querySelector('img');
+        if (!image) return '';
+        const inlineImageId = image.getAttribute('data-inline-image-id') || '';
+        const src = inlineImageId
+            ? `${INLINE_IMAGE_PLACEHOLDER_PREFIX}${inlineImageId}`
+            : safeImageSource(image.getAttribute('src') || '');
+        const alt = normalizeImageAlt(image.getAttribute('alt') || 'image') || 'image';
+        return src ? `![${alt}](${src})` : '';
+    }
+
     const content = nodeChildrenToMarkdown(node).trim();
 
     if (!content && tagName !== 'hr') return '';
@@ -713,7 +805,7 @@ function placeCaretInNode(node: Node, edge: 'start' | 'end') {
     if (!selection) return;
 
     const range = document.createRange();
-    if (node instanceof HTMLElement && node.tagName.toLowerCase() === 'hr') {
+    if (node instanceof HTMLElement && (node.tagName.toLowerCase() === 'hr' || isEditorImageBlock(node))) {
         if (edge === 'start') {
             range.setStartBefore(node);
         } else {
@@ -788,11 +880,21 @@ function splitBlockAroundRange(block: HTMLElement, range: Range, insertedNodes: 
 
 function getSingleFullySelectedBlock(range: Range, editor: HTMLElement) {
     const selectedText = normalizeEditorText(range.toString()).trim();
-    if (!selectedText) return null;
 
     const startBlock = getTopLevelEditorBlock(range.startContainer, editor);
     const endBlock = getTopLevelEditorBlock(range.endContainer, editor);
     if (!startBlock || (endBlock && endBlock !== startBlock)) return null;
+
+    if (isEditorImageBlock(startBlock)) {
+        const probe = editor.ownerDocument.createRange();
+        probe.selectNode(startBlock);
+        const coversImageBlock = range.compareBoundaryPoints(Range.START_TO_START, probe) <= 0
+            && range.compareBoundaryPoints(Range.END_TO_END, probe) >= 0;
+        probe.detach();
+        return coversImageBlock ? startBlock : null;
+    }
+
+    if (!selectedText) return null;
 
     const blockText = normalizeEditorText(startBlock.textContent || '').trim();
     return blockText && selectedText === blockText ? startBlock : null;
@@ -817,6 +919,16 @@ function removeBlockWithoutMerging(block: HTMLElement) {
         selection?.removeAllRanges();
         selection?.addRange(range);
     }
+}
+
+function selectEditorBlock(block: HTMLElement) {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const range = block.ownerDocument.createRange();
+    range.selectNode(block);
+    selection.removeAllRanges();
+    selection.addRange(range);
 }
 
 function removeEmptyActiveBlockAfterDelete(editor: HTMLElement) {
@@ -989,6 +1101,7 @@ export default function PostTextComposer({
     rows = 5,
     disabled = false,
     maxLength,
+    allowInlineImagePaste = true,
 }: PostTextComposerProps) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const richEditorRef = useRef<HTMLDivElement | null>(null);
@@ -998,6 +1111,7 @@ export default function PostTextComposer({
     const isSelectingWithPointerRef = useRef(false);
     const toolbarFrameRef = useRef<number | null>(null);
     const linkPreviewHideTimerRef = useRef<number | null>(null);
+    const inlineImagesRef = useRef(new Map<string, InlineImageDraft>());
     const activeFormat = normalizePostContentFormat(format);
     const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
     const [linkPopoverMode, setLinkPopoverMode] = useState<LinkPopoverMode>('insert');
@@ -1009,6 +1123,7 @@ export default function PostTextComposer({
     const [blockToolbarTop, setBlockToolbarTop] = useState(10);
     const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
     const [linkPopoverPosition, setLinkPopoverPosition] = useState<FloatingToolbarPosition | null>(null);
+    const [selectedImageBlock, setSelectedImageBlock] = useState<HTMLElement | null>(null);
     const clampValue = useCallback((nextValue: string) => (
         typeof maxLength === 'number' ? nextValue.slice(0, maxLength) : nextValue
     ), [maxLength]);
@@ -1037,6 +1152,17 @@ export default function PostTextComposer({
 
         const rawValue = editorHtmlToMarkdown(editor);
         const nextValue = clampValue(rawValue);
+        const liveInlineImageIds = new Set(
+            Array.from(editor.querySelectorAll('img[data-inline-image-id]'))
+                .map(image => image.getAttribute('data-inline-image-id') || '')
+                .filter(Boolean),
+        );
+        inlineImagesRef.current.forEach((draft, id) => {
+            if (!liveInlineImageIds.has(id)) {
+                URL.revokeObjectURL(draft.previewUrl);
+                inlineImagesRef.current.delete(id);
+            }
+        });
         if (nextValue !== rawValue) {
             editor.innerHTML = markdownToEditorHtml(nextValue);
         }
@@ -1059,9 +1185,37 @@ export default function PostTextComposer({
     };
 
     useEffect(() => {
-        editorRef?.({ sync: updateFromRichEditor });
+        editorRef?.({
+            sync: updateFromRichEditor,
+            getInlineImages: () => Array.from(inlineImagesRef.current.entries()).map(([id, draft]) => ({ id, file: draft.file })),
+            clearInlineImages: () => {
+                inlineImagesRef.current.forEach(draft => URL.revokeObjectURL(draft.previewUrl));
+                inlineImagesRef.current.clear();
+            },
+        });
         return () => editorRef?.(null);
     }, [editorRef, updateFromRichEditor]);
+
+    useEffect(() => {
+        const inlineImages = inlineImagesRef.current;
+        return () => {
+            inlineImages.forEach(draft => URL.revokeObjectURL(draft.previewUrl));
+            inlineImages.clear();
+        };
+    }, []);
+
+    useEffect(() => {
+        const editor = richEditorRef.current;
+        if (!editor) return;
+
+        editor.querySelectorAll('figure[data-editor-image-block].is-selected')
+            .forEach(block => {
+                if (block !== selectedImageBlock) {
+                    block.classList.remove('is-selected');
+                }
+            });
+        selectedImageBlock?.classList.add('is-selected');
+    }, [selectedImageBlock]);
 
     const updateFloatingToolbar = useCallback(() => {
         const editor = richEditorRef.current;
@@ -1181,11 +1335,19 @@ export default function PostTextComposer({
     }, [activeFormat, clearLinkPreviewTimer, getComposerPosition]);
 
     const handleRichPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+        const editor = richEditorRef.current;
+        if (editor && getClosestEditorImageBlock(event.target, editor)) {
+            isSelectingWithPointerRef.current = false;
+            setFloatingToolbar(null);
+            return;
+        }
+
         isSelectingWithPointerRef.current = true;
         if (toolbarFrameRef.current !== null) {
             window.cancelAnimationFrame(toolbarFrameRef.current);
             toolbarFrameRef.current = null;
         }
+        setSelectedImageBlock(null);
         setFloatingToolbar(null);
         if (!getClosestAnchor(event.target) && !isLinkPopoverOpen) {
             setLinkPreview(null);
@@ -1395,11 +1557,21 @@ export default function PostTextComposer({
         const isForwardDelete = nativeEvent.inputType === 'deleteContentForward';
         if (!isBackwardDelete && !isForwardDelete && nativeEvent.inputType !== 'deleteByCut') return;
 
+        if (selectedImageBlock && editor.contains(selectedImageBlock)) {
+            event.preventDefault();
+            removeBlockWithoutMerging(selectedImageBlock);
+            setSelectedImageBlock(null);
+            updateFromRichEditor();
+            scheduleFloatingToolbar();
+            return;
+        }
+
         if (!range.collapsed) {
             const selectedBlock = getSingleFullySelectedBlock(range, editor);
             if (selectedBlock) {
                 event.preventDefault();
                 removeBlockWithoutMerging(selectedBlock);
+                setSelectedImageBlock(null);
                 updateFromRichEditor();
                 scheduleFloatingToolbar();
             }
@@ -1419,6 +1591,14 @@ export default function PostTextComposer({
 
         if (isBackwardDelete && isCaretAtBlockEdge(range, activeBlock, 'start')) {
             const previousBlock = getAdjacentEditorBlock(activeBlock, 'previous');
+            if (previousBlock && isEditorImageBlock(previousBlock)) {
+                event.preventDefault();
+                removeBlockWithoutMerging(previousBlock);
+                setSelectedImageBlock(null);
+                updateFromRichEditor();
+                scheduleFloatingToolbar();
+                return;
+            }
             if (previousBlock && previousBlock.tagName !== activeBlock.tagName) {
                 event.preventDefault();
                 if (isBlockEffectivelyEmpty(previousBlock)) {
@@ -1433,6 +1613,14 @@ export default function PostTextComposer({
 
         if (isForwardDelete && isCaretAtBlockEdge(range, activeBlock, 'end')) {
             const nextBlock = getAdjacentEditorBlock(activeBlock, 'next');
+            if (nextBlock && isEditorImageBlock(nextBlock)) {
+                event.preventDefault();
+                removeBlockWithoutMerging(nextBlock);
+                setSelectedImageBlock(null);
+                updateFromRichEditor();
+                scheduleFloatingToolbar();
+                return;
+            }
             if (nextBlock && nextBlock.tagName !== activeBlock.tagName) {
                 event.preventDefault();
                 if (isBlockEffectivelyEmpty(nextBlock)) {
@@ -1449,9 +1637,31 @@ export default function PostTextComposer({
         const editor = richEditorRef.current;
         const pastedText = event.clipboardData.getData('text/plain');
         const pastedHtml = event.clipboardData.getData('text/html');
-        if (!editor || (!pastedText && !pastedHtml)) return;
+        const imageFiles = Array.from(event.clipboardData.files || [])
+            .filter(file => file.type.startsWith('image/'));
+        if (!editor || (!pastedText && !pastedHtml && imageFiles.length === 0)) return;
 
         event.preventDefault();
+
+        if (imageFiles.length > 0 && !allowInlineImagePaste) {
+            return;
+        }
+
+        if (imageFiles.length > 0) {
+            const imageHtml = imageFiles.map(file => {
+                const id = `inline-${Date.now()}-${crypto.randomUUID()}`;
+                const previewUrl = URL.createObjectURL(file);
+                inlineImagesRef.current.set(id, { file, previewUrl });
+                return createEditorImageHtml(`${INLINE_IMAGE_PLACEHOLDER_PREFIX}${id}`, file.name || 'image')
+                    .replace(`src="${escapeAttribute(`${INLINE_IMAGE_PLACEHOLDER_PREFIX}${id}`)}"`, `src="${escapeAttribute(previewUrl)}" data-inline-image-id="${escapeAttribute(id)}"`);
+            }).join('');
+
+            insertPasteHtml(editor, imageHtml, true);
+            updateFromRichEditor();
+            scheduleFloatingToolbar();
+            return;
+        }
+
         const isMarkdownSource = !!pastedText && looksLikeMarkdownSource(pastedText);
         const richHtml = isMarkdownSource ? '' : clipboardHtmlToEditorHtml(pastedHtml);
         const blockLikePaste = isMarkdownSource
@@ -1495,6 +1705,21 @@ export default function PostTextComposer({
     };
 
     const handleRichClick = (event: MouseEvent<HTMLDivElement>) => {
+        const editor = richEditorRef.current;
+        if (editor) {
+            const imageBlock = getClosestEditorImageBlock(event.target, editor);
+            if (imageBlock) {
+                event.preventDefault();
+                event.stopPropagation();
+                selectEditorBlock(imageBlock);
+                setSelectedImageBlock(imageBlock);
+                setFloatingToolbar(null);
+                setLinkPreview(null);
+                return;
+            }
+            setSelectedImageBlock(null);
+        }
+
         const anchor = getClosestAnchor(event.target);
         if (!anchor) return;
 

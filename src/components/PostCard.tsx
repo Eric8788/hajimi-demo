@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useCallback, useRef, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Post, Comment, User } from '@/lib/db';
@@ -81,6 +81,12 @@ type CommentImageDraft = {
     status: string;
 };
 
+function getMarkdownImageUrls(content: string) {
+    return Array.from(content.matchAll(/!\[[^\]\n]*\]\((https?:\/\/[^\s)]+)\)/g))
+        .map(match => match[1])
+        .filter(Boolean);
+}
+
 export default function PostCard({ post, currentUser, onDeleted, onGuestAction }: { post: Post, currentUser: User | null, onDeleted?: (id: number) => void, onGuestAction?: () => void }) {
     const router = useRouter();
     const isGuest = !currentUser;
@@ -137,7 +143,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [interactionMessage, setInteractionMessage] = useState('');
     const editComposerRef = useRef<PostTextComposerApi | null>(null);
 
-    const postAttachmentUrls = getPostAttachmentUrls(post);
+    const postAttachmentUrls = useMemo(() => getPostAttachmentUrls(post), [post]);
+    const visiblePostAttachmentUrls = useMemo(() => {
+        const inlineImageUrls = new Set(getMarkdownImageUrls(displayContent));
+        return postAttachmentUrls.filter(url => !inlineImageUrls.has(url));
+    }, [displayContent, postAttachmentUrls]);
     const [imageModalUrls, setImageModalUrls] = useState<string[]>([]);
     const [imageModalIndex, setImageModalIndex] = useState(0);
     const [attachmentImageFailed, setAttachmentImageFailed] = useState<Record<string, boolean>>({});
@@ -877,6 +887,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                 editComposerRef.current = api;
                             }}
                             rows={6}
+                            allowInlineImagePaste={false}
                         />
                         <div className="post-edit-helper">
                             <span>Links: select text and enter a domain like www.baidu.com</span>
@@ -933,9 +944,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                     </>
                 )}
 
-                {postAttachmentUrls.length > 0 && (
-                    <div className={`post-image-grid count-${Math.min(postAttachmentUrls.length, 3)}`} aria-label="Post images">
-                        {postAttachmentUrls.slice(0, 3).map((url, index) => {
+                {visiblePostAttachmentUrls.length > 0 && (
+                    <div className={`post-image-grid count-${Math.min(visiblePostAttachmentUrls.length, 3)}`} aria-label="Post images">
+                        {visiblePostAttachmentUrls.slice(0, 3).map((url, index) => {
                             const imageSrc = getImageDisplayUrl(url);
                             const failed = attachmentImageFailed[url];
 
@@ -944,7 +955,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                     key={url}
                                     type="button"
                                     className="post-image-attachment"
-                                    onClick={() => openImageModal(postAttachmentUrls, index)}
+                                    onClick={() => openImageModal(visiblePostAttachmentUrls, index)}
                                     aria-label={`Open image ${index + 1}`}
                                 >
                                     {imageSrc && !failed ? (

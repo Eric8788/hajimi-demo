@@ -20,6 +20,7 @@ import {
     MAX_FORUM_IMAGE_SIZE,
 } from '@/lib/clientImageUpload';
 import type { PostContentFormat } from '@/lib/forumContent';
+import type { PostTextComposerApi } from './PostTextComposer';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -39,6 +40,8 @@ const CUSTOM_TAG_SUGGESTIONS = [
 
 const MAX_POST_IMAGE_COUNT = 3;
 const FORUM_PAGE_SIZE = 15;
+const COMPOSER_DRAFT_STORAGE_KEY = 'hajimi:forum-post-draft';
+const INLINE_IMAGE_DRAFT_PATTERN = /\n{0,2}!\[[^\]\n]*\]\(hajimi-inline-image:[^)]+\)\n{0,2}/g;
 
 type ComposerImage = {
     id: string;
@@ -57,6 +60,13 @@ function getHashPostId() {
     if (typeof window === 'undefined' || !window.location.hash) return null;
     const match = window.location.hash.match(/^#post-(\d+)/);
     return match ? Number(match[1]) : null;
+}
+
+function stripUnsavedInlineImages(content: string) {
+    return content
+        .replace(INLINE_IMAGE_DRAFT_PATTERN, '\n\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }
 
 export default function ForumFeed({
@@ -99,6 +109,7 @@ export default function ForumFeed({
     const [nextOffset, setNextOffset] = useState(initialNextOffset);
     const [feedError, setFeedError] = useState('');
     const [createError, setCreateError] = useState('');
+    const [draftStatus, setDraftStatus] = useState('');
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [promoIndex, setPromoIndex] = useState(0);
@@ -109,6 +120,7 @@ export default function ForumFeed({
         ...visiblePopularTags.map(({ tag }) => ({ id: tag, label: `# ${tag}` })),
     ].filter((option, index, options) => options.findIndex(item => item.id === option.id) === index);
     const displayUser = hydratedUser || user;
+    const composerTextRef = useRef<PostTextComposerApi | null>(null);
     const avatarIdsKey = useMemo(() => {
         return Array.from(new Set(
             collectPostAvatarIds(posts, user)
@@ -148,7 +160,7 @@ export default function ForumFeed({
 
         const handlePointerDown = (event: PointerEvent) => {
             const target = event.target as Node;
-            const hasDraft = !!(newTitle.trim() || newContent.trim() || files.length > 0);
+            const hasDraft = !!(newTitle.trim() || newContent.trim() || files.length > 0 || composerTextRef.current?.getInlineImages().length);
 
             if (!hasDraft && !loading && !isPreparingImage && composerRef.current && !composerRef.current.contains(target)) {
                 setNewTitle('');
@@ -369,6 +381,7 @@ export default function ForumFeed({
     };
 
     const resetComposer = () => {
+        composerTextRef.current?.clearInlineImages();
         setNewTitle('');
         setNewContent('');
         setNewContentFormat('markdown');
@@ -379,7 +392,67 @@ export default function ForumFeed({
         });
         setFileStatus('');
         setCreateError('');
+        setDraftStatus('');
         setIsCreating(false);
+    };
+
+    const saveComposerDraft = () => {
+        const syncedContent = composerTextRef.current?.sync() ?? newContent;
+        const inlineImages = composerTextRef.current?.getInlineImages() ?? [];
+        const draftContent = inlineImages.length > 0 ? stripUnsavedInlineImages(syncedContent) : syncedContent;
+        const hasUnsavedImages = files.length > 0 || inlineImages.length > 0;
+        const hasDraft = !!(newTitle.trim() || draftContent.trim() || hasUnsavedImages);
+        if (!hasDraft) {
+            setDraftStatus('Nothing to save yet.');
+            return;
+        }
+
+        window.localStorage.setItem(COMPOSER_DRAFT_STORAGE_KEY, JSON.stringify({
+            title: newTitle,
+            content: draftContent,
+            contentFormat: newContentFormat,
+            tag: newTag,
+            savedAt: Date.now(),
+        }));
+        setNewContent(syncedContent);
+        setDraftStatus(hasUnsavedImages ? 'Draft saved on this device. Images stay only in the current composer until you publish.' : 'Draft saved on this device.');
+    };
+
+    const restoreComposerDraft = () => {
+        const rawDraft = window.localStorage.getItem(COMPOSER_DRAFT_STORAGE_KEY);
+        if (!rawDraft) {
+            setDraftStatus('No saved draft found.');
+            return;
+        }
+
+        try {
+            const draft = JSON.parse(rawDraft) as {
+                title?: string;
+                content?: string;
+                contentFormat?: PostContentFormat;
+                tag?: string;
+            };
+            composerTextRef.current?.clearInlineImages();
+            setFiles(current => {
+                current.forEach(item => URL.revokeObjectURL(item.previewUrl));
+                return [];
+            });
+            setFileStatus('');
+            setCreateError('');
+            setNewTitle(String(draft.title || ''));
+            setNewContent(String(draft.content || ''));
+            setNewContentFormat(draft.contentFormat === 'plain' ? 'plain' : 'markdown');
+            setNewTag(String(draft.tag || 'general'));
+            setIsCreating(true);
+            setDraftStatus('Draft restored.');
+        } catch {
+            setDraftStatus('Saved draft could not be restored.');
+        }
+    };
+
+    const discardComposerDraft = () => {
+        window.localStorage.removeItem(COMPOSER_DRAFT_STORAGE_KEY);
+        resetComposer();
     };
 
     const openComposer = () => {
@@ -393,6 +466,7 @@ export default function ForumFeed({
 
         setCreateError('');
         setFileStatus('');
+        setDraftStatus('');
         setIsCreating(true);
     };
 
@@ -414,12 +488,17 @@ export default function ForumFeed({
 
         setLoading(true);
         setCreateError('');
+        const syncedContent = composerTextRef.current?.sync() ?? newContent;
+        const inlineImages = composerTextRef.current?.getInlineImages() ?? [];
 
         const formData = new FormData();
         formData.append('title', newTitle);
-        formData.append('content', newContent);
+        formData.append('content', syncedContent);
         formData.append('contentFormat', newContentFormat);
         formData.append('tag', newTag.trim() || 'general');
+        inlineImages.forEach(item => {
+            formData.append(`inlineImage:${item.id}`, item.file);
+        });
         if (files.length > 0) {
             files.forEach(item => formData.append('files', item.file));
             formData.append('type', 'image');
@@ -437,6 +516,7 @@ export default function ForumFeed({
             }
 
             clearCachedJson('posts:');
+            window.localStorage.removeItem(COMPOSER_DRAFT_STORAGE_KEY);
             resetComposer();
             setHasMorePosts(false);
             setNextOffset(0);
@@ -503,7 +583,8 @@ export default function ForumFeed({
 
         if (selectedFiles.length === 0) return;
 
-        const availableSlots = MAX_POST_IMAGE_COUNT - filesRef.current.length;
+        const inlineImageCount = composerTextRef.current?.getInlineImages().length ?? 0;
+        const availableSlots = MAX_POST_IMAGE_COUNT - filesRef.current.length - inlineImageCount;
         if (availableSlots <= 0) {
             setCreateError(`最多一次上传 ${MAX_POST_IMAGE_COUNT} 张图片。`);
             return;
@@ -551,6 +632,9 @@ export default function ForumFeed({
     const handlePostDeleted = (postId: number) => {
         setPosts(current => current.filter(p => p.id !== postId));
     };
+
+    const inlineComposerImageCount = composerTextRef.current?.getInlineImages().length ?? 0;
+    const totalComposerImageCount = files.length + inlineComposerImageCount;
 
     return (
         <div>
@@ -790,6 +874,9 @@ export default function ForumFeed({
                                 onChange={setNewContent}
                                 format={newContentFormat}
                                 onFormatChange={setNewContentFormat}
+                                editorRef={api => {
+                                    composerTextRef.current = api;
+                                }}
                             />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <label style={{ fontSize: '0.9rem', color: '#636e72', fontWeight: 700 }}>Hashtag（可选）</label>
@@ -818,14 +905,14 @@ export default function ForumFeed({
                                 </div>
                             </div>
                             <div style={{ background: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '12px', border: '1px dashed rgba(0,0,0,0.1)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading || isPreparingImage || files.length >= MAX_POST_IMAGE_COUNT ? 'default' : 'pointer', color: '#636e72' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: loading || isPreparingImage || totalComposerImageCount >= MAX_POST_IMAGE_COUNT ? 'default' : 'pointer', color: '#636e72' }}>
                                     🖼️ {isPreparingImage ? 'Optimizing images...' : files.length > 0 ? `${files.length}/${MAX_POST_IMAGE_COUNT} images selected` : 'Attach images'}
                                     <input
                                         type="file"
                                         accept="image/jpeg,image/png,image/webp,image/gif"
                                         multiple
                                         onChange={handleFileInputChange}
-                                        disabled={loading || isPreparingImage || files.length >= MAX_POST_IMAGE_COUNT}
+                                        disabled={loading || isPreparingImage || totalComposerImageCount >= MAX_POST_IMAGE_COUNT}
                                         style={{ display: 'none' }}
                                     />
                                 </label>
@@ -843,15 +930,27 @@ export default function ForumFeed({
                                 {fileStatus && (
                                     <div style={{ color: '#00b894', fontSize: '0.8rem', marginTop: '8px', fontWeight: 700 }}>{fileStatus}</div>
                                 )}
+                                {inlineComposerImageCount > 0 && (
+                                    <div style={{ color: '#6c5ce7', fontSize: '0.8rem', marginTop: '8px', fontWeight: 700 }}>
+                                        Inline images: {inlineComposerImageCount}/{MAX_POST_IMAGE_COUNT}
+                                    </div>
+                                )}
                             </div>
                             {createError && (
                                 <div style={{ color: '#d63031', background: 'rgba(255, 118, 117, 0.15)', borderRadius: '12px', padding: '10px 12px', fontSize: '0.9rem', fontWeight: 600 }}>
                                     {createError}
                                 </div>
                             )}
+                            {draftStatus && (
+                                <div className="composer-draft-status">
+                                    {draftStatus}
+                                </div>
+                            )}
                         </div>
-                        <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', marginTop: '20px' }}>
-                            <button type="button" onClick={resetComposer} className="btn" style={{ background: 'transparent', border: '1px solid #b2bec3' }}>Cancel</button>
+                        <div className="composer-draft-actions">
+                            <button type="button" onClick={saveComposerDraft} className="btn" disabled={loading || isPreparingImage}>Save draft</button>
+                            <button type="button" onClick={restoreComposerDraft} className="btn" disabled={loading || isPreparingImage}>Restore draft</button>
+                            <button type="button" onClick={discardComposerDraft} className="btn" disabled={loading || isPreparingImage} style={{ background: 'transparent', border: '1px solid #b2bec3' }}>Discard</button>
                             <button type="submit" className="btn btn-primary" disabled={loading || isPreparingImage}>{loading ? 'Posting...' : isPreparingImage ? 'Optimizing...' : '🚀 发布'}</button>
                         </div>
                     </motion.form>

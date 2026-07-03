@@ -1345,6 +1345,7 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                                         placeholder="\u6b63\u6587"
                                         rows={10}
                                         maxLength={12000}
+                                        allowInlineImagePaste={false}
                                     />
                                     <div className="profile-article-composer-row">
                                         <input

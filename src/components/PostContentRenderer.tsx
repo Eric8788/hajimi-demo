@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { normalizePostContentFormat, type PostContentFormat } from '@/lib/forumContent';
+import { getImageDisplayUrl } from '@/lib/imageProxy';
 
-const INLINE_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
+const INLINE_PATTERN = /(!\[([^\]\n]{0,120})\]\((https?:\/\/[^\s)]+)\)|`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+))/g;
 
 type ListBlock = {
     type: 'list';
@@ -15,6 +16,7 @@ type MarkdownBlock =
     | { type: 'quote'; lines: string[] }
     | { type: 'code'; text: string }
     | ListBlock
+    | { type: 'image'; src: string; alt: string }
     | { type: 'rule' };
 
 type PostContentRendererProps = {
@@ -48,12 +50,20 @@ function renderInline(text: string, keyPrefix: string, options: RenderInlineOpti
         }
 
         const rawText = match[0];
-        const markdownHref = match[3] || '';
-        const autoHref = match[4] || '';
+        const imageAlt = match[2] || '';
+        const imageSrc = match[3] || '';
+        const markdownHref = match[5] || '';
+        const autoHref = match[6] || '';
         const href = safeExternalUrl(markdownHref || autoHref);
 
-        if (href) {
-            const label = match[2] || autoHref || href;
+        if (rawText.startsWith('![') && safeExternalUrl(imageSrc)) {
+            parts.push(
+                <span key={`${keyPrefix}-${matchIndex}`} className="post-inline-image-block">
+                    <img src={getImageDisplayUrl(imageSrc)} alt={imageAlt || 'Post image'} loading="lazy" decoding="async" />
+                </span>
+            );
+        } else if (href) {
+            const label = match[4] || autoHref || href;
             parts.push(options.disableLinks ? label : (
                 <a key={`${keyPrefix}-${matchIndex}`} href={href} target="_blank" rel="noopener noreferrer" className="post-rich-link">
                     {label}
@@ -144,6 +154,15 @@ function parseMarkdown(text: string): MarkdownBlock[] {
             flushParagraph(blocks, paragraphLines);
             flushList();
             flushQuote();
+            continue;
+        }
+
+        const imageBlock = /^!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)$/.exec(trimmed);
+        if (imageBlock) {
+            flushParagraph(blocks, paragraphLines);
+            flushList();
+            flushQuote();
+            blocks.push({ type: 'image', src: imageBlock[2], alt: imageBlock[1] || 'Post image' });
             continue;
         }
 
@@ -255,6 +274,14 @@ function renderMarkdown(text: string, options: RenderInlineOptions = {}) {
                         <li key={itemIndex}>{renderInline(item, `list-${index}-${itemIndex}`, options)}</li>
                     ))}
                 </ListTag>
+            );
+        }
+
+        if (block.type === 'image') {
+            return (
+                <figure key={index} className="post-inline-image-block">
+                    <img src={getImageDisplayUrl(block.src)} alt={block.alt} loading="lazy" decoding="async" />
+                </figure>
             );
         }
 

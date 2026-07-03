@@ -21,6 +21,12 @@ const ALLOWED_IMAGE_TYPES = new Set([
 ]);
 const HASHTAG_PATTERN = /^[\p{L}\p{N}_-]{1,24}$/u;
 const MAX_TITLE_LENGTH = 80;
+const INLINE_IMAGE_PLACEHOLDER_PREFIX = 'hajimi-inline-image:';
+
+type InlineImageFile = {
+    id: string;
+    file: File;
+};
 
 function safeFilename(name: string) {
     const extension = name.includes('.') ? name.split('.').pop() : 'file';
@@ -53,6 +59,43 @@ function getPostFiles(formData: FormData) {
     return files;
 }
 
+function getInlineImageFiles(formData: FormData): InlineImageFile[] {
+    return Array.from(formData.entries())
+        .map(([key, value]) => {
+            const match = /^inlineImage:(.+)$/.exec(key);
+            if (!match || !(value instanceof File) || value.size <= 0) return null;
+
+            return {
+                id: match[1],
+                file: value,
+            };
+        })
+        .filter((value): value is InlineImageFile => Boolean(value));
+}
+
+function replaceInlineImagePlaceholders(content: string, uploadedInlineImages: Map<string, string>) {
+    let missingInlineImage = '';
+    const nextContent = content.replace(/!\[([^\]\n]*)\]\(hajimi-inline-image:([^)]+)\)/g, (match, alt: string, id: string) => {
+        const url = uploadedInlineImages.get(id);
+        if (!url) {
+            missingInlineImage = id;
+            return match;
+        }
+
+        return `![${String(alt || 'image').replace(/[\[\]\n\r]/g, ' ').trim() || 'image'}](${url})`;
+    });
+
+    if (missingInlineImage) {
+        throw new Response(JSON.stringify({ error: 'Inline image upload is missing. Paste the image again and retry.' }), { status: 400 });
+    }
+
+    if (nextContent.includes(INLINE_IMAGE_PLACEHOLDER_PREFIX)) {
+        throw new Response(JSON.stringify({ error: 'Inline image upload is incomplete. Paste the image again and retry.' }), { status: 400 });
+    }
+
+    return nextContent;
+}
+
 async function cleanupUploadedBlobs(urls: string[]) {
     if (urls.length === 0) return;
 
@@ -61,6 +104,16 @@ async function cleanupUploadedBlobs(urls: string[]) {
     } catch (error) {
         console.warn('Failed to clean up uploaded post blobs:', error);
     }
+}
+
+async function uploadPostImage(file: File) {
+    const blobName = `forum/${Date.now()}-${crypto.randomUUID()}-${safeFilename(file.name)}`;
+    const blob = await put(blobName, file, {
+        access: 'public',
+        contentType: file.type || undefined,
+    });
+
+    return blob.url;
 }
 
 export async function GET(request: Request) {
@@ -137,7 +190,9 @@ export async function POST(request: Request) {
         let type = 'text';
         const tag = normalizeHashtag(formData.get('tag'));
         const files = getPostFiles(formData);
-        const hasFiles = files.length > 0;
+        const inlineImages = getInlineImageFiles(formData);
+        const allImageFiles = [...files, ...inlineImages.map(item => item.file)];
+        const hasFiles = allImageFiles.length > 0;
 
         if (!title) {
             return NextResponse.json({ error: '标题必填，内容可以选填。' }, { status: 400 });
@@ -152,13 +207,15 @@ export async function POST(request: Request) {
         }
 
         const attachmentUrls: string[] = [];
+        const inlineImageUrls = new Map<string, string>();
+        let finalContent = content;
 
         if (hasFiles) {
-            if (files.length > MAX_POST_ATTACHMENTS) {
+            if (allImageFiles.length > MAX_POST_ATTACHMENTS) {
                 return NextResponse.json({ error: `最多一次上传 ${MAX_POST_ATTACHMENTS} 张图片。` }, { status: 400 });
             }
 
-            for (const file of files) {
+            for (const file of allImageFiles) {
                 if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
                     return NextResponse.json({ error: 'Only JPEG, PNG, WebP, or GIF images can be uploaded' }, { status: 415 });
                 }
@@ -173,35 +230,51 @@ export async function POST(request: Request) {
             }
 
             const totalUploads = await countAttachmentsByUser(userId);
-            if (totalUploads + files.length > TOTAL_ATTACHMENT_LIMIT) {
+            if (totalUploads + allImageFiles.length > TOTAL_ATTACHMENT_LIMIT) {
                 return NextResponse.json({ error: 'Image storage limit reached. Delete old image posts before uploading more.' }, { status: 429 });
             }
 
             const recentUploads = await countRecentAttachmentsByUser(userId);
-            if (recentUploads + files.length > DAILY_ATTACHMENT_LIMIT) {
+            if (recentUploads + allImageFiles.length > DAILY_ATTACHMENT_LIMIT) {
                 return NextResponse.json({ error: 'Daily image upload limit reached. Try again tomorrow.' }, { status: 429 });
             }
 
             try {
                 for (const file of files) {
-                    const blobName = `forum/${Date.now()}-${crypto.randomUUID()}-${safeFilename(file.name)}`;
-                    const blob = await put(blobName, file, {
-                        access: 'public',
-                        contentType: file.type || undefined,
-                    });
+                    attachmentUrls.push(await uploadPostImage(file));
+                }
 
-                    attachmentUrls.push(blob.url);
+                for (const inlineImage of inlineImages) {
+                    const url = await uploadPostImage(inlineImage.file);
+                    attachmentUrls.push(url);
+                    inlineImageUrls.set(inlineImage.id, url);
                 }
             } catch (error) {
                 await cleanupUploadedBlobs(attachmentUrls);
                 throw error;
             }
 
+            try {
+                finalContent = replaceInlineImagePlaceholders(content, inlineImageUrls);
+            } catch (error) {
+                await cleanupUploadedBlobs(attachmentUrls);
+                if (error instanceof Response) {
+                    const text = await error.text();
+                    return NextResponse.json(JSON.parse(text), { status: error.status });
+                }
+                throw error;
+            }
+
             type = 'image';
         }
 
+        if (finalContent.includes(INLINE_IMAGE_PLACEHOLDER_PREFIX)) {
+            await cleanupUploadedBlobs(attachmentUrls);
+            return NextResponse.json({ error: 'Inline image upload is incomplete. Paste the image again and retry.' }, { status: 400 });
+        }
+
         try {
-            await createPostWithAttachments(userId, title.slice(0, MAX_TITLE_LENGTH), content, type, attachmentUrls, tag, contentFormat);
+            await createPostWithAttachments(userId, title.slice(0, MAX_TITLE_LENGTH), finalContent, type, attachmentUrls, tag, contentFormat);
         } catch (error) {
             await cleanupUploadedBlobs(attachmentUrls);
             throw error;
