@@ -14343,6 +14343,7 @@ html *::after {
   border: 1px solid rgba(148,163,184,0.16);
   border-radius: 14px;
   outline: none;
+  overflow-x: hidden;
   overflow-wrap: anywhere;
 }
 
@@ -14437,6 +14438,19 @@ html *::after {
   text-decoration: none;
   border-bottom: 1px solid rgba(37,99,235,0.28);
   cursor: pointer;
+}
+
+.post-rich-editor img {
+  display: block;
+  width: auto !important;
+  max-width: 100% !important;
+  max-inline-size: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
+  margin: 0.35rem 0 0.95rem;
+  border-radius: 10px;
+  object-fit: contain;
+  box-shadow: 0 10px 26px rgba(15,23,42,0.08);
 }
 
 .post-rich-editor hr {
