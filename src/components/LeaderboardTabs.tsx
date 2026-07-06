@@ -3,18 +3,25 @@
 import { useState } from 'react';
 import LeaderboardWidget from './LeaderboardWidget';
 import HubLeaderboardWidget from './HubLeaderboardWidget';
+import type { LeaderboardWindow as MemberLeaderboardWindow } from '@/lib/db';
 import type { HubLeaderboardWindow, HubRankingMode } from '@/lib/hubRankings';
 
 type LeaderboardTab = 'members' | 'hub';
 
 export default function LeaderboardTabs({
     initialTab = 'members',
+    defaultMemberWindow = 'week',
+    defaultMemberRangeStart,
+    defaultMemberRangeEnd,
     defaultHubMode = 'heat',
     defaultHubWindow = 'month',
     defaultHubRangeStart,
     defaultHubRangeEnd,
 }: {
     initialTab?: LeaderboardTab;
+    defaultMemberWindow?: MemberLeaderboardWindow;
+    defaultMemberRangeStart?: string;
+    defaultMemberRangeEnd?: string;
     defaultHubMode?: HubRankingMode;
     defaultHubWindow?: HubLeaderboardWindow;
     defaultHubRangeStart?: string;
@@ -42,7 +49,13 @@ export default function LeaderboardTabs({
             </div>
 
             {activeTab === 'members' ? (
-                <LeaderboardWidget limit={30} showViewAll={false} />
+                <LeaderboardWidget
+                    limit={30}
+                    showViewAll={false}
+                    defaultWindow={defaultMemberWindow}
+                    defaultRangeStart={defaultMemberRangeStart}
+                    defaultRangeEnd={defaultMemberRangeEnd}
+                />
             ) : (
                 <HubLeaderboardWidget
                     limit={30}

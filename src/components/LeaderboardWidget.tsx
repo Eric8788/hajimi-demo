@@ -17,33 +17,82 @@ const WINDOW_TABS = [
     { id: 'week', label: '周榜' },
     { id: 'month', label: '月榜' },
 ] as const;
-type LeaderboardWindow = (typeof WINDOW_TABS)[number]['id'];
+type LeaderboardWindow = (typeof WINDOW_TABS)[number]['id'] | 'custom';
+
+const SHANGHAI_TIME_ZONE = 'Asia/Shanghai';
+
+function formatShanghaiDate(date: Date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: SHANGHAI_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getDefaultCustomRange() {
+    const today = formatShanghaiDate(new Date());
+    return {
+        startDate: `${today.slice(0, 8)}01`,
+        endDate: today,
+    };
+}
+
+function isValidRange(startDate: string, endDate: string) {
+    return Boolean(startDate && endDate && startDate <= endDate);
+}
 
 export default function LeaderboardWidget({
     limit = 10,
     showViewAll = true,
     defaultWindow = 'week',
     subtitle,
+    defaultRangeStart,
+    defaultRangeEnd,
 }: {
     limit?: number;
     showViewAll?: boolean;
     defaultWindow?: LeaderboardWindow;
     subtitle?: string;
+    defaultRangeStart?: string;
+    defaultRangeEnd?: string;
 }) {
     const router = useRouter();
     const [leaderboard, setLeaderboard] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [windowType, setWindowType] = useState<LeaderboardWindow>(defaultWindow);
+    const [customStartDate, setCustomStartDate] = useState(() => defaultRangeStart || getDefaultCustomRange().startDate);
+    const [customEndDate, setCustomEndDate] = useState(() => defaultRangeEnd || getDefaultCustomRange().endDate);
+    const hasValidCustomRange = isValidRange(customStartDate, customEndDate);
+    const requestWindowType: LeaderboardWindow = windowType === 'custom' && hasValidCustomRange ? 'custom' : windowType === 'custom' ? 'month' : windowType;
+
+    const markReloading = () => {
+        setLoading(true);
+        setError('');
+    };
+
+    const selectWindowType = (nextWindowType: LeaderboardWindow) => {
+        markReloading();
+        setWindowType(nextWindowType);
+    };
 
     useEffect(() => {
         const controller = new AbortController();
         let active = true;
-        setLoading(true);
-        setError('');
+        const shouldLoadCustomStats = windowType === 'custom' && hasValidCustomRange;
+        const rangeQuery = shouldLoadCustomStats
+            ? `&start=${encodeURIComponent(customStartDate)}&end=${encodeURIComponent(customEndDate)}`
+            : '';
+        const cacheKey = shouldLoadCustomStats
+            ? `leaderboard:${limit}:custom:all:${customStartDate}:${customEndDate}`
+            : `leaderboard:${limit}:${requestWindowType}:all`;
+
         cachedJson<User[]>(
-            `leaderboard:${limit}:${windowType}:all`,
-            `/api/leaderboard?limit=${limit}&window=${windowType}&category=all`,
+            cacheKey,
+            `/api/leaderboard?limit=${limit}&window=${requestWindowType}&category=all${rangeQuery}`,
             45_000,
             { signal: controller.signal },
         )
@@ -80,7 +129,7 @@ export default function LeaderboardWidget({
             active = false;
             controller.abort();
         };
-    }, [limit, windowType]);
+    }, [customEndDate, customStartDate, hasValidCustomRange, limit, requestWindowType, windowType]);
 
     const openProfile = (userId: number) => {
         router.push(`/profile/${userId}`);
@@ -111,11 +160,56 @@ export default function LeaderboardWidget({
                 <div className="leaderboard-controls">
                     <div>
                         {WINDOW_TABS.map(tab => (
-                            <button key={tab.id} type="button" className={windowType === tab.id ? 'is-active' : ''} onClick={() => setWindowType(tab.id)}>
+                            <button key={tab.id} type="button" className={windowType === tab.id ? 'is-active' : ''} onClick={() => selectWindowType(tab.id)}>
                                 {tab.label}
                             </button>
                         ))}
+                        <button
+                            type="button"
+                            className={windowType === 'custom' ? 'is-active' : ''}
+                            onClick={() => selectWindowType('custom')}
+                        >
+                            自定义
+                        </button>
                     </div>
+                </div>
+            )}
+            {!showViewAll && (
+                <div className="leaderboard-date-range" aria-label="Member XP custom date range">
+                    <label>
+                        <span>开始</span>
+                        <input
+                            type="date"
+                            value={customStartDate}
+                            max={customEndDate}
+                            onChange={event => {
+                                const nextStartDate = event.target.value;
+                                markReloading();
+                                setCustomStartDate(nextStartDate);
+                                if (nextStartDate && customEndDate && nextStartDate > customEndDate) {
+                                    setCustomEndDate(nextStartDate);
+                                }
+                                setWindowType('custom');
+                            }}
+                        />
+                    </label>
+                    <label>
+                        <span>结束</span>
+                        <input
+                            type="date"
+                            value={customEndDate}
+                            min={customStartDate}
+                            onChange={event => {
+                                const nextEndDate = event.target.value;
+                                markReloading();
+                                setCustomEndDate(nextEndDate);
+                                if (customStartDate && nextEndDate && nextEndDate < customStartDate) {
+                                    setCustomStartDate(nextEndDate);
+                                }
+                                setWindowType('custom');
+                            }}
+                        />
+                    </label>
                 </div>
             )}
             

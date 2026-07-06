@@ -118,7 +118,7 @@ Database interactions are handled via standard SQL functions.
    - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
    - Only `admin` can delete any post or comment; teachers and students can delete only their own posts/comments.
    - Staff roles are visually marked with badges on posts, comments, and profile pages.
-   - Hajimi verified accounts receive a compact verified badge and can create posts/interact/submit Hub applications. The main leaderboard only includes verified accounts and supports XP total/day/week/month views. Hub project rankings live in Function Hall and use verified unique players, capped effective opens, and project ratings across heat/rating modes.
+   - Hajimi verified accounts receive a compact verified badge and can create posts/interact/submit Hub applications. The main leaderboard only includes verified accounts and supports XP total/day/week/month/custom date-range views. Hub project rankings live in Function Hall and use verified unique players, capped effective opens, and project ratings across heat/rating modes.
    - Admins review pending verification requests at `/admin/verifications`. Real names, subjects, and student ID metadata must stay out of public profile/forum UI.
    - Admins can access `/admin` and `/admin/users` to view review history, maintain member verification details, and disable/restore accounts. Sensitive identity fields are shown only in admin-only detail views. Full student IDs are never stored or displayed; updating a student ID means entering a new value server-side, hashing it, and retaining only the hash plus last four characters.
 6. **Hashtag and beta feedback workflow:**

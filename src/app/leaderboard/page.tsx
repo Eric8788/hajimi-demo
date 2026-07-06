@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth';
 import { getUserById } from '@/lib/db';
 import Shell from '@/components/Shell';
 import LeaderboardTabs from '@/components/LeaderboardTabs';
+import type { LeaderboardWindow as MemberLeaderboardWindow } from '@/lib/db';
 import type { HubLeaderboardWindow, HubRankingMode } from '@/lib/hubRankings';
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +39,13 @@ export default async function Page({ searchParams }: { searchParams?: Promise<Le
     const rangeStart = parseDateParam(params.start);
     const rangeEnd = parseDateParam(params.end);
     const hasValidRange = Boolean(rangeStart && rangeEnd && rangeStart <= rangeEnd);
+    const memberWindow: MemberLeaderboardWindow = params.window === 'custom' && hasValidRange
+        ? 'custom'
+        : params.window === 'today' || params.window === 'day'
+            ? 'day'
+            : params.window === 'week' || params.window === 'month' || params.window === 'all'
+                ? params.window
+                : 'week';
     const hubWindow: HubLeaderboardWindow = params.window === 'custom' && hasValidRange
         ? 'custom'
         : params.window === 'today' || params.window === 'week' || params.window === 'month'
@@ -57,6 +65,9 @@ export default async function Page({ searchParams }: { searchParams?: Promise<Le
 
                 <LeaderboardTabs
                     initialTab={initialTab}
+                    defaultMemberWindow={memberWindow}
+                    defaultMemberRangeStart={rangeStart}
+                    defaultMemberRangeEnd={rangeEnd}
                     defaultHubMode={hubMode}
                     defaultHubWindow={hubWindow}
                     defaultHubRangeStart={rangeStart}

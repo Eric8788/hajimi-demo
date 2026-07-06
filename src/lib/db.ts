@@ -43,7 +43,7 @@ export interface User {
     created_at: string;
 }
 
-export type LeaderboardWindow = 'all' | 'day' | 'week' | 'month';
+export type LeaderboardWindow = 'all' | 'day' | 'week' | 'month' | 'custom';
 export type LeaderboardCategory = 'all' | 'community' | 'project';
 export type AccountStatus = 'active' | 'disabled';
 
@@ -3364,7 +3364,12 @@ export async function toggleBookmark(userId: number, postId: number) {
     }
 }
 
-export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'all', category: LeaderboardCategory = 'all'): Promise<User[]> {
+export async function getLeaderboard(
+    limit = 10,
+    window: LeaderboardWindow = 'all',
+    category: LeaderboardCategory = 'all',
+    range?: { startDate: string; endDate: string },
+): Promise<User[]> {
     await ensureProjectTipsTable();
 
     if (shouldAutoEnsureReadSchema()) {
@@ -3398,9 +3403,17 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
         return rows;
     }
 
+    const customStartDate = range?.startDate || null;
+    const customEndDate = range?.endDate || null;
+    const useCustomRange = window === 'custom' && Boolean(customStartDate && customEndDate);
     const sinceInterval = window === 'month' ? '30 days' : window === 'week' ? '7 days' : window === 'day' ? '1 day' : '36500 days';
     const { rows } = await sql<User>`
-      WITH first_posts AS (
+      WITH boundaries AS (
+        SELECT
+          ${customStartDate}::date as custom_start,
+          ${customEndDate}::date as custom_end
+      ),
+      first_posts AS (
         SELECT
           posts.id,
           posts.author_id,
@@ -3505,7 +3518,20 @@ export async function getLeaderboard(limit = 10, window: LeaderboardWindow = 'al
       ranked AS (
         SELECT user_id, SUM(points)::int as points
         FROM score_events
-        WHERE created_at >= NOW() - (${sinceInterval}::interval)
+        CROSS JOIN boundaries
+        WHERE (
+            (
+              ${useCustomRange} = true
+              AND boundaries.custom_start IS NOT NULL
+              AND boundaries.custom_end IS NOT NULL
+              AND (score_events.created_at AT TIME ZONE 'Asia/Shanghai')::date
+                BETWEEN boundaries.custom_start AND boundaries.custom_end
+            )
+            OR (
+              ${useCustomRange} = false
+              AND score_events.created_at >= NOW() - (${sinceInterval}::interval)
+            )
+          )
           AND (${category} = 'all' OR category = ${category})
         GROUP BY user_id
       )

@@ -22,8 +22,20 @@ const checks = [
     ],
   },
   {
+    file: 'src/app/api/leaderboard/route.ts',
+    patterns: [
+      /searchParams\.get\('start'\)/,
+      /searchParams\.get\('end'\)/,
+      /windowParam === 'custom'/,
+      /getLeaderboard\(limit, window, category, range\)/,
+    ],
+  },
+  {
     file: 'src/lib/db.ts',
     patterns: [
+      /LeaderboardWindow = 'all' \| 'day' \| 'week' \| 'month' \| 'custom'/,
+      /getLeaderboard\([\s\S]*range\?: \{ startDate: string; endDate: string \}/,
+      /score_events\.created_at AT TIME ZONE 'Asia\/Shanghai'/,
       /getProjectOpenStats\(range\?: \{ startDate: string; endDate: string \}\)/,
       /custom_start/,
       /custom_end/,
@@ -41,8 +53,21 @@ const checks = [
     ],
   },
   {
+    file: 'src/components/LeaderboardWidget.tsx',
+    patterns: [
+      /type LeaderboardWindow[\s\S]*\| 'custom'/,
+      /defaultRangeStart/,
+      /setWindowType\('custom'\)/,
+      /Member XP custom date range/,
+      /\/api\/leaderboard\?limit=\$\{limit\}&window=\$\{requestWindowType\}&category=all\$\{rangeQuery\}/,
+    ],
+  },
+  {
     file: 'src/app/leaderboard/page.tsx',
     patterns: [
+      /memberWindow: MemberLeaderboardWindow/,
+      /defaultMemberRangeStart/,
+      /defaultMemberRangeEnd/,
       /params\.window === 'custom'/,
       /defaultHubRangeStart/,
       /defaultHubRangeEnd/,
@@ -52,6 +77,7 @@ const checks = [
     file: 'src/app/globals.css',
     patterns: [
       /\.hub-rank-date-range/,
+      /\.leaderboard-date-range/,
     ],
   },
 ];
