@@ -82,9 +82,9 @@ export function getHubRankingCopy(mode: HubRankingMode) {
 
     return {
         title: '🔥 项目热度榜',
-        intro: '按体验人数、星级和有效进入排序。',
+        intro: '按体验人数和有效进入排序，星级作为后续参考。',
         tooltipTitle: '热度榜规则',
-        tooltip: '先看体验人数，同人数看星级和评论数，再看有效进入。每人每天最多 3 次有效进入。',
+        tooltip: '先看体验人数，同人数看有效进入，再看星级、评论数和评分人数。每人每天最多 3 次有效进入。',
     };
 }
 
@@ -98,9 +98,9 @@ function compareByHeat(windowType: HubLeaderboardWindow) {
         const statsB = getHubStats(b, windowType);
 
         return statsB.uniquePlayers - statsA.uniquePlayers
+            || statsB.effectiveOpens - statsA.effectiveOpens
             || toFiniteNumber(b.rating) - toFiniteNumber(a.rating)
             || getProjectCommentCount(b) - getProjectCommentCount(a)
-            || statsB.effectiveOpens - statsA.effectiveOpens
             || toFiniteNumber(b.rating_count) - toFiniteNumber(a.rating_count)
             || compareTitles(a, b);
     };
