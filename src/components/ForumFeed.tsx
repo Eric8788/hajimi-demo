@@ -21,6 +21,7 @@ import {
 } from '@/lib/clientImageUpload';
 import type { PostContentFormat } from '@/lib/forumContent';
 import type { PostTextComposerApi } from './PostTextComposer';
+import { NOTIFICATION_TARGET_EVENT, type NotificationTargetDetail } from '@/lib/notificationNavigation';
 
 const TAG_OPTIONS = [
     { id: 'general', label: '💬 General' },
@@ -113,6 +114,8 @@ export default function ForumFeed({
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [promoIndex, setPromoIndex] = useState(0);
+    const [locationHash, setLocationHash] = useState('');
+    const [notificationTargetRequest, setNotificationTargetRequest] = useState(0);
     const activePromo = FORUM_PROMOS[promoIndex];
     const visiblePopularTags = popularTags.filter(({ tag }) => canPostAnnouncement || tag !== 'announcement');
     const composerTagOptions = [
@@ -200,13 +203,35 @@ export default function ForumFeed({
     }, []);
 
     useEffect(() => {
-        if (!window.location.hash) return;
+        const syncHash = () => setLocationHash(window.location.hash || '');
+        const handleNotificationTarget = (event: Event) => {
+            const detail = (event as CustomEvent<NotificationTargetDetail>).detail;
+            const nextHash = detail?.hash || window.location.hash || '';
+            if (!nextHash) return;
+            setLocationHash(nextHash);
+            setNotificationTargetRequest(current => current + 1);
+        };
 
-        const targetId = window.location.hash.slice(1);
-        if (!targetId.startsWith('post-')) return;
+        syncHash();
+        window.addEventListener('hashchange', syncHash);
+        window.addEventListener(NOTIFICATION_TARGET_EVENT, handleNotificationTarget);
+
+        return () => {
+            window.removeEventListener('hashchange', syncHash);
+            window.removeEventListener(NOTIFICATION_TARGET_EVENT, handleNotificationTarget);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!locationHash) return;
+
+        const targetId = locationHash.slice(1);
+        const postMatch = targetId.match(/^post-(\d+)/);
+        if (!postMatch) return;
 
         const scrollToTarget = () => {
-            const target = document.getElementById(targetId);
+            const target = document.getElementById(targetId)
+                || document.getElementById(`post-${postMatch[1]}`);
             target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
 
@@ -217,7 +242,7 @@ export default function ForumFeed({
             window.cancelAnimationFrame(frameId);
             window.clearTimeout(timeoutId);
         };
-    }, [posts.length]);
+    }, [locationHash, notificationTargetRequest, posts.length]);
 
     useEffect(() => {
         const controller = new AbortController();
