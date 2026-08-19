@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminAuditEvent, AdminReviewSummary, AdminReviewTask, Notification } from '@/lib/db';
 import { cachedJson, clearCachedJsonKey, getCachedJson, setCachedJson } from '@/lib/clientJsonCache';
+import { navigateToNotificationTarget } from '@/lib/notificationNavigation';
 import Avatar from './Avatar';
 
 type NotificationTab = 'review' | 'activity' | 'all';
@@ -270,6 +271,17 @@ export default function NotificationsBell({
 
     const goTo = (href: string) => {
         setIsOpen(false);
+
+        const destination = new URL(href, window.location.origin);
+        const isSameDocument = destination.origin === window.location.origin
+            && destination.pathname === window.location.pathname
+            && destination.search === window.location.search;
+
+        if (isSameDocument && destination.hash) {
+            navigateToNotificationTarget(destination.hash);
+            return;
+        }
+
         router.push(href);
     };
 

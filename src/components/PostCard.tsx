@@ -24,6 +24,7 @@ import {
     MAX_FORUM_IMAGE_SIZE,
 } from '@/lib/clientImageUpload';
 import { normalizePostContentFormat, type PostContentFormat } from '@/lib/forumContent';
+import { navigateToNotificationTarget, NOTIFICATION_TARGET_EVENT, type NotificationTargetDetail } from '@/lib/notificationNavigation';
 
 function shortPreview(text?: string | null) {
     if (!text) return '';
@@ -127,6 +128,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [commentsLoadError, setCommentsLoadError] = useState('');
     const [commentCount, setCommentCount] = useState(post.comment_count || 0);
     const [locationHash, setLocationHash] = useState('');
+    const [notificationTargetRequest, setNotificationTargetRequest] = useState(0);
 
     const [newComment, setNewComment] = useState('');
     const [commentImage, setCommentImage] = useState<CommentImageDraft | null>(null);
@@ -205,10 +207,22 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     useEffect(() => {
         const syncHash = () => setLocationHash(window.location.hash || '');
+        const handleNotificationTarget = (event: Event) => {
+            const detail = (event as CustomEvent<NotificationTargetDetail>).detail;
+            const nextHash = detail?.hash || window.location.hash || '';
+            if (!nextHash) return;
+            setLocationHash(nextHash);
+            setNotificationTargetRequest(current => current + 1);
+        };
+
         syncHash();
         window.addEventListener('hashchange', syncHash);
+        window.addEventListener(NOTIFICATION_TARGET_EVENT, handleNotificationTarget);
 
-        return () => window.removeEventListener('hashchange', syncHash);
+        return () => {
+            window.removeEventListener('hashchange', syncHash);
+            window.removeEventListener(NOTIFICATION_TARGET_EVENT, handleNotificationTarget);
+        };
     }, []);
 
     useEffect(() => {
@@ -234,7 +248,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         return () => {
             active = false;
         };
-    }, [comments, commentsLoaded, loadComments, locationHash, post.id]);
+    }, [comments, commentsLoaded, loadComments, locationHash, notificationTargetRequest, post.id]);
 
     useEffect(() => {
         setDisplayTitle(post.title);
@@ -338,6 +352,10 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         if (!commentsLoaded) {
             await loadComments();
         }
+    };
+
+    const revealComment = (commentId: number) => {
+        navigateToNotificationTarget(`#post-${post.id}-comment-${commentId}`);
     };
 
     const handleLike = async () => {
@@ -677,7 +695,22 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         </div>
     );
     const featuredCommentPreview = hasFeaturedPreview ? (
-        <div className="featured-comment-preview">
+        <div
+            className="featured-comment-preview"
+            role="button"
+            tabIndex={0}
+            aria-label={`Open comment by ${featuredComment.author_name || 'comment author'}`}
+            onClick={event => {
+                if ((event.target as HTMLElement).closest('button')) return;
+                revealComment(featuredComment.id);
+            }}
+            onKeyDown={event => {
+                if ((event.target as HTMLElement).closest('button')) return;
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                revealComment(featuredComment.id);
+            }}
+        >
             <div className="featured-comment-kicker">🔥 最火评论</div>
             <div className="featured-comment-body">
                 <button
