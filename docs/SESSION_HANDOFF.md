@@ -1,6 +1,6 @@
 # Hajimi Session Handoff
 
-*Last updated: 2026-06-08 (Asia/Shanghai)*
+*Last updated: 2026-08-20 (Asia/Shanghai)*
 
 **Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
@@ -49,6 +49,9 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Forum buttons now use a unified hover language, and post likes, post saves, and comment likes have small animation feedback.
 - The app has in-app notifications for post likes, post saves, and comment likes. Notifications are stored in the `notifications` table, created automatically if missing.
 - `Hot` ranking combines discussion, likes, saves, and recency; `Top` remains pure likes.
+- Hallway post cards now show the three newest comments inline, newest first. Opening the comment section loads ten comments per page with previous/next controls and total counts; the standalone featured-comment presentation has been removed.
+- The actual hottest comment is marked by a small fire icon using likes, direct reply count, creation time, and ID as tie-breakers. Notification targets pass `commentId`, and the server calculates the correct page before the client expands and scrolls to the comment. Deleted targets show a non-fatal unavailable state.
+- Comment preview and paginated rows both use the avatar hydration path. This is a query/UI change only: no comment table migration and no comment ID renumbering.
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
 - The UI review pass for `v0.2.0-beta.6` is live: the app logo and dashboard mascot now use Eric's supplied original PNG cat assets instead of the redrawn SVG version.
 - `Sailer 2D` is now served from the Static Hub: `https://hub.ericproject.xyz/projects/sailer-2d/index.html`.
@@ -104,7 +107,7 @@ Eric is also using a Hallway thread as the main feedback post for beta comments.
 
 If no new user instruction overrides this, the most valuable next areas are:
 
-1. make announcement comments easier for Eric/admins to triage
+1. verify comment pagination and notification targeting with beta users, especially on mobile
 2. polish dashboard usefulness beyond the forum and Function Hall
 3. improve onboarding for new student users
 4. add stronger moderation and admin tooling if beta usage increases

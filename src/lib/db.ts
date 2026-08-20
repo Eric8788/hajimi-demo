@@ -330,7 +330,8 @@ export interface Post {
     comment_count?: number;
     is_bookmarked?: boolean;
     has_liked?: boolean;
-    featured_comment?: FeaturedComment | null;
+    recent_comments?: Comment[];
+    hot_comment_id?: number | null;
 }
 
 export interface PostPage {
@@ -360,6 +361,17 @@ export interface Article {
     comment_count?: number;
 }
 
+export interface CommentsPage {
+    comments: Comment[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+    targetFound: boolean;
+    hotCommentId: number | null;
+}
+
 export interface Comment {
     id: number;
     post_id: number;
@@ -369,26 +381,6 @@ export interface Comment {
     likes: number;
     created_at: Date;
     parent_comment_id?: number | null;
-    reply_author_name?: string | null;
-    reply_content?: string | null;
-    author_name?: string;
-    author_avatar?: string;
-    author_avatar_emoji?: string | null;
-    author_avatar_theme?: string | null;
-    author_role?: string;
-    author_is_creator?: boolean;
-    author_badge_preferences?: string[] | null;
-    author_verification_status?: VerificationStatus | null;
-    has_liked?: boolean;
-}
-
-export interface FeaturedComment {
-    id: number;
-    author_id: number;
-    content: string;
-    attachment_url?: string | null;
-    likes: number;
-    created_at: Date;
     reply_author_name?: string | null;
     reply_content?: string | null;
     author_name?: string;
@@ -2648,7 +2640,8 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
       users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
-      featured.featured_comment,
+      COALESCE(recent.recent_comments, '[]'::json) as recent_comments,
+      hot.hot_comment_id,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -2658,38 +2651,67 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
       FROM posts 
       JOIN users ON posts.author_id = users.id 
       LEFT JOIN LATERAL (
-        SELECT json_build_object(
-          'id', featured_comments.id,
-          'author_id', featured_comments.author_id,
-          'content', featured_comments.content,
-          'attachment_url', featured_comments.attachment_url,
-          'likes', featured_comments.likes,
-          'created_at', featured_comments.created_at,
-          'reply_author_name', parent_users.username,
-          'reply_content', parent_comments.content,
-          'author_name', comment_authors.username,
-          'author_avatar', CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END,
-          'author_avatar_emoji', comment_authors.avatar_emoji,
-          'author_avatar_theme', comment_authors.avatar_theme,
-          'author_role', comment_authors.role,
-          'author_is_creator', (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id),
-          'author_badge_preferences', comment_authors.badge_preferences,
-          'author_verification_status', comment_authors.verification_status,
-          'has_liked', CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
-            EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = featured_comments.id)
-          ELSE false END
-        ) as featured_comment
-        FROM comments featured_comments
-        JOIN users comment_authors ON featured_comments.author_id = comment_authors.id
-        LEFT JOIN comments parent_comments ON featured_comments.parent_comment_id = parent_comments.id
-        LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
-        WHERE featured_comments.post_id = posts.id
+        SELECT json_agg(
+          json_build_object(
+            'id', recent_comments.id,
+            'post_id', recent_comments.post_id,
+            'author_id', recent_comments.author_id,
+            'content', recent_comments.content,
+            'attachment_url', recent_comments.attachment_url,
+            'likes', recent_comments.likes,
+            'created_at', recent_comments.created_at,
+            'parent_comment_id', recent_comments.parent_comment_id,
+            'reply_author_name', recent_comments.reply_author_name,
+            'reply_content', recent_comments.reply_content,
+            'author_name', recent_comments.author_name,
+            'author_avatar', recent_comments.author_avatar,
+            'author_avatar_emoji', recent_comments.author_avatar_emoji,
+            'author_avatar_theme', recent_comments.author_avatar_theme,
+            'author_role', recent_comments.author_role,
+            'author_is_creator', recent_comments.author_is_creator,
+            'author_badge_preferences', recent_comments.author_badge_preferences,
+            'author_verification_status', recent_comments.author_verification_status,
+            'has_liked', recent_comments.has_liked
+          )
+          ORDER BY recent_comments.created_at DESC, recent_comments.id DESC
+        ) as recent_comments
+        FROM (
+          SELECT comments.id, comments.post_id, comments.author_id, comments.content,
+            comments.attachment_url, comments.likes, comments.created_at,
+            comments.parent_comment_id,
+            parent_users.username as reply_author_name,
+            parent_comments.content as reply_content,
+            comment_authors.username as author_name,
+            CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END as author_avatar,
+            comment_authors.avatar_emoji as author_avatar_emoji,
+            comment_authors.avatar_theme as author_avatar_theme,
+            comment_authors.role as author_role,
+            (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id) as author_is_creator,
+            comment_authors.badge_preferences as author_badge_preferences,
+            comment_authors.verification_status as author_verification_status,
+            CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
+              EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = comments.id)
+            ELSE false END as has_liked
+          FROM comments
+          JOIN users comment_authors ON comments.author_id = comment_authors.id
+          LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
+          LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
+          WHERE comments.post_id = posts.id
+          ORDER BY comments.created_at DESC, comments.id DESC
+          LIMIT 3
+        ) recent_comments
+      ) recent ON true
+      LEFT JOIN LATERAL (
+        SELECT hot_comments.id as hot_comment_id
+        FROM comments hot_comments
+        WHERE hot_comments.post_id = posts.id
         ORDER BY
-          featured_comments.likes DESC,
-          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = featured_comments.id) DESC,
-          featured_comments.created_at DESC
+          hot_comments.likes DESC,
+          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = hot_comments.id) DESC,
+          hot_comments.created_at DESC,
+          hot_comments.id DESC
         LIMIT 1
-      ) featured ON true
+      ) hot ON true
       WHERE
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
@@ -2742,7 +2764,8 @@ export async function getPostsPage(
       users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
-      featured.featured_comment,
+      COALESCE(recent.recent_comments, '[]'::json) as recent_comments,
+      hot.hot_comment_id,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -2752,38 +2775,67 @@ export async function getPostsPage(
       FROM posts
       JOIN users ON posts.author_id = users.id
       LEFT JOIN LATERAL (
-        SELECT json_build_object(
-          'id', featured_comments.id,
-          'author_id', featured_comments.author_id,
-          'content', featured_comments.content,
-          'attachment_url', featured_comments.attachment_url,
-          'likes', featured_comments.likes,
-          'created_at', featured_comments.created_at,
-          'reply_author_name', parent_users.username,
-          'reply_content', parent_comments.content,
-          'author_name', comment_authors.username,
-          'author_avatar', CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END,
-          'author_avatar_emoji', comment_authors.avatar_emoji,
-          'author_avatar_theme', comment_authors.avatar_theme,
-          'author_role', comment_authors.role,
-          'author_is_creator', (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id),
-          'author_badge_preferences', comment_authors.badge_preferences,
-          'author_verification_status', comment_authors.verification_status,
-          'has_liked', CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
-            EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = featured_comments.id)
-          ELSE false END
-        ) as featured_comment
-        FROM comments featured_comments
-        JOIN users comment_authors ON featured_comments.author_id = comment_authors.id
-        LEFT JOIN comments parent_comments ON featured_comments.parent_comment_id = parent_comments.id
-        LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
-        WHERE featured_comments.post_id = posts.id
+        SELECT json_agg(
+          json_build_object(
+            'id', recent_comments.id,
+            'post_id', recent_comments.post_id,
+            'author_id', recent_comments.author_id,
+            'content', recent_comments.content,
+            'attachment_url', recent_comments.attachment_url,
+            'likes', recent_comments.likes,
+            'created_at', recent_comments.created_at,
+            'parent_comment_id', recent_comments.parent_comment_id,
+            'reply_author_name', recent_comments.reply_author_name,
+            'reply_content', recent_comments.reply_content,
+            'author_name', recent_comments.author_name,
+            'author_avatar', recent_comments.author_avatar,
+            'author_avatar_emoji', recent_comments.author_avatar_emoji,
+            'author_avatar_theme', recent_comments.author_avatar_theme,
+            'author_role', recent_comments.author_role,
+            'author_is_creator', recent_comments.author_is_creator,
+            'author_badge_preferences', recent_comments.author_badge_preferences,
+            'author_verification_status', recent_comments.author_verification_status,
+            'has_liked', recent_comments.has_liked
+          )
+          ORDER BY recent_comments.created_at DESC, recent_comments.id DESC
+        ) as recent_comments
+        FROM (
+          SELECT comments.id, comments.post_id, comments.author_id, comments.content,
+            comments.attachment_url, comments.likes, comments.created_at,
+            comments.parent_comment_id,
+            parent_users.username as reply_author_name,
+            parent_comments.content as reply_content,
+            comment_authors.username as author_name,
+            CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END as author_avatar,
+            comment_authors.avatar_emoji as author_avatar_emoji,
+            comment_authors.avatar_theme as author_avatar_theme,
+            comment_authors.role as author_role,
+            (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id) as author_is_creator,
+            comment_authors.badge_preferences as author_badge_preferences,
+            comment_authors.verification_status as author_verification_status,
+            CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
+              EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${userId ?? null}::int AND comment_id = comments.id)
+            ELSE false END as has_liked
+          FROM comments
+          JOIN users comment_authors ON comments.author_id = comment_authors.id
+          LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
+          LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
+          WHERE comments.post_id = posts.id
+          ORDER BY comments.created_at DESC, comments.id DESC
+          LIMIT 3
+        ) recent_comments
+      ) recent ON true
+      LEFT JOIN LATERAL (
+        SELECT hot_comments.id as hot_comment_id
+        FROM comments hot_comments
+        WHERE hot_comments.post_id = posts.id
         ORDER BY
-          featured_comments.likes DESC,
-          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = featured_comments.id) DESC,
-          featured_comments.created_at DESC
+          hot_comments.likes DESC,
+          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = hot_comments.id) DESC,
+          hot_comments.created_at DESC,
+          hot_comments.id DESC
         LIMIT 1
-      ) featured ON true
+      ) hot ON true
       WHERE
         (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
@@ -2865,6 +2917,8 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
       users.verification_status as author_verification_status,
       (SELECT COUNT(*) > 0 FROM projects WHERE author_id = users.id) as author_is_creator,
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
+      COALESCE(recent.recent_comments, '[]'::json) as recent_comments,
+      hot.hot_comment_id,
       CASE WHEN ${viewerId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${viewerId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -2873,6 +2927,68 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
       ELSE false END as has_liked
       FROM posts
       JOIN users ON posts.author_id = users.id
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', recent_comments.id,
+            'post_id', recent_comments.post_id,
+            'author_id', recent_comments.author_id,
+            'content', recent_comments.content,
+            'attachment_url', recent_comments.attachment_url,
+            'likes', recent_comments.likes,
+            'created_at', recent_comments.created_at,
+            'parent_comment_id', recent_comments.parent_comment_id,
+            'reply_author_name', recent_comments.reply_author_name,
+            'reply_content', recent_comments.reply_content,
+            'author_name', recent_comments.author_name,
+            'author_avatar', recent_comments.author_avatar,
+            'author_avatar_emoji', recent_comments.author_avatar_emoji,
+            'author_avatar_theme', recent_comments.author_avatar_theme,
+            'author_role', recent_comments.author_role,
+            'author_is_creator', recent_comments.author_is_creator,
+            'author_badge_preferences', recent_comments.author_badge_preferences,
+            'author_verification_status', recent_comments.author_verification_status,
+            'has_liked', recent_comments.has_liked
+          )
+          ORDER BY recent_comments.created_at DESC, recent_comments.id DESC
+        ) as recent_comments
+        FROM (
+          SELECT comments.id, comments.post_id, comments.author_id, comments.content,
+            comments.attachment_url, comments.likes, comments.created_at,
+            comments.parent_comment_id,
+            parent_users.username as reply_author_name,
+            parent_comments.content as reply_content,
+            comment_authors.username as author_name,
+            CASE WHEN comment_authors.avatar LIKE 'data:image/%' THEN NULL ELSE comment_authors.avatar END as author_avatar,
+            comment_authors.avatar_emoji as author_avatar_emoji,
+            comment_authors.avatar_theme as author_avatar_theme,
+            comment_authors.role as author_role,
+            (SELECT COUNT(*) > 0 FROM projects WHERE author_id = comment_authors.id) as author_is_creator,
+            comment_authors.badge_preferences as author_badge_preferences,
+            comment_authors.verification_status as author_verification_status,
+            CASE WHEN ${viewerId ?? null}::int IS NOT NULL THEN
+              EXISTS(SELECT 1 FROM comment_likes WHERE user_id = ${viewerId ?? null}::int AND comment_id = comments.id)
+            ELSE false END as has_liked
+          FROM comments
+          JOIN users comment_authors ON comments.author_id = comment_authors.id
+          LEFT JOIN comments parent_comments ON comments.parent_comment_id = parent_comments.id
+          LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
+          WHERE comments.post_id = posts.id
+          ORDER BY comments.created_at DESC, comments.id DESC
+          LIMIT 3
+        ) recent_comments
+      ) recent ON true
+      LEFT JOIN LATERAL (
+        SELECT hot_comments.id as hot_comment_id
+        FROM comments hot_comments
+        WHERE hot_comments.post_id = posts.id
+        ORDER BY
+          hot_comments.likes DESC,
+          (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = hot_comments.id) DESC,
+          hot_comments.created_at DESC,
+          hot_comments.id DESC
+        LIMIT 1
+      ) hot ON true
       WHERE posts.author_id = ${authorId}
         AND COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY posts.created_at DESC
@@ -2882,11 +2998,43 @@ export async function getPostsByAuthor(authorId: number, viewerId?: number, limi
     return rows as Post[];
 }
 
-export async function getComments(postId: number, userId?: number) {
+export async function getCommentsPage(
+    postId: number,
+    userId?: number,
+    options: { page?: number; limit?: number; commentId?: number } = {},
+): Promise<CommentsPage> {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
     }
     await ensureForumEnhancements();
+
+    const safeLimit = Math.min(Math.max(Math.floor(Number(options.limit) || 10), 1), 30);
+    const { rows: countRows } = await sql<{ total: number }>`
+      SELECT COUNT(*)::int as total
+      FROM comments
+      WHERE post_id = ${postId}
+    `;
+    const total = Number(countRows[0]?.total || 0);
+    const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+    let page = Math.min(Math.max(Math.floor(Number(options.page) || 1), 1), totalPages);
+    let targetFound = !options.commentId;
+
+    if (options.commentId) {
+        const { rows: targetRows } = await sql<{ position: number }>`
+          SELECT position::int
+          FROM (
+            SELECT id, ROW_NUMBER() OVER (ORDER BY created_at DESC, id DESC) as position
+            FROM comments
+            WHERE post_id = ${postId}
+          ) ranked_comments
+          WHERE id = ${options.commentId}
+          LIMIT 1
+        `;
+        targetFound = targetRows.length > 0;
+        if (targetFound) {
+            page = Math.ceil(Number(targetRows[0].position) / safeLimit);
+        }
+    }
 
     const { rows } = await sql`
       SELECT comments.*, users.username as author_name,
@@ -2908,10 +3056,34 @@ export async function getComments(postId: number, userId?: number) {
       LEFT JOIN users parent_users ON parent_comments.author_id = parent_users.id
       WHERE comments.post_id = ${postId}
       ORDER BY
-        comments.created_at ASC,
-        comments.id ASC
+        comments.created_at DESC,
+        comments.id DESC
+      LIMIT ${safeLimit}
+      OFFSET ${(page - 1) * safeLimit}
   `;
-    return rows as Comment[];
+
+    const { rows: hotRows } = await sql<{ hot_comment_id: number }>`
+      SELECT comments.id as hot_comment_id
+      FROM comments
+      WHERE comments.post_id = ${postId}
+      ORDER BY
+        comments.likes DESC,
+        (SELECT COUNT(*) FROM comments replies WHERE replies.parent_comment_id = comments.id) DESC,
+        comments.created_at DESC,
+        comments.id DESC
+      LIMIT 1
+    `;
+
+    return {
+        comments: rows as Comment[],
+        page,
+        limit: safeLimit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+        targetFound,
+        hotCommentId: hotRows[0]?.hot_comment_id ? Number(hotRows[0].hot_comment_id) : null,
+    };
 }
 
 export async function createPost(authorId: number, title: string, content: string, type: string = 'text', attachmentUrl: string = '', tag: string = 'general', contentFormat: PostContentFormat = 'plain') {
