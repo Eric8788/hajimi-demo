@@ -72,7 +72,7 @@ The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not 
 Database interactions are handled via standard SQL functions.
 - **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role` (`student`, `teacher`, `admin`, `parent`, `visitor`), `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason`.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `attachment_url`, `attachment_urls`, `likes`, `created_at`.
-- **`comments`:** `id`, `post_id`, `author_id`, `content`, `attachment_url`, `created_at`.
+- **`comments`:** `id`, `post_id`, `author_id`, `content`, `attachment_url`, `likes`, `created_at`.
 - **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
 - **`projects`:** `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `cover_url`, `status`, `rating`, `rating_count`, `created_at`.
 - **`project_likes` / `project_comments`:** Hub ratings and comments, verified-only interaction data for project contribution rankings.
@@ -113,7 +113,13 @@ Database interactions are handled via standard SQL functions.
    - The forum composer auto-compresses oversized JPEG/PNG/WebP files to WebP before upload; oversized animated GIFs are rejected because compression would remove animation.
    - Delete associated Blobs when a post or image comment is deleted. Use `npm run blob:cleanup` to find orphaned forum blobs and `npm run blob:cleanup -- --delete` to remove them.
    - Function Hall project covers upload through `POST /api/project-submissions/cover`; the browser crops screenshots to 16:9 WebP before upload, and the resulting URL is stored on `project_submissions.cover_url` for review/approval.
-5. **Forum moderation:**
+5. **Forum comments:**
+   - The Hallway post list returns `recent_comments` (the latest three comments ordered by `created_at DESC, id DESC`) and `hot_comment_id`. There is no standalone featured-comment card.
+   - `hot_comment_id` is selected by comment likes, then direct reply count, then creation time, then comment ID. The UI marks only that comment row with a small fire icon.
+   - `GET /api/posts/interact?postId=...&page=1&limit=10` returns the latest-first page, `page`, `limit`, `total`, `totalPages`, and `hasMore`. `commentId` can be added to calculate and return the page containing a notification target.
+   - `PostCard` shows the latest three comments before expansion. Expanding loads ten comments per page and keeps comment likes, replies, deletion, avatar/profile navigation, and image viewing on the same comment row. A missing notification target is shown as a non-fatal state.
+   - Comment pagination is a read/query behavior only. Do not change the database schema, reorder existing comment IDs, or add a migration for it.
+6. **Forum moderation:**
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
    - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
    - Only `admin` can delete any post or comment; teachers and students can delete only their own posts/comments.
@@ -121,13 +127,13 @@ Database interactions are handled via standard SQL functions.
    - Hajimi verified accounts receive a compact verified badge and can create posts/interact/submit Hub applications. The main leaderboard only includes verified accounts and supports XP total/day/week/month views. Hub project rankings live in Function Hall and use verified unique players, capped effective opens, and project ratings across heat/rating modes.
    - Admins review pending verification requests at `/admin/verifications`. Real names, subjects, and student ID metadata must stay out of public profile/forum UI.
    - Admins can access `/admin` and `/admin/users` to view review history, maintain member verification details, and disable/restore accounts. Sensitive identity fields are shown only in admin-only detail views. Full student IDs are never stored or displayed; updating a student ID means entering a new value server-side, hashing it, and retaining only the hash plus last four characters.
-6. **Hashtag and beta feedback workflow:**
+7. **Hashtag and beta feedback workflow:**
    - Students can create posts with custom hashtags. Suggested examples include `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`.
    - Beta feedback should be left as comments under the pinned announcement post, not as a separate feedback module.
-7. **Ranking and notifications:**
+8. **Ranking and notifications:**
    - `Hot` combines comments, likes, bookmarks, and recency. `Top` is strictly most-liked.
    - Post likes, post bookmarks, and comment likes create in-app notifications for the author.
-8. **Online presence:**
+9. **Online presence:**
    - Presence is lightweight HTTP polling, not WebSocket-based. Logged-in clients POST `/api/presence` roughly every 90 seconds while visible; hidden tabs pause until visible again.
    - Online membership is approximate and expires after 5 minutes. Do not store historical presence rows or expose full online lists in the public UI.
 

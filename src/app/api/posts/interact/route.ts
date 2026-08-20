@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { togglePostLike, createComment, getComments, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, createCommentNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
+import { togglePostLike, createComment, getCommentsPage, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, createCommentNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -201,12 +201,23 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('postId');
+    const commentIdParam = searchParams.get('commentId');
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
     const session = await getSession();
 
     if (!postId) return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
 
     try {
-        const comments = await getComments(Number(postId), session ? Number(session.userId) : undefined);
+        const comments = await getCommentsPage(
+            Number(postId),
+            session ? Number(session.userId) : undefined,
+            {
+                page: pageParam ? Number(pageParam) : 1,
+                limit: limitParam ? Number(limitParam) : 10,
+                commentId: commentIdParam ? Number(commentIdParam) : undefined,
+            },
+        );
         return NextResponse.json(comments, {
             headers: {
                 'Cache-Control': 'no-store, max-age=0, must-revalidate',

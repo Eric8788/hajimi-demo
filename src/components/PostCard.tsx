@@ -4,7 +4,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Post, Comment, User } from '@/lib/db';
+import { Post, Comment, User, type CommentsPage } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
 import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -24,7 +24,7 @@ import {
     MAX_FORUM_IMAGE_SIZE,
 } from '@/lib/clientImageUpload';
 import { normalizePostContentFormat, type PostContentFormat } from '@/lib/forumContent';
-import { navigateToNotificationTarget, NOTIFICATION_TARGET_EVENT, type NotificationTargetDetail } from '@/lib/notificationNavigation';
+import { NOTIFICATION_TARGET_EVENT, type NotificationTargetDetail } from '@/lib/notificationNavigation';
 
 function shortPreview(text?: string | null) {
     if (!text) return '';
@@ -60,22 +60,6 @@ function formatShortDateTime(value: Date | string, action: '发帖' | '回复') 
     return `${date} ${time} ${action}`;
 }
 
-function pickFeaturedComment(comments: Comment[]) {
-    const replyCounts = comments.reduce<Record<number, number>>((counts, comment) => {
-        if (comment.parent_comment_id) {
-            counts[comment.parent_comment_id] = (counts[comment.parent_comment_id] || 0) + 1;
-        }
-        return counts;
-    }, {});
-
-    return [...comments].sort((a, b) => {
-        if (b.likes !== a.likes) return b.likes - a.likes;
-        const replyDelta = (replyCounts[b.id] || 0) - (replyCounts[a.id] || 0);
-        if (replyDelta !== 0) return replyDelta;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    })[0] ?? null;
-}
-
 type CommentImageDraft = {
     file: File;
     previewUrl: string;
@@ -102,7 +86,6 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const [displayContentFormat, setDisplayContentFormat] = useState<PostContentFormat>(normalizePostContentFormat(post.content_format));
     const [displayTag, setDisplayTag] = useState(post.tag || 'general');
     const [displayUpdatedAt, setDisplayUpdatedAt] = useState<Date | string | undefined>(post.updated_at);
-    const [featuredComment, setFeaturedComment] = useState(post.featured_comment ?? null);
     const isAnnouncement = displayTag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
@@ -122,11 +105,16 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
     // Comments
     const [showComments, setShowComments] = useState(false);
+    const [recentComments, setRecentComments] = useState<Comment[]>(post.recent_comments || []);
     const [comments, setComments] = useState<Comment[]>([]);
     const [commentsLoaded, setCommentsLoaded] = useState(false);
     const [commentsLoading, setCommentsLoading] = useState(false);
     const [commentsLoadError, setCommentsLoadError] = useState('');
     const [commentCount, setCommentCount] = useState(post.comment_count || 0);
+    const [commentsPage, setCommentsPage] = useState(1);
+    const [commentsTotalPages, setCommentsTotalPages] = useState(Math.max(1, Math.ceil((post.comment_count || 0) / 10)));
+    const [hotCommentId, setHotCommentId] = useState<number | null>(post.hot_comment_id ? Number(post.hot_comment_id) : null);
+    const [commentTargetMessage, setCommentTargetMessage] = useState('');
     const [locationHash, setLocationHash] = useState('');
     const [notificationTargetRequest, setNotificationTargetRequest] = useState(0);
 
@@ -169,27 +157,43 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         };
     }, [commentImage]);
 
-    const loadComments = useCallback(async () => {
+    const loadComments = useCallback(async ({ page = 1, commentId }: { page?: number; commentId?: number } = {}): Promise<CommentsPage | null> => {
         setCommentsLoading(true);
         setCommentsLoadError('');
+        setCommentTargetMessage('');
         try {
-            const res = await fetch(`/api/posts/interact?postId=${post.id}`, { cache: 'no-store' });
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setComments(data);
+            const params = new URLSearchParams({
+                postId: String(post.id),
+                page: String(page),
+                limit: '10',
+            });
+            if (commentId) params.set('commentId', String(commentId));
+            const res = await fetch(`/api/posts/interact?${params.toString()}`, { cache: 'no-store' });
+            const data = await res.json() as Partial<CommentsPage>;
+            if (Array.isArray(data.comments)) {
+                const nextComments = data.comments as Comment[];
+                setComments(nextComments);
                 setCommentsLoaded(true);
-                setCommentCount(data.length);
-                setFeaturedComment(pickFeaturedComment(data));
-                loadAvatarPatches(data.map(comment => comment.author_id))
+                setCommentsPage(Number(data.page || page));
+                setCommentsTotalPages(Math.max(1, Number(data.totalPages || 1)));
+                setCommentCount(Number(data.total || 0));
+                setHotCommentId(data.hotCommentId ? Number(data.hotCommentId) : null);
+                if (Number(data.page || page) === 1) {
+                    setRecentComments(nextComments.slice(0, 3));
+                }
+                if (commentId && data.targetFound === false) {
+                    setCommentTargetMessage('This comment is no longer available.');
+                }
+                loadAvatarPatches(nextComments.map(comment => comment.author_id))
                     .then(patches => {
                         if (patches.size === 0) return;
                         setComments(current => current.map(comment => applyAuthorAvatarPatch(comment, patches)));
-                        setFeaturedComment(current => current ? applyAuthorAvatarPatch(current, patches) : current);
+                        setRecentComments(current => current.map(comment => applyAuthorAvatarPatch(comment, patches)));
                     })
                     .catch(error => {
                         console.warn('Comment avatars unavailable:', error);
                     });
-                return data;
+                return data as CommentsPage;
             }
 
             console.error("Failed to load comments:", data);
@@ -202,7 +206,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setComments([]);
         setCommentsLoaded(false);
         setCommentsLoadError('Could not load comments. Try again.');
-        return [];
+        return null;
     }, [post.id]);
 
     useEffect(() => {
@@ -231,6 +235,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
         let active = true;
         const targetId = locationHash.slice(1);
+        const targetCommentId = Number(locationHash.slice(commentTargetPrefix.length));
 
         const scrollToTarget = () => {
             const target = document.getElementById(targetId);
@@ -238,7 +243,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         };
 
         setShowComments(true);
-        (commentsLoaded ? Promise.resolve(comments) : loadComments()).then(() => {
+        loadComments({ commentId: targetCommentId }).then(() => {
             if (!active) return;
             window.requestAnimationFrame(scrollToTarget);
             window.setTimeout(scrollToTarget, 260);
@@ -248,7 +253,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         return () => {
             active = false;
         };
-    }, [comments, commentsLoaded, loadComments, locationHash, notificationTargetRequest, post.id]);
+    }, [loadComments, locationHash, notificationTargetRequest, post.id]);
 
     useEffect(() => {
         setDisplayTitle(post.title);
@@ -261,8 +266,11 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setEditContentFormat(normalizePostContentFormat(post.content_format));
         setEditTag(post.tag || 'general');
         setCommentCount(post.comment_count || 0);
-        setFeaturedComment(post.featured_comment ?? null);
-    }, [post.comment_count, post.content, post.content_format, post.featured_comment, post.tag, post.title, post.updated_at]);
+        setRecentComments(post.recent_comments || []);
+        setCommentsPage(1);
+        setCommentsTotalPages(Math.max(1, Math.ceil((post.comment_count || 0) / 10)));
+        setHotCommentId(post.hot_comment_id ? Number(post.hot_comment_id) : null);
+    }, [post.comment_count, post.content, post.content_format, post.hot_comment_id, post.recent_comments, post.tag, post.title, post.updated_at]);
 
     // Lock Body Scroll when Modal is Open
     useEffect(() => {
@@ -324,7 +332,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setAttachmentImageFailed(current => ({ ...current, [url]: true }));
     };
 
-    const makeReplyTarget = (comment: Comment | NonNullable<Post['featured_comment']>): Comment => ({
+    const makeReplyTarget = (comment: Comment): Comment => ({
         id: comment.id,
         post_id: post.id,
         author_id: comment.author_id,
@@ -345,17 +353,13 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         has_liked: comment.has_liked,
     });
 
-    const startReplyToComment = async (comment: Comment | NonNullable<Post['featured_comment']>) => {
+    const startReplyToComment = async (comment: Comment, fromPreview = false) => {
         if (requireVerifiedInteraction()) return;
         setReplyingTo(makeReplyTarget(comment));
         setShowComments(true);
-        if (!commentsLoaded) {
-            await loadComments();
+        if (fromPreview || !commentsLoaded) {
+            await loadComments({ page: 1 });
         }
-    };
-
-    const revealComment = (commentId: number) => {
-        navigateToNotificationTarget(`#post-${post.id}-comment-${commentId}`);
     };
 
     const handleLike = async () => {
@@ -405,24 +409,23 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const handleCommentLike = async (commentId: number) => {
         if (requireVerifiedInteraction()) return;
         const sourceComment = comments.find(c => c.id === commentId);
-        const sourceFeatured = featuredComment?.id === commentId ? featuredComment : null;
-        const nextLikedState = !(sourceComment?.has_liked ?? sourceFeatured?.has_liked ?? false);
+        const sourceRecent = recentComments.find(c => c.id === commentId);
+        const nextLikedState = !(sourceComment?.has_liked ?? sourceRecent?.has_liked ?? false);
         const updateLikes = (currentLikes: number) => Math.max(0, currentLikes + (nextLikedState ? 1 : -1));
 
         if (sourceComment) {
-            const nextComments = comments.map(c => (
+            setComments(current => current.map(c => (
                 c.id === commentId
                     ? { ...c, likes: updateLikes(c.likes), has_liked: nextLikedState }
                     : c
-            ));
-            setComments(nextComments);
-            setFeaturedComment(pickFeaturedComment(nextComments));
-        } else if (sourceFeatured) {
-            setFeaturedComment({
-                ...sourceFeatured,
-                likes: updateLikes(sourceFeatured.likes),
-                has_liked: nextLikedState,
-            });
+            )));
+        }
+        if (sourceRecent) {
+            setRecentComments(current => current.map(c => (
+                c.id === commentId
+                    ? { ...c, likes: updateLikes(c.likes), has_liked: nextLikedState }
+                    : c
+            )));
         }
 
         if (nextLikedState) {
@@ -510,7 +513,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const handleDeleteComment = async (commentId: number) => {
-        const comment = comments.find(c => c.id === commentId);
+        const comment = comments.find(c => c.id === commentId) || recentComments.find(c => c.id === commentId);
         const message = comment?.author_id === currentUser?.id
             ? 'Delete this comment?'
             : 'Delete this comment as an admin?';
@@ -521,19 +524,17 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         });
         if (res.ok) {
             clearCachedJson('posts:');
-            setComments(current => {
-                const nextComments = current.filter(c => c.id !== commentId);
-                setFeaturedComment(pickFeaturedComment(nextComments));
-                return nextComments;
-            });
+            setComments(current => current.filter(c => c.id !== commentId));
+            setRecentComments(current => current.filter(c => c.id !== commentId));
             setCommentCount(current => Math.max(0, current - 1));
+            await loadComments({ page: commentsLoaded ? commentsPage : 1 });
         }
     };
 
     const toggleComments = async () => {
         if (!showComments) {
             setShowComments(true);
-            await loadComments();
+            await loadComments({ page: 1 });
         } else {
             setShowComments(false);
         }
@@ -631,7 +632,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             clearCommentImage();
             setReplyingTo(null);
             setShowComments(true);
-            await loadComments();
+            await loadComments({ page: 1 });
         } else {
             const data = await res.json().catch(() => null);
             setCommentImageError(data?.error || 'Could not send this comment.');
@@ -640,15 +641,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const portalTarget = typeof document === 'undefined' ? null : document.body;
-    const featuredCommentBadgeUser = featuredComment ? {
-        username: featuredComment.author_name || '',
-        role: featuredComment.author_role || 'student',
-        is_creator: featuredComment.author_is_creator,
-        badge_preferences: featuredComment.author_badge_preferences,
-        verification_status: featuredComment.author_verification_status || undefined,
-    } : null;
-    const visibleComments = showComments ? comments : [];
-    const hasFeaturedPreview = !isArticleCard && !isEditing && !showComments && featuredComment && featuredCommentBadgeUser;
+    const previewComments = recentComments.slice(0, 3);
+    const hasPreviewComments = !isArticleCard && !isEditing && !showComments && previewComments.length > 0;
     const hasVisibleComments = showComments && commentsLoaded && comments.length > 0;
     const hasCommentLoadingPlaceholder = showComments && commentsLoading && comments.length === 0;
     const hasCommentError = showComments && !!commentsLoadError;
@@ -694,96 +688,103 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             <button type="button" onClick={() => router.push(isGuest ? '/login' : isReadOnlyUser ? '/functions' : '/profile')}>{isGuest ? '登录' : isReadOnlyUser ? '体验项目' : '去认证'}</button>
         </div>
     );
-    const featuredCommentPreview = hasFeaturedPreview ? (
-        <div
-            className="featured-comment-preview"
-            role="button"
-            tabIndex={0}
-            aria-label={`Open comment by ${featuredComment.author_name || 'comment author'}`}
-            onClick={event => {
-                if ((event.target as HTMLElement).closest('button')) return;
-                revealComment(featuredComment.id);
-            }}
-            onKeyDown={event => {
-                if ((event.target as HTMLElement).closest('button')) return;
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                revealComment(featuredComment.id);
-            }}
-        >
-            <div className="featured-comment-kicker">🔥 最火评论</div>
-            <div className="featured-comment-body">
+    const renderCommentRow = (comment: Comment, fromPreview = false) => {
+        const commentBadgeUser = {
+            username: comment.author_name || '',
+            role: comment.author_role || 'student',
+            is_creator: comment.author_is_creator,
+            badge_preferences: comment.author_badge_preferences,
+            verification_status: comment.author_verification_status || undefined,
+        };
+        const isHot = Number(comment.id) === Number(hotCommentId);
+
+        return (
+            <div key={comment.id} id={`post-${post.id}-comment-${comment.id}`} className="comment-row-time-hover comment-row">
                 <button
                     type="button"
                     className="avatar-link-button comment-avatar-button"
-                    onClick={() => openProfile(featuredComment.author_id)}
-                    aria-label={`View ${featuredComment.author_name || 'comment author'} profile`}
+                    onClick={() => openProfile(comment.author_id)}
+                    aria-label={`View ${comment.author_name || 'comment author'} profile`}
                 >
-                    <Avatar value={featuredComment.author_avatar} emoji={featuredComment.author_avatar_emoji} theme={featuredComment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
+                    <Avatar value={comment.author_avatar} emoji={comment.author_avatar_emoji} theme={comment.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
                 </button>
-                <div className="featured-comment-copy">
-                    <div className="featured-comment-author">
-                        <span>{featuredComment.author_name}</span>
-                        <UserBadges user={featuredCommentBadgeUser} compact iconOnly />
-                        <small suppressHydrationWarning className="inline-exact-time-chip featured-comment-time-chip">
-                            {formatShortDateTime(featuredComment.created_at, '回复')}
-                        </small>
+                <div className="comment-main">
+                    <div className="comment-header-line">
+                        <div className="comment-author-line">
+                            {isHot && <span className="comment-hot-indicator" title="最火评论" aria-label="最火评论">🔥</span>}
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{comment.author_name}</span>
+                            <UserBadges user={commentBadgeUser} compact iconOnly />
+                            <span suppressHydrationWarning className="inline-exact-time-chip comment-exact-time-chip">
+                                {formatShortDateTime(comment.created_at, '回复')}
+                            </span>
+                        </div>
+                        <div className="comment-actions-line">
+                            {comment.likes > 0 && <span>{comment.likes} likes</span>}
+                            <motion.button
+                                type="button"
+                                onClick={() => handleCommentLike(comment.id)}
+                                className="reaction-button"
+                                whileTap={{ scale: 0.84 }}
+                                animate={commentLikeBurst === comment.id ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                                transition={{ duration: 0.25 }}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: comment.has_liked ? '#ff7675' : '#b2bec3' }}
+                            >
+                                <AnimatePresence>
+                                    {commentLikeBurst === comment.id && (
+                                        <motion.span
+                                            key={comment.id}
+                                            className="reaction-burst"
+                                            initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                            animate={{ opacity: 1, y: -8, scale: 1 }}
+                                            exit={{ opacity: 0, y: -18, scale: 0.6 }}
+                                            transition={{ duration: 0.42 }}
+                                        >
+                                            liked
+                                        </motion.span>
+                                    )}
+                                </AnimatePresence>
+                                {comment.has_liked ? '❤️' : '🤍'}
+                            </motion.button>
+                            {!isGuest && canInteract && (
+                                <button
+                                    type="button"
+                                    onClick={() => startReplyToComment(comment, fromPreview)}
+                                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6c5ce7', fontSize: '0.8rem', fontWeight: 700 }}
+                                    title={`Reply to ${comment.author_name}`}
+                                >Reply</button>
+                            )}
+                            {!isGuest && currentUser && (comment.author_id === currentUser.id || canModerate) && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteComment(comment.id)}
+                                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
+                                    title={comment.author_id === currentUser.id ? 'Delete Comment' : 'Admin Delete Comment'}
+                                >🗑️</button>
+                            )}
+                        </div>
                     </div>
-                    {featuredComment.reply_author_name && (
+                    {comment.reply_author_name && (
                         <div className="comment-reply-context">
-                            Replying to @{featuredComment.reply_author_name}: {shortPreview(featuredComment.reply_content)}
+                            Replying to @{comment.reply_author_name}: {shortPreview(comment.reply_content)}
                         </div>
                     )}
-                    <div className="comment-content-line">
-                        {featuredComment.content && <PostContentRenderer content={shortPreview(featuredComment.content)} format="plain" />}
-                        {featuredComment.attachment_url && (
+                    <div className="comment-content-line" style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>
+                        {comment.content && <PostContentRenderer content={comment.content} format="plain" />}
+                        {comment.attachment_url && (
                             <button
                                 type="button"
                                 className="comment-image-thumb"
-                                onClick={() => openImageModal([featuredComment.attachment_url || ''])}
+                                onClick={() => openImageModal([comment.attachment_url || ''])}
                                 aria-label="Open comment image"
                             >
-                                <img src={getImageDisplayUrl(featuredComment.attachment_url)} alt="" />
+                                <img src={getImageDisplayUrl(comment.attachment_url)} alt="" />
                             </button>
                         )}
                     </div>
-                    <div className="featured-comment-actions">
-                        <motion.button
-                            type="button"
-                            onClick={() => handleCommentLike(featuredComment.id)}
-                            className={`featured-comment-action reaction-button ${featuredComment.has_liked ? 'is-liked' : ''}`}
-                            whileTap={{ scale: 0.86 }}
-                            animate={commentLikeBurst === featuredComment.id ? { scale: [1, 1.16, 1] } : { scale: 1 }}
-                            transition={{ duration: 0.25 }}
-                        >
-                            <AnimatePresence>
-                                {commentLikeBurst === featuredComment.id && (
-                                    <motion.span
-                                        key={featuredComment.id}
-                                        className="reaction-burst"
-                                        initial={{ opacity: 0, y: 8, scale: 0.7 }}
-                                        animate={{ opacity: 1, y: -8, scale: 1 }}
-                                        exit={{ opacity: 0, y: -18, scale: 0.6 }}
-                                        transition={{ duration: 0.42 }}
-                                    >
-                                        liked
-                                    </motion.span>
-                                )}
-                            </AnimatePresence>
-                            {featuredComment.has_liked ? '❤️' : '🤍'} {featuredComment.likes}
-                        </motion.button>
-                        <button
-                            type="button"
-                            className="featured-comment-action"
-                            onClick={() => startReplyToComment(featuredComment)}
-                        >
-                            Reply
-                        </button>
-                    </div>
                 </div>
             </div>
-        </div>
-    ) : null;
+        );
+    };
 
     return (
         <div
@@ -1069,7 +1070,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                             </motion.span>
                         )}
                     </AnimatePresence>
-                    💬 Comment {commentCount > 0 ? `(${commentsLoaded ? comments.length : commentCount})` : ''}
+                    💬 Comment {commentCount > 0 ? `(${commentCount})` : ''}
                 </button>
             </div>
             {interactionMessage && (
@@ -1079,9 +1080,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                 </div>
             )}
 
-            {/* Comments Section (Always Rendered if Loaded) */}
+            {/* Comments Section: recent preview first, full comments on demand */}
             <AnimatePresence>
-                {!isArticleCard && (featuredCommentPreview || hasVisibleComments || hasCommentLoadingPlaceholder || hasCommentError) && (
+                {!isArticleCard && (hasPreviewComments || showComments || hasCommentLoadingPlaceholder || hasCommentError) && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -1089,127 +1090,57 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                         style={{ overflow: 'hidden' }}
                     >
                         <div className="post-comments-panel">
-                            {featuredCommentPreview}
+                            {hasPreviewComments && (
+                                <div className="post-comments-preview" aria-label="Recent comments">
+                                    {previewComments.map(comment => renderCommentRow(comment, true))}
+                                </div>
+                            )}
 
                             {hasCommentLoadingPlaceholder && (
-                                <div style={{ opacity: 0.58, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>Loading comments...</div>
+                                <div className="comment-status-message">Loading comments...</div>
                             )}
 
                             {hasCommentError && (
-                                <div style={{ opacity: 0.65, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>{commentsLoadError}</div>
+                                <div className="comment-status-message is-error">{commentsLoadError}</div>
+                            )}
+
+                            {commentTargetMessage && (
+                                <div className="comment-status-message">{commentTargetMessage}</div>
                             )}
 
                             {hasVisibleComments && (
                                 <div className="post-comments-list">
-                                    {visibleComments.map(c => (
-                                        <div key={c.id} id={`post-${post.id}-comment-${c.id}`} className="comment-row-time-hover comment-row">
-                                            <button
-                                                type="button"
-                                                className="avatar-link-button comment-avatar-button"
-                                                onClick={() => openProfile(c.author_id)}
-                                                aria-label={`View ${c.author_name || 'comment author'} profile`}
-                                            >
-                                                <Avatar value={c.author_avatar} emoji={c.author_avatar_emoji} theme={c.author_avatar_theme} fallback="👤" size={24} style={{ fontSize: '0.8rem' }} />
-                                            </button>
-                                            <div className="comment-main">
-                                                <div className="comment-header-line">
-                                                    <div className="comment-author-line">
-                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{c.author_name}</span>
-                                                        <UserBadges
-                                                            user={{
-                                                                username: c.author_name || '',
-                                                                role: c.author_role || 'student',
-                                                                is_creator: c.author_is_creator,
-                                                                badge_preferences: c.author_badge_preferences,
-                                                                verification_status: c.author_verification_status || undefined,
-                                                            }}
-                                                            compact
-                                                            iconOnly
-                                                        />
-                                                        <span suppressHydrationWarning className="inline-exact-time-chip comment-exact-time-chip">
-                                                            {formatShortDateTime(c.created_at, '回复')}
-                                                        </span>
-                                                    </div>
-                                                    <div className="comment-actions-line">
-                                                        {c.likes > 0 && <span>{c.likes} likes</span>}
-                                                        <motion.button
-                                                            onClick={() => handleCommentLike(c.id)}
-                                                            className="reaction-button"
-                                                            whileTap={{ scale: 0.84 }}
-                                                            animate={commentLikeBurst === c.id ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-                                                            transition={{ duration: 0.25 }}
-                                                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: c.has_liked ? '#ff7675' : '#b2bec3' }}
-                                                        >
-                                                            <AnimatePresence>
-                                                                {commentLikeBurst === c.id && (
-                                                                    <motion.span
-                                                                        key={c.id}
-                                                                        className="reaction-burst"
-                                                                        initial={{ opacity: 0, y: 8, scale: 0.7 }}
-                                                                        animate={{ opacity: 1, y: -8, scale: 1 }}
-                                                                        exit={{ opacity: 0, y: -18, scale: 0.6 }}
-                                                                        transition={{ duration: 0.42 }}
-                                                                    >
-                                                                        liked
-                                                                    </motion.span>
-                                                                )}
-                                                            </AnimatePresence>
-                                                            {c.has_liked ? '❤️' : '🤍'}
-                                                        </motion.button>
-                                                        {!isGuest && canInteract && (
-                                                            <button
-                                                                onClick={() => startReplyToComment(c)}
-                                                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6c5ce7', fontSize: '0.8rem', fontWeight: 700 }}
-                                                                title={`Reply to ${c.author_name}`}
-                                                            >Reply</button>
-                                                        )}
-                                                        {!isGuest && currentUser && (c.author_id === currentUser.id || canModerate) && (
-                                                            <button
-                                                                onClick={() => handleDeleteComment(c.id)}
-                                                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b2bec3', fontSize: '0.8rem' }}
-                                                                title={c.author_id === currentUser.id ? 'Delete Comment' : 'Admin Delete Comment'}
-                                                            >🗑️</button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {c.reply_author_name && (
-                                                    <div className="comment-reply-context">
-                                                        Replying to @{c.reply_author_name}: {shortPreview(c.reply_content)}
-                                                    </div>
-                                                )}
-                                                <div className="comment-content-line" style={{ fontSize: '0.9rem', color: '#444', whiteSpace: 'pre-wrap' }}>
-                                                    {c.content && <PostContentRenderer content={c.content} format="plain" />}
-                                                    {c.attachment_url && (
-                                                        <button
-                                                            type="button"
-                                                            className="comment-image-thumb"
-                                                            onClick={() => openImageModal([c.attachment_url || ''])}
-                                                            aria-label="Open comment image"
-                                                        >
-                                                            <img src={getImageDisplayUrl(c.attachment_url)} alt="" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                    {comments.map(comment => renderCommentRow(comment))}
                                 </div>
                             )}
 
-                            {/* Comment Input - Only visible when fully expanded or if no comments yet */}
-                            {showComments && !commentsLoading && commentComposer}
-                        </div>
-                    </motion.div>
-                )}
-                {/* Always allow commenting even if no comments exist yet, if showComments is true */}
-                {!isArticleCard && showComments && commentsLoaded && !commentsLoading && !commentsLoadError && comments.length === 0 && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                    >
-                        <div className="post-comments-panel">
-                            <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '10px' }}>No comments yet.</div>
-                            {commentComposer}
+                            {showComments && commentsLoaded && !commentsLoading && !commentsLoadError && commentCount === 0 && (
+                                <div className="comment-status-message">No comments yet.</div>
+                            )}
+
+                            {showComments && commentsLoaded && commentsTotalPages > 1 && (
+                                <div className="comment-pagination" aria-label="Comment pages">
+                                    <button
+                                        type="button"
+                                        className="comment-pagination-button"
+                                        onClick={() => loadComments({ page: commentsPage - 1 })}
+                                        disabled={commentsLoading || commentsPage <= 1}
+                                    >
+                                        Previous
+                                    </button>
+                                    <span>Page {commentsPage} of {commentsTotalPages} · {commentCount} {commentCount === 1 ? 'comment' : 'comments'}</span>
+                                    <button
+                                        type="button"
+                                        className="comment-pagination-button"
+                                        onClick={() => loadComments({ page: commentsPage + 1 })}
+                                        disabled={commentsLoading || commentsPage >= commentsTotalPages}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
+
+                            {showComments && !commentsLoading && !commentsLoadError && commentComposer}
                         </div>
                     </motion.div>
                 )}

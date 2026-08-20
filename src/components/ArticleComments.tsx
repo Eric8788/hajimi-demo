@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Comment, User } from '@/lib/db';
+import type { Comment, CommentsPage, User } from '@/lib/db';
 import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { isAdminRole } from '@/lib/roles';
 import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 import Avatar from './Avatar';
 import UserBadges from './UserBadges';
 import PostContentRenderer from './PostContentRenderer';
+import { NOTIFICATION_TARGET_EVENT, type NotificationTargetDetail } from '@/lib/notificationNavigation';
 
 type ArticleCommentsProps = {
     postId: number;
@@ -35,23 +36,44 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
     const [draft, setDraft] = useState('');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [commentTargetMessage, setCommentTargetMessage] = useState('');
+    const [totalComments, setTotalComments] = useState(0);
+    const [commentsPage, setCommentsPage] = useState(1);
+    const [commentsTotalPages, setCommentsTotalPages] = useState(1);
+    const [hotCommentId, setHotCommentId] = useState<number | null>(null);
+    const [locationHash, setLocationHash] = useState(() => typeof window === 'undefined' ? '' : window.location.hash);
     const canInteract = canUseMemberInteractions(currentUser);
     const canModerate = isAdminRole(currentUser?.role);
     const isGuest = !currentUser;
     const isReadOnlyUser = isReadOnlyRole(currentUser?.role);
 
-    const loadComments = useCallback(async () => {
+    const loadComments = useCallback(async ({ page = 1, commentId }: { page?: number; commentId?: number } = {}) => {
         setIsLoading(true);
         setError('');
+        setCommentTargetMessage('');
         try {
-            const res = await fetch(`/api/posts/interact?postId=${postId}`, { cache: 'no-store' });
-            const data = await res.json();
-            if (!res.ok || !Array.isArray(data)) {
+            const params = new URLSearchParams({
+                postId: String(postId),
+                page: String(page),
+                limit: '10',
+            });
+            if (commentId) params.set('commentId', String(commentId));
+            const res = await fetch(`/api/posts/interact?${params.toString()}`, { cache: 'no-store' });
+            const data = await res.json() as Partial<CommentsPage> & { error?: string };
+            if (!res.ok || !Array.isArray(data.comments)) {
                 throw new Error(data?.error || 'Could not load comments.');
             }
 
-            setComments(data);
-            loadAvatarPatches(data.map((comment: Comment) => comment.author_id))
+            const nextComments = data.comments as Comment[];
+            setComments(nextComments);
+            setCommentsPage(Number(data.page || page));
+            setCommentsTotalPages(Math.max(1, Number(data.totalPages || 1)));
+            setTotalComments(Number(data.total || 0));
+            setHotCommentId(data.hotCommentId ? Number(data.hotCommentId) : null);
+            if (commentId && data.targetFound === false) {
+                setCommentTargetMessage('This comment is no longer available.');
+            }
+            loadAvatarPatches(nextComments.map(comment => comment.author_id))
                 .then(patches => {
                     if (patches.size === 0) return;
                     setComments(current => current.map(comment => applyAuthorAvatarPatch(comment, patches)));
@@ -65,12 +87,30 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
     }, [postId]);
 
     useEffect(() => {
-        void loadComments();
-    }, [loadComments]);
+        const syncHash = () => setLocationHash(window.location.hash || '');
+        const handleNotificationTarget = (event: Event) => {
+            const detail = (event as CustomEvent<NotificationTargetDetail>).detail;
+            const nextHash = detail?.hash || window.location.hash || '';
+            if (nextHash) setLocationHash(nextHash);
+        };
+
+        window.addEventListener('hashchange', syncHash);
+        window.addEventListener(NOTIFICATION_TARGET_EVENT, handleNotificationTarget);
+        return () => {
+            window.removeEventListener('hashchange', syncHash);
+            window.removeEventListener(NOTIFICATION_TARGET_EVENT, handleNotificationTarget);
+        };
+    }, []);
+
+    useEffect(() => {
+        const prefix = `#post-${postId}-comment-`;
+        const rawCommentId = locationHash.startsWith(prefix) ? Number(locationHash.slice(prefix.length)) : 0;
+        void loadComments(rawCommentId > 0 ? { commentId: rawCommentId } : { page: 1 });
+    }, [loadComments, locationHash, postId]);
 
     useEffect(() => {
         if (isLoading || comments.length === 0) return;
-        const hash = window.location.hash;
+        const hash = locationHash;
         if (!hash.startsWith(`#post-${postId}-comment-`)) return;
 
         const target = document.getElementById(hash.slice(1));
@@ -78,7 +118,7 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
         window.requestAnimationFrame(() => {
             target.scrollIntoView({ block: 'center' });
         });
-    }, [comments, isLoading, postId]);
+    }, [comments, isLoading, locationHash, postId]);
 
     const openProfile = (authorId: number) => {
         if (!currentUser) {
@@ -111,7 +151,7 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
         if (res.ok) {
             setDraft('');
             setMessage('\u8bc4\u8bba\u5df2\u53d1\u9001\u3002');
-            await loadComments();
+            await loadComments({ page: 1 });
             window.dispatchEvent(new Event('hajimi-notifications-refresh'));
         } else {
             setError(data?.error || '\u8bc4\u8bba\u53d1\u9001\u5931\u8d25\u3002');
@@ -138,7 +178,7 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
             body: JSON.stringify({ action: 'like_comment', commentId }),
         });
         if (!res.ok) {
-            await loadComments();
+            await loadComments({ page: commentsPage });
         } else {
             window.dispatchEvent(new Event('hajimi-notifications-refresh'));
         }
@@ -156,6 +196,7 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
 
         if (res.ok) {
             setComments(current => current.filter(item => item.id !== commentId));
+            await loadComments({ page: commentsPage });
         } else {
             const data = await res.json().catch(() => null);
             setError(data?.error || 'Could not delete comment.');
@@ -175,11 +216,12 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
                     <span>Discussion</span>
                     <h2>{'\u8bc4\u8bba\u533a'}</h2>
                 </div>
-                <strong>{comments.length}</strong>
+                <strong>{totalComments}</strong>
             </div>
 
             {error && <div className="article-comment-message is-error">{error}</div>}
             {message && <div className="article-comment-message">{message}</div>}
+            {commentTargetMessage && <div className="article-comment-message">{commentTargetMessage}</div>}
 
             {canInteract ? (
                 <form className="article-comment-compose" onSubmit={submitComment}>
@@ -228,6 +270,7 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
                         <div className="article-comment-main">
                             <div className="article-comment-meta">
                                 <div className="article-comment-author">
+                                    {Number(comment.id) === Number(hotCommentId) && <span className="comment-hot-indicator" title="最火评论" aria-label="最火评论">🔥</span>}
                                     <strong>{comment.author_name}</strong>
                                     <UserBadges
                                         user={{
@@ -265,6 +308,28 @@ export default function ArticleComments({ postId, currentUser }: ArticleComments
                     </article>
                 ))}
             </div>
+
+            {!isLoading && !error && commentsTotalPages > 1 && (
+                <div className="comment-pagination" aria-label="Comment pages">
+                    <button
+                        type="button"
+                        className="comment-pagination-button"
+                        onClick={() => loadComments({ page: commentsPage - 1 })}
+                        disabled={isLoading || commentsPage <= 1}
+                    >
+                        Previous
+                    </button>
+                    <span>Page {commentsPage} of {commentsTotalPages} · {totalComments} {totalComments === 1 ? 'comment' : 'comments'}</span>
+                    <button
+                        type="button"
+                        className="comment-pagination-button"
+                        onClick={() => loadComments({ page: commentsPage + 1 })}
+                        disabled={isLoading || commentsPage >= commentsTotalPages}
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
         </section>
     );
 }

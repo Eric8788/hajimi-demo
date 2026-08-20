@@ -5,6 +5,7 @@
 > **Every AI agent MUST read this file before starting any work session.**
 
 **Current Hajimi version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
+**Behavior notes updated:** 2026-08-20 (Asia/Shanghai)
 
 ---
 
@@ -100,6 +101,7 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
 - **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
+- **Forum Comments:** The Hallway feed returns the three newest comments inline for each post, ordered newest first. Expanding a post requests `GET /api/posts/interact?postId=...&page=...&limit=10`, which returns latest-first comments with page and total metadata. The actual hottest comment is selected by likes, direct reply count, creation time, and ID, and is marked with a small fire icon in its row; there is no independent featured-comment card. Notification links may include `commentId`; the API calculates the target page so the client can expand, load, and scroll to the target. This behavior does not change the database schema or comment IDs.
 - **Live Presence:** `/api/presence` records one `user_presence` row per logged-in account and shows a lightweight online count/avatar stack for accounts seen in the last 5 minutes.
 - **Cyber Oracle AI:** `POST /api/oracle` powers the Dashboard tarot insight. It runs server-side only and can use AI Tabletop-aligned OpenAI-compatible providers: custom `HAJIMI_ORACLE_API_KEY` + `HAJIMI_ORACLE_API_URL` + `HAJIMI_ORACLE_MODEL`, then `ZENMUX_API_KEY`, `DASHSCOPE_API_KEY`, `SILICONFLOW_API_KEY`, and optional `TOKENDANCE_API_KEY` + `TOKENDANCE_BASE_URL`. Default models favor deeper reflective readings (`deepseek/deepseek-v3.2`, `qwen-max`, `deepseek-ai/DeepSeek-V3`) and can be overridden with provider-specific `HAJIMI_ORACLE_*_MODEL` variables. Readings are limited to 3 successful readings per user per day through the `oracle_readings` table. If no provider is configured or every provider fails, the server returns a deeper local fallback and still counts that successful reading.
 - **CSS:** Custom only (`src/app/globals.css`). ❌ No Tailwind. Glassmorphism tokens: `--glass-bg`, `--glass-border`, `--blur-strength`.

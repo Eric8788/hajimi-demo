@@ -1,4 +1,4 @@
-import type { Comment, FeaturedComment, Post, PublicAvatar, User } from '@/lib/db';
+import type { Comment, Post, PublicAvatar, User } from '@/lib/db';
 import { cachedJson } from './clientJsonCache';
 
 type AvatarTarget = {
@@ -38,7 +38,7 @@ export function applyAvatarPatch<T extends AvatarTarget>(item: T, patches: Map<n
     };
 }
 
-export function applyAuthorAvatarPatch<T extends Comment | FeaturedComment>(item: T, patches: Map<number, PublicAvatar>): T {
+export function applyAuthorAvatarPatch<T extends Comment>(item: T, patches: Map<number, PublicAvatar>): T {
     const patch = patches.get(Number(item.author_id));
     if (!patch) return item;
 
@@ -52,14 +52,14 @@ export function applyAuthorAvatarPatch<T extends Comment | FeaturedComment>(item
 
 export function applyPostAvatarPatch(post: Post, patches: Map<number, PublicAvatar>): Post {
     const authorPatch = patches.get(Number(post.author_id));
-    const featuredComment = post.featured_comment ? applyAuthorAvatarPatch(post.featured_comment, patches) : post.featured_comment;
+    const recentComments = (post.recent_comments || []).map(comment => applyAuthorAvatarPatch(comment, patches));
 
     return {
         ...post,
         author_avatar: authorPatch?.avatar ?? post.author_avatar,
         author_avatar_emoji: authorPatch?.avatar_emoji ?? post.author_avatar_emoji,
         author_avatar_theme: authorPatch?.avatar_theme ?? post.author_avatar_theme,
-        featured_comment: featuredComment,
+        recent_comments: recentComments,
     };
 }
 
@@ -67,6 +67,6 @@ export function collectPostAvatarIds(posts: Post[], viewer?: User | null) {
     return [
         viewer?.id,
         ...posts.map(post => post.author_id),
-        ...posts.map(post => post.featured_comment?.author_id),
+        ...posts.flatMap(post => (post.recent_comments || []).map(comment => comment.author_id)),
     ];
 }
