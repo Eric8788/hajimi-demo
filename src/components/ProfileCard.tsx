@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type MutableRefObject, type PointerEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, type Article, type Post, type ProfileAnalytics, type ProfileAnalyticsDay, type Project } from '@/lib/db';
+import { type Article, type MemberProfileUser, type Post, type ProfileAnalytics, type ProfileAnalyticsDay, type Project } from '@/lib/db';
 import Avatar from './Avatar';
 import BadgePill from './BadgePill';
 import UserBadges from './UserBadges';
@@ -106,7 +106,7 @@ function getProfilePostImage(post: Post) {
     return getPostPrimaryAttachmentUrl(post);
 }
 
-function getRoleLabel(user: User) {
+function getRoleLabel(user: MemberProfileUser) {
     const role = (user.role || 'student').toLowerCase();
     if (role === 'admin') return '管理员';
     if (role === 'teacher') return '老师';
@@ -122,7 +122,7 @@ function formatNumber(value: number) {
 const PROFILE_HEATMAP_DAYS = 30;
 
 type ProfileCardProps = {
-    user: User;
+    user: MemberProfileUser;
     readOnly?: boolean;
     posts?: Post[];
     projects?: Project[];
@@ -878,6 +878,12 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <UserBadges user={profileUser} />
                     </div>
                     <p className="profile-hero-subtitle">{getRoleLabel(user)} · Hajimi ID {hajimiId}</p>
+                    {user.member_identity && (
+                        <p className="profile-hero-identity" aria-label="认证身份">
+                            认证姓名：{user.member_identity.verified_name}
+                            {user.member_identity.verified_grade ? ` · ${user.member_identity.verified_grade}` : ''}
+                        </p>
+                    )}
                     {isEditingProfile && !readOnly ? (
                         <>
                             <label className="profile-hero-inline-label">

@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/auth';
-import { getArticlesByAuthor, getPostsByAuthor, getProjectsByAuthor, getUserById } from '@/lib/db';
+import { getArticlesByAuthor, getMemberProfileUserById, getPostsByAuthor, getProjectsByAuthor, getUserById } from '@/lib/db';
+import { canViewMemberIdentity } from '@/lib/access';
 import { notFound, redirect } from 'next/navigation';
 import ProfileCard from '@/components/ProfileCard';
 import Shell from '@/components/Shell';
@@ -16,7 +17,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     if (!Number.isInteger(profileId) || profileId <= 0) notFound();
     if (profileId === viewer.id) redirect('/profile');
 
-    const profileUser = await getUserById(profileId);
+    const profileUser = await getMemberProfileUserById(profileId, canViewMemberIdentity(viewer));
     if (!profileUser) notFound();
     const posts = await getPostsByAuthor(profileUser.id, viewer.id);
     const projects = await getProjectsByAuthor(profileUser.id);
