@@ -4,7 +4,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Post, Comment, User, type CommentsPage, type PublicAvatar } from '@/lib/db';
+import { Post, Comment, User, type CommentsPage, type RecentLiker } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
 import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -89,7 +89,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const isAnnouncement = displayTag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
-    const [recentLikers, setRecentLikers] = useState<PublicAvatar[]>(post.recent_likers || []);
+    const [recentLikers, setRecentLikers] = useState<RecentLiker[]>(post.recent_likers || []);
     const likeRequestRef = useRef(false);
     const [likeRequestPending, setLikeRequestPending] = useState(false);
     const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
@@ -398,7 +398,7 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             if (typeof data?.hasLiked === 'boolean') setHasLiked(data.hasLiked);
             if (typeof data?.likes === 'number') setLikes(data.likes);
             if (Array.isArray(data?.recent_likers)) {
-                const nextRecentLikers = data.recent_likers as PublicAvatar[];
+                const nextRecentLikers = data.recent_likers as RecentLiker[];
                 setRecentLikers(nextRecentLikers);
                 void loadAvatarPatches(nextRecentLikers.map(liker => liker.id))
                     .then(patches => {
@@ -1095,8 +1095,8 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
                                         event.stopPropagation();
                                         openProfile(liker.id);
                                     }}
-                                    title="View liker profile"
-                                    aria-label="View liker profile"
+                                    title={liker.username}
+                                    aria-label={`查看 ${liker.username} 的主页`}
                                 >
                                     <Avatar
                                         value={liker.avatar}

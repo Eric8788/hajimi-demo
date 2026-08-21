@@ -4277,6 +4277,21 @@ textarea:hover,
   font-weight: 900;
 }
 
+.profile-hero-identity {
+  margin: 4px 0 0;
+  max-width: 640px;
+  color: #4f5966;
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.profile-hero.has-profile-image .profile-hero-identity {
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+
 .profile-hero-bio {
   font-size: 0.96rem;
 }

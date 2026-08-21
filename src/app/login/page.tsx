@@ -358,7 +358,7 @@ export default function LoginPage() {
                                                             autoComplete="name"
                                                             required
                                                         />
-                                                        <small>只用于账号审核，不会公开展示。</small>
+                                                        <small>用于账号审核；认证后，认证姓名仅向校内已认证 Hajimi 成员展示，对外访客不可见。</small>
                                                     </label>
 
                                                     {registrationRole === 'student' ? (
@@ -370,7 +370,7 @@ export default function LoginPage() {
                                                                         <option key={grade} value={grade}>{grade === '毕业生' ? '毕业生（同学生权限）' : grade}</option>
                                                                     ))}
                                                                 </select>
-                                                                <small>选择与你当前情况最接近的一项。</small>
+                                                                <small>选择与你当前情况最接近的一项；认证后仅向校内已认证 Hajimi 成员展示。</small>
                                                             </label>
                                                             <label className="auth-field">
                                                                 <span>学号（可选）</span>
@@ -397,6 +397,7 @@ export default function LoginPage() {
                                                                 autoComplete="off"
                                                                 required
                                                             />
+                                                            <small>仅用于认证审核；任教学科不会展示在个人主页或公开内容中。</small>
                                                         </label>
                                                     )}
                                                 </div>

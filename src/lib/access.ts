@@ -20,6 +20,10 @@ export function canUseMemberInteractions(user?: { role?: string | null; verifica
     return user.verification_status === 'verified';
 }
 
+export function canViewMemberIdentity(user?: { role?: string | null; verification_status?: string | null; account_status?: string | null } | null) {
+    return Boolean(user && user.account_status !== 'disabled' && canUseMemberInteractions(user));
+}
+
 export function getReadOnlyRoleLabel(role?: string | null) {
     const normalizedRole = normalizeUserRole(role);
     if (normalizedRole === 'parent') return '家长账号';

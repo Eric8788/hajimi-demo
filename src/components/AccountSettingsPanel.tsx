@@ -196,14 +196,14 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                     </div>
                     <div className={`profile-verification-status is-${isReadOnlyUser ? 'pending' : verificationStatus}`}>
                         <strong>{isReadOnlyUser ? getReadOnlyRoleLabel(user.role) : verificationStatus === 'verified' ? '已认证' : verificationStatus === 'pending' ? '审核中' : verificationStatus === 'rejected' ? '需重新提交' : '未认证'}</strong>
-                        <span>{isReadOnlyUser ? '这是毕业典礼参观身份：可浏览、可体验项目，不能参与互动。' : 'Name、年级/科目和学号信息仅管理员审核可见，主页不会公开。'}</span>
+                        <span>{isReadOnlyUser ? '这是毕业典礼参观身份：可浏览、可体验项目，不能参与互动。' : 'Name、年级/科目和学号信息用于认证审核；认证后，认证姓名及学生年级仅向校内已认证 Hajimi 成员的个人主页展示。'}</span>
                     </div>
                     {!isReadOnlyUser && (verificationStatus === 'unverified' || verificationStatus === 'rejected') && (
                         <div className="profile-verification-form">
                             <label className="profile-field-label">
                                 Name
                                 <input value={verificationName} onChange={event => setVerificationName(event.target.value)} className="glass-input" placeholder="学校常用名 / English name" />
-                                <small>不要写 legal name；用于审核和确认主号，不公开展示。</small>
+                                <small>不要写 legal name；用于审核和确认主号。认证通过后，认证姓名仅向校内已认证 Hajimi 成员展示。</small>
                             </label>
                             <div className="auth-verification-tabs">
                                 <button
@@ -239,6 +239,7 @@ export default function AccountSettingsPanel({ user }: { user: User }) {
                                 <label className="profile-field-label">
                                     任教学科
                                     <input value={verificationSubject} onChange={event => setVerificationSubject(event.target.value)} className="glass-input" />
+                                    <small>仅用于认证审核；不会展示在个人主页或公开内容中。</small>
                                 </label>
                             )}
                             {verificationError && <div className="profile-account-error">{verificationError}</div>}

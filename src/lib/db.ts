@@ -331,7 +331,7 @@ export interface Post {
     is_bookmarked?: boolean;
     has_liked?: boolean;
     recent_comments?: Comment[];
-    recent_likers?: PublicAvatar[];
+    recent_likers?: RecentLiker[];
     hot_comment_id?: number | null;
 }
 
@@ -448,6 +448,19 @@ export interface PublicAvatar {
     avatar?: string | null;
     avatar_emoji?: string | null;
     avatar_theme?: string | null;
+}
+
+export interface RecentLiker extends PublicAvatar {
+    username: string;
+}
+
+export interface MemberProfileIdentity {
+    verified_name: string;
+    verified_grade?: string | null;
+}
+
+export interface MemberProfileUser extends User {
+    member_identity?: MemberProfileIdentity;
 }
 
 export interface PresenceMember extends PublicAvatar {
@@ -1565,6 +1578,26 @@ export async function getUserById(id: number): Promise<User | null> {
       LIMIT 1
     `;
     return rows[0] || null;
+}
+
+export async function getMemberProfileUserById(id: number, canViewIdentity = false): Promise<MemberProfileUser | null> {
+    const user = await getUserById(id);
+    if (!user || !canViewIdentity) return user;
+
+    const { rows } = await sql<MemberProfileIdentity>`
+      SELECT
+        users.verified_name,
+        CASE WHEN users.verification_type = 'student' THEN users.verified_grade ELSE NULL END as verified_grade
+      FROM users
+      WHERE users.id = ${id}
+        AND COALESCE(users.account_status, 'active') = 'active'
+        AND users.verification_status = 'verified'
+        AND COALESCE(users.role, 'student') NOT IN ('parent', 'visitor')
+        AND NULLIF(BTRIM(users.verified_name), '') IS NOT NULL
+      LIMIT 1
+    `;
+
+    return rows[0] ? { ...user, member_identity: rows[0] } : user;
 }
 
 export async function getUserAccountRole(userId: number): Promise<{ role: string; account_status: AccountStatus } | null> {
@@ -2795,6 +2828,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
         SELECT json_agg(
           json_build_object(
             'id', recent_likers.id,
+            'username', recent_likers.username,
             'avatar', recent_likers.avatar,
             'avatar_emoji', recent_likers.avatar_emoji,
             'avatar_theme', recent_likers.avatar_theme
@@ -2803,6 +2837,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
         ) as recent_likers
         FROM (
           SELECT post_likes.user_id as id,
+            liker_users.username,
             CASE WHEN liker_users.avatar LIKE 'data:image/%' THEN NULL ELSE liker_users.avatar END as avatar,
             liker_users.avatar_emoji,
             liker_users.avatar_theme,
@@ -2810,6 +2845,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
           FROM post_likes
           JOIN users liker_users ON liker_users.id = post_likes.user_id
           WHERE post_likes.post_id = posts.id
+            AND COALESCE(liker_users.account_status, 'active') = 'active'
           ORDER BY post_likes.created_at DESC, post_likes.user_id DESC
           LIMIT 3
         ) recent_likers
@@ -2959,6 +2995,7 @@ export async function getPostsPage(
         SELECT json_agg(
           json_build_object(
             'id', recent_likers.id,
+            'username', recent_likers.username,
             'avatar', recent_likers.avatar,
             'avatar_emoji', recent_likers.avatar_emoji,
             'avatar_theme', recent_likers.avatar_theme
@@ -2967,6 +3004,7 @@ export async function getPostsPage(
         ) as recent_likers
         FROM (
           SELECT post_likes.user_id as id,
+            liker_users.username,
             CASE WHEN liker_users.avatar LIKE 'data:image/%' THEN NULL ELSE liker_users.avatar END as avatar,
             liker_users.avatar_emoji,
             liker_users.avatar_theme,
@@ -2974,6 +3012,7 @@ export async function getPostsPage(
           FROM post_likes
           JOIN users liker_users ON liker_users.id = post_likes.user_id
           WHERE post_likes.post_id = posts.id
+            AND COALESCE(liker_users.account_status, 'active') = 'active'
           ORDER BY post_likes.created_at DESC, post_likes.user_id DESC
           LIMIT 3
         ) recent_likers
@@ -3658,7 +3697,7 @@ export async function togglePostLike(userId: number, postId: number): Promise<bo
     }
 }
 
-export async function getPostLikeSummary(postId: number): Promise<{ likes: number; recent_likers: PublicAvatar[] }> {
+export async function getPostLikeSummary(postId: number): Promise<{ likes: number; recent_likers: RecentLiker[] }> {
     const [postResult, likerResult] = await Promise.all([
         sql<{ likes: number }>`
           SELECT likes
@@ -3666,14 +3705,16 @@ export async function getPostLikeSummary(postId: number): Promise<{ likes: numbe
           WHERE id = ${postId}
           LIMIT 1
         `,
-        sql<PublicAvatar>`
+        sql<RecentLiker>`
           SELECT post_likes.user_id as id,
+            users.username,
             CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as avatar,
             users.avatar_emoji,
             users.avatar_theme
           FROM post_likes
           JOIN users ON users.id = post_likes.user_id
           WHERE post_likes.post_id = ${postId}
+            AND COALESCE(users.account_status, 'active') = 'active'
           ORDER BY post_likes.created_at DESC, post_likes.user_id DESC
           LIMIT 3
         `,

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import ProfileCard from './ProfileCard';
-import type { Article, Post, ProfileAnalytics, Project, User } from '@/lib/db';
+import type { Article, MemberProfileUser, Post, ProfileAnalytics, Project } from '@/lib/db';
 
 type ProfilePageClientProps = {
-    user: User;
+    user: MemberProfileUser;
     posts: Post[];
     projects: Project[];
     articles: Article[];
