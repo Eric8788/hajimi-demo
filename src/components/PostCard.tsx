@@ -4,7 +4,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Post, Comment, User, type CommentsPage } from '@/lib/db';
+import { Post, Comment, User, type CommentsPage, type PublicAvatar } from '@/lib/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isAdminRole } from '@/lib/roles';
 import { canUseMemberInteractions, getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -13,7 +13,7 @@ import UserBadges from './UserBadges';
 import PostTextComposer, { type PostTextComposerApi } from './PostTextComposer';
 import PostContentRenderer from './PostContentRenderer';
 import { clearCachedJson } from '@/lib/clientJsonCache';
-import { applyAuthorAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
+import { applyAuthorAvatarPatch, applyAvatarPatch, loadAvatarPatches } from '@/lib/clientAvatarHydration';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getPostAttachmentUrls } from '@/lib/forumAttachments';
 import {
@@ -89,6 +89,9 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     const isAnnouncement = displayTag === 'announcement';
     const [likes, setLikes] = useState(post.likes);
     const [hasLiked, setHasLiked] = useState(!!post.has_liked);
+    const [recentLikers, setRecentLikers] = useState<PublicAvatar[]>(post.recent_likers || []);
+    const likeRequestRef = useRef(false);
+    const [likeRequestPending, setLikeRequestPending] = useState(false);
     const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
     const [expanded, setExpanded] = useState(false);
     const [likeBurst, setLikeBurst] = useState(0);
@@ -266,11 +269,14 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
         setEditContentFormat(normalizePostContentFormat(post.content_format));
         setEditTag(post.tag || 'general');
         setCommentCount(post.comment_count || 0);
+        setLikes(post.likes);
+        setHasLiked(!!post.has_liked);
+        setRecentLikers(post.recent_likers || []);
         setRecentComments(post.recent_comments || []);
         setCommentsPage(1);
         setCommentsTotalPages(Math.max(1, Math.ceil((post.comment_count || 0) / 10)));
         setHotCommentId(post.hot_comment_id ? Number(post.hot_comment_id) : null);
-    }, [post.comment_count, post.content, post.content_format, post.hot_comment_id, post.recent_comments, post.tag, post.title, post.updated_at]);
+    }, [post.comment_count, post.content, post.content_format, post.has_liked, post.hot_comment_id, post.likes, post.recent_comments, post.recent_likers, post.tag, post.title, post.updated_at]);
 
     // Lock Body Scroll when Modal is Open
     useEffect(() => {
@@ -363,11 +369,15 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
     };
 
     const handleLike = async () => {
-        if (requireVerifiedInteraction()) return;
+        if (requireVerifiedInteraction() || likeRequestRef.current) return;
+        likeRequestRef.current = true;
+        setLikeRequestPending(true);
+        const previousLiked = hasLiked;
+        const previousLikes = likes;
         // Optimistic toggle
-        const newLikedState = !hasLiked;
+        const newLikedState = !previousLiked;
         setHasLiked(newLikedState);
-        setLikes(p => newLikedState ? p + 1 : p - 1);
+        setLikes(p => Math.max(0, newLikedState ? p + 1 : p - 1));
         if (newLikedState) {
             setLikeBurst(count => {
                 const next = count + 1;
@@ -376,12 +386,38 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
             });
         }
 
-        await fetch('/api/posts/interact', {
-            method: 'POST',
-            body: JSON.stringify({ action: 'like', postId: post.id })
-        });
-        clearCachedJson('posts:');
-        window.dispatchEvent(new Event('hajimi-notifications-refresh'));
+        try {
+            const response = await fetch('/api/posts/interact', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'like', postId: post.id })
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.error || 'Could not update this like.');
+            }
+            if (typeof data?.hasLiked === 'boolean') setHasLiked(data.hasLiked);
+            if (typeof data?.likes === 'number') setLikes(data.likes);
+            if (Array.isArray(data?.recent_likers)) {
+                const nextRecentLikers = data.recent_likers as PublicAvatar[];
+                setRecentLikers(nextRecentLikers);
+                void loadAvatarPatches(nextRecentLikers.map(liker => liker.id))
+                    .then(patches => {
+                        if (patches.size === 0) return;
+                        setRecentLikers(current => current.map(liker => applyAvatarPatch(liker, patches)));
+                    })
+                    .catch(error => console.warn('Recent liker avatars unavailable:', error));
+            }
+            clearCachedJson('posts:');
+            window.dispatchEvent(new Event('hajimi-notifications-refresh'));
+        } catch (error) {
+            setHasLiked(previousLiked);
+            setLikes(previousLikes);
+            setInteractionMessage(error instanceof Error ? error.message : 'Could not update this like.');
+            window.setTimeout(() => setInteractionMessage(''), 2600);
+        } finally {
+            likeRequestRef.current = false;
+            setLikeRequestPending(false);
+        }
     };
 
     const handleBookmark = async () => {
@@ -1017,35 +1053,63 @@ export default function PostCard({ post, currentUser, onDeleted, onGuestAction }
 
             {/* Actions Bar */}
             <div style={{ marginTop: '20px', display: 'flex', gap: '20px', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '15px' }}>
-                <motion.button
-                    onClick={handleLike}
-                    className="reaction-button"
-                    whileTap={{ scale: 0.84 }}
-                    animate={likeBurst ? { scale: [1, 1.18, 1] } : { scale: 1 }}
-                    transition={{ duration: 0.28 }}
-                    style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: hasLiked ? '#ff7675' : '#636e72',
-                        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600,
-                        transition: 'color 0.18s'
-                    }}
-                >
-                    <AnimatePresence>
-                        {likeBurst > 0 && (
-                            <motion.span
-                                key={likeBurst}
-                                className="reaction-burst"
-                                initial={{ opacity: 0, y: 8, scale: 0.7 }}
-                                animate={{ opacity: 1, y: -10, scale: 1 }}
-                                exit={{ opacity: 0, y: -22, scale: 0.6 }}
-                                transition={{ duration: 0.45 }}
-                            >
-                                +1
-                            </motion.span>
-                        )}
-                    </AnimatePresence>
-                    {hasLiked || likes > post.likes ? '❤️' : '🤍'} {likes}
-                </motion.button>
+                <div className="post-like-cluster">
+                    <motion.button
+                        onClick={handleLike}
+                        disabled={likeRequestPending}
+                        className="reaction-button"
+                        whileTap={{ scale: 0.84 }}
+                        animate={likeBurst ? { scale: [1, 1.18, 1] } : { scale: 1 }}
+                        transition={{ duration: 0.28 }}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: hasLiked ? '#ff7675' : '#636e72',
+                            display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem', fontWeight: 600,
+                            transition: 'color 0.18s'
+                        }}
+                    >
+                        <AnimatePresence>
+                            {likeBurst > 0 && (
+                                <motion.span
+                                    key={likeBurst}
+                                    className="reaction-burst"
+                                    initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                                    animate={{ opacity: 1, y: -10, scale: 1 }}
+                                    exit={{ opacity: 0, y: -22, scale: 0.6 }}
+                                    transition={{ duration: 0.45 }}
+                                >
+                                    +1
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
+                        {hasLiked ? '❤️' : '🤍'} {likes}
+                    </motion.button>
+                    {recentLikers.length > 0 && (
+                        <div className="post-like-avatar-stack" aria-label="Recent likes">
+                            {recentLikers.slice(0, 3).map(liker => (
+                                <button
+                                    key={liker.id}
+                                    type="button"
+                                    className="post-like-avatar-link"
+                                    onClick={event => {
+                                        event.stopPropagation();
+                                        openProfile(liker.id);
+                                    }}
+                                    title="View liker profile"
+                                    aria-label="View liker profile"
+                                >
+                                    <Avatar
+                                        value={liker.avatar}
+                                        emoji={liker.avatar_emoji}
+                                        theme={liker.avatar_theme}
+                                        fallback="👤"
+                                        size={24}
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 <button
                     onClick={isArticleCard ? () => router.push(`/articles/${post.article_id}`) : toggleComments}

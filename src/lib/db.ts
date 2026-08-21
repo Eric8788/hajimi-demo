@@ -331,6 +331,7 @@ export interface Post {
     is_bookmarked?: boolean;
     has_liked?: boolean;
     recent_comments?: Comment[];
+    recent_likers?: PublicAvatar[];
     hot_comment_id?: number | null;
 }
 
@@ -404,6 +405,7 @@ export interface Notification {
         | 'comment_like'
         | 'post_comment'
         | 'comment_reply'
+        | 'user_follow'
         | 'hasdaq_member_invite'
         | 'hasdaq_application_approved'
         | 'hasdaq_application_rejected'
@@ -1580,6 +1582,81 @@ export async function getUserAccountRole(userId: number): Promise<{ role: string
     return rows[0] || null;
 }
 
+let followsTableReady: Promise<void> | null = null;
+
+async function ensureFollowsTable() {
+    if (!followsTableReady) {
+        followsTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS user_follows (
+                follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                following_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (follower_id, following_id),
+                CHECK (follower_id <> following_id)
+              );
+            `;
+            await sql`
+              CREATE INDEX IF NOT EXISTS user_follows_follower_created_idx
+              ON user_follows (follower_id, created_at DESC);
+            `;
+            await sql`
+              CREATE INDEX IF NOT EXISTS user_follows_following_created_idx
+              ON user_follows (following_id, created_at DESC);
+            `;
+        })().catch(error => {
+            followsTableReady = null;
+            throw error;
+        });
+    }
+
+    return followsTableReady;
+}
+
+export async function getFollowStatus(viewerId: number | null | undefined, targetUserId: number) {
+    if (!viewerId || !targetUserId || viewerId === targetUserId) return false;
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureFollowsTable();
+    }
+
+    const { rows } = await sql`
+      SELECT 1
+      FROM user_follows
+      WHERE follower_id = ${viewerId}
+        AND following_id = ${targetUserId}
+      LIMIT 1
+    `;
+
+    return rows.length > 0;
+}
+
+export async function followUser(followerId: number, followingId: number) {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureFollowsTable();
+    }
+    const { rows } = await sql`
+      INSERT INTO user_follows (follower_id, following_id)
+      VALUES (${followerId}, ${followingId})
+      ON CONFLICT (follower_id, following_id) DO NOTHING
+      RETURNING follower_id
+    `;
+
+    return rows.length > 0;
+}
+
+export async function unfollowUser(followerId: number, followingId: number) {
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureFollowsTable();
+    }
+    const { rowCount } = await sql`
+      DELETE FROM user_follows
+      WHERE follower_id = ${followerId}
+        AND following_id = ${followingId}
+    `;
+
+    return Number(rowCount || 0) > 0;
+}
+
 export async function getPublicAvatars(userIds: number[]): Promise<PublicAvatar[]> {
     const ids = Array.from(new Set(userIds.map(id => Math.floor(Number(id))).filter(id => Number.isFinite(id) && id > 0))).slice(0, 80);
     if (ids.length === 0) return [];
@@ -2617,10 +2694,11 @@ async function ensureBookmarksTable() {
     return bookmarksTableReady;
 }
 
-export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' = 'all', tag?: string) {
+export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?: number, filter: 'all' | 'saved' | 'following' = 'all', tag?: string) {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
         await ensureForumEnhancements();
+        await ensureFollowsTable();
     }
 
     const { rows } = await sql`
@@ -2642,6 +2720,7 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       COALESCE(recent.recent_comments, '[]'::json) as recent_comments,
       hot.hot_comment_id,
+      COALESCE(likers.recent_likers, '[]'::json) as recent_likers,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN 
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -2712,8 +2791,46 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
           hot_comments.id DESC
         LIMIT 1
       ) hot ON true
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', recent_likers.id,
+            'avatar', recent_likers.avatar,
+            'avatar_emoji', recent_likers.avatar_emoji,
+            'avatar_theme', recent_likers.avatar_theme
+          )
+          ORDER BY recent_likers.created_at DESC, recent_likers.id DESC
+        ) as recent_likers
+        FROM (
+          SELECT post_likes.user_id as id,
+            CASE WHEN liker_users.avatar LIKE 'data:image/%' THEN NULL ELSE liker_users.avatar END as avatar,
+            liker_users.avatar_emoji,
+            liker_users.avatar_theme,
+            post_likes.created_at
+          FROM post_likes
+          JOIN users liker_users ON liker_users.id = post_likes.user_id
+          WHERE post_likes.post_id = posts.id
+          ORDER BY post_likes.created_at DESC, post_likes.user_id DESC
+          LIMIT 3
+        ) recent_likers
+      ) likers ON true
       WHERE
-        (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
+        (
+          ${filter} = 'all'
+          OR (${filter} = 'saved' AND EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
+          OR (
+            ${filter} = 'following'
+            AND ${userId ?? null}::int IS NOT NULL
+            AND posts.author_id <> ${userId ?? null}::int
+            AND COALESCE(posts.tag, '') <> 'announcement'
+            AND COALESCE(users.account_status, 'active') = 'active'
+            AND EXISTS(
+              SELECT 1 FROM user_follows
+              WHERE follower_id = ${userId ?? null}::int
+                AND following_id = posts.author_id
+            )
+          )
+        )
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
         AND COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY 
@@ -2736,13 +2853,14 @@ export async function getPosts(sort: 'time' | 'heat' | 'likes' = 'time', userId?
 export async function getPostsPage(
     sort: 'time' | 'heat' | 'likes' = 'time',
     userId?: number,
-    filter: 'all' | 'saved' = 'all',
+    filter: 'all' | 'saved' | 'following' = 'all',
     tag?: string,
     options: { limit?: number; offset?: number } = {},
 ): Promise<PostPage> {
     if (shouldAutoEnsureReadSchema()) {
         await ensureUserProfileEnhancements();
         await ensureForumEnhancements();
+        await ensureFollowsTable();
     }
 
     const safeLimit = Math.min(Math.max(Math.floor(Number(options.limit) || 15), 1), 30);
@@ -2766,6 +2884,7 @@ export async function getPostsPage(
       (SELECT COUNT(*)::int FROM comments WHERE post_id = posts.id) as comment_count,
       COALESCE(recent.recent_comments, '[]'::json) as recent_comments,
       hot.hot_comment_id,
+      COALESCE(likers.recent_likers, '[]'::json) as recent_likers,
       CASE WHEN ${userId ?? null}::int IS NOT NULL THEN
         EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id)
       ELSE false END as is_bookmarked,
@@ -2836,8 +2955,46 @@ export async function getPostsPage(
           hot_comments.id DESC
         LIMIT 1
       ) hot ON true
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', recent_likers.id,
+            'avatar', recent_likers.avatar,
+            'avatar_emoji', recent_likers.avatar_emoji,
+            'avatar_theme', recent_likers.avatar_theme
+          )
+          ORDER BY recent_likers.created_at DESC, recent_likers.id DESC
+        ) as recent_likers
+        FROM (
+          SELECT post_likes.user_id as id,
+            CASE WHEN liker_users.avatar LIKE 'data:image/%' THEN NULL ELSE liker_users.avatar END as avatar,
+            liker_users.avatar_emoji,
+            liker_users.avatar_theme,
+            post_likes.created_at
+          FROM post_likes
+          JOIN users liker_users ON liker_users.id = post_likes.user_id
+          WHERE post_likes.post_id = posts.id
+          ORDER BY post_likes.created_at DESC, post_likes.user_id DESC
+          LIMIT 3
+        ) recent_likers
+      ) likers ON true
       WHERE
-        (${filter} != 'saved' OR EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
+        (
+          ${filter} = 'all'
+          OR (${filter} = 'saved' AND EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ${userId ?? null}::int AND post_id = posts.id))
+          OR (
+            ${filter} = 'following'
+            AND ${userId ?? null}::int IS NOT NULL
+            AND posts.author_id <> ${userId ?? null}::int
+            AND COALESCE(posts.tag, '') <> 'announcement'
+            AND COALESCE(users.account_status, 'active') = 'active'
+            AND EXISTS(
+              SELECT 1 FROM user_follows
+              WHERE follower_id = ${userId ?? null}::int
+                AND following_id = posts.author_id
+            )
+          )
+        )
         AND (${tag ?? 'all'} = 'all' OR posts.tag = ${tag ?? ''})
         AND COALESCE(posts.type, 'text') != 'article_thread'
       ORDER BY
@@ -3499,6 +3656,33 @@ export async function togglePostLike(userId: number, postId: number): Promise<bo
 
         return true;
     }
+}
+
+export async function getPostLikeSummary(postId: number): Promise<{ likes: number; recent_likers: PublicAvatar[] }> {
+    const [postResult, likerResult] = await Promise.all([
+        sql<{ likes: number }>`
+          SELECT likes
+          FROM posts
+          WHERE id = ${postId}
+          LIMIT 1
+        `,
+        sql<PublicAvatar>`
+          SELECT post_likes.user_id as id,
+            CASE WHEN users.avatar LIKE 'data:image/%' THEN NULL ELSE users.avatar END as avatar,
+            users.avatar_emoji,
+            users.avatar_theme
+          FROM post_likes
+          JOIN users ON users.id = post_likes.user_id
+          WHERE post_likes.post_id = ${postId}
+          ORDER BY post_likes.created_at DESC, post_likes.user_id DESC
+          LIMIT 3
+        `,
+    ]);
+
+    return {
+        likes: Number(postResult.rows[0]?.likes || 0),
+        recent_likers: likerResult.rows,
+    };
 }
 
 export async function toggleCommentLike(userId: number, commentId: number): Promise<boolean> {
@@ -5739,6 +5923,10 @@ export async function initDB() {
       PRIMARY KEY (user_id, post_id)
     );
   `;
+    await sql`
+    CREATE INDEX IF NOT EXISTS post_likes_post_created_idx
+    ON post_likes (post_id, created_at DESC, user_id DESC);
+  `;
     await ensureBookmarksTable();
 
     await sql`
@@ -5795,6 +5983,7 @@ export async function initDB() {
     await ensurePointAwardsTable();
     await sql`CREATE INDEX IF NOT EXISTS idx_point_awards_user_key ON point_awards(user_id, award_key)`;
     await ensureVerificationColumns();
+    await ensureFollowsTable();
     await ensureNotificationsTable();
     await ensureUserPresenceTable();
     await ensureAdminAuditTable();

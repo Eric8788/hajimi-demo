@@ -49,6 +49,10 @@ function notificationText(notification: Notification) {
         return `${actor} saved ${title}`;
     }
 
+    if (notification.type === 'user_follow') {
+        return `${actor} 关注了你`;
+    }
+
     if (notification.type === 'post_comment') {
         return `${actor} commented on ${title}`;
     }
@@ -66,9 +70,13 @@ function shortNotificationPreview(text?: string | null) {
     return compact.length > 72 ? `${compact.slice(0, 72)}...` : compact;
 }
 
-function notificationHref(notification: Notification) {
+function notificationHref(notification: Notification, userId?: number | string | null) {
     if (String(notification.type).startsWith('hasdaq_')) {
         return '/hasdaq';
+    }
+
+    if (notification.type === 'user_follow') {
+        return userId ? '/profile' : '/login';
     }
 
     if ((notification.type === 'comment_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && notification.post_id && notification.comment_id) {
@@ -369,7 +377,7 @@ export default function NotificationsBell({
         if (notifications.length === 0) {
             return (
                 <div className="notification-empty">
-                    Likes, saves, comments and replies will show up here.
+                    Likes, saves, follows, comments and replies will show up here.
                 </div>
             );
         }
@@ -384,7 +392,7 @@ export default function NotificationsBell({
                             type="button"
                             key={notification.id}
                             className={`notification-row ${notification.read_at ? '' : 'is-unread'}`}
-                            onClick={() => goTo(notificationHref(notification))}
+                            onClick={() => goTo(notificationHref(notification, userId))}
                         >
                             <Avatar value={notification.actor_avatar} emoji={notification.actor_avatar_emoji} theme={notification.actor_avatar_theme} fallback="👤" size={28} />
                             <span className="notification-copy">

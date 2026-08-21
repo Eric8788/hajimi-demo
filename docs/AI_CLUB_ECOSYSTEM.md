@@ -5,7 +5,7 @@
 > **Every AI agent MUST read this file before starting any work session.**
 
 **Current Hajimi version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
-**Behavior notes updated:** 2026-08-20 (Asia/Shanghai)
+**Behavior notes updated:** 2026-08-21 (Asia/Shanghai)
 
 ---
 
@@ -100,7 +100,8 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 - **Leaderboard:** Leaderboard only returns verified users. `/leaderboard` focuses on XP contribution views: all-time, daily, weekly, and monthly. Function Hall has separate Hub project `热度榜` and `星级榜`: heat ranks selected-window verified unique players first, then rating and capped effective opens; rating ranks cumulative stars first, then rating count while still displaying the selected day/week/month play window. One verified user counts once per project per local day for unique players; effective opens are 30-minute sessions capped at 3 per user per day.
 - **Hashtags:** Regular posts can use custom hashtags. The composer offers starter tags such as `升学雷达`, `课程补给站`, `健身广场`, and `情感树洞`, but users are not limited to a fixed list. The reserved `announcement` tag remains staff-only.
 - **Beta Feedback:** `/resources` points beta testers to the pinned announcement post; feedback should be left as comments there instead of creating separate feedback posts.
-- **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author.
+- **Forum Ranking & Notifications:** `Hot` ranks by discussion, likes, saves, and freshness; `Top` ranks by likes. Post likes, post saves, and comment likes create in-app notifications for the content author. Verified, non-read-only members can follow other users through their public profile; a `Following` Hall filter returns only followed users' normal posts, excluding the viewer's own posts and announcements. New follows create `user_follow` notifications, and those notifications return to the recipient's own profile when clicked.
+- **Forum Likes:** Post cards retain the like control and total count, and show up to three most-recent liker avatars. These public avatar thumbnails use the existing avatar hydration path and link to the corresponding public profile.
 - **Forum Comments:** The Hallway feed returns the three newest comments inline for each post, ordered newest first. Expanding a post requests `GET /api/posts/interact?postId=...&page=...&limit=10`, which returns latest-first comments with page and total metadata. The actual hottest comment is selected by likes, direct reply count, creation time, and ID, and is marked with a small fire icon in its row; there is no independent featured-comment card. Notification links may include `commentId`; the API calculates the target page so the client can expand, load, and scroll to the target. This behavior does not change the database schema or comment IDs.
 - **Live Presence:** `/api/presence` records one `user_presence` row per logged-in account and shows a lightweight online count/avatar stack for accounts seen in the last 5 minutes.
 - **Cyber Oracle AI:** `POST /api/oracle` powers the Dashboard tarot insight. It runs server-side only and can use AI Tabletop-aligned OpenAI-compatible providers: custom `HAJIMI_ORACLE_API_KEY` + `HAJIMI_ORACLE_API_URL` + `HAJIMI_ORACLE_MODEL`, then `ZENMUX_API_KEY`, `DASHSCOPE_API_KEY`, `SILICONFLOW_API_KEY`, and optional `TOKENDANCE_API_KEY` + `TOKENDANCE_BASE_URL`. Default models favor deeper reflective readings (`deepseek/deepseek-v3.2`, `qwen-max`, `deepseek-ai/DeepSeek-V3`) and can be overridden with provider-specific `HAJIMI_ORACLE_*_MODEL` variables. Readings are limited to 3 successful readings per user per day through the `oracle_readings` table. If no provider is configured or every provider fails, the server returns a deeper local fallback and still counts that successful reading.
@@ -114,7 +115,8 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `users` | `id`, `username`, `password_hash`, `points`, `level`, `role` (`student` / `teacher` / `admin` / `parent` / `visitor`), `avatar`, `bio`, `grade`, `age`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason` |
 | `posts` | `id`, `author_id`, `title`, `content`, `type`, `tag`, `attachment_url`, `attachment_urls`, `likes`, `created_at` |
 | `comments` | `id`, `post_id`, `author_id`, `content`, `attachment_url`, `likes`, `created_at` |
-| `post_likes` / `comment_likes` / `bookmarks` | forum interaction rows with `created_at`; verified accounts only |
+| `post_likes` / `comment_likes` / `bookmarks` | forum interaction rows with `created_at`; verified accounts only; `post_likes` has a recent-liker lookup index |
+| `user_follows` | one-way follow relationships: `follower_id`, `following_id`, `created_at`; unique pair with indexes for both directions; initialize before production reads |
 | `checkins` | `user_id`, `checkin_date` |
 | `projects` | `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `cover_url`, `rating`, `rating_count`, `created_at` |
 | `project_likes` / `project_comments` | Hub ratings and comments; verified accounts only |
@@ -136,7 +138,8 @@ All projects are cataloged in `Hajimi-Dan/src/data/projects.ts`.
 | `/` | Public | Landing page with particle bg, project marquee |
 | `/login` | Public | JWT auth (login + register) |
 | `/dashboard` | Protected | Welcome widget, live presence, Timeline, Tarot, Rec Room |
-| `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements and custom hashtags |
+| `/resources` | Hybrid (Guest OK) | Forum — The Hallway, including pinned announcements, custom hashtags, saved posts, and the verified-member-only Following filter |
+| `/api/follows` | Protected interaction API | Query, create, or remove one-way user follows; creates `user_follow` notifications on new follows |
 | `/functions` | Public | Function Hall — project grid, open project play, verified project submission, owner new-version edits, pasted/uploaded project cover crop |
 | `/wallet` | Protected | H币 wallet, transaction ledger, and token redemption request form |
 | `/profile` | Protected | User profile editor with Data Studio analytics for XP, project opens, post interactions, 7-day chart, and 28-day participation heatmap |

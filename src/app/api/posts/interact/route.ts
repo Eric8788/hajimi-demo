@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { togglePostLike, createComment, getCommentsPage, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, createCommentNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
+import { togglePostLike, getPostLikeSummary, createComment, getCommentsPage, toggleBookmark, toggleCommentLike, deletePost, deleteComment, getPostAttachmentsForDelete, getCommentAttachmentForDelete, getUserById, createPostInteractionNotification, createCommentLikeNotification, createCommentNotification, countAttachmentsByUser, countRecentAttachmentsByUser } from '@/lib/db';
 import { isAdminRole } from '@/lib/roles';
 import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -116,7 +116,20 @@ export async function POST(request: Request) {
                 await createPostInteractionNotification(userId, postId, 'post_like');
             }
             clearServerCache('posts:');
-            return NextResponse.json({ success: true, hasLiked });
+            let likeSummary: Awaited<ReturnType<typeof getPostLikeSummary>> | null = null;
+            try {
+                likeSummary = await getPostLikeSummary(postId);
+            } catch (summaryError) {
+                console.error('Like summary unavailable after mutation:', summaryError);
+            }
+            return NextResponse.json({
+                success: true,
+                hasLiked,
+                ...(likeSummary ? {
+                    likes: likeSummary.likes,
+                    recent_likers: likeSummary.recent_likers,
+                } : {}),
+            });
         }
 
         else if (action === 'comment') {

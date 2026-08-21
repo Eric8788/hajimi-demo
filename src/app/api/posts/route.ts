@@ -120,7 +120,10 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const sort = (searchParams.get('sort') || 'time') as 'time' | 'heat' | 'likes';
-        const filter = (searchParams.get('filter') || 'all') as 'all' | 'saved';
+        const requestedFilter = searchParams.get('filter') || 'all';
+        const filter = requestedFilter === 'saved' || requestedFilter === 'following'
+            ? requestedFilter
+            : 'all';
         const tag = searchParams.get('tag') || undefined;
         const paged = searchParams.get('page') === '1';
         const requestedLimit = Number(searchParams.get('limit') || 15);
@@ -128,6 +131,16 @@ export async function GET(request: Request) {
         const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 30) : 15;
         const offset = Number.isFinite(requestedOffset) ? Math.max(Math.floor(requestedOffset), 0) : 0;
         const session = await getSession();
+        if (filter === 'following') {
+            if (!session) {
+                return NextResponse.json({ error: '请登录后查看关注流。' }, { status: 401 });
+            }
+
+            const viewer = await getUserById(Number(session.userId));
+            if (!viewer || !isVerifiedAccount(viewer)) {
+                return NextResponse.json({ error: getInteractionBlockedMessage(viewer, '查看关注用户的帖子') }, { status: 403 });
+            }
+        }
         const isPublicList = !session && filter === 'all';
         if (paged) {
             const page = isPublicList

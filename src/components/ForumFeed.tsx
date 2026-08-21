@@ -57,6 +57,8 @@ type PostsPageResponse = {
     nextOffset?: number;
 };
 
+type ForumFilter = 'all' | 'saved' | 'following';
+
 function getHashPostId() {
     if (typeof window === 'undefined' || !window.location.hash) return null;
     const match = window.location.hash.match(/^#post-(\d+)/);
@@ -83,6 +85,7 @@ export default function ForumFeed({
 }) {
     const router = useRouter();
     const composerRef = useRef<HTMLFormElement | null>(null);
+    const viewerId = user?.id ?? null;
     const canPostAnnouncement = isStaffRole(user?.role);
     const canCreatePost = canUseMemberInteractions(user);
     const isReadOnlyUser = isReadOnlyRole(user?.role);
@@ -93,7 +96,7 @@ export default function ForumFeed({
     const [hydratedUser, setHydratedUser] = useState<User | null>(user);
     const [isCreating, setIsCreating] = useState(false);
     const [sortType, setSortType] = useState<'time' | 'heat' | 'likes'>('time');
-    const [filterType, setFilterType] = useState<'all' | 'saved'>('all');
+    const [filterType, setFilterType] = useState<ForumFilter>('all');
     const [selectedTag, setSelectedTag] = useState<string>('all');
     const [newTitle, setNewTitle] = useState('');
     const [newContent, setNewContent] = useState('');
@@ -109,6 +112,7 @@ export default function ForumFeed({
     const [hasMorePosts, setHasMorePosts] = useState(initialHasMore);
     const [nextOffset, setNextOffset] = useState(initialNextOffset);
     const [feedError, setFeedError] = useState('');
+    const [filterError, setFilterError] = useState('');
     const [createError, setCreateError] = useState('');
     const [draftStatus, setDraftStatus] = useState('');
     const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
@@ -283,7 +287,7 @@ export default function ForumFeed({
     } = {}) => {
         const tagParam = tag !== 'all' ? `&tag=${encodeURIComponent(tag)}` : '';
         const url = `/api/posts?sort=${sort}&filter=${filter}${tagParam}&page=1&limit=${FORUM_PAGE_SIZE}&offset=${offset}`;
-        const cacheKey = `posts:${user?.id || 'guest'}:${sort}:${filter}:${tag}:${offset}`;
+        const cacheKey = `posts:${viewerId || 'guest'}:${sort}:${filter}:${tag}:${offset}`;
 
         if (append) setIsLoadingMore(true);
         else setIsFeedLoading(true);
@@ -293,8 +297,8 @@ export default function ForumFeed({
             const data = await cachedJson<PostsPageResponse>(
                 cacheKey,
                 url,
-                user ? 15_000 : 45_000,
-                { cache: user ? 'no-store' : 'default' },
+                viewerId ? 15_000 : 45_000,
+                { cache: viewerId ? 'no-store' : 'default' },
             );
             const nextPosts = Array.isArray(data.posts) ? data.posts : [];
             setPosts(current => {
@@ -313,18 +317,25 @@ export default function ForumFeed({
             if (append) setIsLoadingMore(false);
             else setIsFeedLoading(false);
         }
-    }, [filterType, selectedTag, sortType, user?.id]);
+    }, [filterType, selectedTag, sortType, viewerId]);
 
     const handleSortChange = (type: 'time' | 'heat' | 'likes') => {
         setSortType(type);
-        setFilterType('all');
+        const nextFilter = filterType === 'saved' ? 'all' : filterType;
+        setFilterType(nextFilter);
         setHasMorePosts(false);
         setNextOffset(0);
-        void fetchPostsPage({ sort: type, filter: 'all', tag: selectedTag, offset: 0 });
+        void fetchPostsPage({ sort: type, filter: nextFilter, tag: selectedTag, offset: 0 });
     };
 
-    const handleFilterChange = (filter: 'all' | 'saved') => {
-        if (filter === 'saved' && requireLogin()) return;
+    const handleFilterChange = (filter: ForumFilter) => {
+        if ((filter === 'saved' || filter === 'following') && requireLogin()) return;
+        if (filter === 'following' && !canCreatePost) {
+            setFilterError(getInteractionBlockedMessage(user, '查看关注用户的帖子'));
+            return;
+        }
+        setFilterError('');
+        setFeedError('');
         setFilterType(filter);
         setHasMorePosts(false);
         setNextOffset(0);
@@ -333,10 +344,9 @@ export default function ForumFeed({
 
     const handleTagFilter = (tag: string) => {
         setSelectedTag(tag);
-        setFilterType('all');
         setHasMorePosts(false);
         setNextOffset(0);
-        void fetchPostsPage({ sort: sortType, filter: 'all', tag, offset: 0 });
+        void fetchPostsPage({ sort: sortType, filter: filterType, tag, offset: 0 });
     };
 
     const loadMorePosts = () => {
@@ -830,13 +840,13 @@ export default function ForumFeed({
                     ].map(tab => (
                         <button
                             key={tab.id}
-                            className={`forum-tab ${sortType === tab.id && filterType === 'all' ? 'is-active' : ''}`}
+                            className={`forum-tab ${sortType === tab.id && filterType !== 'saved' ? 'is-active' : ''}`}
                             title={tab.title}
                             onClick={() => handleSortChange(tab.id as 'time' | 'heat' | 'likes')}
                             style={{
                                 padding: '8px 16px',
-                                background: sortType === tab.id && filterType === 'all' ? '#6c5ce7' : 'transparent',
-                                color: sortType === tab.id && filterType === 'all' ? 'white' : '#636e72',
+                                background: sortType === tab.id && filterType !== 'saved' ? '#6c5ce7' : 'transparent',
+                                color: sortType === tab.id && filterType !== 'saved' ? 'white' : '#636e72',
                                 border: 'none', borderRadius: '20px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
                             }}
                         >{tab.label}</button>
@@ -854,6 +864,17 @@ export default function ForumFeed({
                         border: 'none', borderRadius: '20px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
                     }}
                 >{filterType === 'saved' ? '★ Saved' : '☆ Saved'}</button>
+                <button
+                    className={`forum-tab ${filterType === 'following' ? 'is-active following' : ''}`}
+                    title="Posts from people you follow"
+                    onClick={() => handleFilterChange(filterType === 'following' ? 'all' : 'following')}
+                    style={{
+                        padding: '8px 16px',
+                        background: filterType === 'following' ? '#6c5ce7' : 'rgba(255,255,255,0.4)',
+                        color: filterType === 'following' ? 'white' : '#636e72',
+                        border: 'none', borderRadius: '20px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                >{filterType === 'following' ? '👥 Following' : '＋ Following'}</button>
             </div>
 
             {/* Create Trigger */}
@@ -987,6 +1008,14 @@ export default function ForumFeed({
                 {isFeedLoading && posts.length === 0 && (
                     <div className="glass-card forum-feed-status">Loading posts...</div>
                 )}
+                {filterError && (
+                    <div className="forum-verification-callout">
+                        <span>{filterError}</span>
+                        <button type="button" onClick={() => router.push(isReadOnlyUser ? '/functions' : '/profile')}>
+                            {isReadOnlyUser ? '体验项目' : '去认证'}
+                        </button>
+                    </div>
+                )}
                 {posts.map(post => (
                     <PostCard key={post.id} post={post} currentUser={displayUser} onDeleted={handlePostDeleted} onGuestAction={() => setShowLoginPrompt(true)} />
                 ))}
@@ -994,6 +1023,13 @@ export default function ForumFeed({
                     <div className="forum-verification-callout">
                         <span>{feedError}</span>
                         <button type="button" onClick={() => fetchPostsPage({ sort: sortType, filter: filterType, tag: selectedTag, offset: 0 })}>Retry</button>
+                    </div>
+                )}
+                {!isFeedLoading && !feedError && !filterError && posts.length === 0 && filterType === 'following' && (
+                    <div className="glass-card forum-following-empty">
+                        <strong>还没有关注流内容</strong>
+                        <span>关注用户后，他们的新帖子会出现在这里。</span>
+                        <button type="button" onClick={() => handleFilterChange('all')}>浏览全部帖子</button>
                     </div>
                 )}
                 {posts.length > 0 && (
