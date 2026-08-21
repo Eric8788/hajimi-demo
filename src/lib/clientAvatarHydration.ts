@@ -53,6 +53,7 @@ export function applyAuthorAvatarPatch<T extends Comment>(item: T, patches: Map<
 export function applyPostAvatarPatch(post: Post, patches: Map<number, PublicAvatar>): Post {
     const authorPatch = patches.get(Number(post.author_id));
     const recentComments = (post.recent_comments || []).map(comment => applyAuthorAvatarPatch(comment, patches));
+    const recentLikers = (post.recent_likers || []).map(liker => applyAvatarPatch(liker, patches));
 
     return {
         ...post,
@@ -60,6 +61,7 @@ export function applyPostAvatarPatch(post: Post, patches: Map<number, PublicAvat
         author_avatar_emoji: authorPatch?.avatar_emoji ?? post.author_avatar_emoji,
         author_avatar_theme: authorPatch?.avatar_theme ?? post.author_avatar_theme,
         recent_comments: recentComments,
+        recent_likers: recentLikers,
     };
 }
 
@@ -68,5 +70,6 @@ export function collectPostAvatarIds(posts: Post[], viewer?: User | null) {
         viewer?.id,
         ...posts.map(post => post.author_id),
         ...posts.flatMap(post => (post.recent_comments || []).map(comment => comment.author_id)),
+        ...posts.flatMap(post => (post.recent_likers || []).map(liker => liker.id)),
     ];
 }

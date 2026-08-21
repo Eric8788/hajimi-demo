@@ -35,7 +35,9 @@ The app uses Next.js App Router (`src/app/`).
   - Normal posts support custom hashtags; `announcement` is the only reserved staff-only tag.
   - Non-logged-in users can browse and read all posts.
   - Registered but unverified users can browse, but cannot post, comment, like, bookmark, or earn check-in points. Parent/visitor accounts share the same read-only permissions: they can browse and open projects, but cannot participate in forum/project interactions. Interaction requires `verification_status = 'verified'` and a non-read-only role.
-  - **Action Interceptor Pattern:** Clicking "Like", "Comment", "Save", or "New Post" without permission triggers a localized login/verification prompt instead of a hard redirect.
+  - Verified, non-read-only members can follow other users from their public profile. The `Following` Hall filter only returns normal posts by followed users; it excludes the viewer's own posts and announcement posts. There is no follow-count or follow-management page in v1.
+  - Post cards retain the like button and total count while showing up to three most-recent liker avatar thumbnails. These thumbnails use the shared avatar hydration path and link to the corresponding profile.
+  - **Action Interceptor Pattern:** Clicking "Like", "Comment", "Save", "Follow", or "New Post" without permission triggers a localized login/verification prompt instead of a hard redirect. The Follow control remains visible on an active public profile, while guests and read-only/unverified accounts receive the localized block message instead of a mutation.
 - `/functions` **(Function Hall - Public):** 
   - Replaces the legacy "AI Club Hub".
   - Renders a dynamic, filterable grid of student projects (Games, Tools, AI apps).
@@ -73,7 +75,8 @@ Database interactions are handled via standard SQL functions.
 - **`users`:** `id`, `username`, `password_hash`, `points`, `level`, `role` (`student`, `teacher`, `admin`, `parent`, `visitor`), `avatar`, `bio`, `verification_status`, `verification_type`, `verified_name`, `verified_grade`, `verified_subject`, `student_id_hash`, `student_id_last4`, `verification_submitted_at`, `verified_at`, `verification_reviewed_by`, `verification_note`, `account_status`, `disabled_at`, `disabled_by`, `disabled_reason`.
 - **`posts`:** `id`, `author_id`, `title`, `content`, `type`, `attachment_url`, `attachment_urls`, `likes`, `created_at`.
 - **`comments`:** `id`, `post_id`, `author_id`, `content`, `attachment_url`, `likes`, `created_at`.
-- **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows.
+- **`post_likes` / `comment_likes` / `bookmarks`:** Forum interaction tables with `created_at`, used for notifications and leaderboard contribution windows. `post_likes` also has a `(post_id, created_at DESC, user_id DESC)` index for recent-liker feed queries.
+- **`user_follows`:** `follower_id`, `following_id`, `created_at`; one-way follow relationships with a unique `(follower_id, following_id)` pair and indexes for both query directions. `initDB` (or an equivalent controlled release migration) must create this table and its indexes before production traffic; production feed reads do not run follow-table DDL.
 - **`projects`:** `id`, `author_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `cover_url`, `status`, `rating`, `rating_count`, `created_at`.
 - **`project_likes` / `project_comments`:** Hub ratings and comments, verified-only interaction data for project contribution rankings.
 - **`project_opens`:** `id`, `project_id`, `user_id`, `opened_at`; raw play/open log. Hub rankings derive verified unique players and capped effective opens from this table.
@@ -105,6 +108,7 @@ Database interactions are handled via standard SQL functions.
 3. **Adding new APIs:**
    - Put them in `src/app/api/.../route.ts`. 
    - Parse session cookies securely using `getSession()`.
+   - `/api/follows` supports `GET` follow status, `POST` follow, and `DELETE` unfollow. Only verified, non-read-only members can mutate relationships; a new follow creates a `user_follow` notification.
 4. **Handling forum and project cover attachments:**
    - Use Vercel Blob for uploads; do not write to `public/uploads` or any local filesystem path.
    - Forum posts can store up to 3 public Blob URLs in `posts.attachment_urls`; the first URL is mirrored in legacy `posts.attachment_url` for compatibility.
@@ -119,6 +123,7 @@ Database interactions are handled via standard SQL functions.
    - `GET /api/posts/interact?postId=...&page=1&limit=10` returns the latest-first page, `page`, `limit`, `total`, `totalPages`, and `hasMore`. `commentId` can be added to calculate and return the page containing a notification target.
    - `PostCard` shows the latest three comments before expansion. Expanding loads ten comments per page and keeps comment likes, replies, deletion, avatar/profile navigation, and image viewing on the same comment row. A missing notification target is shown as a non-fatal state.
    - Comment pagination is a read/query behavior only. Do not change the database schema, reorder existing comment IDs, or add a migration for it.
+   - The Hall feed also supports `/api/posts?filter=following`; this requires a verified, non-read-only session and excludes the viewer's own posts and announcements. Post list responses include `recent_likers` (up to three users ordered by recent `post_likes.created_at`).
 6. **Forum moderation:**
    - `users.role` controls staff capabilities. `teacher` and `admin` are staff roles.
    - `teacher` and `admin` can publish posts tagged `announcement`; these are shown first in the unfiltered Hallway feed.
@@ -133,6 +138,7 @@ Database interactions are handled via standard SQL functions.
 8. **Ranking and notifications:**
    - `Hot` combines comments, likes, bookmarks, and recency. `Top` is strictly most-liked.
    - Post likes, post bookmarks, and comment likes create in-app notifications for the author.
+   - New follows create `user_follow` notifications. Clicking one marks the notification through the existing notification flow and returns to the recipient's own `/profile` route; unfollows do not notify.
 9. **Online presence:**
    - Presence is lightweight HTTP polling, not WebSocket-based. Logged-in clients POST `/api/presence` roughly every 90 seconds while visible; hidden tabs pause until visible again.
    - Online membership is approximate and expires after 5 minutes. Do not store historical presence rows or expose full online lists in the public UI.

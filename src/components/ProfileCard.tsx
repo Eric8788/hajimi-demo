@@ -14,6 +14,7 @@ import { getAvailableBadges, normalizeBadgePreferences, type BadgeId } from '@/l
 import { formatHajimiId } from '@/lib/hajimiId';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getPostPrimaryAttachmentUrl } from '@/lib/forumAttachments';
+import { clearCachedJson } from '@/lib/clientJsonCache';
 
 function loadProfileImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -250,6 +251,13 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
     const [profileSaveError, setProfileSaveError] = useState('');
     const [profileSaveMessage, setProfileSaveMessage] = useState('');
     const [profileSaving, setProfileSaving] = useState(false);
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [canFollowProfile, setCanFollowProfile] = useState(false);
+    const [followTargetAvailable, setFollowTargetAvailable] = useState(true);
+    const [followBlockedMessage, setFollowBlockedMessage] = useState('');
+    const [followStatusLoading, setFollowStatusLoading] = useState(readOnly);
+    const [followSaving, setFollowSaving] = useState(false);
+    const [followError, setFollowError] = useState('');
 
     const totalXp = Number(analytics?.visibleXp ?? user.points ?? 0);
     const displayLevel = Number(analytics?.displayLevel ?? Math.max(Number(user.level || 1), Math.floor(Math.sqrt(totalXp / 50)) + 1));
@@ -500,6 +508,52 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         setArticleList(articles);
     }, [articles]);
 
+    useEffect(() => {
+        if (!readOnly) {
+            setFollowStatusLoading(false);
+            setIsFollowing(false);
+            setCanFollowProfile(false);
+            setFollowTargetAvailable(true);
+            setFollowBlockedMessage('');
+            return;
+        }
+
+        const controller = new AbortController();
+        let active = true;
+        setFollowStatusLoading(true);
+        setFollowError('');
+        setIsFollowing(false);
+        setCanFollowProfile(false);
+        setFollowTargetAvailable(false);
+        setFollowBlockedMessage('');
+
+        fetch(`/api/follows?userId=${user.id}`, { signal: controller.signal, cache: 'no-store' })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                if (!active || !ok) return;
+                setIsFollowing(Boolean(data?.isFollowing));
+                setCanFollowProfile(Boolean(data?.canFollow));
+                setFollowTargetAvailable(data?.targetAvailable !== false);
+                setFollowBlockedMessage(String(data?.followBlockedMessage || ''));
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                console.warn('Follow status unavailable:', error);
+                if (active) {
+                    setFollowTargetAvailable(false);
+                    setFollowBlockedMessage('关注状态暂时不可用，请稍后再试。');
+                }
+            })
+            .finally(() => {
+                if (active) setFollowStatusLoading(false);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [readOnly, user.id]);
+
     useEffect(() => () => {
         if (trendFrameRef.current) window.cancelAnimationFrame(trendFrameRef.current);
         if (heatmapFrameRef.current) window.cancelAnimationFrame(heatmapFrameRef.current);
@@ -672,6 +726,40 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
         }
     };
 
+    const handleToggleFollow = async () => {
+        if (followSaving) return;
+        if (!canFollowProfile) {
+            setFollowError(followBlockedMessage || '登录并完成 Hajimi 认证后可以关注用户。');
+            return;
+        }
+
+        setFollowSaving(true);
+        setFollowError('');
+        const nextFollowing = !isFollowing;
+        try {
+            const res = await fetch(`/api/follows${nextFollowing ? '' : `?userId=${user.id}`}`, {
+                method: nextFollowing ? 'POST' : 'DELETE',
+                ...(nextFollowing ? {
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.id }),
+                } : {}),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setFollowError(data?.error || '关注状态更新失败，请稍后再试。');
+                return;
+            }
+
+            setIsFollowing(Boolean(data?.isFollowing ?? nextFollowing));
+            clearCachedJson('posts:');
+            window.dispatchEvent(new Event('hajimi-notifications-refresh'));
+        } catch {
+            setFollowError('关注状态更新失败，请稍后再试。');
+        } finally {
+            setFollowSaving(false);
+        }
+    };
+
     const handleCreateArticle = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const title = articleTitle.trim();
@@ -834,7 +922,21 @@ export default function ProfilePage({ user, readOnly = false, posts = [], projec
                         <p className="profile-hero-bio">{getPreviewText(heroIntro, 150)}</p>
                     )}
                 </div>
-                {!readOnly && (
+                {readOnly ? (
+                    followTargetAvailable && (
+                        <div className="profile-follow-actions">
+                            <button
+                                type="button"
+                                className="profile-hero-button is-primary"
+                                onClick={handleToggleFollow}
+                                disabled={followStatusLoading || followSaving}
+                            >
+                                {followStatusLoading ? '加载中...' : followSaving ? '更新中...' : isFollowing ? '已关注' : '关注'}
+                            </button>
+                            {followError && <span className="profile-follow-error">{followError}</span>}
+                        </div>
+                    )
+                ) : (
                     <div className="profile-hero-actions">
                         {isEditingProfile ? (
                             <>

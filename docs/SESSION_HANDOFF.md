@@ -1,6 +1,6 @@
 # Hajimi Session Handoff
 
-*Last updated: 2026-08-20 (Asia/Shanghai)*
+*Last updated: 2026-08-21 (Asia/Shanghai)*
 
 **Current version:** Hajimi Beta v0.2.0-beta.16 · 2026-05-22
 
@@ -52,6 +52,8 @@ This file is the fast handoff note for any new AI window or fallback agent. Read
 - Hallway post cards now show the three newest comments inline, newest first. Opening the comment section loads ten comments per page with previous/next controls and total counts; the standalone featured-comment presentation has been removed.
 - The actual hottest comment is marked by a small fire icon using likes, direct reply count, creation time, and ID as tie-breakers. Notification targets pass `commentId`, and the server calculates the correct page before the client expands and scrolls to the comment. Deleted targets show a non-fatal unavailable state.
 - Comment preview and paginated rows both use the avatar hydration path. This is a query/UI change only: no comment table migration and no comment ID renumbering.
+- Forum social v1 is implemented on the current task branch and requires production table/index initialization (`user_follows` and the recent-liker `post_likes` index) before release: verified, non-read-only members can follow active users from public profiles; Hall `Following` filters to followed users' normal posts while excluding the viewer's own posts and announcements. The profile UI intentionally has no follow counts or management page.
+- Post cards return and display up to three most-recent liker avatars, with hydrated thumbnails linking to public profiles. New follows create `user_follow` notifications; clicking one returns to the recipient's own profile, and unfollowing is silent.
 - Welcome/auth polish is live: landing topbar/footer version markers, fixed logged-in sidebar labels, shared particle background, hover glow CTA, and the shipped cat logo asset.
 - The UI review pass for `v0.2.0-beta.6` is live: the app logo and dashboard mascot now use Eric's supplied original PNG cat assets instead of the redrawn SVG version.
 - `Sailer 2D` is now served from the Static Hub: `https://hub.ericproject.xyz/projects/sailer-2d/index.html`.
