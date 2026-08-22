@@ -468,9 +468,13 @@ export interface PresenceMember extends PublicAvatar {
     last_seen_at: Date | string;
 }
 
+export type TodayPresenceMember = PresenceMember;
+
 export interface PresenceSummary {
     onlineCount: number;
     members: PresenceMember[];
+    todayMemberCount: number;
+    todayMembers: TodayPresenceMember[];
     windowSeconds: number;
     generatedAt: string;
 }
@@ -5523,6 +5527,7 @@ export async function ensureUserPresenceTable() {
 
 export async function touchUserPresence(userId: number) {
     await ensureUserPresenceTable();
+    await ensureDailyUserPresenceTable();
 
     await sql`
       INSERT INTO user_presence (user_id, last_seen_at)
@@ -5531,13 +5536,47 @@ export async function touchUserPresence(userId: number) {
       DO UPDATE SET last_seen_at = CURRENT_TIMESTAMP
       WHERE user_presence.last_seen_at < CURRENT_TIMESTAMP - (${USER_PRESENCE_WRITE_THROTTLE_SECONDS} * INTERVAL '1 second')
     `;
+
+    await sql`
+      INSERT INTO user_presence_daily (user_id, presence_date, last_seen_at)
+      VALUES (${userId}, (NOW() AT TIME ZONE 'Asia/Shanghai')::date, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id, presence_date)
+      DO UPDATE SET last_seen_at = CURRENT_TIMESTAMP
+    `;
+}
+
+let dailyUserPresenceTableReady: Promise<void> | null = null;
+
+async function ensureDailyUserPresenceTable() {
+    if (!dailyUserPresenceTableReady) {
+        dailyUserPresenceTableReady = (async () => {
+            await sql`
+              CREATE TABLE IF NOT EXISTS user_presence_daily (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                presence_date DATE NOT NULL,
+                last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, presence_date)
+              );
+            `;
+
+            await sql`
+              CREATE INDEX IF NOT EXISTS user_presence_daily_date_seen_idx
+              ON user_presence_daily (presence_date, last_seen_at DESC);
+            `;
+        })().catch(error => {
+            dailyUserPresenceTableReady = null;
+            throw error;
+        });
+    }
+
+    return dailyUserPresenceTableReady;
 }
 
 export async function getPresenceSummary(limit = 8): Promise<PresenceSummary> {
     await ensureUserPresenceTable();
 
     const memberLimit = Math.max(0, Math.min(20, Math.floor(Number(limit) || 0)));
-    const { rows } = await sql<PresenceMember & { online_count: number }>`
+    const { rows: onlineRows } = await sql<PresenceMember & { online_count: number }>`
       WITH online AS (
         SELECT
           users.id,
@@ -5564,14 +5603,67 @@ export async function getPresenceSummary(limit = 8): Promise<PresenceSummary> {
       ) online ON true
     `;
 
-    const onlineCount = Number(rows[0]?.online_count || 0);
-    const members = rows
+    const onlineCount = Number(onlineRows[0]?.online_count || 0);
+    const members = onlineRows
         .filter(row => Number.isFinite(Number(row.id)) && Number(row.id) > 0)
-        .map(({ online_count: _onlineCount, ...member }) => member);
+        .map(row => {
+            const { online_count: onlineCountValue, ...member } = row;
+            void onlineCountValue;
+            return member;
+        });
+
+    let todayMemberCount = 0;
+    let todayMembers: TodayPresenceMember[] = [];
+
+    if (memberLimit > 0) {
+        await ensureDailyUserPresenceTable();
+    }
+
+    const { rows: todayRows } = memberLimit > 0
+        ? await sql<TodayPresenceMember & { today_member_count: number }>`
+      WITH today AS (
+        SELECT
+          users.id,
+          users.username,
+          users.avatar,
+          users.avatar_emoji,
+          users.avatar_theme,
+          user_presence_daily.last_seen_at
+        FROM user_presence_daily
+        JOIN users ON users.id = user_presence_daily.user_id
+        WHERE user_presence_daily.presence_date = (NOW() AT TIME ZONE 'Asia/Shanghai')::date
+          AND COALESCE(users.account_status, 'active') != 'disabled'
+      ),
+      counted AS (
+        SELECT COUNT(*)::int as today_member_count FROM today
+      )
+      SELECT today.*, counted.today_member_count
+      FROM counted
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM today
+        ORDER BY last_seen_at DESC, id ASC
+        LIMIT ${memberLimit}
+      ) today ON true
+    `
+        : { rows: [] };
+
+    if (memberLimit > 0) {
+        todayMemberCount = Number(todayRows[0]?.today_member_count || 0);
+        todayMembers = todayRows
+            .filter(row => Number.isFinite(Number(row.id)) && Number(row.id) > 0)
+            .map(row => {
+                const { today_member_count: todayMemberCountValue, ...member } = row;
+                void todayMemberCountValue;
+                return member;
+            });
+    }
 
     return {
         onlineCount,
         members,
+        todayMemberCount,
+        todayMembers,
         windowSeconds: USER_PRESENCE_WINDOW_SECONDS,
         generatedAt: new Date().toISOString(),
     };
@@ -6027,6 +6119,7 @@ export async function initDB() {
     await ensureFollowsTable();
     await ensureNotificationsTable();
     await ensureUserPresenceTable();
+    await ensureDailyUserPresenceTable();
     await ensureAdminAuditTable();
 
     // Seeding logic (optional, but keep for now if needed)

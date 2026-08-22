@@ -7372,6 +7372,93 @@ textarea:hover,
   text-align: left;
 }
 
+.presence-today-section {
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(55,198,208,0.14);
+}
+
+.presence-today-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.presence-today-head > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.presence-today-head strong {
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.presence-today-head span,
+.presence-today-head small {
+  color: #8b94a5;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.presence-today-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.presence-today-member {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.34);
+  color: #475569;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 850;
+  text-align: left;
+  cursor: pointer;
+}
+
+.presence-today-member:hover,
+.presence-today-member:focus-visible {
+  outline: none;
+  border-color: rgba(55,198,208,0.18);
+  background: rgba(255,255,255,0.76);
+}
+
+.presence-today-member > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presence-today-member time {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: #087f8c;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.presence-today-more,
+.presence-today-empty {
+  color: #8b94a5;
+  font-size: 0.76rem;
+}
+
+.presence-today-more {
+  padding: 3px 8px;
+}
+
 .dashboard-alumni-map {
   position: relative;
   width: 100%;
