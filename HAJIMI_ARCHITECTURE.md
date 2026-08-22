@@ -91,7 +91,8 @@ Database interactions are handled via standard SQL functions.
 - **`hasdaq_positions` / `hasdaq_trades`:** Per-user public/locked share positions and filled IPO/buy/sell trade log. Official demo founder shares are permanently locked; ordinary public shares remain tradable.
 - **`project_submissions`:** `id`, `author_id`, `submission_type`, `project_id`, `title`, `description`, `emoji`, `url`, `tags`, `accent_color`, `version_notes`, `cover_url`, `status`, `reviewed_by`, `reviewed_at`, `review_note`, `created_at`.
 - **`notifications`:** `id`, `recipient_id`, `actor_id`, `type`, `post_id`, `comment_id`, `read_at`, `created_at`.
-- **`user_presence`:** `user_id`, `last_seen_at`; one row per logged-in account. `/api/presence` treats users seen in the last 5 minutes as online, returns public counts to guests, and returns a limited avatar stack to logged-in users.
+- **`user_presence`:** `user_id`, `last_seen_at`; one row per logged-in account for the approximate 5-minute online window.
+- **`user_presence_daily`:** `user_id`, `presence_date`, `last_seen_at`; one row per account per calendar day, updated by the authenticated presence heartbeat. `/api/presence` returns the current online count/avatar stack and a limited “today visited” list with each member's latest login time only to logged-in users; guests receive counts only.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
 
@@ -142,7 +143,7 @@ Database interactions are handled via standard SQL functions.
    - New follows create `user_follow` notifications. Clicking one marks the notification through the existing notification flow and returns to the recipient's own `/profile` route; unfollows do not notify.
 9. **Online presence:**
    - Presence is lightweight HTTP polling, not WebSocket-based. Logged-in clients POST `/api/presence` roughly every 90 seconds while visible; hidden tabs pause until visible again.
-   - Online membership is approximate and expires after 5 minutes. Do not store historical presence rows or expose full online lists in the public UI.
+   - Online membership is approximate and expires after 5 minutes. The daily table stores only the latest heartbeat per account/date so members can see who has visited today and their last online time. Do not expose member lists to guests or private verification fields through presence payloads.
 
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.

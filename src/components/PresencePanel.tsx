@@ -17,6 +17,8 @@ const FETCH_MS = 60_000;
 const DEFAULT_SUMMARY: PresenceSummary = {
     onlineCount: 0,
     members: [],
+    todayMemberCount: 0,
+    todayMembers: [],
     windowSeconds: 300,
     generatedAt: '',
 };
@@ -34,6 +36,19 @@ export default function PresencePanel({ userId, variant = 'card', limit = 8 }: P
     const isAuthenticated = Boolean(userId);
     const visibleMembers = summary.members.slice(0, limit);
     const extraCount = Math.max(0, summary.onlineCount - visibleMembers.length);
+    const visibleTodayMembers = summary.todayMembers.slice(0, limit);
+    const todayExtraCount = Math.max(0, summary.todayMemberCount - visibleTodayMembers.length);
+
+    const formatLastSeen = (value: string | Date) => {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '时间未知';
+        return new Intl.DateTimeFormat('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Shanghai',
+        }).format(date);
+    };
 
     const loadPresence = useCallback(async (mode: 'read' | 'touch' = 'read', signal?: AbortSignal) => {
         if (document.visibilityState === 'hidden') return;
@@ -51,6 +66,8 @@ export default function PresencePanel({ userId, variant = 'card', limit = 8 }: P
             setSummary({
                 onlineCount: Number(data.onlineCount || 0),
                 members: Array.isArray(data.members) ? data.members : [],
+                todayMemberCount: Number(data.todayMemberCount || 0),
+                todayMembers: Array.isArray(data.todayMembers) ? data.todayMembers : [],
                 windowSeconds: Number(data.windowSeconds || 300),
                 generatedAt: data.generatedAt || '',
             });
@@ -157,6 +174,48 @@ export default function PresencePanel({ userId, variant = 'card', limit = 8 }: P
                     <p className="presence-note">Active window. Avatars open member profiles.</p>
                 </div>
             </div>
+
+            {isAuthenticated && (
+                <div className="presence-today-section">
+                    <div className="presence-today-head">
+                        <div>
+                            <strong>今日来过</strong>
+                            <span>{summary.todayMemberCount} 人</span>
+                        </div>
+                        <small>最后上线时间</small>
+                    </div>
+                    {visibleTodayMembers.length > 0 ? (
+                        <div className="presence-today-list">
+                            {visibleTodayMembers.map(member => {
+                                const lastSeen = new Date(member.last_seen_at);
+                                return (
+                                    <button
+                                        key={member.id}
+                                        type="button"
+                                        className="presence-today-member"
+                                        onClick={() => openProfile(member.id)}
+                                    >
+                                        <Avatar
+                                            value={member.avatar}
+                                            emoji={member.avatar_emoji}
+                                            theme={member.avatar_theme}
+                                            seed={member.id}
+                                            size={30}
+                                        />
+                                        <span>{member.username}</span>
+                                        <time dateTime={Number.isNaN(lastSeen.getTime()) ? undefined : lastSeen.toISOString()}>
+                                            {formatLastSeen(member.last_seen_at)}
+                                        </time>
+                                    </button>
+                                );
+                            })}
+                            {todayExtraCount > 0 && <span className="presence-today-more">还有 {todayExtraCount} 人</span>}
+                        </div>
+                    ) : (
+                        <p className="presence-today-empty">今天还没有其他成员上线。</p>
+                    )}
+                </div>
+            )}
         </SpotlightCard>
     );
 }
