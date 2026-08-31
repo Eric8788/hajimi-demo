@@ -29,6 +29,7 @@ The app uses Next.js App Router (`src/app/`).
   - **Cyber Oracle (`<TarotGame />`):** A Tarot reflection widget backed by `/api/oracle`, with AI Tabletop-aligned provider routing, deeper Chinese interpretation, and a 3-successful-readings-per-user-per-day limit.
   - **Live Campus Presence:** Lightweight online count and avatar stack backed by `/api/presence`.
   - **Rec Room:** Displays the absolute latest posts directly from the database.
+  - **Domi / 朵米:** A local-experiment, fixed-corner digital cloud companion. The root layout mounts its Pet host for eligible active, verified, non-read-only members; the default UI is closed and opens into an input-first conversation canvas. It uses adaptive local intent routing, server-side read-only Hajimi tools, and NDJSON streaming with a complete-response fallback.
 - `/resources` **(The Hallway - Hybrid Access):** 
   - The main forum. **Guest Mode is enabled.**
   - Announcement posts behave like pinned posts in the main feed; beta feedback is collected as comments under Eric's announcement.
@@ -64,6 +65,40 @@ The app uses Next.js App Router (`src/app/`).
   - Active, verified, non-read-only members can see a target member's existing school-preferred/English verification name on the profile; verified students also show the reviewed grade. Guests, parents, visitors, unverified viewers, and disabled accounts never receive these identity fields.
   - First verified forum post awards `+100 XP`; later posts continue to use normal post XP.
 
+### Domi Agent (local experiment)
+
+`Domi` / `朵米` is the working name for Hajimi's digital cloud companion. It is
+not an administrator, teacher, customer-service bot, or unrestricted coding
+agent. It is designed to chat as an equal community resident, explain the
+Hajimi/AI Club world, and answer questions about platform data that the current
+member is already allowed to view.
+
+- The root host lives in `src/components/DomiAgentHost.tsx`; it is mounted from
+  `src/app/layout.tsx` and is absent on the landing/login/error pages and for
+  guests, unverified, read-only, or disabled accounts.
+- A local router classifies each message as `casual`, `continuation`,
+  `platform`, `page`, `vision`, or `sensitive`. Greetings and ordinary chat do
+  not collect page DOM or screenshots. Platform data is read by fixed,
+  server-side read-only tools; client page context is temporary and
+  untrusted.
+- Context depth is adaptive: no message detail for a short greeting, the
+  summary plus 4/8 recent messages for ordinary chat and platform/page
+  questions, and up to 20 recent messages for continuations. Long-term context
+  is limited to low-sensitivity memories selected by the server.
+- `POST /api/agent/chat` returns NDJSON status/delta/result/error events. The
+  client renders the user's bubble immediately, keeps the Dashboard in place,
+  and falls back to a complete response when a provider cannot stream. Provider
+  names, models, URLs, keys, and internal errors are never returned to the
+  browser.
+- Screen capture is opt-in by intent: structured visible content is used for
+  page questions, and a screenshot is attempted only for explicit visual
+  questions. Sensitive routes and marked regions are excluded. The server
+  remains the authority for permissions and live Hajimi data.
+- The Pet is fixed at the lower-right corner, has no drag/hide/entry animation
+  in this experiment, pauses when the page is hidden, follows the pointer with
+  vertically aligned eyes, and supports reduced-motion preferences. Its
+  opaque conversation canvas renders Markdown/GFM, code blocks, and tables.
+
 ## 4. Design Philosophy & CSS
 The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not use flat colors or generic UI components.** 
 - **Global Background:** Dynamic, shifting gradient meshes.
@@ -95,6 +130,9 @@ Database interactions are handled via standard SQL functions.
 - **`user_presence_daily`:** `user_id`, `presence_date`, `last_seen_at`; one row per account per calendar day, updated by the authenticated presence heartbeat. `/api/presence` returns the current online count/avatar stack and a limited “today visited” list with each member's latest login time only to logged-in users; guests receive counts only.
 - **`admin_audit_events`:** `id`, `actor_id`, `target_user_id`, `target_type`, `target_id`, `event_type`, `summary`, `details`, `created_at`. Stores admin review and maintenance history for verification, project submissions, and member account changes.
 - **`oracle_readings`:** `id`, `user_id`, `reading_date`, `cards`, `created_at`.
+- **`agent_conversations`:** one primary Domi conversation per user, with a rolling summary and `summary_message_id` checkpoint. It references `users(id)` with `ON DELETE CASCADE`.
+- **`agent_messages`:** Domi user/assistant messages with role, content, and timestamps. Raw messages are cleaned up after 90 days and cascade when the account is deleted.
+- **`agent_memories`:** low-sensitivity, server-extracted facts/preferences/goals linked to a user, with deduplication and account-delete cascade. Passwords, tokens, identity numbers, health/financial data, private third-party information, and screen context are excluded.
 
 *Note: Auth sessions are stateless JWTs stored in `HttpOnly` cookies (`session`), managed in `src/lib/auth.ts`. Registration is currently open without invite codes for the graduation ceremony. Parent and visitor accounts are stored in `users.role` and remain read-only even if logged in. New registration passwords must be 8+ chars with uppercase, lowercase, and a number. Hajimi verification is required during student/teacher registration and can still be submitted from profile settings for older unverified accounts. Student-permission applicants submit Name, G7-G13 / 毕业生 identity, and optional student ID; teachers submit Name and subject. Teacher applicants are stored without staff permissions until admin approval promotes them to `teacher`. The `Name` field is school common/preferred name, not legal name. After approval, the verification name and reviewed student grade are visible only to active, verified, non-read-only Hajimi members on member profile pages; they are never included in anonymous feed, avatar, leaderboard, notification, or forum payloads. Student IDs are never stored raw; only `student_id_hash` and `student_id_last4` are saved. Set `HAJIMI_VERIFICATION_PEPPER` in production to stabilize student ID hashing across deployments.*
 

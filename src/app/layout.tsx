@@ -3,6 +3,12 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next';
 import './globals.css';
 import './sidebar.css';
+import { getSession } from '@/lib/auth';
+import { getUserById } from '@/lib/db';
+import { canUseDomiAgent } from '@/lib/agentAccess';
+import DomiAgentHost from '@/components/DomiAgentHost';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Hajimi | Student Community',
@@ -12,15 +18,26 @@ export const metadata: Metadata = {
   }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const loadAgentEligibility = async () => {
+    try {
+      const session = await getSession();
+      if (!session) return false;
+      return canUseDomiAgent(await getUserById(Number(session.userId)));
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <html lang="en">
       <body>
         {children}
+        <DomiAgentHost enabled={await loadAgentEligibility()} />
         <Analytics />
         <SpeedInsights />
       </body>
