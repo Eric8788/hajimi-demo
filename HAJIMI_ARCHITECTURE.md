@@ -98,6 +98,10 @@ member is already allowed to view.
   in this experiment, pauses when the page is hidden, follows the pointer with
   vertically aligned eyes, and supports reduced-motion preferences. Its
   opaque conversation canvas renders Markdown/GFM, code blocks, and tables.
+- The Pet visual is rendered by an adapted copy of Jeremy Prt's MIT-licensed
+  `bloub` SVG morphing engine (`src/lib/bloub`). Domi uses its purple cloud
+  shape, expression library, and state animations rather than a separate
+  hand-drawn cloud path; the upstream license is preserved beside the code.
 
 ## 4. Design Philosophy & CSS
 The UI strictly adheres to a "Cyber Oracle / Glassmorphism" aesthetic. **Do not use flat colors or generic UI components.** 
