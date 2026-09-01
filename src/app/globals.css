@@ -7242,27 +7242,22 @@ textarea:hover,
 }
 
 .domi-pet-button:focus-visible {
-  outline: 3px solid rgba(108, 92, 231, 0.3);
-  outline-offset: 3px;
+  outline: none;
 }
 
-.domi-cloud-avatar {
+.domi-bloub-avatar {
+  width: 86px;
+  height: 86px;
   display: block;
   overflow: visible;
 }
 
-.domi-cloud-avatar .domi-cloud-eyes {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.domi-cloud-avatar--idle .domi-cloud-eyes,
-.domi-cloud-avatar--viewing .domi-cloud-eyes,
-.domi-cloud-avatar--thinking .domi-cloud-eyes,
-.domi-cloud-avatar--organizing .domi-cloud-eyes,
-.domi-cloud-avatar--success .domi-cloud-eyes,
-.domi-cloud-avatar--error .domi-cloud-eyes {
-  transition: transform 180ms ease;
+.domi-bloub-fallback {
+  width: 86px;
+  height: 86px;
+  display: grid;
+  place-items: center;
+  font-size: 2.2rem;
 }
 
 .domi-agent-surface {
@@ -7628,18 +7623,15 @@ textarea:hover,
     width: 82px;
     height: 82px;
   }
+
+  .domi-bloub-avatar,
+  .domi-bloub-fallback {
+    width: 74px;
+    height: 74px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .domi-cloud-avatar--idle .domi-cloud-eyes,
-  .domi-cloud-avatar--viewing .domi-cloud-eyes,
-  .domi-cloud-avatar--thinking .domi-cloud-eyes,
-  .domi-cloud-avatar--organizing .domi-cloud-eyes,
-  .domi-cloud-avatar--success .domi-cloud-eyes,
-  .domi-cloud-avatar--error .domi-cloud-eyes {
-    transition: none;
-  }
-
   .domi-status-dots i {
     animation: none;
     opacity: 0.7;

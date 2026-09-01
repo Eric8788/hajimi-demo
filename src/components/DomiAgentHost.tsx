@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import DomiCloudAvatar from './DomiCloudAvatar';
+import DomiBloubAvatar from './DomiBloubAvatar';
 import MarkdownMessage from './MarkdownMessage';
 import { collectAgentScreenContext } from '@/lib/agentScreen';
 import { detectAgentIntent } from '@/lib/agent/intent';
@@ -43,8 +43,6 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
     const [streamingReply, setStreamingReply] = useState('');
     const [error, setError] = useState('');
     const [sending, setSending] = useState(false);
-    const [hovered, setHovered] = useState(false);
-    const [hoverMood, setHoverMood] = useState<'surprised' | 'angry'>('surprised');
     const [visualState, setVisualState] = useState<DomiPetVisualState>('idle');
     const [loaded, setLoaded] = useState(false);
     const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -105,7 +103,6 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
 
     const closeAgent = () => {
         setIsOpen(false);
-        setHovered(false);
     };
 
     const sendMessage = useCallback(async (rawMessage: string, retryId?: number) => {
@@ -305,15 +302,10 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
                 type="button"
                 className="domi-pet-button"
                 onClick={() => isOpen ? closeAgent() : openAgent()}
-                onPointerEnter={() => {
-                    setHoverMood(Math.random() > 0.32 ? 'surprised' : 'angry');
-                    setHovered(true);
-                }}
-                onPointerLeave={() => setHovered(false)}
                 aria-label={isOpen ? 'Close Domi' : 'Open Domi'}
                 title={isOpen ? 'Close Domi' : 'Open Domi'}
             >
-                <DomiCloudAvatar state={visualState} hovered={hovered} hoverMood={hoverMood} size={86} />
+                <DomiBloubAvatar visualState={visualState} size={86} ariaLabel="Domi" className="domi-bloub-avatar" />
             </button>
         </div>
     );
