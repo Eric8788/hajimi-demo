@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import DomiBloubAvatar from './DomiBloubAvatar';
 import MarkdownMessage from './MarkdownMessage';
@@ -15,6 +15,22 @@ type UiMessage = AgentMessage & {
 };
 
 const DRAFT_KEY = 'hajimi-domi-draft';
+const POSITION_KEY = 'hajimi-domi-position';
+const DRAG_THRESHOLD = 6;
+
+type DockPosition = {
+    right: number;
+    bottom: number;
+};
+
+type DragState = DockPosition & {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startRight: number;
+    startBottom: number;
+    moved: boolean;
+};
 
 function isHiddenRoute(pathname: string) {
     return pathname === '/' || pathname === '/login' || pathname === '/403' || pathname === '/404';
@@ -33,6 +49,36 @@ function displayDate(value: string) {
     return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date);
 }
 
+function parseDockPosition(value: string | null): DockPosition | null {
+    if (!value) return null;
+    try {
+        const parsed = JSON.parse(value) as Partial<DockPosition>;
+        if (typeof parsed.right !== 'number' || typeof parsed.bottom !== 'number') return null;
+        if (!Number.isFinite(parsed.right) || !Number.isFinite(parsed.bottom)) return null;
+        return { right: parsed.right, bottom: parsed.bottom };
+    } catch {
+        return null;
+    }
+}
+
+function clampDockPosition(position: DockPosition, rect: DOMRect, includeConversation = false): DockPosition {
+    const isMobile = window.matchMedia('(max-width: 760px)').matches;
+    const minRight = 8;
+    const conversationWidth = isMobile
+        ? Math.min(420, Math.max(0, window.innerWidth - 20))
+        : Math.min(380, Math.max(0, window.innerWidth - 30));
+    const anchorWidth = includeConversation ? Math.max(rect.width, conversationWidth) : rect.width;
+    const maxRight = Math.max(minRight, window.innerWidth - anchorWidth - (isMobile ? 10 : 8));
+    const availableBottom = Math.max(8, window.innerHeight - rect.height - 8);
+    const requestedMinBottom = isMobile ? 84 : 8;
+    const minBottom = Math.min(requestedMinBottom, availableBottom);
+    const maxBottom = Math.max(minBottom, availableBottom);
+    return {
+        right: Math.round(Math.min(maxRight, Math.max(minRight, position.right))),
+        bottom: Math.round(Math.min(maxBottom, Math.max(minBottom, position.bottom))),
+    };
+}
+
 export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
     const pathname = usePathname() || '/dashboard';
     const [isOpen, setIsOpen] = useState(false);
@@ -45,9 +91,16 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
     const [sending, setSending] = useState(false);
     const [visualState, setVisualState] = useState<DomiPetVisualState>('idle');
     const [loaded, setLoaded] = useState(false);
+    const [dockPosition, setDockPosition] = useState<DockPosition | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [interactionToken, setInteractionToken] = useState(0);
     const messagesRef = useRef<HTMLDivElement | null>(null);
+    const petButtonRef = useRef<HTMLButtonElement | null>(null);
     const historyPromiseRef = useRef<Promise<void> | null>(null);
     const sequenceRef = useRef(0);
+    const dragRef = useRef<DragState | null>(null);
+    const suppressClickRef = useRef(false);
+    const suppressClickTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         try {
@@ -65,6 +118,34 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
             // Keep the in-memory draft when storage is unavailable.
         }
     }, [draft]);
+
+    useEffect(() => {
+        if (!enabled || isHiddenRoute(pathname)) return;
+
+        let storedPosition: DockPosition | null = null;
+        try {
+            storedPosition = parseDockPosition(window.sessionStorage.getItem(POSITION_KEY));
+        } catch {
+            // Storage is optional.
+        }
+
+        const applyStoredPosition = () => {
+            const button = petButtonRef.current;
+            if (!button || !storedPosition) return;
+            setDockPosition(clampDockPosition(storedPosition, button.getBoundingClientRect(), isOpen));
+        };
+        const clampCurrentPosition = () => {
+            const button = petButtonRef.current;
+            if (!button) return;
+            setDockPosition(current => current
+                ? clampDockPosition(current, button.getBoundingClientRect(), isOpen)
+                : current);
+        };
+
+        applyStoredPosition();
+        window.addEventListener('resize', clampCurrentPosition);
+        return () => window.removeEventListener('resize', clampCurrentPosition);
+    }, [enabled, isOpen, pathname]);
 
     useEffect(() => {
         const container = messagesRef.current;
@@ -98,11 +179,103 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
 
     const openAgent = () => {
         setIsOpen(true);
+        const button = petButtonRef.current;
+        if (button) {
+            setDockPosition(current => current
+                ? clampDockPosition(current, button.getBoundingClientRect(), true)
+                : current);
+        }
         void loadHistory();
     };
 
     const closeAgent = () => {
         setIsOpen(false);
+    };
+
+    const handlePetPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (suppressClickTimerRef.current) window.clearTimeout(suppressClickTimerRef.current);
+        suppressClickRef.current = false;
+        const rect = event.currentTarget.getBoundingClientRect();
+        dragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startRight: window.innerWidth - rect.right,
+            startBottom: window.innerHeight - rect.bottom,
+            right: window.innerWidth - rect.right,
+            bottom: window.innerHeight - rect.bottom,
+            moved: false,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+    };
+
+    const handlePetPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const deltaX = event.clientX - drag.startX;
+        const deltaY = event.clientY - drag.startY;
+        if (!drag.moved && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
+        drag.moved = true;
+        setIsDragging(true);
+        const rect = (petButtonRef.current || event.currentTarget).getBoundingClientRect();
+        const next = clampDockPosition({
+            right: drag.startRight - deltaX,
+            bottom: drag.startBottom - deltaY,
+        }, rect);
+        drag.right = next.right;
+        drag.bottom = next.bottom;
+        setDockPosition(next);
+        event.preventDefault();
+    };
+
+    const finishPetDrag = useCallback((pointerId: number, target?: HTMLButtonElement) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== pointerId) return;
+        // Clear first: releasing capture can synchronously emit
+        // lostpointercapture, which must not finish the same drag twice.
+        dragRef.current = null;
+        if (target?.hasPointerCapture(pointerId)) {
+            target.releasePointerCapture(pointerId);
+        }
+        setIsDragging(false);
+        if (!drag.moved) return;
+        suppressClickRef.current = true;
+        suppressClickTimerRef.current = window.setTimeout(() => {
+            suppressClickRef.current = false;
+            suppressClickTimerRef.current = null;
+        }, 450);
+        try {
+            window.sessionStorage.setItem(POSITION_KEY, JSON.stringify({ right: drag.right, bottom: drag.bottom }));
+        } catch {
+            // Keep the position in memory when storage is unavailable.
+        }
+    }, []);
+
+    const handlePetPointerEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        finishPetDrag(event.pointerId, event.currentTarget);
+    };
+
+    useEffect(() => {
+        const finishFromWindow = (event: PointerEvent) => finishPetDrag(event.pointerId);
+        window.addEventListener('pointerup', finishFromWindow);
+        window.addEventListener('pointercancel', finishFromWindow);
+        return () => {
+            window.removeEventListener('pointerup', finishFromWindow);
+            window.removeEventListener('pointercancel', finishFromWindow);
+        };
+    }, [finishPetDrag]);
+
+    const handlePetClick = () => {
+        if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            if (suppressClickTimerRef.current) window.clearTimeout(suppressClickTimerRef.current);
+            suppressClickTimerRef.current = null;
+            return;
+        }
+        setInteractionToken(current => current + 1);
+        if (isOpen) closeAgent();
+        else openAgent();
     };
 
     const sendMessage = useCallback(async (rawMessage: string, retryId?: number) => {
@@ -221,7 +394,10 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
     const hasConversation = messages.length > 0 || Boolean(streamingReply) || sending;
 
     return (
-        <div className={`domi-agent-host ${isOpen ? 'is-open' : ''} ${view === 'canvas' ? 'is-canvas' : 'is-composer'}`}>
+        <div
+            className={`domi-agent-host ${isOpen ? 'is-open' : ''} ${view === 'canvas' ? 'is-canvas' : 'is-composer'} ${isDragging ? 'is-dragging' : ''}`}
+            style={dockPosition ? { right: `${dockPosition.right}px`, bottom: `${dockPosition.bottom}px` } : undefined}
+        >
             {isOpen && (
                 <section className="domi-agent-surface" aria-label="Domi conversation">
                     {view === 'composer' && !hasConversation ? (
@@ -300,12 +476,24 @@ export default function DomiAgentHost({ enabled }: { enabled: boolean }) {
             )}
             <button
                 type="button"
+                ref={petButtonRef}
                 className="domi-pet-button"
-                onClick={() => isOpen ? closeAgent() : openAgent()}
+                onPointerDown={handlePetPointerDown}
+                onPointerMove={handlePetPointerMove}
+                onPointerUp={handlePetPointerEnd}
+                onPointerCancel={handlePetPointerEnd}
+                onLostPointerCapture={handlePetPointerEnd}
+                onClick={handlePetClick}
                 aria-label={isOpen ? 'Close Domi' : 'Open Domi'}
-                title={isOpen ? 'Close Domi' : 'Open Domi'}
+                title={isDragging ? 'Move Domi' : (isOpen ? 'Close Domi' : 'Open Domi')}
             >
-                <DomiBloubAvatar visualState={visualState} size={86} ariaLabel="Domi" className="domi-bloub-avatar" />
+                <DomiBloubAvatar
+                    visualState={visualState}
+                    interactionToken={interactionToken}
+                    size={86}
+                    ariaLabel="Domi"
+                    className="domi-bloub-avatar"
+                />
             </button>
         </div>
     );

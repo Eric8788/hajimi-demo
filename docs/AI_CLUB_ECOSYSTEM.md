@@ -19,7 +19,7 @@ The AI Club ecosystem consists of three main pillars:
 - **Primary Domain:** `https://hajimi.ericproject.xyz` ✅ (official)
 - **Tech Stack:** Next.js 16 (App Router), React 19, TypeScript, Vercel Postgres, raw SQL.
 - **Role:** Primary entry point. Provides user auth, community forum ("The Hallway"), personalized dashboard, and the **Function Hall** (unified directory of all club projects).
-- **Domi / 朵米:** Hajimi's experimental digital cloud companion. It is mounted at the root for eligible members, follows the user's language, and uses adaptive context plus fixed server-side read-only tools to discuss the community and permitted platform data. Its animated purple-cloud avatar uses an adapted copy of Jeremy Prt's MIT-licensed `bloub` SVG morphing engine; Hajimi keeps the upstream license with the source.
+- **Domi / 朵米:** Hajimi's experimental digital cloud companion. It is mounted at the root for eligible members, follows the user's language, and uses adaptive context plus fixed server-side read-only tools to discuss the community and permitted platform data. Its draggable animated purple-cloud avatar uses an adapted copy of Jeremy Prt's MIT-licensed `bloub` SVG morphing engine, reacts to hover/click with native blinks and expressions, and remembers its viewport-safe position for the browser session; Hajimi keeps the upstream license with the source.
 - **Design:** Glassmorphism aesthetic. Custom CSS only. `backdrop-filter: blur`, `rgba(255,255,255,0.7)`.
 
 ### B. The Static Hub (The Game Server)

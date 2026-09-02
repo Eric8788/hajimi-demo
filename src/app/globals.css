@@ -7230,8 +7230,15 @@ textarea:hover,
   border-radius: 50%;
   background: transparent;
   box-shadow: none;
-  cursor: pointer;
+  cursor: grab !important;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
   transition: filter 180ms ease;
+}
+
+.domi-agent-host.is-dragging .domi-pet-button {
+  cursor: grabbing !important;
 }
 
 .domi-pet-button:hover,
