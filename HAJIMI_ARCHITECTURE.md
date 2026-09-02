@@ -29,7 +29,7 @@ The app uses Next.js App Router (`src/app/`).
   - **Cyber Oracle (`<TarotGame />`):** A Tarot reflection widget backed by `/api/oracle`, with AI Tabletop-aligned provider routing, deeper Chinese interpretation, and a 3-successful-readings-per-user-per-day limit.
   - **Live Campus Presence:** Lightweight online count and avatar stack backed by `/api/presence`.
   - **Rec Room:** Displays the absolute latest posts directly from the database.
-  - **Domi / 朵米:** A local-experiment, fixed-corner digital cloud companion. The root layout mounts its Pet host for eligible active, verified, non-read-only members; the default UI is closed and opens into an input-first conversation canvas. It uses adaptive local intent routing, server-side read-only Hajimi tools, and NDJSON streaming with a complete-response fallback.
+  - **Domi / 朵米:** A local-experiment, corner-docked digital cloud companion. The root layout mounts its Pet host for eligible active, verified, non-read-only members; the default UI is closed and opens into an input-first conversation canvas. It uses adaptive local intent routing, server-side read-only Hajimi tools, and NDJSON streaming with a complete-response fallback.
 - `/resources` **(The Hallway - Hybrid Access):** 
   - The main forum. **Guest Mode is enabled.**
   - Announcement posts behave like pinned posts in the main feed; beta feedback is collected as comments under Eric's announcement.
@@ -94,10 +94,15 @@ member is already allowed to view.
   page questions, and a screenshot is attempted only for explicit visual
   questions. Sensitive routes and marked regions are excluded. The server
   remains the authority for permissions and live Hajimi data.
-- The Pet is fixed at the lower-right corner, has no drag/hide/entry animation
-  in this experiment, pauses when the page is hidden, follows the pointer with
-  vertically aligned eyes, and supports reduced-motion preferences. Its
-  opaque conversation canvas renders Markdown/GFM, code blocks, and tables.
+- The Pet starts at the lower-right corner and can be dragged within the
+  visible viewport. Its position is remembered for the current browser
+  session, the conversation canvas stays anchored to it, and drag gestures do
+  not accidentally toggle the conversation. Hover and click interactions use
+  the native bloub blink and expression transitions; idle expressions rotate
+  periodically. Animation pauses when the page is hidden, pointer-following
+  eyes remain vertically aligned outside intentional expression poses, and
+  reduced-motion preferences are respected. Its opaque conversation canvas
+  renders Markdown/GFM, code blocks, and tables.
 - The Pet visual is rendered by an adapted copy of Jeremy Prt's MIT-licensed
   `bloub` SVG morphing engine (`src/lib/bloub`). Domi uses its purple cloud
   shape, expression library, and state animations rather than a separate

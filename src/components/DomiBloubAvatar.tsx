@@ -13,6 +13,7 @@ import type { DomiPetVisualState } from '@/lib/agent/visualTypes';
 // Adapted from https://github.com/jeremy-prt/bloub; see src/lib/bloub/LICENSE.bloub.txt.
 type AvatarProps = {
     visualState: DomiPetVisualState;
+    interactionToken?: number;
     size?: number;
     ariaLabel?: string;
     className?: string;
@@ -37,11 +38,12 @@ const POINTER_PITCH_MAX = 22;
 const IDLE_EXPRESSIONS: readonly ExpressionId[] = [
     'neutre', 'heureux', 'curieux', 'attentif', 'somnolent', 'fier', 'surpris', 'excite', 'hilare', 'timide',
 ];
-const HOVER_EXPRESSIONS: readonly ExpressionId[] = ['surpris', 'colere'];
-const IDLE_MOOD_FIRST_MIN_MS = 1800;
-const IDLE_MOOD_FIRST_MAX_MS = 3600;
-const IDLE_MOOD_NEXT_MIN_MS = 2400;
-const IDLE_MOOD_NEXT_MAX_MS = 5200;
+const HOVER_EXPRESSIONS: readonly ExpressionId[] = ['surpris', 'heureux', 'excite', 'colere'];
+const CLICK_EXPRESSIONS: readonly ExpressionId[] = ['heureux', 'excite', 'hilare', 'surpris', 'timide'];
+const IDLE_MOOD_FIRST_MIN_MS = 1500;
+const IDLE_MOOD_FIRST_MAX_MS = 3000;
+const IDLE_MOOD_NEXT_MIN_MS = 2000;
+const IDLE_MOOD_NEXT_MAX_MS = 4400;
 
 function randomBetween(min: number, max: number) {
     return min + Math.random() * (max - min);
@@ -55,7 +57,6 @@ function chooseExpression(expressions: readonly ExpressionId[], current?: Expres
 function pointerLook(
     svg: SVGSVGElement,
     pointer: { x: number; y: number },
-    keepExpressionTilt: boolean,
 ): { look: Look; key: string } | null {
     const box = svg.getBoundingClientRect();
     if (!box.width || !box.height) return null;
@@ -68,9 +69,9 @@ function pointerLook(
             mix: 1,
             spin: 0,
             wander: 0,
-            upright: keepExpressionTilt ? 0 : 1,
+            upright: 1,
         },
-        key: `${Math.round(nx * 100)}:${Math.round(ny * 100)}:${keepExpressionTilt ? 'expression' : 'upright'}`,
+        key: `${Math.round(nx * 100)}:${Math.round(ny * 100)}:upright`,
     };
 }
 
@@ -83,7 +84,7 @@ function dotAttributes(dot: BotFrame['dots'][number]) {
     return { ...common, cx: dot.x, cy: dot.y, r: dot.r };
 }
 
-function BloubAvatarSvg({ visualState, size = 92, ariaLabel = 'Domi', className, style }: Omit<AvatarProps, 'fallback'>) {
+function BloubAvatarSvg({ visualState, interactionToken = 0, size = 92, ariaLabel = 'Domi', className, style }: Omit<AvatarProps, 'fallback'>) {
     const [engine] = useState(() => {
         const preset = PRESETS[visualState];
         return new BotEngine(RAYON, preset.state, CLOUD_RADIUSES, EXPRESSION_BY_ID.get(preset.expression) ?? null);
@@ -173,11 +174,13 @@ function BloubAvatarSvg({ visualState, size = 92, ariaLabel = 'Domi', className,
     const handleAvatarPointerEnter = (event: ReactPointerEvent<SVGSVGElement>) => {
         if (event.pointerType === 'touch') return;
         hoveredRef.current = true;
-        if (visualState !== 'idle') return;
-        const next = chooseExpression(HOVER_EXPRESSIONS, hoverExpressionRef.current ?? undefined);
-        hoverExpressionRef.current = next;
         const now = performance.now() / 1000;
-        engine.setExpression(EXPRESSION_BY_ID.get(next) ?? null, now);
+        if (visualState === 'idle') {
+            const next = chooseExpression(HOVER_EXPRESSIONS, hoverExpressionRef.current ?? undefined);
+            hoverExpressionRef.current = next;
+            engine.setExpression(EXPRESSION_BY_ID.get(next) ?? null, now);
+        }
+        if (!reducedMotion) engine.triggerBlink(now);
         clockRef.current = now;
         setFrame(engine.sample(now));
     };
@@ -193,6 +196,21 @@ function BloubAvatarSvg({ visualState, size = 92, ariaLabel = 'Domi', className,
     };
 
     useEffect(() => {
+        if (!interactionToken) return;
+        const now = performance.now() / 1000;
+        if (visualState === 'idle') {
+            const next = chooseExpression(CLICK_EXPRESSIONS, moodExpressionRef.current);
+            moodExpressionRef.current = next;
+            if (hoveredRef.current) hoverExpressionRef.current = next;
+            engine.setExpression(EXPRESSION_BY_ID.get(next) ?? null, now);
+        }
+        if (!reducedMotion) engine.triggerBlink(now);
+        clockRef.current = now;
+        const frameId = window.requestAnimationFrame(() => setFrame(engine.sample(now)));
+        return () => window.cancelAnimationFrame(frameId);
+    }, [engine, interactionToken, reducedMotion, visualState]);
+
+    useEffect(() => {
         if (reducedMotion) {
             const frameId = window.requestAnimationFrame(() => setFrame(engine.sample(clockRef.current)));
             return () => window.cancelAnimationFrame(frameId);
@@ -205,7 +223,10 @@ function BloubAvatarSvg({ visualState, size = 92, ariaLabel = 'Domi', className,
             const svg = svgRef.current;
             const pointer = pointerRef.current;
             if (canFollowPointer && !reducedMotion && svg && pointer) {
-                const target = pointerLook(svg, pointer, hoveredRef.current);
+                // Keep the eye capsules upright even during hover reactions. The
+                // expression can change their size and gaze; pointer tracking
+                // should never turn that into accidental sideways eyes.
+                const target = pointerLook(svg, pointer);
                 if (target && target.key !== lookKeyRef.current) {
                     engine.setLook(target.look, now);
                     lookKeyRef.current = target.key;

@@ -189,6 +189,11 @@ export class BotEngine {
     this.exprAt = now
   }
 
+  /** Trigger the same short blink used to soften animated state changes. */
+  triggerBlink(now = 0) {
+    this.blinkAt = now
+  }
+
   /** Expression effective a l'instant `now`, morph en cours compris. */
   private exprAtTime(now: number): BotExpression | null {
     const to = this.expr
@@ -518,10 +523,9 @@ export class BotEngine {
         // Inclinaison propre de l'oeil : on compose le repere tangent avec une
         // rotation dans le plan de l'oeil (Basis x Rot). C'est ce qui permet des
         // inclinaisons en miroir entre les deux yeux.
-        // Random idle moods may carry a same-direction head tilt. During normal
-        // pointer tracking that reads as accidental strabismus, so it fades out
-        // with the projection tilt. Hover reactions explicitly set `upright=0`
-        // and retain their designed surprise/anger angles.
+        // Random idle moods may carry a head or expression tilt. During pointer
+        // tracking that reads as accidental strabismus, so it fades out with
+        // the projection tilt while eye size and spacing keep the expression.
         const phi = ((cfg.tilt ?? 0) * (1 - screenUpright) * Math.PI) / 180
         const cp = Math.cos(phi)
         const sp = Math.sin(phi)
