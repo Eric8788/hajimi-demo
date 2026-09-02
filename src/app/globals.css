@@ -7401,8 +7401,9 @@ textarea:hover,
 .domi-message.is-user {
   margin-left: auto;
   padding: 9px 12px 8px;
-  color: #fff;
-  background: #7151dc;
+  color: #4c3b9d;
+  background: #f0edff;
+  border: 1px solid rgba(115, 83, 223, 0.14);
   border-radius: 16px 16px 5px 16px;
 }
 
@@ -7430,6 +7431,11 @@ textarea:hover,
   white-space: pre-wrap;
 }
 
+.domi-message.is-user .domi-message-body,
+.domi-message.is-user .domi-message-body p {
+  color: #4c3b9d;
+}
+
 .domi-message-meta {
   margin-top: 5px;
   color: #a09db3;
@@ -7439,7 +7445,7 @@ textarea:hover,
 }
 
 .domi-message.is-user .domi-message-meta {
-  color: rgba(255,255,255,0.72);
+  color: #8b80bd;
 }
 
 .domi-message-meta button {
