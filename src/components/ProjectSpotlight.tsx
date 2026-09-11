@@ -57,7 +57,7 @@ export default function ProjectSpotlight({ projects, onSubmit, formOpen }: {
             <button type="button" aria-label="上一条告示" onClick={() => setIndex((active - 1 + slides.length) % slides.length)}>‹</button>
             {slides.map((project, position) => <button key={project?.id ?? 'submit'} type="button"
                 aria-label={project ? `查看项目：${project.title}` : '查看提交申请'} aria-pressed={position === active}
-                className={`hub-notice-dot ${position === active ? 'is-active' : ''}`} onClick={() => setIndex(position)} />)}
+                className={`hub-notice-dot ${position === active ? 'is-active' : ''}`} onMouseEnter={() => setIndex(position)} onFocus={() => setIndex(position)} onClick={() => setIndex(position)} />)}
             <button type="button" aria-label="下一条告示" onClick={() => setIndex((active + 1) % slides.length)}>›</button>
         </div>
     </section>;
