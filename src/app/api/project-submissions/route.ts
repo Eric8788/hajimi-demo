@@ -49,6 +49,12 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
+        if (typeof body.url !== 'string' || !body.url.trim()) {
+            return NextResponse.json({ error: '请填写可以打开体验的项目 URL。' }, { status: 400 });
+        }
+        if (typeof body.coverUrl !== 'string' || !body.coverUrl.trim()) {
+            return NextResponse.json({ error: '请上传一张项目封面图片。' }, { status: 400 });
+        }
         const submissionType = body.submissionType === 'new_version' ? 'new_version' : 'new_project';
         const submissionId = await createProjectSubmission({
             author_id: user.id,

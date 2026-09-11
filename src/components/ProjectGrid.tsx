@@ -6,6 +6,8 @@ import { ALL_TAGS, type ProjectTag } from '@/data/projects';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Project, User } from '@/lib/db';
 import ProjectCoverStudio from './ProjectCoverStudio';
+import ProjectSpotlight from './ProjectSpotlight';
+import './project-submission.css';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -55,21 +57,6 @@ function resetProjectCardTilt(element: HTMLElement | null) {
     element.style.setProperty('--project-caption-opacity', '0');
 }
 
-type SpotlightKind = 'submit' | 'rewards' | 'galgame' | 'vocab' | 'cpaper' | 'ocean';
-
-type HubSpotlightCopy = {
-    kind: SpotlightKind;
-    label: string;
-    status: string;
-    titleBefore: string;
-    titleAccent: string;
-    titleAfter: string;
-    text: string;
-    meta: string[];
-    ctaLabel: string;
-    ctaTarget?: 'submit' | 'projects';
-};
-
 type ProjectGridProps = {
     user: User | null;
     canSubmitProjects?: boolean;
@@ -94,37 +81,6 @@ type SubmissionDraft = {
     type: 'new_project' | 'new_version';
     project?: HubProject;
 };
-
-function getSpotlightKind(project: any): SpotlightKind | null {
-    const fingerprint = `${project.title || ''} ${project.url || ''}`.toLowerCase();
-
-    if (fingerprint.includes('galgame') || fingerprint.includes('cagg.top')) {
-        return 'galgame';
-    }
-
-    if (fingerprint.includes('vocab runner') || fingerprint.includes('vocab-runner-game')) {
-        return 'vocab';
-    }
-
-    if (fingerprint.includes('c-paper') || fingerprint.includes('cpaper') || fingerprint.includes('yiming.us/c-paper')) {
-        return 'cpaper';
-    }
-
-    if (fingerprint.includes('the ocean explorer') || fingerprint.includes('regatta-info.top')) {
-        return 'ocean';
-    }
-
-    return null;
-}
-
-function getSpotlightOrder(project: any) {
-    const kind = getSpotlightKind(project);
-    if (kind === 'galgame') return 0;
-    if (kind === 'vocab') return 1;
-    if (kind === 'cpaper') return 2;
-    if (kind === 'ocean') return 3;
-    return 99;
-}
 
 function getProjectTagline(project: any) {
     const explicitTagline = String(project.tagline || project.summary || '').trim();
@@ -167,12 +123,12 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     const [submissionVersionNotes, setSubmissionVersionNotes] = useState('');
     const [submissionCoverUrl, setSubmissionCoverUrl] = useState('');
     const [submissionMessage, setSubmissionMessage] = useState('');
+    const [coverPending, setCoverPending] = useState(false);
+    const [submissionDraftKey, setSubmissionDraftKey] = useState(0);
     const [submissionLoading, setSubmissionLoading] = useState(false);
     const [projectLoadError, setProjectLoadError] = useState('');
     const [hubLeaderboardWindow, setHubLeaderboardWindow] = useState<HubLeaderboardWindow>('week');
     const [hubRankingMode, setHubRankingMode] = useState<HubRankingMode>('heat');
-    const [spotlightIndex, setSpotlightIndex] = useState(0);
-    const [spotlightPaused, setSpotlightPaused] = useState(false);
     const [projectStatsLoaded, setProjectStatsLoaded] = useState(false);
     const [bookmarkedProjectIds, setBookmarkedProjectIds] = useState<Set<number>>(() => new Set());
     const [bookmarksLoaded, setBookmarksLoaded] = useState(false);
@@ -313,141 +269,11 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         };
     }, [user?.id, canSubmitProjects]);
 
-    useEffect(() => {
-        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 2;
-        if (spotlightCount > 0 && spotlightIndex >= spotlightCount) {
-            setSpotlightIndex(0);
-        }
-    }, [projects, spotlightIndex]);
-
-    useEffect(() => {
-        const spotlightCount = projects.filter(project => project.status === 'live' && getSpotlightKind(project)).length + 2;
-        if (spotlightPaused || spotlightCount <= 1) return;
-
-        const timer = window.setInterval(() => {
-            setSpotlightIndex(current => (current + 1) % spotlightCount);
-        }, 6500);
-
-        return () => window.clearInterval(timer);
-    }, [projects, spotlightPaused]);
-
     if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading functions...</div>;
 
     const getDisplayName = getHubDisplayName;
 
-    const getSpotlightCopy = (project: any): HubSpotlightCopy | null => {
-        const kind = getSpotlightKind(project);
-        const authorName = getDisplayName(project.author_name || project.author || '');
-
-        if (kind === 'galgame') {
-            return {
-                kind,
-                label: 'New Project',
-                status: `${project.title} · by ${authorName} · 视觉小说体验`,
-                titleBefore: 'LUNA 新作：',
-                titleAccent: project.title || '~galgame~',
-                titleAfter: '',
-                text: '用视觉小说的节奏体验剧情、选择和角色互动。适合直接打开试玩，然后把文本节奏、分支选择和画面反馈留给创作者。',
-                meta: ['Game', 'Visual Novel', `⭐ ${Number(project.rating || 0).toFixed(1)} · ${Number(project.rating_count || 0)} 条反馈`],
-                ctaLabel: '立即体验',
-            };
-        }
-
-        if (kind === 'vocab') {
-            return {
-                kind,
-                label: 'New Project',
-                status: `${project.title} · by ${authorName} · 英语词汇冲刺`,
-                titleBefore: 'Vocab Runner：',
-                titleAccent: '边跑边背单词',
-                titleAfter: '',
-                text: '把课堂词汇练习做成 sprint runner：关卡、反馈和任务节奏结合，适合用真实班级词表测试难度和记忆效率。',
-                meta: ['Tool', 'Classroom', `⭐ ${Number(project.rating || 0).toFixed(1)} · ${Number(project.rating_count || 0)} 条反馈`],
-                ctaLabel: '立即体验',
-            };
-        }
-
-        if (kind === 'cpaper') {
-            return {
-                kind,
-                label: 'Playtest',
-                status: `${project.title} · by ${authorName} · CIE 试卷下载器`,
-                titleBefore: 'C-Paper：从',
-                titleAccent: '科目代码',
-                titleAfter: '到批量下载',
-                text: '建议用真实 CIE 复习任务测试：是否能快速找到年份、季节和 Paper 类型；Question Paper 与 Mark Scheme 是否容易配对；下载历史和收藏是否真的省时间。',
-                meta: ['科目代码', '考试季节', 'Paper 类型', '批量下载'],
-                ctaLabel: '立即体验',
-            };
-        }
-
-        if (kind === 'ocean') {
-            return {
-                kind,
-                label: 'New Project',
-                status: `${project.title} · by ${authorName} · 远航帆船社区`,
-                titleBefore: '',
-                titleAccent: project.title || 'THE OCEAN EXPLORER',
-                titleAfter: ' 远航帆船社区',
-                text: '面向帆船赛事和训练的信息社区，用来查看赛事排名、赛事轨迹、个人水手排名和龙骨船队排名，把分散的赛事资料收束到同一个入口。',
-                meta: ['Sailing', '赛事排名', '轨迹 / 排名', `⭐ ${Number(project.rating || 0).toFixed(1)} · ${Number(project.rating_count || 0)} 条反馈`],
-                ctaLabel: '立即体验',
-            };
-        }
-
-        return null;
-    };
-
     const uniqueCreators = Array.from(new Set(projects.map(p => getDisplayName(p.author_name || p.author || '')))).sort();
-
-    const spotlightProjects = [...projects]
-        .filter(project => project.status === 'live' && getSpotlightKind(project))
-        .sort((a, b) => getSpotlightOrder(a) - getSpotlightOrder(b) || String(a.title).localeCompare(String(b.title)));
-    const spotlightSlides = [
-        {
-            key: 'creator-pipeline',
-            project: null,
-            copy: {
-                kind: 'submit' as const,
-                label: 'Creator Pipeline',
-                status: '项目 / 新版本申请',
-                titleBefore: '提交',
-                titleAccent: '项目申请',
-                titleAfter: '，审核后上线',
-                text: 'Hub 项目开放体验；新项目和新版本先提交申请，管理员审核后发布。',
-                meta: ['新项目', '新版本', '审核上线'],
-                ctaLabel: showSubmissionForm ? '收起申请' : '提交申请',
-                ctaTarget: 'submit' as const,
-            },
-        },
-        {
-            key: 'hub-rewards',
-            project: null,
-            copy: {
-                kind: 'rewards' as const,
-                label: 'Hub Notice',
-                status: '评论 / 评分奖励',
-                titleBefore: '给项目',
-                titleAccent: '评论和评分',
-                titleAfter: '，一起赚 XP',
-                text: '真实反馈会直接帮创作者改进项目：留下评论可获得 +2 XP，项目作者获得 +3 XP；首次评分会给项目作者 +5 XP。',
-                meta: ['评论者 +2 XP', '作者评论奖励 +3 XP', '评分作者 +5 XP'],
-                ctaLabel: '去看项目',
-                ctaTarget: 'projects' as const,
-            },
-        },
-        ...spotlightProjects
-            .map(project => ({
-                key: String(project.id),
-                project,
-                copy: getSpotlightCopy(project),
-            }))
-            .filter((item): item is { key: string; project: HubProject; copy: HubSpotlightCopy } => Boolean(item.copy)),
-    ];
-    const activeSpotlightIndex = Math.min(spotlightIndex, spotlightSlides.length - 1);
-    const scrollToProjectGrid = () => {
-        document.getElementById('hub-project-showcase')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
 
     const hubLeaderboard = rankHubProjects(projects, hubRankingMode, hubLeaderboardWindow, 5);
     const hubRankingCopy = getHubRankingCopy(hubRankingMode);
@@ -525,6 +351,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     const resetSubmissionDraft = (type: 'new_project' | 'new_version' = 'new_project') => {
+        setSubmissionDraftKey(current => current + 1);
         setSubmissionType(type);
         setSubmissionProjectId('');
         setSubmissionTitle('');
@@ -534,6 +361,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
         setSubmissionTags(['Game']);
         setSubmissionVersionNotes('');
         setSubmissionCoverUrl('');
+        setCoverPending(false);
     };
 
     const openSubmissionDraft = (draft: SubmissionDraft = { type: 'new_project' }) => {
@@ -622,11 +450,20 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             return;
         }
 
-        openSubmissionDraft({ type: 'new_project' });
+        if (canSubmitProjects && (submissionTitle || submissionDescription || submissionUrl || submissionCoverUrl)) {
+            setShowSubmissionForm(true);
+        } else {
+            openSubmissionDraft({ type: 'new_project' });
+        }
     };
 
     const submitProjectApplication = async (event: React.FormEvent) => {
         event.preventDefault();
+        if (submissionLoading || coverPending) return;
+        if (!submissionCoverUrl.trim()) {
+            setSubmissionMessage('请添加一张项目封面，并点击「使用这张封面」。');
+            return;
+        }
         setSubmissionLoading(true);
         setSubmissionMessage('');
 
@@ -657,6 +494,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             setSubmissionMessage('已提交申请，管理员审核通过后会发布到 Hub。');
             setShowSubmissionForm(false);
             resetSubmissionDraft('new_project');
+        } catch {
+            setSubmissionMessage('网络连接失败，填写的内容已保留，请稍后重试。');
         } finally {
             setSubmissionLoading(false);
         }
@@ -664,8 +503,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
     return (
         <div>
-            {submissionMessage && (
-                <div className="forum-verification-callout project-submit-message">
+            {submissionMessage && !showSubmissionForm && (
+                <div className="forum-verification-callout project-submit-message" role="status">
                     <span>{submissionMessage}</span>
                     {!canSubmitProjects && <button type="button" onClick={() => window.location.assign(user ? isReadOnlyUser ? '/functions' : '/profile' : '/login')}>{user ? isReadOnlyUser ? '继续浏览' : '去认证' : '登录'}</button>}
                 </div>
@@ -685,190 +524,87 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                         exit={{ opacity: 0, y: -8 }}
                         onSubmit={submitProjectApplication}
                     >
-                        <div className="auth-verification-tabs">
-                            <button type="button" className={submissionType === 'new_project' ? 'is-active' : ''} onClick={() => resetSubmissionDraft('new_project')}>新项目</button>
-                            <button type="button" className={submissionType === 'new_version' ? 'is-active' : ''} onClick={() => setSubmissionType('new_version')}>新版本</button>
-                        </div>
-                        {submissionType === 'new_version' && (
-                            <label>
-                                要更新的项目
-                                <select value={submissionProjectId} onChange={event => setSubmissionProjectId(event.target.value)} className="glass-input" required>
-                                    <option value="">选择项目</option>
-                                    {projects.filter(project => currentUserId !== null && Number(project.author_id) === currentUserId).map(project => (
-                                        <option key={project.id} value={project.id}>{project.title}</option>
-                                    ))}
-                                </select>
-                                <span className="project-submission-help">只能为自己已经发布的项目提交新版本，审核通过后才会更新线上卡片。</span>
-                            </label>
-                        )}
-                        <label>
-                            项目名
-                            <input value={submissionTitle} onChange={event => setSubmissionTitle(event.target.value)} className="glass-input" maxLength={80} required />
-                        </label>
-                        <label>
-                            简介
-                            <textarea value={submissionDescription} onChange={event => setSubmissionDescription(event.target.value)} className="glass-input" rows={4} maxLength={520} required />
-                        </label>
-                        <div className="project-submission-row">
-                            <label>
-                                Emoji
-                                <input value={submissionEmoji} onChange={event => setSubmissionEmoji(event.target.value)} className="glass-input" maxLength={8} />
-                            </label>
-                            <label>
-                                项目链接
-                                <input value={submissionUrl} onChange={event => setSubmissionUrl(event.target.value)} className="glass-input" placeholder="https://..." />
-                            </label>
-                        </div>
-                        <label>
-                            版本说明 / 更新说明
-                            <textarea value={submissionVersionNotes} onChange={event => setSubmissionVersionNotes(event.target.value)} className="glass-input" rows={3} maxLength={800} />
-                        </label>
-                        <ProjectCoverStudio value={submissionCoverUrl} onChange={setSubmissionCoverUrl} />
-                        <div className="project-submission-tags">
-                            {ALL_TAGS.map(tag => (
-                                <button key={tag} type="button" className={submissionTags.includes(tag) ? 'is-active' : ''} onClick={() => toggleSubmissionTag(tag)}>
-                                    {TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="project-submission-actions">
-                            <button type="button" className="btn" onClick={() => setShowSubmissionForm(false)}>取消</button>
-                            <button type="submit" className="btn btn-primary" disabled={submissionLoading}>
-                                {submissionLoading ? '提交中...' : '提交审核'}
-                            </button>
-                        </div>
+                        <header className="submission-header">
+                            <div>
+                                <h2>提交项目</h2>
+                                <p>名字、链接、图片和介绍，审核后发布。</p>
+                            </div>
+                        </header>
+                        <fieldset className="submission-fields" disabled={submissionLoading}>
+                            <div className="submission-layout submission-compact">
+                                <div className="submission-editor">
+                                    <div className="auth-verification-tabs" aria-label="申请类型">
+                                        <button type="button" aria-pressed={submissionType === 'new_project'} className={submissionType === 'new_project' ? 'is-active' : ''} onClick={() => { if (submissionType !== 'new_project') resetSubmissionDraft('new_project'); }}>新项目</button>
+                                        <button type="button" aria-pressed={submissionType === 'new_version'} className={submissionType === 'new_version' ? 'is-active' : ''} onClick={() => setSubmissionType('new_version')}>更新已有项目</button>
+                                    </div>
+                                    {submissionType === 'new_version' && (
+                                        <label className="submission-full-width">
+                                            要更新的项目
+                                            <select value={submissionProjectId} onChange={event => {
+                                                const project = projects.find(item => String(item.id) === event.target.value);
+                                                if (project) openSubmissionDraft({ type: 'new_version', project });
+                                                else resetSubmissionDraft('new_version');
+                                            }} className="glass-input" required>
+                                                <option value="">选择你已发布的项目</option>
+                                                {projects.filter(project => currentUserId !== null && Number(project.author_id) === currentUserId).map(project => (
+                                                    <option key={project.id} value={project.id}>{project.title}</option>
+                                                ))}
+                                            </select>
+                                            <span className="project-submission-help">选择后自动填入当前信息，审核通过后更新项目。</span>
+                                        </label>
+                                    )}
+                                    <label>
+                                        <span className="submission-field-title"><span>项目名字</span><small>{submissionTitle.length}/80</small></span>
+                                        <input value={submissionTitle} onChange={event => setSubmissionTitle(event.target.value)} className="glass-input" placeholder="给你的创意起个名字" minLength={2} maxLength={80} required />
+                                    </label>
+                                    <label>
+                                        <span className="submission-field-title"><span>项目 URL</span></span>
+                                        <input value={submissionUrl} onChange={event => setSubmissionUrl(event.target.value)} className="glass-input" type="url" pattern="https?://.+" placeholder="https://your-project.example.com" required />
+                                        <span className="project-submission-help">以 https:// 或 http:// 开头，可直接打开体验。</span>
+                                    </label>
+                                    <div>
+                                        <div className="submission-field-title"><span>项目图片</span><small>16:9 封面</small></div>
+                                        <ProjectCoverStudio key={`${submissionDraftKey}:${submissionType}:${submissionProjectId}`} value={submissionCoverUrl} onChange={setSubmissionCoverUrl} onPendingChange={setCoverPending} />
+                                    </div>
+                                    <label>
+                                        <span className="submission-field-title"><span>项目介绍</span><small>{submissionDescription.length}/520</small></span>
+                                        <textarea value={submissionDescription} onChange={event => setSubmissionDescription(event.target.value)} className="glass-input" rows={4} minLength={8} maxLength={520} placeholder="它是做什么的？适合谁？最值得体验的功能是什么？" required />
+                                        <span className="project-submission-help">至少 8 个字符。</span>
+                                    </label>
+                                    <details className="submission-options">
+                                        <summary>图标与标签 <span>选填</span></summary>
+                                        <label>项目图标<input value={submissionEmoji} onChange={event => setSubmissionEmoji(event.target.value)} className="glass-input submission-emoji" maxLength={8} /></label>
+                                        <p className="project-submission-help">项目标签 · 最多选择 5 个</p>
+                                        <div className="project-submission-tags">
+                                            {ALL_TAGS.map(tag => (
+                                                <button key={tag} type="button" aria-pressed={submissionTags.includes(tag)} className={submissionTags.includes(tag) ? 'is-active' : ''} onClick={() => toggleSubmissionTag(tag)}>
+                                                    {TAG_EMOJIS[tag] ? `${TAG_EMOJIS[tag]} ${tag}` : tag}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </details>
+                                    {submissionType === 'new_version' && (
+                                        <label className="submission-full-width">这次更新了什么？<textarea value={submissionVersionNotes} onChange={event => setSubmissionVersionNotes(event.target.value)} className="glass-input" rows={3} maxLength={800} placeholder="例如：新增关卡、修复问题、更新项目截图……" /></label>
+                                    )}
+                                </div>
+
+                            </div>
+                            <footer className="submission-footer">
+                                <p role="status">{submissionMessage || (coverPending ? '图片还在编辑或上传中，请先使用封面或取消更换。' : '名字、链接、图片和介绍均为必填。')}</p>
+                                <div className="project-submission-actions">
+                                    <button type="button" className="btn" onClick={() => setShowSubmissionForm(false)}>收起</button>
+                                    <button type="submit" className="btn btn-primary" disabled={submissionLoading || coverPending}>
+                                        {submissionLoading ? '正在提交…' : '提交审核'}
+                                    </button>
+                                </div>
+                            </footer>
+                        </fieldset>
                     </motion.form>
                 )}
             </AnimatePresence>
 
             <div className="hub-updates-stack">
-                {spotlightSlides.length > 0 && (
-                    <section
-                        className="hub-spotlight-panel"
-                        aria-label="Hub 新项目宣传栏"
-                        onMouseEnter={() => setSpotlightPaused(true)}
-                        onMouseLeave={() => setSpotlightPaused(false)}
-                        onFocusCapture={() => setSpotlightPaused(true)}
-                        onBlurCapture={() => setSpotlightPaused(false)}
-                    >
-                        <article className="hub-spotlight-frame" aria-live="polite">
-                            {spotlightSlides.map((item, index) => {
-                                const { copy, project } = item;
-                                const isActive = index === activeSpotlightIndex;
-
-                                return (
-                                    <section
-                                        key={item.key}
-                                        className={`hub-spotlight-slide ${isActive ? 'is-active' : ''}`}
-                                        aria-hidden={!isActive}
-                                    >
-                                        <div className="hub-spotlight-copy">
-                                            <div className="hub-spotlight-topline">
-                                                <div className="hub-spotlight-label-row">
-                                                    <span className="hub-spotlight-label">{copy.label}</span>
-                                                    <span className="hub-spotlight-status">{copy.status}</span>
-                                                </div>
-                                                <div className="hub-spotlight-actions">
-                                                    {copy.ctaTarget === 'submit' ? (
-                                                        <>
-                                                            <button
-                                                                type="button"
-                                                                className="hub-spotlight-cta"
-                                                                tabIndex={isActive ? undefined : -1}
-                                                                onClick={openSubmissionForm}
-                                                            >
-                                                                {copy.ctaLabel}
-                                                            </button>
-                                                            {user?.role === 'admin' && (
-                                                                <a
-                                                                    className="hub-spotlight-secondary"
-                                                                    href="/admin/project-submissions"
-                                                                    tabIndex={isActive ? undefined : -1}
-                                                                >
-                                                                    审核
-                                                                </a>
-                                                            )}
-                                                        </>
-                                                    ) : copy.ctaTarget === 'projects' ? (
-                                                        <button
-                                                            type="button"
-                                                            className="hub-spotlight-cta"
-                                                            tabIndex={isActive ? undefined : -1}
-                                                            onClick={scrollToProjectGrid}
-                                                        >
-                                                            {copy.ctaLabel}
-                                                        </button>
-                                                    ) : project?.url && (
-                                                        <a
-                                                            className="hub-spotlight-cta"
-                                                            href={project.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            tabIndex={isActive ? undefined : -1}
-                                                            onClick={() => recordProjectOpen(project.id)}
-                                                        >
-                                                            {copy.ctaLabel}
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <h2 className="hub-spotlight-title">
-                                                {copy.titleBefore}<span>{copy.titleAccent}</span>{copy.titleAfter}
-                                            </h2>
-                                            <p className="hub-spotlight-text">{copy.text}</p>
-                                            <div className="hub-spotlight-meta">
-                                                {copy.meta.slice(0, 3).map(item => (
-                                                    <span key={item}>{item}</span>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <HubSpotlightVisual kind={copy.kind} project={project} />
-                                    </section>
-                                );
-                            })}
-
-                            {spotlightSlides.length > 1 && (
-                                <div className="hub-spotlight-controls" aria-label="项目宣传切换">
-                                    <button
-                                        type="button"
-                                        className="hub-spotlight-arrow"
-                                        aria-label="上一条项目宣传"
-                                        onClick={() => setSpotlightIndex(current => (current - 1 + spotlightSlides.length) % spotlightSlides.length)}
-                                    >
-                                        ‹
-                                    </button>
-                                    <div className="hub-spotlight-dots" role="tablist" aria-label="Hub spotlight slides">
-                                        {spotlightSlides.map((item, index) => {
-                                            const { copy } = item;
-                                            return (
-                                                <button
-                                                    key={item.key}
-                                                    type="button"
-                                                    className={`hub-spotlight-dot ${index === activeSpotlightIndex ? 'is-active' : ''}`}
-                                                    aria-label={`查看 ${copy.ctaLabel} 宣传`}
-                                                    aria-selected={index === activeSpotlightIndex}
-                                                    role="tab"
-                                                    onMouseEnter={() => setSpotlightIndex(index)}
-                                                    onFocus={() => setSpotlightIndex(index)}
-                                                    onClick={() => setSpotlightIndex(index)}
-                                                />
-                                            );
-                                        })}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        className="hub-spotlight-arrow"
-                                        aria-label="下一条项目宣传"
-                                        onClick={() => setSpotlightIndex(current => (current + 1) % spotlightSlides.length)}
-                                    >
-                                        ›
-                                    </button>
-                                </div>
-                            )}
-                        </article>
-                    </section>
-                )}
+                <ProjectSpotlight projects={projects} onSubmit={openSubmissionForm} formOpen={showSubmissionForm} />
 
                 <section className="hub-leaderboard-panel">
                     <div className="hub-leaderboard-head">
@@ -1087,128 +823,6 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     );
 }
 
-function HubSpotlightVisual({ kind, project }: { kind: SpotlightKind, project: any }) {
-    if (kind === 'submit') {
-        return (
-            <div className="hub-spotlight-visual hub-submit-visual" aria-hidden="true">
-                <div className="hub-submit-step">
-                    <strong>01</strong>
-                    <span>填写信息</span>
-                </div>
-                <div className="hub-submit-step">
-                    <strong>02</strong>
-                    <span>提交审核</span>
-                </div>
-                <div className="hub-submit-step">
-                    <strong>03</strong>
-                    <span>上线展示</span>
-                </div>
-            </div>
-        );
-    }
-
-    if (kind === 'rewards') {
-        return (
-            <div className="hub-spotlight-visual hub-rewards-visual" aria-hidden="true">
-                <div className="hub-rewards-orbit">
-                    <span>+1</span>
-                    <span>+3</span>
-                    <span>+5</span>
-                </div>
-                <div className="hub-rewards-card">
-                    <strong>H币 Feedback</strong>
-                    <p>评论 · 评分 · H币支持创作者</p>
-                    <div>
-                        <span>💬</span>
-                        <span>⭐</span>
-                        <span>🎁</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    const coverUrl = getImageDisplayUrl(project?.cover_url || project?.coverUrl);
-    if (coverUrl) {
-        return (
-            <div className="hub-spotlight-visual hub-spotlight-cover-visual" aria-hidden="true">
-                <img src={coverUrl} alt="" loading="lazy" decoding="async" />
-            </div>
-        );
-    }
-
-    if (kind === 'ocean') {
-        return (
-            <div className="hub-spotlight-visual" aria-hidden="true">
-                <div className="hub-ocean-poster">
-                    <span className="hub-ocean-bridge" />
-                    <span className="hub-ocean-sail">⛵</span>
-                    <span className="hub-ocean-sail">⛵</span>
-                    <span className="hub-ocean-sail">⛵</span>
-                    <div className="hub-ocean-poster-content">
-                        <div className="hub-ocean-brand">{project.emoji || '⛵'} THE OCEAN EXPLORER</div>
-                        <div className="hub-ocean-title">
-                            <strong>远航帆船社区</strong>
-                            <span>赛事 · 排名 · 训练资料</span>
-                        </div>
-                        <div className="hub-ocean-stats">
-                            <div>
-                                <strong>Race</strong>
-                                <span>赛事排名</span>
-                            </div>
-                            <div>
-                                <strong>Track</strong>
-                                <span>赛事轨迹</span>
-                            </div>
-                            <div>
-                                <strong>Rank</strong>
-                                <span>水手榜单</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="hub-spotlight-visual" aria-hidden="true">
-            <div className="hub-paper-workspace">
-                <div className="hub-paper-stack">
-                    <div className="hub-paper-page" />
-                    <div className="hub-paper-page" />
-                    <div className="hub-paper-page">
-                        <h3>May Jun</h3>
-                        <span />
-                        <span />
-                        <span />
-                        <p>2024 paper set</p>
-                    </div>
-                </div>
-                <div className="hub-paper-panel">
-                    <div className="hub-paper-toolbar">
-                        <span />
-                        <span />
-                        <span />
-                        <strong>playtest queue</strong>
-                    </div>
-                    <div className="hub-paper-insight">
-                        <strong>测试任务</strong>
-                        <div>
-                            <span><b>QP</b><small>paper</small></span>
-                            <span><b>MS</b><small>scheme</small></span>
-                            <span><b>ZIP</b><small>batch</small></span>
-                        </div>
-                    </div>
-                    <div className="hub-paper-feedback">
-                        <strong>反馈重点</strong>
-                        <p>搜索、配对预览、下载路径、收藏科目是否符合真实复习习惯。</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 function ProjectCard({
     project,

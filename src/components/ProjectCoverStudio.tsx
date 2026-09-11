@@ -10,6 +10,7 @@ const MAX_ZOOM = 3;
 type ProjectCoverStudioProps = {
     value: string;
     onChange: (url: string) => void;
+    onPendingChange: (pending: boolean) => void;
 };
 
 type ImageMetrics = {
@@ -50,7 +51,7 @@ async function loadImage(src: string) {
     return image;
 }
 
-export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStudioProps) {
+export default function ProjectCoverStudio({ value, onChange, onPendingChange }: ProjectCoverStudioProps) {
     const [sourceUrl, setSourceUrl] = useState('');
     const [metrics, setMetrics] = useState<ImageMetrics | null>(null);
     const [zoom, setZoom] = useState(1);
@@ -58,6 +59,13 @@ export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStud
     const [message, setMessage] = useState('');
     const [uploading, setUploading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [reading, setReading] = useState(false);
+    const [dropActive, setDropActive] = useState(false);
+    const fileReadId = useRef(0);
+
+    useEffect(() => {
+        onPendingChange(Boolean(sourceUrl) || uploading || reading);
+    }, [sourceUrl, uploading, reading, onPendingChange]);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const imageRef = useRef<HTMLImageElement | null>(null);
     const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
@@ -72,39 +80,42 @@ export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStud
         if (!metrics) return undefined;
         const baseScale = Math.max(COVER_WIDTH / metrics.naturalWidth, COVER_HEIGHT / metrics.naturalHeight);
         return {
-            width: `${metrics.naturalWidth * baseScale * zoom}px`,
-            height: `${metrics.naturalHeight * baseScale * zoom}px`,
-            transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+            width: `${metrics.naturalWidth * baseScale * zoom / COVER_WIDTH * 100}%`,
+            height: `${metrics.naturalHeight * baseScale * zoom / COVER_HEIGHT * 100}%`,
+            left: `${50 + offset.x / COVER_WIDTH * 100}%`,
+            top: `${50 + offset.y / COVER_HEIGHT * 100}%`,
+            transform: 'translate(-50%, -50%)',
         };
     }, [metrics, offset.x, offset.y, zoom]);
 
     const setImageFile = async (file: File) => {
-        if (!file.type.startsWith('image/')) {
-            setMessage('请选择图片文件。');
+        if (uploading || reading) return;
+        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+            setMessage('请选择 PNG、JPEG 或 WebP 图片。');
             return;
         }
-
-        if (file.type === 'image/gif') {
-            setMessage('项目封面会裁剪成静态 WebP，建议用 PNG/JPEG/WebP 截图。');
+        if (file.size > 20 * 1024 * 1024) {
+            setMessage('原图不能超过 20 MB，请换一张较小的截图。');
             return;
         }
-
+        const readId = ++fileReadId.current;
         const nextUrl = URL.createObjectURL(file);
-        const image = await loadImage(nextUrl);
-
-        if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-
-        imageRef.current = image;
-        setSourceUrl(nextUrl);
-        setMetrics({
-            width: image.width,
-            height: image.height,
-            naturalWidth: image.naturalWidth,
-            naturalHeight: image.naturalHeight,
-        });
-        setZoom(1);
-        setOffset({ x: 0, y: 0 });
-        setMessage('已读取图片，可以拖动画面并缩放裁剪区域。');
+        setReading(true);
+        try {
+            const image = await loadImage(nextUrl);
+            if (readId !== fileReadId.current) { URL.revokeObjectURL(nextUrl); return; }
+            imageRef.current = image;
+            setSourceUrl(nextUrl);
+            setMetrics({ width: image.width, height: image.height, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight });
+            setZoom(1);
+            setOffset({ x: 0, y: 0 });
+            setMessage('拖动或用方向键调整画面，满意后点击「使用这张封面」。');
+        } catch {
+            URL.revokeObjectURL(nextUrl);
+            setMessage('无法读取这张图片，请换一张 PNG、JPEG 或 WebP 截图。');
+        } finally {
+            setReading(false);
+        }
     };
 
     const handlePaste = async (event: React.ClipboardEvent<HTMLDivElement>) => {
@@ -122,7 +133,7 @@ export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStud
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!imageRef.current || event.button !== 0) return;
+        if (!sourceUrl || !imageRef.current || uploading || event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);
         dragRef.current = {
             startX: event.clientX,
@@ -136,9 +147,10 @@ export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStud
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
         if (!dragRef.current || !imageRef.current) return;
 
+        const scale = COVER_WIDTH / event.currentTarget.getBoundingClientRect().width;
         const nextOffset = {
-            x: dragRef.current.originX + event.clientX - dragRef.current.startX,
-            y: dragRef.current.originY + event.clientY - dragRef.current.startY,
+            x: dragRef.current.originX + (event.clientX - dragRef.current.startX) * scale,
+            y: dragRef.current.originY + (event.clientY - dragRef.current.startY) * scale,
         };
         setOffset(getSafeCropOffset(imageRef.current, zoom, nextOffset));
     };
@@ -182,32 +194,25 @@ export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStud
     };
 
     const uploadCover = async () => {
+        if (uploading || reading) return;
         setMessage('');
-
-        const blob = await exportCoverBlob();
-        if (!blob) {
-            setMessage('请先上传或粘贴一张图片。');
-            return;
-        }
-
         setUploading(true);
         try {
+            const blob = await exportCoverBlob();
+            if (!blob) throw new Error('请先选择一张图片。');
+            if (blob.size > 1024 * 1024) throw new Error('裁剪后的封面仍超过 1 MB，请换一张细节较少的图片。');
             const formData = new FormData();
             formData.append('file', new File([blob], `project-cover-${Date.now()}.webp`, { type: 'image/webp' }));
-
-            const res = await fetch('/api/project-submissions/cover', {
-                method: 'POST',
-                body: formData,
-            });
+            const res = await fetch('/api/project-submissions/cover', { method: 'POST', body: formData });
             const data = await res.json().catch(() => null);
-
-            if (!res.ok) {
-                setMessage(data?.error || '封面上传失败，请稍后再试。');
-                return;
-            }
-
+            if (!res.ok || typeof data?.url !== 'string') throw new Error(data?.error || '封面上传失败，请稍后重试。');
             onChange(data.url);
-            setMessage('封面已上传，提交审核时会一起保存。');
+            setSourceUrl('');
+            setMetrics(null);
+            imageRef.current = null;
+            setMessage('封面已准备好，会随项目一起提交审核。');
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : '网络连接失败，请重试上传。');
         } finally {
             setUploading(false);
         }
@@ -215,78 +220,65 @@ export default function ProjectCoverStudio({ value, onChange }: ProjectCoverStud
 
     return (
         <section className="project-cover-studio" onPaste={handlePaste}>
-            <div className="project-cover-studio-head">
-                <div>
-                    <strong>截图 / 封面</strong>
-                    <span>支持上传、直接粘贴截图，并拖动调整截取区域。</span>
-                </div>
-                {value && <span className="project-cover-ready">已保存 URL</span>}
-            </div>
-
+            {value && !sourceUrl && <span className="project-cover-ready">✓ 封面已就绪</span>}
             <div
-                className={`project-cover-cropper ${isDragging ? 'is-dragging' : ''} ${sourceUrl ? 'has-image' : ''}`}
-                tabIndex={0}
+                className={`project-cover-cropper ${isDragging ? 'is-dragging' : ''} ${sourceUrl ? 'has-image' : ''} ${dropActive ? 'is-drop-active' : ''}`}
+                tabIndex={uploading || reading ? -1 : 0}
                 role="button"
-                aria-label="项目封面裁剪区域，支持粘贴图片、点击上传或拖动调整画面"
-                onClick={() => {
-                    if (!sourceUrl) fileInputRef.current?.click();
+                aria-disabled={uploading || reading}
+                aria-label={sourceUrl ? '封面裁剪区域，拖动或用方向键调整画面' : '选择项目图片，也可粘贴截图或拖入图片'}
+                onClick={() => { if (!sourceUrl && !uploading && !reading) fileInputRef.current?.click(); }}
+                onKeyDown={event => {
+                    if (uploading || reading) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        fileInputRef.current?.click();
+                    }
+                    if (sourceUrl && imageRef.current && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+                        event.preventDefault();
+                        const step = event.shiftKey ? 40 : 10;
+                        setOffset(current => getSafeCropOffset(imageRef.current!, zoom, {
+                            x: current.x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0),
+                            y: current.y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0),
+                        }));
+                    }
                 }}
+                onDragOver={event => { event.preventDefault(); setDropActive(true); }}
+                onDragLeave={() => setDropActive(false)}
+                onDrop={event => { event.preventDefault(); setDropActive(false); const file = event.dataTransfer.files[0]; if (file) void setImageFile(file); }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={finishDrag}
                 onPointerCancel={finishDrag}
             >
                 {sourceUrl && cropStyle ? (
-                    <img src={sourceUrl} alt="" draggable={false} style={cropStyle} />
+                    <img src={sourceUrl} alt="待裁剪的项目图片" draggable={false} style={cropStyle} />
+                ) : value ? (
+                    <img className="project-cover-saved-image" src={value} alt="已选项目封面" />
                 ) : (
                     <div className="project-cover-drop-hint">
-                        <span>Paste / Upload</span>
-                        <strong>把项目截图粘贴到这里</strong>
-                        <small>也可以点击选择图片，之后拖动画面裁剪 16:9 封面。</small>
+
+                        <strong>{reading ? '正在读取图片…' : '点击上传或拖入图片'}</strong>
+                        <small>支持粘贴 · PNG / JPEG / WebP · 最大 20 MB</small>
                     </div>
                 )}
-                <div className="project-cover-safe-frame" aria-hidden="true" />
+                {sourceUrl && <div className="project-cover-safe-frame" aria-hidden="true" />}
             </div>
-
-            <div className="project-cover-toolbar">
-                <button type="button" className="btn" onClick={() => fileInputRef.current?.click()}>
-                    选择图片
-                </button>
-                <label>
-                    缩放
-                    <input
-                        type="range"
-                        min={MIN_ZOOM}
-                        max={MAX_ZOOM}
-                        step="0.01"
-                        value={zoom}
-                        disabled={!sourceUrl}
-                        onChange={event => handleZoomChange(Number(event.target.value))}
-                    />
-                </label>
-                <button type="button" className="btn btn-primary" disabled={!sourceUrl || uploading} onClick={uploadCover}>
-                    {uploading ? '上传中...' : '上传封面'}
-                </button>
-            </div>
-
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                hidden
-                onChange={event => {
-                    const file = event.target.files?.[0];
-                    if (file) void setImageFile(file);
-                    event.currentTarget.value = '';
-                }}
-            />
-
-            <label className="project-cover-url-field">
-                或粘贴已有封面 URL
-                <input value={value} onChange={event => onChange(event.target.value)} className="glass-input" placeholder="https://..." />
-            </label>
-
-            {message && <p className="project-cover-message">{message}</p>}
+            {(sourceUrl || value) && <div className="project-cover-toolbar">
+                <button type="button" className="btn" disabled={uploading || reading} onClick={() => fileInputRef.current?.click()}>{value || sourceUrl ? '更换图片' : '选择图片'}</button>
+                {sourceUrl && <>
+                    <label>缩放<input type="range" min={MIN_ZOOM} max={MAX_ZOOM} step="0.01" value={zoom} disabled={uploading} onChange={event => handleZoomChange(Number(event.target.value))} /></label>
+                    <button type="button" className="btn btn-primary" disabled={uploading} onClick={uploadCover}>{uploading ? '上传中…' : '使用这张封面'}</button>
+                    <button type="button" className="btn" disabled={uploading} onClick={() => { setSourceUrl(''); setMetrics(null); imageRef.current = null; setMessage(''); }}>取消更换</button>
+                </>}
+                {!sourceUrl && value && <button type="button" className="btn" disabled={reading} onClick={() => { onChange(''); setMessage(''); }}>移除</button>}
+            </div>}
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={uploading || reading} onChange={event => {
+                const file = event.target.files?.[0];
+                if (file) void setImageFile(file);
+                event.currentTarget.value = '';
+            }} />
+            {message && <p className="project-cover-message" role="status">{message}</p>}
         </section>
     );
 }
