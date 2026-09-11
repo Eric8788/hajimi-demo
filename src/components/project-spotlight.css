@@ -29,3 +29,11 @@
  .hub-notice-controls { right: 14px; bottom: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .hub-notice-slide { transition: none; } }
+.hub-notice-action { position: relative; z-index: 2; margin-left: auto; }
+.hub-notice-slide:not(:has(.hub-notice-poster)) { background: radial-gradient(ellipse at 85% 20%, rgba(129,186,172,.5), transparent 55%), linear-gradient(120deg,#183f38,#3f7568); }
+.hub-notice-controls .hub-notice-dot { background: transparent; width: 28px; }
+@media (max-width: 650px) {
+ .hub-notice-slide { flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 14px; }
+ .hub-notice-copy { max-width: 100%; }
+ .hub-notice-action { margin-left: 0; align-self: flex-start; }
+}
