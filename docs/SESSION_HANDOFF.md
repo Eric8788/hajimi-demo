@@ -155,3 +155,31 @@ Then continue from the current state without redoing completed work.
 - `c5d124b` chore(forum): tune image quotas for school scale
 - `dda7dbb` feat(forum): add blob upload guardrails
 - `733802d` feat(forum): store attachments in vercel blob
+
+## Project applications and recent projects (2026-09-11)
+
+- `/functions` now uses a compact form with four required fields: project name,
+  HTTP(S) URL, cover image, and introduction. Icons/tags are optional; selecting
+  an owned project pre-fills a new-version application. Missing URL/cover is
+  rejected by the submission API.
+- Image selection supports drag/drop, paste, and file selection. Responsive
+  16:9 crop coordinates match export; pending crop/upload blocks submission,
+  and network failures retain form content for retry.
+- The announcement carousel contains the submission entry plus the three
+  latest live projects, ordered by creation time with ID as tie-breaker.
+  Posters use stored covers; ordinary and middle-click opens use the existing
+  project-open tracking path. Ranking rules are unchanged.
+- Existing project covers were separately backfilled in production with website
+  screenshots in Vercel Blob for IDs 6, 8, 9, 10, 11, 13, 16, 17, 20, 21, 22.
+  ID 22 previously pointed to an HTML page. Only `projects.cover_url` changed;
+  no schema changes were needed. Flight Radar (ID 15) remains without a cover
+  because two visits showed a blank map and upstream API errors.
+- Validation: production build; desktop/390px form layout; missing-cover
+  validation; upload/submission retry; owned-project prefill; exactly four
+  carousel slides; latest IDs 23/22/21 and their loaded posters; open events
+  corresponding to each project link. The eleven Blob URLs and public API
+  cover records were verified.
+- Local-only preview routes, simulated APIs, screenshot files, and backfill
+  scripts are excluded from the release. Local evidence and original/new cover
+  URLs are preserved under
+  `/Users/eric/Desktop/AI/hajimi/artifacts/project-submission/`.

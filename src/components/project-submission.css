@@ -1,0 +1,72 @@
+.project-submission-form {
+  padding: clamp(18px, 2.5vw, 28px);
+  gap: 20px;
+  scroll-margin-top: 30px;
+  background: rgba(255, 255, 255, .82);
+  backdrop-filter: blur(24px);
+  border-radius: 20px;
+}
+.submission-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.submission-header h2 { margin: 0 0 6px; color: #302b42; font-size: 1.2rem; }
+.submission-header p { margin: 0; color: #746e83; font-size: .85rem; line-height: 1.8; }
+.submission-fields { margin: 0; padding: 0; border: 0; min-width: 0; }
+.submission-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.submission-editor { display: grid; gap: 18px; min-width: 0; }
+.submission-editor .auth-verification-tabs { margin: 0; }
+.submission-field-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px; color: #3b354d; font-size: .86rem; font-weight: 750; }
+.submission-field-title small { color: #8a809d; font-size: .68rem; font-weight: 500; }
+.submission-editor .glass-input { width: 100%; min-width: 0; box-sizing: border-box; border-radius: 12px; border: 1px solid #e2ddeb; background: rgba(255,255,255,.74); color: #393249; box-shadow: inset 0 1px 3px rgba(63,41,102,.02); }
+.submission-editor .glass-input:focus { outline: 2px solid rgba(126,98,201,.38); outline-offset: 2px; }
+.submission-editor .glass-input::placeholder { color: #96909f; font-weight: 400; }
+.submission-editor .project-submission-help { color: #81788e; font-weight: 400; line-height: 1.65; }
+.submission-options { padding-top: 16px; border-top: 1px solid #e6e1ed; }
+.submission-options summary { cursor: pointer; font-size: .83rem; font-weight: 650; color: #5b516e; }
+.submission-options summary span { font-size: .7rem; color: #8a8096; margin-left: 8px; font-weight: 400; }
+.submission-options[open] summary { margin-bottom: 18px; }
+.submission-options .submission-emoji { max-width: 90px; }
+.submission-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e6dfef; }
+.submission-footer p { font-size: .73rem; color: #8b7e98; margin: 0; line-height: 1.7; }
+.submission-footer .project-submission-actions { flex-shrink: 0; }
+.submission-footer .btn-primary { background: #8063bd; color: white; box-shadow: 0 5px 14px #8664b633; border-radius: 12px; }
+.project-submission-form button:disabled { cursor: wait; opacity: .55; }
+.submission-editor .project-cover-studio { margin-top: 8px; padding: 0; border: 0; border-radius: 16px; box-shadow: none; background: transparent; }
+.submission-editor .project-cover-studio-head > span { color: #9689a7; font-size: .68rem; font-weight: 400; }
+.submission-editor .project-cover-cropper { min-height: 0; border-radius: 10px; box-shadow: none; border: 1px solid #e7dff0; cursor: pointer; touch-action: auto; }
+.submission-editor .project-cover-cropper.has-image { touch-action: none; }
+.submission-editor .project-cover-cropper.is-drop-active { outline: 2px solid #9571cd; }
+.submission-editor .project-cover-drop-hint { padding: 12px; }
+.submission-editor .project-cover-drop-hint > span { font-size: 1.25rem; line-height: 1; padding: 6px 11px; color: #a28bbf; background: #e9dff566; }
+.submission-editor .project-cover-drop-hint strong { color: #7a638e; font-size: .8rem; font-weight: 650; }
+.submission-editor .project-cover-drop-hint small { font-size: .63rem; font-weight: 400; line-height: 1.7; color: #a395ae; }
+.submission-editor .project-cover-toolbar { gap: 8px; }
+.submission-editor .project-cover-toolbar .btn { padding: 7px 10px; font-size: .72rem; }
+.submission-editor .project-cover-toolbar label { flex-basis: 110px; }
+.submission-editor .project-cover-saved-image { inset: 0; width: 100%; height: 100%; }
+.submission-editor .project-cover-message { font-weight: 500; font-size: .72rem; }
+@media (max-width: 800px) {
+  .submission-layout { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .submission-footer { flex-direction: column; align-items: stretch; }
+  .submission-footer .project-submission-actions { justify-content: flex-end; }
+}
+
+.submission-editor .project-cover-cropper:not(.has-image):not(:has(.project-cover-saved-image)) { aspect-ratio: auto; min-height: 145px; border: 1px dashed #d8c9eb; background: rgba(248,246,252,.6); }
+
+/* Compact application: only the four fields, without a second preview panel. */
+.project-submission-form { max-width: 680px; margin: 0 auto 20px; padding: 20px; border-radius: 16px; box-shadow: 0 6px 24px rgba(68,70,90,.04); }
+.submission-layout.submission-compact { display: block; }
+.submission-compact .submission-editor { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+.submission-compact .auth-verification-tabs, .submission-compact .submission-options, .submission-compact .submission-full-width { grid-column: 1/-1; }
+.submission-compact .submission-field-title { font-size: .8rem; }
+.submission-compact .project-submission-help { font-size: .68rem; }
+.submission-compact textarea { min-height: 145px; }
+.submission-compact .project-cover-drop-hint small { font-size: .6rem; }
+.submission-compact .project-cover-toolbar { gap: 5px; }
+.submission-compact .project-cover-toolbar label { flex-basis: 100%; }
+.submission-footer p { max-width: 340px; }
+@media (max-width: 560px) { .submission-compact .submission-editor { grid-template-columns: minmax(0,1fr); } }
+
+.project-submission-form .btn-primary { background: #21826f; box-shadow: none; }
+.submission-compact .auth-verification-tabs { display: flex; justify-content: flex-start; padding: 3px; background: #f0f3f2; border-radius: 9px; }
+.submission-compact .auth-verification-tabs button { flex: 1; padding: 7px 12px; font-size: .76rem; box-shadow: none; background: transparent; color: #79827f; border-radius: 7px; }
+.submission-compact .auth-verification-tabs button.is-active { background: #fff; color: #257362; box-shadow: 0 1px 4px #2038300a; }
+.submission-compact .submission-editor > label { align-self: start; }
