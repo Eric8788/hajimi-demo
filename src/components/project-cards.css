@@ -1,0 +1,52 @@
+.hub-project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.hub-project-grid > div { min-width: 0; }
+.hub-project-grid .project-card-shell { height: 350px; min-height: 350px; --radius-lg: 18px; }
+.hub-project-grid .project-card-face { padding: 14px; gap: 8px; }
+.hub-project-grid .project-card-front {
+    background: color-mix(in srgb, var(--project-accent-bg) 45%, rgba(255,255,255,.8));
+    border-color: rgba(162,155,254,.16);
+}
+.hub-project-grid .project-card-cover { height: 126px; min-height: 126px; border-radius: 12px; }
+.hub-project-grid .project-card-title-row { min-height: 40px; flex-shrink: 0; gap: 8px; }
+.hub-project-grid .project-card-title-block h3 { font-size: .96rem; line-height: 1.25; }
+.hub-project-grid .project-card-title-block span { font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-project-grid .project-card-bookmark { width: 28px; height: 28px; flex-shrink: 0; }
+.hub-project-grid .project-card-tagline { font-size: .76rem; font-weight: 500; flex-shrink: 0; }
+.hub-project-grid .project-card-rating-pill { min-height: 27px; padding: 4px 9px; gap: 6px; font-size: .77rem; line-height: 1.2; flex-shrink: 0; }
+.hub-project-grid .project-card-rating-pill span:first-of-type { font-size: .85rem; line-height: 1.2; }
+.hub-project-grid .project-card-front .project-card-tags { max-height: 23px; overflow: hidden; flex-shrink: 0; }
+.hub-project-grid .project-card-tags span { padding: 3px 7px; font-size: .65rem; }
+.hub-project-grid .project-card-footer { margin-top: auto; align-items: center; flex-shrink: 0; }
+.hub-project-grid .project-card-footer-actions { flex-direction: row; align-items: center; }
+.hub-project-grid .project-card-live,
+.hub-project-grid .project-card-soon,
+.hub-project-grid .project-card-open { font-size: .72rem; }
+.hub-project-grid .project-card-decoration { display: none; }
+.hub-project-grid .project-card-floating-caption { display: none; }
+.hub-project-grid .project-card-shell.is-live:not(.is-flipped):hover { transform: translateY(-2px); }
+.hub-project-grid .project-card-back-head h3 { font-size: .95rem; }
+.hub-project-grid .project-card-back-head small { font-size: .7rem; }
+.hub-project-grid .project-card-back-head > div > span { font-size: .6rem; }
+.hub-project-grid .project-card-back-button { padding: 6px 9px; box-shadow: none; }
+.hub-project-grid .project-card-rating-form { flex-shrink: 0; }
+.hub-project-grid .project-card-tip-options { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.hub-project-grid .project-card-tip-options input,
+.hub-project-grid .project-card-tip-submit { grid-column: span 3; width: 100%; }
+
+.project-directory .project-filter-bar { gap: 10px; padding: 14px; margin-bottom: 20px; }
+.project-directory .project-filter-panel { padding: 5px; border-radius: 14px; box-shadow: none; }
+.project-directory .project-creator-filter-panel { min-height: 40px; }
+.project-directory .project-filter-chip { padding: 6px 12px; font-size: .78rem; }
+.project-directory .project-filter-row > span { font-size: .78rem; }
+.project-directory .project-filter-actions { gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 650px) {
+    .hub-project-grid { gap: 14px; }
+    .project-directory .project-filter-bar { padding: 10px 0; }
+}

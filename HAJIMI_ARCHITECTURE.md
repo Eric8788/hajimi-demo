@@ -202,3 +202,7 @@ Database interactions are handled via standard SQL functions.
 ### Project announcement presentation (2026-09-11)
 
 The project carousel uses a restrained light glass panel around 220px tall, with an image filling roughly 60% of the desktop content width and 196px in height beside the caption, compact inset spacing, controls beneath the text, a 6.5-second rotation interval, and immediate navigation on dot hover, focus, or click. Hover/focus pauses rotation; leaving resumes it. Hidden pages and reduced-motion preferences suppress autoplay. Mobile captions and actions remain beside a proportional image above the navigation controls. Project-open tracking is unchanged.
+
+### Function Hall project cards (2026-09-11)
+
+The directory uses a compact responsive grid with roughly 350px-high cards, aligned covers and footers, and subdued hover tilt. A shared project ID allows only one card back to be open. Activating another card (including its nested actions) restores the previous front; filtering or sorting closes the open card. Back/keyboard controls remain available, and switching cards retains unsent comment drafts while the cards remain mounted. Ratings, bookmarks, tips, and project-open tracking retain their existing permission and persistence paths.
