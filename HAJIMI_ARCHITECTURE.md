@@ -198,3 +198,7 @@ Database interactions are handled via standard SQL functions.
 ## 7. Known Issues & Quirks
 - **Turbopack Chinese Path Bug:** Local development (`npm run dev`) sometimes panics if the absolute path contains Chinese characters (e.g., `/学生项目/`). This is a known Next.js Turbopack bug on macOS. Standard Webpack builds and Vercel cloud deployments are unaffected.
 - **Vercel Auth Interception:** If deploying to a Preview URL on Vercel with Protection enabled, API routes (like `/api/auth`) might return 500/HTML due to Vercel SSO walls. Always test auth on the primary Production Domain.
+
+### Project announcement presentation (2026-09-11)
+
+The project carousel uses full-width cover imagery with a dark text overlay, a 6.5-second rotation interval, and immediate navigation on dot hover, focus, or click. Hover/focus pauses rotation; leaving resumes it. Hidden pages and reduced-motion preferences suppress autoplay. Mobile captions and actions stack above the navigation controls. Project-open tracking is unchanged.
