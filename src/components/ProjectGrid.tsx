@@ -8,6 +8,7 @@ import type { Project, User } from '@/lib/db';
 import ProjectCoverStudio from './ProjectCoverStudio';
 import ProjectSpotlight from './ProjectSpotlight';
 import './project-submission.css';
+import './project-cards.css';
 import { cachedJson, clearCachedJson } from '@/lib/clientJsonCache';
 import { getImageDisplayUrl } from '@/lib/imageProxy';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
@@ -43,8 +44,8 @@ const TAG_EMOJIS: Record<string, string> = {
     Narrative: '📖', Sailing: '⛵', Classroom: '🏫'
 };
 
-const PROJECT_CARD_TILT_AMPLITUDE = 10;
-const PROJECT_CARD_TILT_SCALE = 1.025;
+const PROJECT_CARD_TILT_AMPLITUDE = 4;
+const PROJECT_CARD_TILT_SCALE = 1.01;
 
 function resetProjectCardTilt(element: HTMLElement | null) {
     if (!element) return;
@@ -106,6 +107,7 @@ function isValidCoverUrl(url: unknown) {
 
 export default function ProjectGrid({ user, canSubmitProjects = false }: ProjectGridProps) {
     const [projects, setProjects] = useState<HubProject[]>([]);
+    const [flippedProjectId, setFlippedProjectId] = useState<number | null>(null);
     const [selectedTag, setSelectedTag] = useState<ProjectTag | 'all'>('all');
     const [selectedCreator, setSelectedCreator] = useState<string | 'all'>('all');
     const [sortType, setSortType] = useState<'rating' | 'name'>('rating');
@@ -268,6 +270,10 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             controller.abort();
         };
     }, [user?.id, canSubmitProjects]);
+
+    useEffect(() => {
+        setFlippedProjectId(null);
+    }, [selectedTag, selectedCreator, sortType, showLiveOnly, showSavedOnly]);
 
     if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading functions...</div>;
 
@@ -502,7 +508,7 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
     };
 
     return (
-        <div>
+        <div className="project-directory">
             {submissionMessage && !showSubmissionForm && (
                 <div className="forum-verification-callout project-submit-message" role="status">
                     <span>{submissionMessage}</span>
@@ -783,12 +789,13 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
             <motion.div
                 id="hub-project-showcase"
                 layout
-                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}
+                className="hub-project-grid"
             >
                 <AnimatePresence>
                     {filtered.map(project => (
                         <motion.div
                             key={project.id}
+                            onClickCapture={() => setFlippedProjectId(current => current === Number(project.id) ? current : null)}
                             layout
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -797,6 +804,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
                         >
                             <ProjectCard
                                 project={project}
+                                isFlipped={flippedProjectId === Number(project.id)}
+                                onFlipChange={flipped => setFlippedProjectId(current => flipped ? Number(project.id) : current === Number(project.id) ? null : current)}
                                 user={user}
                                 canInteract={canSubmitProjects}
                                 canEdit={currentUserId !== null && Number(project.author_id) === currentUserId}
@@ -826,6 +835,8 @@ export default function ProjectGrid({ user, canSubmitProjects = false }: Project
 
 function ProjectCard({
     project,
+    isFlipped,
+    onFlipChange,
     user,
     canInteract,
     canEdit,
@@ -838,6 +849,8 @@ function ProjectCard({
     onTipSuccess,
 }: {
     project: any,
+    isFlipped: boolean,
+    onFlipChange: (flipped: boolean) => void,
     user: User | null,
     canInteract: boolean,
     canEdit: boolean,
@@ -855,7 +868,6 @@ function ProjectCard({
     const [hoverScore, setHoverScore] = useState(0);
     const [selectedScore, setSelectedScore] = useState(0);
     const [ownRatingScore, setOwnRatingScore] = useState(0);
-    const [isFlipped, setIsFlipped] = useState(false);
     const [hasLoadedComments, setHasLoadedComments] = useState(false);
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState('');
@@ -885,18 +897,22 @@ function ProjectCard({
     }, [coverUrl]);
 
     useEffect(() => {
-        if (isFlipped) resetProjectCardTilt(cardRef.current);
+        resetProjectCardTilt(cardRef.current);
+        if (!isFlipped) {
+            setInteractionMessage('');
+            setHoverScore(0);
+        }
     }, [isFlipped]);
 
     const openBack = () => {
-        setIsFlipped(true);
+        onFlipChange(true);
         if (!hasLoadedComments) {
             fetchComments();
         }
     };
 
     const closeBack = () => {
-        setIsFlipped(false);
+        onFlipChange(false);
         setInteractionMessage('');
         setHoverScore(0);
     };
@@ -944,7 +960,7 @@ function ProjectCard({
     const requireProjectInteraction = (action = '评分和评论项目') => {
         if (!user) {
             setInteractionMessage(`登录并完成 Hajimi 认证后可以${action}。`);
-            setIsFlipped(true);
+            onFlipChange(true);
             return true;
         }
 
@@ -952,7 +968,7 @@ function ProjectCard({
             setInteractionMessage(isReadOnlyUser
                 ? getInteractionBlockedMessage(user, action)
                 : `完成 Hajimi 认证后可以${action}。`);
-            setIsFlipped(true);
+            onFlipChange(true);
             return true;
         }
 
@@ -980,7 +996,7 @@ function ProjectCard({
             if (!res.ok) {
                 onBookmarkUpdate?.(project.id, previous);
                 setInteractionMessage(data?.error || '收藏项目失败，请稍后再试。');
-                setIsFlipped(true);
+                onFlipChange(true);
                 return;
             }
             onBookmarkUpdate?.(project.id, !!data?.bookmarked);
@@ -989,7 +1005,7 @@ function ProjectCard({
             console.warn('Project bookmark failed:', error);
             onBookmarkUpdate?.(project.id, previous);
             setInteractionMessage('收藏项目失败，请稍后再试。');
-            setIsFlipped(true);
+            onFlipChange(true);
         } finally {
             setBookmarkPending(false);
         }
