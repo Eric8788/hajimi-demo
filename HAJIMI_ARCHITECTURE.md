@@ -201,4 +201,4 @@ Database interactions are handled via standard SQL functions.
 
 ### Project announcement presentation (2026-09-11)
 
-The project carousel uses full-width cover imagery with a dark text overlay, a 6.5-second rotation interval, and immediate navigation on dot hover, focus, or click. Hover/focus pauses rotation; leaving resumes it. Hidden pages and reduced-motion preferences suppress autoplay. Mobile captions and actions stack above the navigation controls. Project-open tracking is unchanged.
+The project carousel uses a restrained light glass panel around 220px tall, with a large image beside the caption, a 6.5-second rotation interval, and immediate navigation on dot hover, focus, or click. Hover/focus pauses rotation; leaving resumes it. Hidden pages and reduced-motion preferences suppress autoplay. Mobile captions and actions remain beside a proportional image above the navigation controls. Project-open tracking is unchanged.
