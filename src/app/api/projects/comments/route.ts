@@ -4,6 +4,7 @@ import { addProjectComment, deleteProjectComment, getProjectComments, getProject
 import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { clearServerCache } from '@/lib/serverCache';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 function parsePositiveInteger(value: string | null | unknown) {
     const parsed = typeof value === 'number' ? value : Number(value);
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
         }
 
         const userId = Number(session.userId);
+        const rate = checkRateLimit(`project-comment:${userId}`, 20, 10 * 60 * 1000);
+        if (!rate.allowed) {
+            return NextResponse.json({ error: '评论太频繁，请稍后再试。' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } });
+        }
         const user = await getUserById(userId);
         if (!isVerifiedAccount(user)) {
             return NextResponse.json({ error: getInteractionBlockedMessage(user, '评论项目') }, { status: 403 });

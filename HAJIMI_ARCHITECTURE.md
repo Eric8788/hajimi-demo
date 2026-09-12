@@ -206,3 +206,7 @@ The project carousel uses a restrained light glass panel around 220px tall, with
 ### Function Hall project cards (2026-09-11)
 
 The directory uses a compact responsive grid with roughly 350px-high cards, aligned covers and footers, and subdued hover tilt. A shared project ID allows only one card back to be open. Activating another card (including its nested actions) restores the previous front; filtering or sorting closes the open card. Back/keyboard controls remain available, and switching cards retains unsent comment drafts while the cards remain mounted. Ratings, bookmarks, tips, and project-open tracking retain their existing permission and persistence paths.
+
+### Runtime hardening (2026-09-12)
+
+Production session signing uses the `HAJIMI_SESSION_SECRET` environment variable; the development fallback is local-only. The database setup endpoint requires an admin session or the separate `HAJIMI_DB_SETUP_TOKEN` header. Production read paths do not run user-profile DDL during ordinary username lookup. Authentication, post creation, forum interactions, and project comments have a best-effort per-instance burst limiter; a shared provider-backed limiter can be added if traffic grows across many concurrent Vercel instances.

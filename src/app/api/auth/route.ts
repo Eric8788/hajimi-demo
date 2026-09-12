@@ -7,6 +7,7 @@ import { buildVerificationDraft } from '@/lib/verification';
 import { normalizeAvatarEmoji, normalizeAvatarThemeId } from '@/lib/avatarThemes';
 import { normalizeUserRole } from '@/lib/access';
 import bcrypt from 'bcryptjs';
+import { checkRateLimit, getClientKey } from '@/lib/rateLimit';
 
 type RegistrationRole = 'student' | 'teacher' | 'parent' | 'visitor';
 
@@ -18,6 +19,10 @@ function normalizeRegistrationRole(value: unknown): RegistrationRole {
 
 export async function POST(request: Request) {
     try {
+        const rate = checkRateLimit(getClientKey(request, 'auth'), 12, 10 * 60 * 1000);
+        if (!rate.allowed) {
+            return NextResponse.json({ error: '操作太频繁，请稍后再试。' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } });
+        }
         const body = await request.json();
         const username = normalizeUsernameInput(body.username);
         const { password, isRegister } = body;

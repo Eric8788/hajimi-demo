@@ -2,8 +2,9 @@ import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { cookies } from 'next/headers';
 import { getCachedSessionActiveStatus } from './serverSessionCache';
 
+const configuredSecret = process.env.HAJIMI_SESSION_SECRET?.trim();
 const SECRET_KEY = new TextEncoder().encode(
-    'h4jimi-sup3r-s3cr3t-k3y-d0nt-sh4r3' // In prod, use environment variable
+    configuredSecret || (process.env.NODE_ENV === 'production' ? '' : 'local-development-only-session-secret')
 );
 
 export type SessionPayload = JWTPayload & {
