@@ -1525,7 +1525,9 @@ export async function reviewCoinRedemptionRequest(adminId: number, requestId: nu
 }
 
 export async function getUser(username: string) {
-    await ensureUserProfileEnhancements();
+    if (shouldAutoEnsureReadSchema()) {
+        await ensureUserProfileEnhancements();
+    }
 
     const { rows } = await sql<User>`
       SELECT

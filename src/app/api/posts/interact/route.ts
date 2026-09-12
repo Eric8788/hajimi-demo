@@ -6,6 +6,7 @@ import { isVerifiedAccount } from '@/lib/verification';
 import { getInteractionBlockedMessage, isReadOnlyRole } from '@/lib/access';
 import { del, put } from '@vercel/blob';
 import { clearServerCache } from '@/lib/serverCache';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
 const DAILY_ATTACHMENT_LIMIT = 5;
@@ -88,6 +89,10 @@ export async function POST(request: Request) {
         const session = await getSession();
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         const userId = Number(session.userId);
+        const rate = checkRateLimit(`post-interaction:${userId}`, 60, 10 * 60 * 1000);
+        if (!rate.allowed) {
+            return NextResponse.json({ error: '互动太频繁，请稍后再试。' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } });
+        }
         const user = await getUserById(userId);
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         const canModerate = isAdminRole(user.role);

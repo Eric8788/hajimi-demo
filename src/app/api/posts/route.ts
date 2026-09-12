@@ -8,6 +8,7 @@ import { del, put } from '@vercel/blob';
 import { cachedServerValue, clearServerCache } from '@/lib/serverCache';
 import { normalizePostContentFormat } from '@/lib/forumContent';
 import { getRequestLogContext, logApiError } from '@/lib/apiLog';
+import { checkRateLimit, getClientKey } from '@/lib/rateLimit';
 
 const MAX_ATTACHMENT_SIZE = 1 * 1024 * 1024;
 const MAX_POST_ATTACHMENTS = 3;
@@ -187,6 +188,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const userId = Number(session.userId);
+        const rate = checkRateLimit(`post-write:${userId}:${getClientKey(request, 'post')}`, 12, 10 * 60 * 1000);
+        if (!rate.allowed) {
+            return NextResponse.json({ error: '发帖太频繁，请稍后再试。' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfter) } });
+        }
         const user = await getUserById(userId);
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
